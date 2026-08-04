@@ -23,8 +23,9 @@ export function stripLandmarkSuffixes(text: string): string {
   let cleaned = text.trim().toLowerCase();
 
   for (const suffix of initialDictionaryData.suffixes) {
-    const regex = new RegExp(`\\b${suffix}\\b`, 'gi');
-    cleaned = cleaned.replace(regex, '');
+    const escaped = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|\\s+)${escaped}(?:$|\\s+)`, 'gi');
+    cleaned = cleaned.replace(regex, ' ');
   }
 
   return cleaned.trim();

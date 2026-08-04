@@ -25,10 +25,10 @@ export async function handleDirectMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // 2. Classify intent
-  const classification = await classifyQuery(messageText);
+  // 2. Classify query intent
+  const classification = await classifyQuery(messageText, cityId, userId);
 
-  // 3. If landmark missing, present clarification wizard
+  // 3. If landmark missing/ambiguous and category exists, present clarification wizard
   if (!classification.landmark && classification.category) {
     const keyboard = new InlineKeyboard()
       .text('Karzinka', `area_korzinka_${classification.category}`)
@@ -49,7 +49,7 @@ export async function handleDirectMessage(ctx: Context, cityId: string) {
   });
 
   if (!searchResult) {
-    // Log missing request
+    // Log missing query
     await db.queryLog.create({
       data: {
         cityId,
@@ -67,5 +67,9 @@ export async function handleDirectMessage(ctx: Context, cityId: string) {
   }
 
   // Lichkada xabar o'chmaydi (Direct messages do not auto-delete)
-  await ctx.reply(searchResult.formattedText);
+  const keyboard = new InlineKeyboard()
+    .text('⭐ Baholash', `rate_${searchResult.listingId}`)
+    .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
+
+  await ctx.reply(searchResult.formattedText, { reply_markup: keyboard });
 }
