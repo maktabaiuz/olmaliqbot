@@ -1,12 +1,12 @@
-import { PrismaClient, ListingType } from '@prisma/client';
-import { INITIAL_DICTIONARY } from '@kimbor/core';
+import { PrismaClient } from '@prisma/client';
+import INITIAL_DICTIONARY from '../../core/src/dictionary/initialDictionary.json';
 
 const db = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding initial dictionary and Olmaliq city data...');
+  console.log('🌱 Seeding categories into database...');
 
-  // 1. Upsert City: Olmaliq
+  // 1. Upsert Olmaliq city
   const olmaliq = await db.city.upsert({
     where: { slug: 'olmaliq' },
     update: {},
@@ -20,7 +20,8 @@ async function main() {
 
   console.log(`✅ City created: ${olmaliq.name} (${olmaliq.id})`);
 
-  // 2. Seed Categories
+  // 2. Seed Categories (40+ trade categories & synonyms)
+  let catCount = 0;
   for (const cat of INITIAL_DICTIONARY.categories) {
     await db.category.upsert({
       where: { name: cat.name },
@@ -32,62 +33,10 @@ async function main() {
         synonyms: cat.synonyms,
       },
     });
+    catCount++;
   }
-  console.log(`✅ Seeded ${INITIAL_DICTIONARY.categories.length} trade categories.`);
-
-  // 3. Seed Landmarks for Olmaliq
-  const createdLandmarks: Record<string, string> = {};
-  for (const lm of INITIAL_DICTIONARY.olmaliq_landmarks) {
-    const existing = await db.landmark.findFirst({
-      where: { cityId: olmaliq.id, name: lm.official_name },
-    });
-
-    if (existing) {
-      createdLandmarks[lm.official_name] = existing.id;
-    } else {
-      const created = await db.landmark.create({
-        data: {
-          cityId: olmaliq.id,
-          name: lm.official_name,
-          synonyms: lm.folk_names,
-        },
-      });
-      createdLandmarks[lm.official_name] = created.id;
-    }
-  }
-  console.log(`✅ Seeded ${INITIAL_DICTIONARY.olmaliq_landmarks.length} landmarks for Olmaliq.`);
-
-  // 4. Seed Initial Listings (Gazavik Bahrom)
-  const gazavikCat = await db.category.findUnique({ where: { name: 'Gazavik' } });
-  const korzinkaLmId = createdLandmarks['Korzinka'];
-
-  if (gazavikCat && korzinkaLmId) {
-    const existingBahrom = await db.listing.findFirst({
-      where: { cityId: olmaliq.id, phone: '+998901234567' },
-    });
-
-    if (!existingBahrom) {
-      await db.listing.create({
-        data: {
-          cityId: olmaliq.id,
-          categoryId: gazavikCat.id,
-          type: ListingType.USTA,
-          name: 'Bahrom',
-          phone: '+998901234567',
-          primaryLandmarkId: korzinkaLmId,
-          workingHours: '08:00 - 18:00',
-          badges: ['uyga_boradi', 'kafolat'],
-          verification: 'VERIFIED', // ✅ Tasdiqlangan
-          completenessScore: 90,
-          bayesianRating: 4.4,
-          thumbsUpCount: 28,
-          thumbsDownCount: 4,
-        },
-      });
-      console.log('✅ Initial Listing "Bahrom (Gazavik)" created.');
-    }
-  }
-
+  console.log(`✅ Seeded ${catCount} trade categories into Category table.`);
+  console.log('ℹ️ Landmarks left empty as instructed.');
   console.log('🎉 Seeding completed successfully!');
 }
 
