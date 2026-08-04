@@ -8,12 +8,12 @@ describe('0-QAVAT: Kalit so\'z va Pattern filtri (0-Layer Filter)', () => {
     expect(zeroLayerFilter('карзинка олдида газовик борми?')).toBe(true);
   });
 
-  it('2. So\'roq so'zlari va kasb bo\'lganda o'tishi kerak', () => {
+  it("2. So'roq so'zlari va kasb bo'lganda o'tishi kerak", () => {
     expect(zeroLayerFilter('Bahrom degan kafelchi nomeri kerak edi')).toBe(true);
     expect(zeroLayerFilter('нужен сантехник срочно 3 мавзе')).toBe(true);
   });
 
-  it('3. Favqulodda kalit so'zlari bo'lganda srazi o'tishi kerak (so'roq belgisiz ham)', () => {
+  it("3. Favqulodda kalit so'zlari bo'lganda srazi o'tishi kerak (so'roq belgisiz ham)", () => {
     expect(zeroLayerFilter('uyda gaz hidi kelyapti nima qilay')).toBe(true);
     expect(zeroLayerFilter('пожар в доме срочно')).toBe(true);
     expect(zeroLayerFilter('одамни ток урди')).toBe(true);

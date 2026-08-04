@@ -1,0 +1,2 @@
+export declare const COMMON_AI_RULES = "\n- Return only the requested JSON. No markdown fences, no commentary.\n- Never invent a phone number, name, or address. null is always acceptable.\n- When two readings are possible, return the lower confidence, not the more helpful one.\n- Emergency classification always wins over any other interpretation.\n- You never see or handle data from more than one city at a time.\n";
+//# sourceMappingURL=commonRules.d.ts.map

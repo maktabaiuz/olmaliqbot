@@ -5,6 +5,7 @@ export * from './emergency';
 export * from './dictionary';
 export * from './search';
 export * from './transliteration';
+export * from './requests/queryLoop';
 
 export function calculateBayesianRating(thumbsUp: number, thumbsDown: number, globalAvg: number = 3.0, m: number = 5): number {
   const total = thumbsUp + thumbsDown;
