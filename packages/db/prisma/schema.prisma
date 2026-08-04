@@ -8,11 +8,12 @@ generator client {
 }
 
 enum Role {
+  USER                  // Oddiy guruh a'zosi / foydalanuvchi
   SUPER_ADMIN
   CITY_ADMIN
-  MODERATOR_APPROVER
-  MODERATOR_EDITOR
-  MODERATOR_VIEWER
+  MODERATOR_APPROVER    // Tasdiqlovchi
+  MODERATOR_EDITOR      // To'ldiruvchi
+  MODERATOR_VIEWER      // Kuzatuvchi
 }
 
 enum ListingType {
@@ -29,8 +30,8 @@ enum ListingStatus {
 }
 
 enum VerificationStatus {
-  VERIFIED
-  COMMUNITY_UNVERIFIED
+  VERIFIED             // ✅ Admin shaxsan ko'rishgan / Tasdiqlangan
+  COMMUNITY_UNVERIFIED   // ⚠️ Xalq aytgan / Tekshirilmagan
 }
 
 enum IntentType {
@@ -43,19 +44,53 @@ enum IntentType {
   NOT_RELEVANT
 }
 
+enum CandidateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CorrectionStatus {
+  NEW
+  APPLIED
+  IGNORED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentType {
+  PAYMENT
+  REFUND
+}
+
+enum CategoryRequestStatus {
+  PENDING
+  APPROVED
+  MERGED
+  REJECTED
+}
+
 model City {
   id              String   @id @default(uuid())
-  name            String
+  name            String   // Masalan: "Olmaliq"
   slug            String   @unique
   isActive        Boolean  @default(true)
   subscriptionEnd DateTime?
-  planType        String   @default("STANDARD")
+  planType        String   @default("STANDARD") // ASOSCHI, STANDART, KATTA_SHAHAR
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   users           User[]
   landmarks       Landmark[]
   listings        Listing[]
+  candidates      Candidate[]
+  corrections     Correction[]
+  payments        Payment[]
+  categoryRequests CategoryRequest[]
   queryLogs       QueryLog[]
   emergencyNumbers EmergencyNumber[]
   cityGroups      CityGroup[]
@@ -80,7 +115,7 @@ model User {
   firstName     String?
   lastName      String?
   username      String?
-  role          Role     @default(MODERATOR_VIEWER)
+  role          Role     @default(USER)
   cityId        String?
   city          City?    @relation(fields: [cityId], references: [id])
   passwordHash  String?
@@ -95,14 +130,15 @@ model User {
 
 model Category {
   id          String   @id @default(uuid())
-  name        String   @unique
+  name        String   @unique // Masalan: "gazavik"
   nameRu      String?
   nameCyrl    String?
-  synonyms    String[]
+  synonyms    String[] // ["газовщик", "газовик", "gaz ustasi"]
   description String?
   createdAt   DateTime @default(now())
 
   listings    Listing[]
+  candidates  Candidate[]
 
   @@map("categories")
 }
@@ -111,13 +147,15 @@ model Landmark {
   id          String   @id @default(uuid())
   cityId      String
   city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  name        String
-  synonyms    String[]
+  name        String   // Rasmiy nom: "Korzinka"
+  synonyms    String[] // Xalq nomlari: ["karzinka", "корзинка"]
   latitude    Float?
   longitude   Float?
   createdAt   DateTime @default(now())
 
-  primaryListings Listing[] @relation("PrimaryLandmark")
+  primaryListings   Listing[]  @relation("PrimaryLandmark")
+  serviceAreaListings Listing[] @relation("ServiceAreas")
+  candidates        Candidate[]
 
   @@map("landmarks")
 }
@@ -137,28 +175,29 @@ model Listing {
   primaryLandmark     Landmark           @relation("PrimaryLandmark", fields: [primaryLandmarkId], references: [id])
 
   // 2-Daraja: Muhim maydonlar
-  workingHours        String?
-  badges              String[]
-  serviceAreas        String[]
+  workFrom            String?            // "08:00"
+  workTo              String?            // "20:00"
+  badges              String[]           // ["uyga_boradi", "24_7", "kafolat", "karta_qabul_qiladi", "zudlik_bilan"]
+  serviceAreaLandmarks Landmark[]        @relation("ServiceAreas") // Ko'p-ko'pga bog'lanish
 
   // 3-Daraja: Ixtiyoriy maydonlar
-  specificServices    String?
-  approxPrice         String?
-  photoFileId         String?
+  specificServices    String?            // "kolonka ta'miri, plita o'rnatish"
+  approxPrice         String?            // Taxminiy narx
+  photoFileId         String?            // Telegram file_id (mo'ljal/ish namunasi)
   description         String?
 
   // Tizim maydonlari
   status              ListingStatus      @default(ACTIVE)
   verification        VerificationStatus @default(COMMUNITY_UNVERIFIED)
-  source              String             @default("manual")
+  source              String             @default("manual") // manual, archive, group, photo
   isSponsored         Boolean            @default(false)
   sponsorUntil        DateTime?
-  completenessScore   Int                @default(50)
+  completenessScore   Int                @default(50) // To'liqlik foizi
   
-  // Rating calculation (Bayesian average)
+  // Reyting hisoblash (Bayesian average)
   thumbsUpCount       Int                @default(0)
   thumbsDownCount     Int                @default(0)
-  bayesianRating      Float              @default(3.0)
+  bayesianRating      Float              @default(3.0) // 1.0 - 5.0 scale
 
   lastVerifiedAt      DateTime           @default(now())
   createdAt           DateTime           @default(now())
@@ -166,18 +205,113 @@ model Listing {
 
   reviews             Review[]
   history             ListingHistory[]
+  corrections         Correction[]
 
+  @@unique([cityId, phone])             // Bitta shaharda bir raqam ikki marta kiritilmasin
   @@index([cityId, categoryId])
   @@index([cityId, status])
   @@map("listings")
+}
+
+model Candidate {
+  id                String          @id @default(uuid())
+  cityId            String
+  city              City            @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  name              String
+  phone             String?
+  categoryId        String?
+  category          Category?       @relation(fields: [categoryId], references: [id])
+  primaryLandmarkId String?
+  primaryLandmark   Landmark?       @relation(fields: [primaryLandmarkId], references: [id])
+  workFrom          String?
+  workTo            String?
+  badges            String[]
+  source            String          @default("group") // archive, group, photo
+  mentionCount      Int             @default(1)
+  submittedBy       String?
+  status            CandidateStatus @default(PENDING)
+  createdAt         DateTime        @default(now())
+
+  @@map("candidates")
+}
+
+model Correction {
+  id             String           @id @default(uuid())
+  cityId         String
+  city           City             @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  listingId      String
+  listing        Listing          @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  telegramUserId BigInt
+  message        String
+  status         CorrectionStatus @default(NEW)
+  createdAt      DateTime         @default(now())
+
+  @@map("corrections")
+}
+
+model Application {
+  id                   String            @id @default(uuid())
+  fullName             String
+  phone                String
+  cityName             String
+  groupLink            String
+  channelLink          String?
+  about                String?
+  telegramUserId       BigInt
+  isGroupAdminVerified Boolean           @default(false)
+  paymentReceived      Boolean           @default(false)
+  status               ApplicationStatus @default(PENDING)
+  createdAt            DateTime          @default(now())
+
+  @@map("applications")
+}
+
+model Payment {
+  id          String      @id @default(uuid())
+  cityId      String
+  city        City        @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      String      // "CARD", "PAYME", "CLICK", "STARS"
+  type        PaymentType @default(PAYMENT)
+  periodStart DateTime
+  periodEnd   DateTime
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  @@map("payments")
+}
+
+model BotMessage {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  textLatin   String
+  textCyrillic String
+  textRussian String
+  isEmergency Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@map("bot_messages")
+}
+
+model CategoryRequest {
+  id            String                @id @default(uuid())
+  cityId        String
+  city          City                  @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  requestedName String
+  requestedBy   String
+  status        CategoryRequestStatus @default(PENDING)
+  mergedIntoId  String?
+  createdAt     DateTime              @default(now())
+
+  @@map("category_requests")
 }
 
 model ListingHistory {
   id          String   @id @default(uuid())
   listingId   String
   listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  changedBy   String
-  snapshot    Json
+  changedBy   String   // User ID or AI Agent ID
+  snapshot    Json     // Full snapshot of listing state before edit
   createdAt   DateTime @default(now())
 
   @@map("listing_histories")
@@ -194,6 +328,8 @@ model QueryLog {
   landmarkName      String?
   resolvedListingId String?
   isResolved        Boolean     @default(false)
+  notifiedAt        DateTime?   // User faqat 1 marta xabardor qilinadi
+  clusterKey        String?     // O'xshash so'rovlarni birlashtirish klyuchi
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])
@@ -204,8 +340,8 @@ model EmergencyNumber {
   id          String   @id @default(uuid())
   cityId      String
   city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  key         String
-  label       String
+  key         String   // "gas_emergency", "water_dept", "power_grid"
+  label       String   // "Gaz avariya", "Suv ta'minoti"
   phoneNumber String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -220,7 +356,7 @@ model Review {
   listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   userId      String
   user        User     @relation(fields: [userId], references: [id])
-  isPositive  Boolean
+  isPositive  Boolean  // true = 👍, false = 👎
   comment     String?
   createdAt   DateTime @default(now())
 
@@ -232,7 +368,7 @@ model AuditLog {
   userId      String?
   user        User?    @relation(fields: [userId], references: [id])
   cityId      String?
-  action      String
+  action      String   // "CREATE_LISTING", "DELETE_LANDMARK", "AI_COPILOT_ACTION"
   details     Json
   createdAt   DateTime @default(now())
 
