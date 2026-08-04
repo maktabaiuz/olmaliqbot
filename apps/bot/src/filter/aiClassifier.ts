@@ -13,8 +13,8 @@ const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number 
  */
 export async function classifyQuery(
   userMessage: string,
-  cityId: string,
-  telegramUserId: bigint,
+  cityId?: string,
+  telegramUserId?: bigint,
   apiKey?: string
 ): Promise<ClassifierResult> {
   const cleanText = userMessage.trim();
@@ -87,7 +87,7 @@ export async function classifyQuery(
       await db.queryLog.create({
         data: {
           cityId,
-          telegramUserId,
+          telegramUserId: telegramUserId || BigInt(0),
           rawMessage: cleanText,
           intent: result.intent,
           categoryName: result.category,

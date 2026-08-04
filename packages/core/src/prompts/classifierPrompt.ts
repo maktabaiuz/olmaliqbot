@@ -90,3 +90,5 @@ EXAMPLES
 
 ${COMMON_AI_RULES}
 `;
+
+export const classifierPrompt = CLASSIFIER_PROMPT;
