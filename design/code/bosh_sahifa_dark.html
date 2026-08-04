@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Kim bor? Admin - Bosh sahifa (Dark)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "on-primary-fixed": "#001e2f",
+                        "secondary-fixed-dim": "#85cfff",
+                        "on-error-container": "#93000a",
+                        "primary-fixed": "#c9e6ff",
+                        "background": "#f6faff",
+                        "inverse-primary": "#89ceff",
+                        "surface-bright": "#f6faff",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "secondary-container": "#54c0fd",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#c7e7ff",
+                        "primary-container": "#2aabee",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "on-primary-container": "#003c58",
+                        "surface": "#f6faff",
+                        "on-secondary-container": "#004c6d",
+                        "on-tertiary-fixed": "#2a1800",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#ffddb6",
+                        "primary": "#006591",
+                        "on-surface": "#171c20",
+                        "on-surface-variant": "#3e4850",
+                        "surface-tint": "#006591",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#dfe3e8",
+                        "surface-container-low": "#f0f4fa",
+                        "on-background": "#171c20",
+                        "surface-container-high": "#e4e8ee",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "outline-variant": "#bec8d2",
+                        "tertiary": "#845400",
+                        "on-secondary-fixed": "#001e2e",
+                        "outline": "#6e7881",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#eaeef4",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#d6dae0",
+                        "surface-container-highest": "#dfe3e8",
+                        "inverse-on-surface": "#edf1f7",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "tertiary-container": "#dd910f",
+                        "inverse-surface": "#2c3135",
+                        "primary-fixed-dim": "#89ceff",
+                        "secondary": "#00658e",
+                        "on-tertiary-container": "#503100"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "edge-margin": "16px",
+                        "stack-sm": "8px",
+                        "gutter": "12px",
+                        "stack-lg": "24px",
+                        "container-max": "680px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "body-secondary": ["Inter"],
+                        "title-bold": ["Inter"],
+                        "body-main": ["Inter"],
+                        "caption": ["Inter"],
+                        "section-label": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-secondary": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "title-bold": ["20px", { "lineHeight": "24px", "fontWeight": "700" }],
+                        "body-main": ["15px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }],
+                        "section-label": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Dark Theme Overrides for Telegram Mini App feel */
+        .dark body {
+            background-color: #17212B;
+            color: #FFFFFF;
+        }
+        .dark .bg-surface-custom { background-color: #1C2733; }
+        .dark .border-divider { border-color: #25313D; }
+        .dark .text-muted { color: #7D8E9E; }
+        .dark .bg-surface-elevated { background-color: #25313D; }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Subtle FAB Glow */
+        .fab-glow { box-shadow: 0 4px 12px rgba(42, 171, 238, 0.3); }
+        
+        /* Progress Ring Animation */
+        .progress-ring {
+            stroke-dasharray: 100;
+            stroke-dashoffset: 66; /* 1/3 completion approx */
+            transition: stroke-dashoffset 1s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-[#17212B] text-white font-body-main antialiased pb-24">
+<!-- Top App Bar Cluster (Web) -->
+<div class="hidden md:flex fixed top-0 left-0 w-full z-50 items-center justify-between px-edge-margin h-14 max-w-container-max mx-auto bg-surface dark:bg-surface-dim flat no shadows">
+<div class="flex items-center gap-4">
+<button class="p-2 -ml-2 text-primary dark:text-primary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-container-highest rounded-full transition-colors duration-200 active:opacity-70">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-title-bold text-title-bold text-on-surface dark:text-on-surface-variant">Kim bor?</h1>
+</div>
+<button class="p-2 -mr-2 text-on-surface-variant dark:text-outline hover:bg-surface-container-high dark:hover:bg-surface-container-highest rounded-full transition-colors duration-200 active:opacity-70">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<!-- Main Container -->
+<main class="max-w-container-max mx-auto px-edge-margin pt-4 md:pt-20">
+<!-- Header (Mobile Top) -->
+<header class="flex justify-between items-center mb-stack-lg md:hidden">
+<button class="flex items-center gap-1 bg-surface-elevated px-3 py-1.5 rounded-full border border-divider">
+<span class="font-body-main font-semibold">Olmaliq</span>
+<span class="material-symbols-outlined text-[18px] text-muted">expand_more</span>
+</button>
+<button class="text-muted p-2">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</header>
+<!-- Greeting -->
+<h1 class="font-title-bold text-title-bold mb-stack-md">Xayrli tong, Bobur</h1>
+<!-- AI Briefing Card -->
+<section class="bg-surface-custom rounded-xl p-4 mb-stack-lg border border-divider shadow-sm">
+<div class="flex gap-4 items-start mb-4">
+<div class="w-10 h-10 rounded-full bg-surface-elevated flex items-center justify-center shrink-0 overflow-hidden relative border border-divider">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<p class="font-body-main text-sm text-gray-200">
+                    Bugun 12 savolga javob berolmadim. Ko'pchiligi kafelchi haqida edi.
+                </p>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 bg-primary-container hover:bg-primary text-on-primary-container hover:text-white py-2 px-4 rounded-lg font-body-main font-semibold transition-colors flex justify-center items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Kafelchi qo'shish
+                </button>
+<button class="flex-1 border border-divider text-white hover:bg-surface-elevated py-2 px-4 rounded-lg font-body-main transition-colors">
+                    Keyinroq
+                </button>
+</div>
+</section>
+<!-- Task List -->
+<section class="mb-stack-lg">
+<!-- Shoshilinch -->
+<h2 class="font-section-label text-section-label text-error uppercase mb-stack-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+                SHOSHILINCH
+            </h2>
+<div class="flex flex-col gap-2 mb-stack-md">
+<!-- Task Row -->
+<div class="bg-surface-custom rounded-lg p-3 border border-divider flex items-center gap-3 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-[4px] bg-error"></div>
+<div class="pl-2 flex-1">
+<h3 class="font-body-main font-semibold">Taksist kerak</h3>
+<p class="font-body-secondary text-body-secondary text-muted truncate max-w-[200px]">3 ta foydalanuvchi so'radi</p>
+</div>
+<span class="material-symbols-outlined text-muted">chevron_right</span>
+</div>
+</div>
+<!-- Keyinroq -->
+<h2 class="font-section-label text-section-label text-muted uppercase mb-stack-sm">
+                KEYINROQ
+            </h2>
+<div class="flex flex-col gap-2">
+<!-- Task Row -->
+<div class="bg-surface-custom rounded-lg p-3 border border-divider flex items-center gap-3 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-[4px] bg-tertiary-fixed-dim"></div>
+<div class="pl-2 flex-1">
+<h3 class="font-body-main font-semibold">Santexnik ma'lumotini yangilash</h3>
+<p class="font-body-secondary text-body-secondary text-muted">2 hafta oldin qo'shilgan</p>
+</div>
+<span class="material-symbols-outlined text-muted">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Daily Progress Card (Bento Style) -->
+<section class="grid grid-cols-2 gap-3 mb-stack-lg">
+<div class="bg-surface-custom rounded-xl p-4 border border-divider flex flex-col items-center justify-center text-center">
+<div class="relative w-16 h-16 mb-2">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<!-- Background Circle -->
+<path class="text-surface-elevated" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+<!-- Progress Circle -->
+<path class="text-primary-container progress-ring" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+</svg>
+<div class="absolute inset-0 flex items-center justify-center font-body-main font-bold">
+                        1/3
+                    </div>
+</div>
+<h3 class="font-body-main text-sm">Kunlik reja</h3>
+</div>
+<div class="bg-surface-custom rounded-xl p-4 border border-divider flex flex-col justify-between">
+<div>
+<span class="material-symbols-outlined text-secondary-container mb-1" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+<h3 class="font-body-main text-sm text-muted">Aktivlik</h3>
+</div>
+<p class="font-title-bold text-title-bold">+24%</p>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (FAB) -->
+<button class="fixed bottom-20 right-edge-margin w-14 h-14 bg-gradient-to-tr from-primary to-primary-container rounded-full flex items-center justify-center text-white fab-glow z-40 transition-transform active:scale-95 md:hidden">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-2 max-w-container-max mx-auto bg-surface-custom border-t border-divider flat no shadows pb-safe">
+<!-- Active Tab: Bosh sahifa -->
+<a class="flex flex-col items-center justify-center bg-secondary-container/20 text-secondary-fixed-dim rounded-full px-4 py-1 font-bold transition-all duration-200 ease-in-out transform active:scale-95 group" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-caption text-caption mt-0.5">Bosh sahifa</span>
+</a>
+<!-- Inactive Tab: Qo'shish -->
+<a class="flex flex-col items-center justify-center text-muted px-4 py-1 transition-all duration-200 ease-in-out transform active:scale-95 group hover:text-white" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
+<span class="font-caption text-caption mt-0.5">Qo'shish</span>
+</a>
+<!-- Inactive Tab: So'rovlar (With Red Dot) -->
+<a class="flex flex-col items-center justify-center text-muted px-4 py-1 transition-all duration-200 ease-in-out transform active:scale-95 group hover:text-white relative" href="#">
+<div class="relative">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">history_edu</span>
+<span class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-error rounded-full border border-surface-custom"></span>
+</div>
+<span class="font-caption text-caption mt-0.5">So'rovlar</span>
+</a>
+<!-- Inactive Tab: Baza -->
+<a class="flex flex-col items-center justify-center text-muted px-4 py-1 transition-all duration-200 ease-in-out transform active:scale-95 group hover:text-white" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">database</span>
+<span class="font-caption text-caption mt-0.5">Baza</span>
+</a>
+<!-- Inactive Tab: Yana -->
+<a class="flex flex-col items-center justify-center text-muted px-4 py-1 transition-all duration-200 ease-in-out transform active:scale-95 group hover:text-white" href="#">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">more_horiz</span>
+<span class="font-caption text-caption mt-0.5">Yana</span>
+</a>
+</nav>
+<!-- Safe area padding for newer iOS devices -->
+<style>
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .pb-safe { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+        }
+    </style>
+</body></html>

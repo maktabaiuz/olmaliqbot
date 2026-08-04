@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Admin - So'rovlar</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-container": "#dd910f",
+                        "on-surface": "#171c20",
+                        "on-secondary-fixed": "#001e2e",
+                        "primary-fixed-dim": "#89ceff",
+                        "tertiary": "#845400",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "background": "#f6faff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "on-background": "#171c20",
+                        "inverse-on-surface": "#edf1f7",
+                        "secondary": "#00658e",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "surface-container-highest": "#dfe3e8",
+                        "primary-container": "#2aabee",
+                        "outline-variant": "#bec8d2",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#eaeef4",
+                        "inverse-primary": "#89ceff",
+                        "tertiary-fixed": "#ffddb6",
+                        "surface-dim": "#d6dae0",
+                        "primary-fixed": "#c9e6ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#503100",
+                        "secondary-fixed": "#c7e7ff",
+                        "on-secondary-container": "#004c6d",
+                        "on-primary-container": "#003c58",
+                        "surface-variant": "#dfe3e8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f0f4fa",
+                        "outline": "#6e7881",
+                        "on-surface-variant": "#3e4850",
+                        "surface-tint": "#006591",
+                        "secondary-fixed-dim": "#85cfff",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#e4e8ee",
+                        "secondary-container": "#54c0fd",
+                        "inverse-surface": "#2c3135",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed": "#2a1800",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "primary": "#006591",
+                        "surface": "#f6faff",
+                        "surface-bright": "#f6faff",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed": "#001e2f"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        full: "9999px",
+                        "2xl": "1rem",
+                        "3xl": "1.5rem"
+                    },
+                    spacing: {
+                        "stack-md": "16px",
+                        "edge-margin": "16px",
+                        "container-max": "680px",
+                        "stack-sm": "8px",
+                        "gutter": "12px",
+                        "stack-lg": "24px",
+                        "bottom-nav": "72px",
+                        "top-app-bar": "56px"
+                    },
+                    fontFamily: {
+                        "title-bold": ["Inter"],
+                        "caption": ["Inter"],
+                        "body-main": ["Inter"],
+                        "body-secondary": ["Inter"],
+                        "section-label": ["Inter"]
+                    },
+                    fontSize: {
+                        "title-bold": ["20px", { lineHeight: "24px", fontWeight: "700" }],
+                        "caption": ["11px", { lineHeight: "14px", fontWeight: "400" }],
+                        "body-main": ["15px", { lineHeight: "20px", fontWeight: "400" }],
+                        "body-secondary": ["13px", { lineHeight: "18px", fontWeight: "400" }],
+                        "section-label": ["11px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-panel {
+            background: rgba(246, 250, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        
+        /* Multi-select transition styles */
+        .card-checkbox {
+            opacity: 0;
+            width: 0;
+            margin-right: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+        .multi-select-active .card-checkbox {
+            opacity: 1;
+            width: 24px;
+            margin-right: 12px;
+        }
+        .multi-select-active .card-action-btn {
+            display: none;
+        }
+        #multi-select-bar {
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #multi-select-bar.show {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-surface-container-low text-on-surface font-body-main antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- Main Mobile Container Constraint -->
+<main class="max-w-container-max mx-auto h-[100dvh] flex flex-col relative bg-surface shadow-2xl overflow-hidden" id="app-container">
+<!-- TopAppBar -->
+<header class="bg-surface text-primary font-title-bold text-title-bold docked full-width top-0 bg-surface flat no shadows transition-colors duration-200 active:opacity-70 fixed top-0 left-0 w-full z-50 flex items-center justify-between px-edge-margin h-14 max-w-container-max mx-auto inset-x-0 border-b border-outline-variant/30">
+<button aria-label="Back" class="flex items-center justify-center p-2 -ml-2 text-primary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<h1 class="flex-1 text-center font-title-bold text-title-bold text-on-surface">So'rovlar</h1>
+<div class="flex items-center gap-3">
+<span class="font-body-secondary text-body-secondary text-on-surface-variant bg-surface-container px-2 py-1 rounded-full">22 ta</span>
+<button aria-label="Select Multiple" class="flex items-center justify-center p-2 -mr-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors" id="toggle-select-btn">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">checklist</span>
+</button>
+</div>
+</header>
+<!-- Category Filter Chips -->
+<div class="pt-[60px] pb-2 bg-surface z-40 border-b border-outline-variant/20 shadow-sm">
+<div class="overflow-x-auto no-scrollbar flex gap-2 px-edge-margin py-2 items-center">
+<button class="rounded-full px-5 py-2 border border-transparent font-section-label text-section-label whitespace-nowrap bg-primary text-on-primary shadow-md shadow-primary/20 transition-transform active:scale-95 flex items-center gap-1.5">
+                    Ustalar 
+                    <span class="bg-on-primary/20 px-1.5 rounded-full text-[10px]">8</span>
+</button>
+<button class="rounded-full px-5 py-2 border border-outline-variant text-on-surface-variant font-section-label text-section-label whitespace-nowrap hover:bg-surface-container transition-colors active:scale-95 flex items-center gap-1.5">
+                    Do'konlar
+                    <span class="bg-surface-container-highest px-1.5 rounded-full text-[10px]">3</span>
+</button>
+<button class="rounded-full px-5 py-2 border border-outline-variant text-on-surface-variant font-section-label text-section-label whitespace-nowrap hover:bg-surface-container transition-colors active:scale-95 flex items-center gap-1.5">
+                    Idoralar
+                    <span class="bg-surface-container-highest px-1.5 rounded-full text-[10px]">1</span>
+</button>
+</div>
+</div>
+<!-- Scrollable Content Area -->
+<div class="flex-1 overflow-y-auto px-edge-margin py-stack-md pb-bottom-nav space-y-stack-sm bg-surface-container-low" id="request-list">
+<!-- Card 1 -->
+<div class="group relative bg-surface rounded-2xl p-4 shadow-sm border border-outline-variant/10 overflow-hidden transition-all hover:shadow-md flex items-center" data-id="1">
+<!-- Left Accent Bar -->
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-error"></div>
+<!-- Multi-select Checkbox (Hidden initially) -->
+<div class="card-checkbox flex-shrink-0 flex items-center justify-center">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface bg-surface custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex-1 pl-2">
+<div class="flex justify-between items-start mb-1">
+<h2 class="font-body-main text-body-main font-bold text-on-surface leading-tight">kafelchi</h2>
+<div class="flex items-center gap-3">
+<span class="font-title-bold text-title-bold text-primary opacity-80">14</span>
+<button aria-label="Close" class="card-action-btn flex items-center justify-center text-outline hover:text-error transition-colors rounded-full p-1 -mr-1">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</div>
+</div>
+<p class="font-body-secondary text-body-secondary text-on-surface-variant mb-3 leading-snug">"kechasi ishlaydigan kafelchi bormi?"</p>
+<div class="flex items-center justify-between">
+<button class="card-action-btn inline-flex items-center justify-center bg-error text-on-error rounded-full px-3 py-1.5 font-section-label text-section-label transition-transform active:scale-95 shadow-sm">
+                            + Qo'shish
+                        </button>
+<span class="font-caption text-caption text-outline-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 10 min oldin
+                        </span>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group relative bg-surface rounded-2xl p-4 shadow-sm border border-outline-variant/10 overflow-hidden transition-all hover:shadow-md flex items-center" data-id="2">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-tertiary-container"></div>
+<div class="card-checkbox flex-shrink-0 flex items-center justify-center">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface bg-surface custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex-1 pl-2">
+<div class="flex justify-between items-start mb-1">
+<h2 class="font-body-main text-body-main font-bold text-on-surface leading-tight">plitkachi</h2>
+<div class="flex items-center gap-3">
+<span class="font-title-bold text-title-bold text-tertiary-container opacity-80">3</span>
+<button aria-label="Close" class="card-action-btn flex items-center justify-center text-outline hover:text-error transition-colors rounded-full p-1 -mr-1">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</div>
+</div>
+<p class="font-body-secondary text-body-secondary text-secondary mb-3 leading-snug flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">info</span> bazada bor: kafelchi
+                    </p>
+<div class="flex items-center justify-between">
+<button class="card-action-btn inline-flex items-center justify-center bg-tertiary-container text-on-tertiary-container rounded-full px-4 py-1.5 font-section-label text-section-label transition-transform active:scale-95 shadow-sm">
+                            Bog'lash
+                        </button>
+<span class="font-caption text-caption text-outline-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 1 soat oldin
+                        </span>
+</div>
+</div>
+</div>
+<!-- Card 3 (Stale) -->
+<div class="group relative bg-surface-container-lowest rounded-2xl p-4 shadow-none border border-outline-variant/30 overflow-hidden opacity-60 flex items-center grayscale-[20%]" data-id="3">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-outline-variant"></div>
+<div class="card-checkbox flex-shrink-0 flex items-center justify-center">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface bg-surface custom-checkbox" type="checkbox"/>
+</div>
+<div class="flex-1 pl-2">
+<div class="flex justify-between items-start mb-1">
+<h2 class="font-body-main text-body-main font-medium text-on-surface-variant leading-tight">natyajnoy potolok</h2>
+<div class="flex items-center gap-3">
+<span class="font-title-bold text-title-bold text-outline-variant opacity-80">5</span>
+<button aria-label="Close" class="card-action-btn flex items-center justify-center text-outline-variant hover:text-error transition-colors rounded-full p-1 -mr-1">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</div>
+</div>
+<p class="font-body-secondary text-body-secondary text-outline mb-2 leading-snug italic">oxirgi so'rov 2 oy oldin</p>
+<div class="flex items-center justify-between mt-2">
+<span class="font-caption text-caption text-outline-variant px-2 py-1 bg-surface-container rounded-md">Yopiq so'rov</span>
+</div>
+</div>
+</div>
+<!-- Spacer for bottom nav -->
+<div class="h-8"></div>
+</div>
+<!-- Multi-select Action Bar (Overlay) -->
+<div class="absolute bottom-0 left-0 w-full z-[60] bg-inverse-surface text-inverse-on-surface px-edge-margin py-4 flex items-center justify-between rounded-t-2xl shadow-[0_-8px_24px_rgba(0,0,0,0.12)]" id="multi-select-bar">
+<div class="flex items-center gap-3">
+<button class="text-inverse-on-surface p-1 rounded-full hover:bg-white/10 transition-colors" id="close-select-btn">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+<span class="font-body-main text-body-main font-semibold"><span id="selected-count">0</span> ta belgilandi</span>
+</div>
+<div class="flex gap-2">
+<button aria-label="Delete Selected" class="p-2 text-inverse-on-surface hover:bg-white/10 rounded-full transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">delete</span>
+</button>
+<button class="bg-primary-container text-on-primary-container px-4 py-2 rounded-full font-section-label text-section-label transition-transform active:scale-95 shadow-sm" id="yopish-action-btn">
+                    Yopish
+                </button>
+</div>
+</div>
+<!-- BottomNavBar -->
+<nav class="bg-surface dark:bg-surface-container-lowest text-primary dark:text-secondary-fixed-dim font-caption text-caption docked full-width bottom-0 border-t border-outline-variant/20 dark:border-outline flat no shadows transition-all duration-200 ease-in-out transform fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-2 max-w-container-max mx-auto inset-x-0 glass-panel" id="main-bottom-nav">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline px-4 py-1 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined mb-1 group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 0;">home</span>
+<span>Bosh sahifa</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline px-4 py-1 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined mb-1 group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 0;">add_circle</span>
+<span>Qo'shish</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container/14 dark:bg-secondary-container/20 text-primary dark:text-secondary-fixed-dim rounded-full px-4 py-1 font-bold shadow-sm group" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">history_edu</span>
+<span>So'rovlar</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline px-4 py-1 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined mb-1 group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 0;">database</span>
+<span>Baza</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline px-4 py-1 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined mb-1 group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 0;">more_horiz</span>
+<span>Yana</span>
+</a>
+</nav>
+</main>
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('app-container');
+            const toggleBtn = document.getElementById('toggle-select-btn');
+            const closeBtn = document.getElementById('close-select-btn');
+            const yopishActionBtn = document.getElementById('yopish-action-btn');
+            const multiSelectBar = document.getElementById('multi-select-bar');
+            const mainBottomNav = document.getElementById('main-bottom-nav');
+            const checkboxes = document.querySelectorAll('.custom-checkbox');
+            const selectedCountDisplay = document.getElementById('selected-count');
+
+            let isSelectMode = false;
+
+            function updateCount() {
+                const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+                selectedCountDisplay.textContent = checkedCount;
+            }
+
+            function toggleSelectMode(forceState) {
+                isSelectMode = forceState !== undefined ? forceState : !isSelectMode;
+                
+                if (isSelectMode) {
+                    container.classList.add('multi-select-active');
+                    multiSelectBar.classList.add('show');
+                    mainBottomNav.style.transform = 'translateY(100%)';
+                    
+                    // Auto-select first two for demonstration as requested by prompt
+                    if (Array.from(checkboxes).filter(cb => cb.checked).length === 0) {
+                        if(checkboxes[0]) checkboxes[0].checked = true;
+                        if(checkboxes[1]) checkboxes[1].checked = true;
+                    }
+                } else {
+                    container.classList.remove('multi-select-active');
+                    multiSelectBar.classList.remove('show');
+                    mainBottomNav.style.transform = 'translateY(0)';
+                    
+                    // Uncheck all when exiting
+                    checkboxes.forEach(cb => cb.checked = false);
+                }
+                updateCount();
+            }
+
+            toggleBtn.addEventListener('click', () => toggleSelectMode(true));
+            closeBtn.addEventListener('click', () => toggleSelectMode(false));
+            yopishActionBtn.addEventListener('click', () => toggleSelectMode(false));
+
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updateCount);
+                // Also allow clicking the whole card area to toggle when in select mode
+                const card = cb.closest('.group');
+                if (card) {
+                    card.addEventListener('click', (e) => {
+                        if (isSelectMode && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+                            cb.checked = !cb.checked;
+                            updateCount();
+                        }
+                    });
+                }
+            });
+        });
+    </script>
+</body></html>

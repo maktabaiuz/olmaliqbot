@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Yordamchi</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-low": "#f0f4fa",
+                    "on-primary": "#ffffff",
+                    "surface-tint": "#006591",
+                    "error": "#ba1a1a",
+                    "outline": "#6e7881",
+                    "surface-container-highest": "#dfe3e8",
+                    "outline-variant": "#bec8d2",
+                    "surface-bright": "#f6faff",
+                    "secondary": "#00658e",
+                    "on-error": "#ffffff",
+                    "surface-dim": "#d6dae0",
+                    "secondary-container": "#54c0fd",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary-fixed-variant": "#004c6e",
+                    "inverse-on-surface": "#edf1f7",
+                    "inverse-surface": "#2c3135",
+                    "on-surface": "#171c20",
+                    "on-tertiary-container": "#503100",
+                    "on-primary-container": "#003c58",
+                    "on-secondary-fixed-variant": "#004c6c",
+                    "tertiary-fixed-dim": "#ffb95a",
+                    "primary-container": "#2aabee",
+                    "surface-container-high": "#e4e8ee",
+                    "on-secondary-fixed": "#001e2e",
+                    "primary-fixed-dim": "#89ceff",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#845400",
+                    "on-tertiary-fixed": "#2a1800",
+                    "on-surface-variant": "#3e4850",
+                    "on-error-container": "#93000a",
+                    "background": "#f6faff",
+                    "surface-variant": "#dfe3e8",
+                    "secondary-fixed-dim": "#85cfff",
+                    "surface": "#f6faff",
+                    "secondary-fixed": "#c7e7ff",
+                    "primary-fixed": "#c9e6ff",
+                    "on-secondary-container": "#004c6d",
+                    "inverse-primary": "#89ceff",
+                    "surface-container": "#eaeef4",
+                    "tertiary-fixed": "#ffddb6",
+                    "primary": "#006591",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed": "#001e2f",
+                    "tertiary-container": "#dd910f",
+                    "on-tertiary-fixed-variant": "#643f00",
+                    "on-background": "#171c20"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "edge-margin": "16px",
+                    "gutter": "12px",
+                    "container-max": "680px",
+                    "stack-sm": "8px",
+                    "stack-lg": "24px"
+            },
+            "fontFamily": {
+                    "title-bold": ["Inter"],
+                    "body-secondary": ["Inter"],
+                    "section-label": ["Inter"],
+                    "caption": ["Inter"],
+                    "body-main": ["Inter"]
+            },
+            "fontSize": {
+                    "title-bold": ["20px", {"lineHeight": "24px", "fontWeight": "700"}],
+                    "body-secondary": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "section-label": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "caption": ["11px", {"lineHeight": "14px", "fontWeight": "400"}],
+                    "body-main": ["15px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-surface-dim text-on-background antialiased h-screen w-screen overflow-hidden flex justify-center">
+<!-- Main App Container (Max 680px width as per guidelines) -->
+<!-- Navigation shell is suppressed due to 'Close' transactional nature -->
+<main class="w-full max-w-container-max h-full flex flex-col bg-surface relative shadow-xl overflow-hidden">
+<!-- Header -->
+<header class="h-14 px-edge-margin flex items-center justify-between border-b border-outline-variant bg-surface-container-low shrink-0 z-20">
+<div class="flex items-center gap-2">
+<span class="text-[20px] leading-none">💬</span>
+<h1 class="font-title-bold text-title-bold text-on-surface">AI yordamchi</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center -mr-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-colors active:scale-95">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<!-- Chat Canvas -->
+<div class="flex-1 overflow-y-auto p-edge-margin flex flex-col gap-stack-md bg-surface-container-lowest z-10 scroll-smooth">
+<!-- User Message 1 -->
+<div class="self-end bg-primary text-on-primary px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm">
+<p class="font-body-main text-body-main">Bu oy nechta yangi usta qo'shildi?</p>
+</div>
+<!-- Assistant Message 1 -->
+<div class="self-start bg-surface-container-high text-on-surface px-4 py-3 rounded-2xl rounded-tl-sm max-w-[85%] shadow-sm">
+<p class="font-body-main text-body-main leading-relaxed">14 ta. 9 tasi tasdiqlangan, 5 tasi tekshirilmagan.</p>
+</div>
+<!-- User Message 2 -->
+<div class="self-end bg-primary text-on-primary px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[85%] shadow-sm mt-2">
+<p class="font-body-main text-body-main">Bahromni pauzaga qo'y</p>
+</div>
+<!-- Assistant Action Card (Bento/Glassmorphism inspired structured response) -->
+<div class="self-start bg-surface border-[1.5px] border-primary rounded-[18px] rounded-tl-sm p-4 w-full max-w-[90%] shadow-sm flex flex-col gap-3 relative overflow-hidden">
+<!-- Subtle gradient background for card -->
+<div class="absolute inset-0 bg-gradient-to-br from-primary-container/20 to-transparent pointer-events-none"></div>
+<div class="relative z-10 flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1; font-size: 18px;">check_circle</span>
+<span class="font-section-label text-section-label uppercase tracking-widest">BAJARILDI</span>
+</div>
+</div>
+<div class="relative z-10 bg-surface-container-low rounded-lg p-3 flex flex-wrap items-center gap-x-2 gap-y-1">
+<span class="font-body-main text-body-main font-semibold text-on-surface">Bahrom</span>
+<span class="text-outline-variant font-bold">·</span>
+<span class="font-body-main text-body-main text-on-surface-variant">faol</span>
+<span class="material-symbols-outlined text-outline text-[18px] translate-y-[1px]">arrow_right_alt</span>
+<span class="font-body-main text-body-main text-error font-medium px-2 py-0.5 bg-error-container/50 rounded-md">pauza</span>
+</div>
+<div class="relative z-10 mt-1 pt-3 border-t border-outline-variant/60 flex justify-end">
+<button class="flex items-center gap-1.5 text-secondary hover:text-primary active:opacity-70 transition-all group">
+<span class="material-symbols-outlined group-hover:-rotate-45 transition-transform duration-300" style="font-size: 18px;">undo</span>
+<span class="font-section-label text-section-label">Qaytarish</span>
+</button>
+</div>
+</div>
+<!-- Spacing at bottom to ensure last message isn't hidden behind input -->
+<div class="h-2 w-full shrink-0"></div>
+</div>
+<!-- Input Area (Fixed to bottom of app container) -->
+<div class="shrink-0 bg-surface border-t border-outline-variant p-3 px-edge-margin pb-6 md:pb-4 z-20 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
+<div class="flex items-end gap-2 bg-surface-container-high rounded-[24px] p-1.5 pr-2 border border-transparent focus-within:border-primary focus-within:bg-surface focus-within:shadow-[0_0_0_3px_rgba(0,101,145,0.1)] transition-all duration-200 group">
+<button class="w-10 h-10 flex items-center justify-center text-outline hover:text-primary transition-colors shrink-0 self-end mb-[2px]">
+<span class="material-symbols-outlined" style="font-size: 22px;">mic</span>
+</button>
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 resize-none py-[11px] px-1 font-body-main text-body-main text-on-surface placeholder:text-outline-variant min-h-[44px] max-h-[120px] scrollbar-hide" placeholder="Yozing yoki gapiring..." rows="1"></textarea>
+<button class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary text-on-primary flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,101,145,0.3)] hover:shadow-[0_6px_16px_rgba(0,101,145,0.4)] active:scale-95 transition-all self-end mb-[2px]">
+<span class="material-symbols-outlined translate-x-[1px]" style="font-size: 18px; font-variation-settings: 'FILL' 1;">send</span>
+</button>
+</div>
+</div>
+</main>
+<script>
+        // Simple auto-resize script for chat textarea to mimic native app feel
+        const textarea = document.querySelector('textarea');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            let newHeight = this.scrollHeight;
+            if (newHeight > 120) newHeight = 120; // Max height cap
+            this.style.height = newHeight + 'px';
+            
+            // Scroll to bottom of chat canvas when typing expands the input
+            const chatCanvas = document.querySelector('.flex-1.overflow-y-auto');
+            chatCanvas.scrollTop = chatCanvas.scrollHeight;
+        });
+
+        // Hide scrollbar for textarea in webkit browsers via CSS injection
+        const style = document.createElement('style');
+        style.textContent = `
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body></html>

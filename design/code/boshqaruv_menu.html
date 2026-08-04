@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boshqaruv</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#f0f4fa",
+                        "on-primary": "#ffffff",
+                        "surface-tint": "#006591",
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "surface-container-highest": "#dfe3e8",
+                        "outline-variant": "#bec8d2",
+                        "surface-bright": "#f6faff",
+                        "secondary": "#00658e",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d6dae0",
+                        "secondary-container": "#54c0fd",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "inverse-on-surface": "#edf1f7",
+                        "inverse-surface": "#2c3135",
+                        "on-surface": "#171c20",
+                        "on-tertiary-container": "#503100",
+                        "on-primary-container": "#003c58",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "primary-container": "#2aabee",
+                        "surface-container-high": "#e4e8ee",
+                        "on-secondary-fixed": "#001e2e",
+                        "primary-fixed-dim": "#89ceff",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#845400",
+                        "on-tertiary-fixed": "#2a1800",
+                        "on-surface-variant": "#3e4850",
+                        "on-error-container": "#93000a",
+                        "background": "#f6faff",
+                        "surface-variant": "#dfe3e8",
+                        "secondary-fixed-dim": "#85cfff",
+                        "surface": "#f6faff",
+                        "secondary-fixed": "#c7e7ff",
+                        "primary-fixed": "#c9e6ff",
+                        "on-secondary-container": "#004c6d",
+                        "inverse-primary": "#89ceff",
+                        "surface-container": "#eaeef4",
+                        "tertiary-fixed": "#ffddb6",
+                        "primary": "#006591",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#001e2f",
+                        "tertiary-container": "#dd910f",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-background": "#171c20"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-md": "16px",
+                        "edge-margin": "16px",
+                        "gutter": "12px",
+                        "container-max": "680px",
+                        "stack-sm": "8px",
+                        "stack-lg": "24px"
+                    },
+                    "fontFamily": {
+                        "title-bold": ["Inter", "sans-serif"],
+                        "body-secondary": ["Inter", "sans-serif"],
+                        "section-label": ["Inter", "sans-serif"],
+                        "caption": ["Inter", "sans-serif"],
+                        "body-main": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "title-bold": ["20px", { "lineHeight": "24px", "fontWeight": "700" }],
+                        "body-secondary": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "section-label": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }],
+                        "body-main": ["15px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased min-h-screen">
+<!-- Mobile-first constraints & Centering Container -->
+<div class="w-full max-w-container-max mx-auto min-h-screen relative flex flex-col shadow-sm bg-background">
+<!-- Header / TopAppBar (Modified for Sub-page/Back Navigation) -->
+<header class="flex items-center px-edge-margin h-14 w-full bg-surface sticky top-0 z-10 border-b border-outline-variant/40">
+<button aria-label="Orqaga" class="w-10 h-10 flex items-center justify-center -ml-2 rounded-full hover:bg-surface-container-low transition-colors text-primary active:opacity-80">
+<span class="material-symbols-outlined text-[24px]" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-title-bold text-title-bold text-on-surface ml-2">Boshqaruv</h1>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 px-edge-margin py-stack-md flex flex-col gap-stack-md">
+<!-- Management Menu List Card -->
+<div class="bg-surface rounded-xl border border-outline-variant/40 overflow-hidden flex flex-col shadow-sm">
+<!-- Row 1: Shaharlar -->
+<button class="w-full flex items-center justify-between p-stack-md border-b border-outline-variant/30 hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">🌍</span>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface">Shaharlar</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant mt-0.5">3 ta · 1 sozlanmoqda</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Row 2: Arizalar -->
+<button class="w-full flex items-center justify-between p-stack-md border-b border-outline-variant/30 hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">📄</span>
+<span class="font-body-main text-body-main text-on-surface">Arizalar</span>
+</div>
+<div class="flex items-center gap-gutter">
+<span class="bg-tertiary-container text-on-tertiary-container font-caption text-caption px-2 py-0.5 rounded-full font-medium">1 ta yangi</span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+</button>
+<!-- Row 3: To'lovlar -->
+<button class="w-full flex items-center justify-between p-stack-md border-b border-outline-variant/30 hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">💳</span>
+<span class="font-body-main text-body-main text-on-surface">To'lovlar</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Row 4: Umumiy statistika -->
+<button class="w-full flex items-center justify-between p-stack-md border-b border-outline-variant/30 hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">📊</span>
+<span class="font-body-main text-body-main text-on-surface">Umumiy statistika</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Row 5: Kategoriyalar va lug'at -->
+<button class="w-full flex items-center justify-between p-stack-md border-b border-outline-variant/30 hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">🏷</span>
+<span class="font-body-main text-body-main text-on-surface">Kategoriyalar va lug'at</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+<!-- Row 6: Bot matnlari (Last item, no border bottom) -->
+<button class="w-full flex items-center justify-between p-stack-md hover:bg-surface-container-low transition-colors active:bg-surface-container-high group text-left">
+<div class="flex items-center gap-gutter">
+<span class="text-[20px] w-8 h-8 flex items-center justify-center">💬</span>
+<span class="font-body-main text-body-main text-on-surface">Bot matnlari</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</main>
+</div>
+</body></html>

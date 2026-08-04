@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Shared UI States</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#89ceff",
+                        "tertiary-container": "#dd910f",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-highest": "#dfe3e8",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#001e2e",
+                        "inverse-primary": "#89ceff",
+                        "tertiary": "#845400",
+                        "on-surface-variant": "#3e4850",
+                        "surface-container-high": "#e4e8ee",
+                        "surface-dim": "#d6dae0",
+                        "secondary-container": "#54c0fd",
+                        "outline-variant": "#bec8d2",
+                        "outline": "#6e7881",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "primary-fixed": "#c9e6ff",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "surface-variant": "#dfe3e8",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#503100",
+                        "on-secondary-container": "#004c6d",
+                        "inverse-on-surface": "#edf1f7",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-surface": "#171c20",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#f0f4fa",
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#2c3135",
+                        "tertiary-fixed": "#ffddb6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#eaeef4",
+                        "primary-container": "#2aabee",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f6faff",
+                        "secondary": "#00658e",
+                        "secondary-fixed-dim": "#85cfff",
+                        "on-background": "#171c20",
+                        "on-primary": "#ffffff",
+                        "background": "#f6faff",
+                        "surface": "#f6faff",
+                        "on-tertiary-fixed": "#2a1800",
+                        "surface-tint": "#006591",
+                        "secondary-fixed": "#c7e7ff",
+                        "on-primary-container": "#003c58"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "gutter": "12px",
+                        "edge-margin": "16px",
+                        "container-max": "680px",
+                        "stack-lg": "24px"
+                    },
+                    "fontFamily": {
+                        "body-secondary": ["Inter"],
+                        "title-bold": ["Inter"],
+                        "section-label": ["Inter"],
+                        "body-main": ["Inter"],
+                        "caption": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-secondary": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "title-bold": ["20px", { "lineHeight": "24px", "fontWeight": "700" }],
+                        "section-label": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-main": ["15px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .shimmer {
+            background: linear-gradient(90deg, var(--tw-colors-surface-container) 0%, var(--tw-colors-surface-container-high) 50%, var(--tw-colors-surface-container) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite linear;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background max-w-container-max mx-auto md:bg-surface-dim font-body-main">
+<!-- Screen 1: Empty State -->
+<div class="min-h-screen bg-surface flex flex-col items-center justify-center p-edge-margin md:my-stack-md md:rounded-xl md:min-h-[600px] mb-stack-lg relative overflow-hidden">
+<div class="flex flex-col items-center text-center z-10 max-w-[320px]">
+<div class="w-24 h-24 mb-6 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-[48px] text-outline-variant" style="font-variation-settings: 'FILL' 1;">inbox</span>
+</div>
+<h2 class="font-title-bold text-title-bold text-on-surface mb-2">Hali hech kim qo'shilmagan</h2>
+<p class="font-body-secondary text-body-secondary text-on-surface-variant mb-8">Bazangiz hozircha bo'sh. Yangi ma'lumotlarni qo'shishni boshlang.</p>
+<button class="bg-primary text-on-primary font-section-label text-section-label px-6 py-3 rounded-full hover:bg-primary/90 transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                Birinchisini qo'shish
+            </button>
+</div>
+</div>
+<!-- Screen 2: Error Banners & Loading Skeletons -->
+<div class="min-h-screen bg-surface flex flex-col relative md:my-stack-md md:rounded-xl md:min-h-[600px] mb-stack-lg shadow-sm overflow-hidden">
+<!-- Amber Banner -->
+<div class="bg-[#FFF8E1] text-[#F57F17] px-edge-margin py-3 flex items-center gap-3 border-b border-[#FFE082]">
+<span class="material-symbols-outlined text-[20px]">wifi_off</span>
+<span class="font-body-secondary text-body-secondary font-medium">Internet yo'q. Ulanishni tekshiring.</span>
+</div>
+<!-- Red Banner -->
+<div class="bg-error-container text-on-error-container px-edge-margin py-3 flex items-center gap-3 border-b border-error/20">
+<span class="material-symbols-outlined text-[20px]">error</span>
+<span class="font-body-secondary text-body-secondary font-medium flex-1">Saqlanmadi — qayta urinish</span>
+<button class="text-error font-section-label text-section-label uppercase hover:underline">Qayta</button>
+</div>
+<div class="p-edge-margin flex-1">
+<h3 class="font-title-bold text-title-bold text-on-surface mb-stack-md">Ma'lumotlar yuklanmoqda</h3>
+<!-- Skeleton Task Row Card -->
+<div class="bg-surface border border-outline-variant/30 rounded-lg p-4 mb-stack-md flex gap-4 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-[6px] shimmer rounded-l-lg"></div>
+<div class="flex-1 ml-2">
+<div class="h-5 w-3/4 shimmer rounded mb-2"></div>
+<div class="h-4 w-1/2 shimmer rounded"></div>
+</div>
+<div class="h-6 w-16 shimmer rounded-full"></div>
+</div>
+<!-- Skeleton Task Row Card -->
+<div class="bg-surface border border-outline-variant/30 rounded-lg p-4 mb-stack-md flex gap-4 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-[6px] shimmer rounded-l-lg"></div>
+<div class="flex-1 ml-2">
+<div class="h-5 w-2/3 shimmer rounded mb-2"></div>
+<div class="h-4 w-1/3 shimmer rounded"></div>
+</div>
+<div class="h-6 w-16 shimmer rounded-full"></div>
+</div>
+<!-- Skeleton Record Row -->
+<div class="flex items-center gap-4 py-3 border-b border-outline-variant/20">
+<div class="w-10 h-10 rounded-full shimmer"></div>
+<div class="flex-1">
+<div class="h-5 w-1/2 shimmer rounded mb-1"></div>
+<div class="h-4 w-1/4 shimmer rounded"></div>
+</div>
+<div class="h-4 w-12 shimmer rounded"></div>
+</div>
+<div class="flex items-center gap-4 py-3 border-b border-outline-variant/20">
+<div class="w-10 h-10 rounded-full shimmer"></div>
+<div class="flex-1">
+<div class="h-5 w-3/4 shimmer rounded mb-1"></div>
+<div class="h-4 w-1/3 shimmer rounded"></div>
+</div>
+<div class="h-4 w-12 shimmer rounded"></div>
+</div>
+</div>
+</div>
+<!-- Screen 3: Locked State -->
+<div class="min-h-screen bg-surface flex flex-col items-center justify-center p-edge-margin md:my-stack-md md:rounded-xl md:min-h-[600px] relative overflow-hidden">
+<!-- Abstract locked background -->
+<div class="absolute inset-0 bg-surface-container-low opacity-50 z-0 flex items-center justify-center overflow-hidden pointer-events-none">
+<span class="material-symbols-outlined text-[300px] text-surface-container-highest opacity-30 -rotate-12 translate-x-12 translate-y-12">lock</span>
+</div>
+<div class="bg-surface/80 backdrop-blur-md border border-outline-variant/30 p-8 rounded-2xl flex flex-col items-center text-center z-10 max-w-[340px] shadow-lg">
+<div class="w-20 h-20 mb-6 rounded-full bg-error-container text-on-error-container flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[40px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<h2 class="font-title-bold text-title-bold text-on-surface mb-3">Obuna tugadi</h2>
+<p class="font-body-secondary text-body-secondary text-on-surface-variant mb-4">Tizimdan foydalanishni davom ettirish uchun obunani yangilang.</p>
+<div class="bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 mb-8 w-full text-left flex items-start gap-3">
+<span class="material-symbols-outlined text-[18px] text-tertiary-container mt-0.5">info</span>
+<p class="font-caption text-caption text-on-surface-variant leading-relaxed">Sizning ma'lumotlar bazangiz <strong class="text-on-surface">60 kun</strong> davomida xavfsiz saqlanadi. Ushbu muddatdan so'ng ular o'chirilishi mumkin.</p>
+</div>
+<button class="bg-primary text-on-primary font-section-label text-section-label px-8 py-3.5 rounded-full hover:bg-primary/90 transition-all shadow-md hover:shadow-lg w-full">
+                Obunani yangilash
+            </button>
+<button class="mt-4 text-primary font-section-label text-section-label px-4 py-2 rounded-full hover:bg-primary/10 transition-colors w-full">
+                Yordam xizmati
+            </button>
+</div>
+</div>
+</body></html>

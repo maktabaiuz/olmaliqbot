@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Onboarding - 3-qadam</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-low": "#f0f4fa",
+                        "on-primary": "#ffffff",
+                        "surface-tint": "#006591",
+                        "error": "#ba1a1a",
+                        "outline": "#6e7881",
+                        "surface-container-highest": "#dfe3e8",
+                        "outline-variant": "#bec8d2",
+                        "surface-bright": "#f6faff",
+                        "secondary": "#00658e",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d6dae0",
+                        "secondary-container": "#54c0fd",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "inverse-on-surface": "#edf1f7",
+                        "inverse-surface": "#2c3135",
+                        "on-surface": "#171c20",
+                        "on-tertiary-container": "#503100",
+                        "on-primary-container": "#003c58",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "primary-container": "#2aabee",
+                        "surface-container-high": "#e4e8ee",
+                        "on-secondary-fixed": "#001e2e",
+                        "primary-fixed-dim": "#89ceff",
+                        "error-container": "#ffdad6",
+                        "tertiary": "#845400",
+                        "on-tertiary-fixed": "#2a1800",
+                        "on-surface-variant": "#3e4850",
+                        "on-error-container": "#93000a",
+                        "background": "#f6faff",
+                        "surface-variant": "#dfe3e8",
+                        "secondary-fixed-dim": "#85cfff",
+                        "surface": "#f6faff",
+                        "secondary-fixed": "#c7e7ff",
+                        "primary-fixed": "#c9e6ff",
+                        "on-secondary-container": "#004c6d",
+                        "inverse-primary": "#89ceff",
+                        "surface-container": "#eaeef4",
+                        "tertiary-fixed": "#ffddb6",
+                        "primary": "#006591",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#001e2f",
+                        "tertiary-container": "#dd910f",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-background": "#171c20"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "stack-md": "16px",
+                        "edge-margin": "16px",
+                        "gutter": "12px",
+                        "container-max": "680px",
+                        "stack-sm": "8px",
+                        "stack-lg": "24px"
+                    },
+                    fontFamily: {
+                        "title-bold": ["Inter"],
+                        "body-secondary": ["Inter"],
+                        "section-label": ["Inter"],
+                        "caption": ["Inter"],
+                        "body-main": ["Inter"]
+                    },
+                    fontSize: {
+                        "title-bold": ["20px", { lineHeight: "24px", fontWeight: "700" }],
+                        "body-secondary": ["13px", { lineHeight: "18px", fontWeight: "400" }],
+                        "section-label": ["11px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "caption": ["11px", { lineHeight: "14px", fontWeight: "400" }],
+                        "body-main": ["15px", { lineHeight: "20px", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-main antialiased selection:bg-primary-container selection:text-on-primary-container">
+<div class="min-h-[100dvh] flex flex-col max-w-container-max mx-auto relative px-edge-margin pb-stack-lg pt-stack-md">
+<!-- Top Progress Bar -->
+<div class="flex flex-col gap-stack-sm mb-stack-lg mt-stack-md">
+<div class="flex justify-between items-center px-1">
+<span class="font-section-label text-section-label text-on-surface-variant uppercase tracking-widest">3-qadam / 3</span>
+</div>
+<div class="h-[6px] bg-surface-container-highest rounded-full overflow-hidden w-full">
+<!-- Progress filled two thirds as requested -->
+<div class="h-full bg-primary w-2/3 rounded-full transition-all duration-700 ease-out"></div>
+</div>
+</div>
+<!-- Center Content Canvas -->
+<div class="flex-grow flex flex-col justify-center items-center text-center gap-stack-lg">
+<!-- Contextual Graphic / Icon -->
+<div class="w-24 h-24 bg-surface-container-lowest rounded-full flex items-center justify-center shadow-[0_4px_24px_rgba(0,101,145,0.08)] mb-stack-sm border border-outline-variant/30">
+<span class="material-symbols-outlined text-primary" style="font-size: 40px; font-variation-settings: 'FILL' 1;">note_add</span>
+</div>
+<!-- Typography & Messaging -->
+<div class="flex flex-col gap-stack-sm items-center">
+<h1 class="font-title-bold text-title-bold text-on-surface">20 ta yozuv kiriting</h1>
+<p class="font-body-main text-body-main text-on-surface-variant max-w-[280px]">
+                    Tizimni to'liq ishga tushirish uchun ma'lumotlar bazasiga dastlabki yozuvlarni kiritishingiz so'raladi.
+                </p>
+</div>
+<!-- Large Counter Badge -->
+<div class="mt-stack-sm bg-surface-container-low py-4 px-10 rounded-2xl border border-outline-variant shadow-sm relative overflow-hidden group">
+<div class="absolute inset-0 bg-primary opacity-0 group-hover:opacity-5 transition-opacity"></div>
+<span class="font-title-bold text-title-bold text-primary tracking-widest" style="font-size: 28px; line-height: 32px;">0 / 20</span>
+</div>
+</div>
+<!-- Bottom Action Area -->
+<div class="mt-auto pt-stack-lg pb-stack-sm w-full">
+<button class="w-full h-[56px] bg-gradient-to-r from-primary to-secondary text-on-primary font-section-label text-section-label uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 hover:opacity-95 active:scale-[0.98] transition-all shadow-[0_8px_16px_rgba(0,101,145,0.2)]">
+                Boshlash
+                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

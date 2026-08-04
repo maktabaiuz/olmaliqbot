@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kategoriyalar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#f0f4fa",
+                      "on-primary": "#ffffff",
+                      "surface-tint": "#006591",
+                      "error": "#ba1a1a",
+                      "outline": "#6e7881",
+                      "surface-container-highest": "#dfe3e8",
+                      "outline-variant": "#bec8d2",
+                      "surface-bright": "#f6faff",
+                      "secondary": "#00658e",
+                      "on-error": "#ffffff",
+                      "surface-dim": "#d6dae0",
+                      "secondary-container": "#54c0fd",
+                      "surface-container-lowest": "#ffffff",
+                      "on-primary-fixed-variant": "#004c6e",
+                      "inverse-on-surface": "#edf1f7",
+                      "inverse-surface": "#2c3135",
+                      "on-surface": "#171c20",
+                      "on-tertiary-container": "#503100",
+                      "on-primary-container": "#003c58",
+                      "on-secondary-fixed-variant": "#004c6c",
+                      "tertiary-fixed-dim": "#ffb95a",
+                      "primary-container": "#2aabee",
+                      "surface-container-high": "#e4e8ee",
+                      "on-secondary-fixed": "#001e2e",
+                      "primary-fixed-dim": "#89ceff",
+                      "error-container": "#ffdad6",
+                      "tertiary": "#845400",
+                      "on-tertiary-fixed": "#2a1800",
+                      "on-surface-variant": "#3e4850",
+                      "on-error-container": "#93000a",
+                      "background": "#f6faff",
+                      "surface-variant": "#dfe3e8",
+                      "secondary-fixed-dim": "#85cfff",
+                      "surface": "#f6faff",
+                      "secondary-fixed": "#c7e7ff",
+                      "primary-fixed": "#c9e6ff",
+                      "on-secondary-container": "#004c6d",
+                      "inverse-primary": "#89ceff",
+                      "surface-container": "#eaeef4",
+                      "tertiary-fixed": "#ffddb6",
+                      "primary": "#006591",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#001e2f",
+                      "tertiary-container": "#dd910f",
+                      "on-tertiary-fixed-variant": "#643f00",
+                      "on-background": "#171c20"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-md": "16px",
+                      "edge-margin": "16px",
+                      "gutter": "12px",
+                      "container-max": "680px",
+                      "stack-sm": "8px",
+                      "stack-lg": "24px"
+              },
+              "fontFamily": {
+                      "title-bold": [
+                              "Inter"
+                      ],
+                      "body-secondary": [
+                              "Inter"
+                      ],
+                      "section-label": [
+                              "Inter"
+                      ],
+                      "caption": [
+                              "Inter"
+                      ],
+                      "body-main": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "title-bold": [
+                              "20px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-secondary": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "section-label": [
+                              "11px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "caption": [
+                              "11px",
+                              {
+                                      "lineHeight": "14px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-main": [
+                              "15px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f6faff;
+            color: #171c20;
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body class="bg-background pb-[80px]">
+<!-- Top App Bar -->
+<header class="flex items-center justify-between px-edge-margin h-14 w-full max-w-[680px] mx-auto docked full-width top-0 bg-surface dark:bg-surface-dim border-b border-outline-variant sticky z-40">
+<div class="flex items-center gap-4">
+<button class="text-primary dark:text-primary-fixed-dim hover:bg-surface-container-low transition-colors active:opacity-80 p-2 -ml-2 rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-title-bold text-title-bold text-primary flex items-baseline gap-2">
+                Kategoriyalar <span class="font-body-secondary text-body-secondary text-on-surface-variant font-normal">38</span>
+</h1>
+</div>
+<button class="text-primary dark:text-primary-fixed-dim hover:bg-surface-container-low transition-colors active:opacity-80 p-2 -mr-2 rounded-full">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</header>
+<main class="w-full max-w-[680px] mx-auto px-edge-margin pt-stack-md flex flex-col gap-stack-md">
+<!-- AI Suggestion Banner -->
+<section class="w-full bg-[#fff8e1] border border-[#ffc107] rounded-xl p-4 flex flex-col gap-3">
+<div class="flex items-center gap-2 text-[#b28900]">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+<span class="font-section-label text-section-label uppercase tracking-wider">AI taklifi</span>
+</div>
+<p class="font-body-main text-body-main text-on-surface">
+<strong>'kalonka master'</strong> → <strong>'gazavik'ga</strong> qo'shilsinmi?
+            </p>
+<div class="flex items-center gap-2 mt-1">
+<button class="flex-1 bg-primary text-on-primary font-section-label text-section-label py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity active:scale-[0.98]">
+<span class="material-symbols-outlined text-[16px]">merge</span>
+                    Birlashtirish
+                </button>
+<button class="flex-1 bg-surface-container-low text-primary border border-outline-variant font-section-label text-section-label py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined text-[16px]">add</span>
+                    Yangi yaratish
+                </button>
+</div>
+</section>
+<!-- Search Field -->
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full h-[48px] pl-11 pr-4 rounded-xl bg-surface-container-lowest border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none font-body-main text-body-main text-on-surface placeholder-on-surface-variant transition-all" placeholder="Kategoriya qidirish..." type="text"/>
+</div>
+<!-- Categories List -->
+<div class="flex flex-col gap-2">
+<!-- Standard Row -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-[4px] h-[32px] bg-primary rounded-full"></div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main font-semibold text-on-surface">Santexnik</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">7 usta · 3 sinonim</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-[4px] h-[32px] bg-primary rounded-full"></div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main font-semibold text-on-surface">Elektrik</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">12 usta · 2 sinonim</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Highlighted Row -->
+<div class="bg-surface-container-lowest border border-[#ffc107] rounded-xl p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer relative overflow-hidden">
+<div class="absolute inset-0 bg-[#ffc107]/5 pointer-events-none"></div>
+<div class="flex items-center gap-3 relative z-10">
+<div class="w-[4px] h-[32px] bg-[#ffc107] rounded-full"></div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main font-semibold text-on-surface">Kafelchi</span>
+<span class="font-body-secondary text-body-secondary text-[#b28900]">1 usta · sinonim yo'q</span>
+</div>
+</div>
+<div class="flex items-center gap-2 relative z-10">
+<span class="material-symbols-outlined text-[#ffc107] text-[18px]">error</span>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-[4px] h-[32px] bg-primary rounded-full"></div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main font-semibold text-on-surface">Gazavik</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">4 usta · 1 sinonim</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</div>
+</main>
+<!-- Bottom FAB Area (Replaced Nav as this is a specific management screen based on rules) -->
+<div class="fixed bottom-0 left-0 right-0 w-full z-40 bg-surface/80 backdrop-blur-md border-t border-outline-variant px-edge-margin py-4 max-w-[680px] mx-auto flex items-center justify-center">
+<button class="w-full max-w-[300px] bg-primary text-on-primary font-body-main text-body-main font-semibold h-[48px] rounded-full flex items-center justify-center gap-2 hover:bg-surface-tint transition-colors active:scale-[0.98] shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">add</span>
+            Yangi kategoriya
+        </button>
+</div>
+</body></html>

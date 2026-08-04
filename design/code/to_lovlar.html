@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html class="light" lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>To'lovlar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#89ceff",
+                        "tertiary-container": "#dd910f",
+                        "on-primary-fixed": "#001e2f",
+                        "surface-container-highest": "#dfe3e8",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#001e2e",
+                        "inverse-primary": "#89ceff",
+                        "tertiary": "#845400",
+                        "on-surface-variant": "#3e4850",
+                        "surface-container-high": "#e4e8ee",
+                        "surface-dim": "#d6dae0",
+                        "secondary-container": "#54c0fd",
+                        "outline-variant": "#bec8d2",
+                        "outline": "#6e7881",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "primary-fixed": "#c9e6ff",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "surface-variant": "#dfe3e8",
+                        "primary": "#006591",
+                        "on-tertiary-container": "#503100",
+                        "on-secondary-container": "#004c6d",
+                        "inverse-on-surface": "#edf1f7",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-surface": "#171c20",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#f0f4fa",
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#2c3135",
+                        "tertiary-fixed": "#ffddb6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#eaeef4",
+                        "primary-container": "#2aabee",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f6faff",
+                        "secondary": "#00658e",
+                        "secondary-fixed-dim": "#85cfff",
+                        "on-background": "#171c20",
+                        "on-primary": "#ffffff",
+                        "background": "#f6faff",
+                        "surface": "#f6faff",
+                        "on-tertiary-fixed": "#2a1800",
+                        "surface-tint": "#006591",
+                        "secondary-fixed": "#c7e7ff",
+                        "on-primary-container": "#003c58"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "gutter": "12px",
+                        "edge-margin": "16px",
+                        "container-max": "680px",
+                        "stack-lg": "24px"
+                    },
+                    "fontFamily": {
+                        "body-secondary": ["Inter"],
+                        "title-bold": ["Inter"],
+                        "section-label": ["Inter"],
+                        "body-main": ["Inter"],
+                        "caption": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-secondary": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "title-bold": ["20px", { "lineHeight": "24px", "fontWeight": "700" }],
+                        "section-label": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-main": ["15px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "caption": ["11px", { "lineHeight": "14px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased min-h-screen flex flex-col items-center">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 bg-surface dark:bg-surface-dim shadow-sm z-40 sticky">
+<div class="flex justify-between items-center px-edge-margin h-14 w-full max-w-container-max mx-auto">
+<button aria-label="Back" class="text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-full p-2 flex items-center justify-center -ml-2">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="text-title-bold font-title-bold text-on-surface">To'lovlar</h1>
+<div class="w-10"></div> <!-- Spacer for centering -->
+</div>
+<!-- Tabs -->
+<div class="flex w-full max-w-container-max mx-auto px-edge-margin pt-2 pb-0 border-b border-surface-variant">
+<button class="tab-btn flex-1 pb-3 text-center border-b-2 border-primary text-primary font-section-label text-section-label transition-colors" data-target="obunalar">
+                Obunalar
+            </button>
+<button class="tab-btn flex-1 pb-3 text-center border-b-2 border-transparent text-on-surface-variant hover:text-primary font-section-label text-section-label transition-colors" data-target="tarix">
+                Tarix
+            </button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="w-full max-w-container-max mx-auto px-edge-margin py-stack-md flex-1 pb-24">
+<!-- TAB 1: OBUNALAR -->
+<div class="tab-content active space-y-stack-md" id="obunalar">
+<!-- Summary Card -->
+<div class="bg-emerald-50 rounded-lg p-edge-margin border border-emerald-100 flex flex-col items-center justify-center text-center shadow-sm">
+<span class="font-section-label text-section-label text-emerald-700 uppercase tracking-wider mb-1">Oylik daromad</span>
+<span class="font-title-bold text-[28px] leading-tight text-emerald-600">598 000 so'm</span>
+</div>
+<div class="space-y-stack-sm mt-stack-md">
+<!-- Task Row Card: Paid -->
+<div class="bg-surface rounded-lg shadow-sm border border-surface-variant overflow-hidden flex relative group">
+<div class="w-1.5 bg-emerald-500 flex-shrink-0 absolute left-0 top-0 bottom-0 h-full"></div>
+<div class="pl-4 pr-3 py-3 flex-1 flex justify-between items-center ml-1.5">
+<div class="flex flex-col gap-0.5">
+<span class="font-body-main text-body-main text-on-surface font-semibold">Toshkent (Ali V.)</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">149 000 so'm / oy</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="bg-emerald-100 text-emerald-800 font-caption text-caption px-2 py-1 rounded-full whitespace-nowrap">
+                                24 kun qoldi
+                            </span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Task Row Card: Expiring soon -->
+<div class="bg-surface rounded-lg shadow-sm border border-surface-variant overflow-hidden flex relative group">
+<div class="w-1.5 bg-tertiary-container flex-shrink-0 absolute left-0 top-0 bottom-0 h-full"></div>
+<div class="pl-4 pr-3 py-3 flex-1 flex justify-between items-center ml-1.5">
+<div class="flex flex-col gap-0.5">
+<span class="font-body-main text-body-main text-on-surface font-semibold">Samarqand (Umid B.)</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">149 000 so'm / oy</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="bg-amber-100 text-amber-800 font-caption text-caption px-2 py-1 rounded-full whitespace-nowrap">
+                                3 kun qoldi
+                            </span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Task Row Card: Paid -->
+<div class="bg-surface rounded-lg shadow-sm border border-surface-variant overflow-hidden flex relative group">
+<div class="w-1.5 bg-emerald-500 flex-shrink-0 absolute left-0 top-0 bottom-0 h-full"></div>
+<div class="pl-4 pr-3 py-3 flex-1 flex justify-between items-center ml-1.5">
+<div class="flex flex-col gap-0.5">
+<span class="font-body-main text-body-main text-on-surface font-semibold">Buxoro (Jasur Q.)</span>
+<span class="font-body-secondary text-body-secondary text-on-surface-variant">149 000 so'm / oy</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="bg-emerald-100 text-emerald-800 font-caption text-caption px-2 py-1 rounded-full whitespace-nowrap">
+                                18 kun qoldi
+                            </span>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Muted Row: Owner's City -->
+<div class="bg-surface-container-low rounded-lg border border-surface-variant/50 overflow-hidden flex relative mt-2 opacity-80">
+<div class="w-1.5 bg-outline-variant flex-shrink-0 absolute left-0 top-0 bottom-0 h-full"></div>
+<div class="pl-4 pr-3 py-3 flex-1 flex justify-between items-center ml-1.5">
+<div class="flex flex-col gap-0.5">
+<span class="font-body-main text-body-main text-on-surface-variant">Andijon (Sizning shahar)</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-outline font-caption text-caption italic">
+                                o'z shahringiz — to'lovsiz
+                            </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- TAB 2: TARIX -->
+<div class="tab-content space-y-stack-sm" id="tarix">
+<h3 class="font-section-label text-section-label text-on-surface-variant mb-2 mt-1">OKTYABR 2023</h3>
+<!-- Transaction: Payment -->
+<div class="bg-surface rounded-lg p-3 border border-surface-variant flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="bg-emerald-100 text-emerald-600 rounded-full w-10 h-10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined" data-icon="arrow_downward">arrow_downward</span>
+</div>
+<div>
+<div class="font-body-main text-body-main text-on-surface font-semibold">Toshkent (Ali V.)</div>
+<div class="font-body-secondary text-body-secondary text-on-surface-variant">12 Okt • Payme</div>
+</div>
+</div>
+<div class="font-body-main text-body-main text-emerald-600 font-semibold text-right">
+                    +149 000
+                </div>
+</div>
+<!-- Transaction: Payment -->
+<div class="bg-surface rounded-lg p-3 border border-surface-variant flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="bg-emerald-100 text-emerald-600 rounded-full w-10 h-10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined" data-icon="arrow_downward">arrow_downward</span>
+</div>
+<div>
+<div class="font-body-main text-body-main text-on-surface font-semibold">Buxoro (Jasur Q.)</div>
+<div class="font-body-secondary text-body-secondary text-on-surface-variant">05 Okt • Click</div>
+</div>
+</div>
+<div class="font-body-main text-body-main text-emerald-600 font-semibold text-right">
+                    +149 000
+                </div>
+</div>
+<h3 class="font-section-label text-section-label text-on-surface-variant mb-2 mt-4">SENTYABR 2023</h3>
+<!-- Transaction: Refund -->
+<div class="bg-error-container/30 rounded-lg p-3 border border-error-container flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="bg-error/10 text-error rounded-full w-10 h-10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined" data-icon="arrow_upward">arrow_upward</span>
+</div>
+<div>
+<div class="font-body-main text-body-main text-on-surface font-semibold">Farg'ona (Bek)</div>
+<div class="font-body-secondary text-body-secondary text-error/80">28 Sen • Qaytarish</div>
+</div>
+</div>
+<div class="font-body-main text-body-main text-error font-semibold text-right">
+                    -149 000
+                </div>
+</div>
+<!-- Transaction: Payment -->
+<div class="bg-surface rounded-lg p-3 border border-surface-variant flex justify-between items-center">
+<div class="flex items-center gap-3">
+<div class="bg-emerald-100 text-emerald-600 rounded-full w-10 h-10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined" data-icon="arrow_downward">arrow_downward</span>
+</div>
+<div>
+<div class="font-body-main text-body-main text-on-surface font-semibold">Samarqand (Umid B.)</div>
+<div class="font-body-secondary text-body-secondary text-on-surface-variant">25 Sen • Naqd</div>
+</div>
+</div>
+<div class="font-body-main text-body-main text-emerald-600 font-semibold text-right">
+                    +149 000
+                </div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar explicitly suppressed as per rules -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Remove active states
+                    tabBtns.forEach(b => {
+                        b.classList.remove('border-primary', 'text-primary');
+                        b.classList.add('border-transparent', 'text-on-surface-variant');
+                    });
+                    tabContents.forEach(c => c.classList.remove('active'));
+
+                    // Add active states to clicked tab
+                    btn.classList.add('border-primary', 'text-primary');
+                    btn.classList.remove('border-transparent', 'text-on-surface-variant');
+                    
+                    const targetId = btn.getAttribute('data-target');
+                    document.getElementById(targetId).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body></html>

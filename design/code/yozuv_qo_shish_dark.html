@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="uz"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Kim bor? - Yangi yozuv</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed-dim": "#ffb95a",
+                        "secondary": "#00658e",
+                        "on-surface": "#171c20",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#2aabee",
+                        "surface-container-highest": "#dfe3e8",
+                        "inverse-on-surface": "#edf1f7",
+                        "surface-variant": "#dfe3e8",
+                        "secondary-fixed-dim": "#85cfff",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#54c0fd",
+                        "primary-fixed": "#c9e6ff",
+                        "secondary-fixed": "#c7e7ff",
+                        "surface-container-high": "#e4e8ee",
+                        "on-secondary-fixed-variant": "#004c6c",
+                        "on-background": "#171c20",
+                        "surface": "#1C2733",
+                        "on-tertiary-fixed-variant": "#643f00",
+                        "on-error": "#ffffff",
+                        "primary-fixed-dim": "#89ceff",
+                        "on-tertiary-fixed": "#2a1800",
+                        "tertiary": "#845400",
+                        "outline-variant": "#3e4850",
+                        "tertiary-container": "#dd910f",
+                        "surface-tint": "#006591",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#503100",
+                        "inverse-surface": "#2c3135",
+                        "on-secondary-container": "#004c6d",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "background": "#17212B",
+                        "surface-bright": "#1C2733",
+                        "on-primary-fixed": "#001e2f",
+                        "tertiary-fixed": "#ffddb6",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#243141",
+                        "inverse-primary": "#89ceff",
+                        "on-secondary-fixed": "#001e2e",
+                        "on-surface-variant": "#bec8d2",
+                        "primary": "#2aabee",
+                        "on-primary-container": "#003c58",
+                        "error": "#ff6b6b",
+                        "surface-dim": "#17212B",
+                        "surface-container-low": "#1a242f",
+                        "outline": "#6e7881"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.875rem",
+                        full: "9999px"
+                    },
+                    spacing: {
+                        "stack-sm": "8px",
+                        "stack-lg": "24px",
+                        "stack-md": "16px",
+                        "gutter": "12px",
+                        "edge-margin": "16px",
+                        "container-max": "680px"
+                    },
+                    fontFamily: {
+                        "section-label": ["Inter"],
+                        "body-main": ["Inter"],
+                        "caption": ["Inter"],
+                        "body-secondary": ["Inter"],
+                        "title-bold": ["Inter"]
+                    },
+                    fontSize: {
+                        "section-label": ["11px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "body-main": ["15px", { lineHeight: "20px", fontWeight: "400" }],
+                        "caption": ["11px", { lineHeight: "14px", fontWeight: "400" }],
+                        "body-secondary": ["13px", { lineHeight: "18px", fontWeight: "400" }],
+                        "title-bold": ["20px", { lineHeight: "24px", fontWeight: "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #17212B; color: #ffffff; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="antialiased min-h-screen pb-24 font-body-main">
+<!-- TopAppBar -->
+<header class="bg-surface sticky docked full-width top-0 border-b border-outline-variant z-40 flat no shadows">
+<div class="flex items-center justify-between px-edge-margin h-14 w-full max-w-container-max mx-auto">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">menu</span>
+<h1 class="font-title-bold text-title-bold text-primary">Yangi yozuv</h1>
+</div>
+<button class="w-8 h-8 rounded-full border border-primary text-primary flex items-center justify-center hover:bg-primary/10 transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+</button>
+</div>
+</header>
+<main class="w-full max-w-container-max mx-auto px-edge-margin pt-stack-md flex flex-col gap-stack-lg">
+<!-- Duplicate Warning -->
+<div class="bg-tertiary-fixed-dim/20 rounded-xl p-3 flex gap-3 items-start">
+<span class="material-symbols-outlined text-tertiary-fixed-dim mt-0.5">warning</span>
+<p class="font-body-secondary text-body-secondary text-tertiary-fixed-dim">Bazada o'xshash yozuv bor — Aziz, kafelchi, bozor oldi. Bir odammi?</p>
+</div>
+<!-- Completeness Bar -->
+<div class="bg-surface rounded-xl p-4 flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="font-body-main text-body-main text-on-surface-variant">To'ldirildi</span>
+<span class="font-title-bold text-[15px] text-on-secondary">4 / 11</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/3 rounded-full"></div>
+</div>
+</div>
+<!-- Required Fields -->
+<section class="flex flex-col gap-stack-sm">
+<h2 class="font-section-label text-section-label text-error uppercase px-1">MAJBURIY</h2>
+<div class="bg-surface rounded-xl p-4 flex flex-col gap-3">
+<div class="relative">
+<label class="block font-section-label text-section-label text-on-surface-variant mb-1">ISM</label>
+<input class="w-full bg-background border border-primary rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:ring-1 focus:ring-primary" type="text" value="Aziz"/>
+</div>
+<div class="relative">
+<label class="block font-section-label text-section-label text-on-surface-variant mb-1 flex justify-between">
+                        KASB
+                        <span class="text-[#4ade80] normal-case bg-[#4ade80]/10 px-2 rounded-full">mavjud</span>
+</label>
+<input class="w-full bg-background border border-primary rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:ring-1 focus:ring-primary" type="text" value="kafelchi"/>
+</div>
+<div class="relative">
+<label class="block font-section-label text-section-label text-on-surface-variant mb-1">TELEFON</label>
+<input class="w-full bg-background border border-primary rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:ring-1 focus:ring-primary" type="tel" value="+998 93 235 35 00"/>
+</div>
+<div class="relative">
+<label class="block font-section-label text-section-label text-on-surface-variant mb-1">ASOSIY MO'LJAL</label>
+<input class="w-full bg-background border border-primary rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:ring-1 focus:ring-primary" type="text" value="bozor orqasi"/>
+</div>
+</div>
+</section>
+<!-- Important Fields -->
+<section class="flex flex-col gap-stack-sm">
+<h2 class="font-section-label text-section-label text-tertiary-fixed-dim uppercase px-1">MUHIM</h2>
+<div class="bg-surface rounded-xl p-4 flex flex-col gap-4">
+<div>
+<label class="block font-section-label text-section-label text-on-surface-variant mb-2">ISH VAQTI</label>
+<div class="flex gap-3">
+<input class="flex-1 bg-background border border-outline-variant rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:border-primary" type="time" value="08:00"/>
+<input class="flex-1 bg-background border border-outline-variant rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary focus:outline-none focus:border-primary" type="time" value="20:00"/>
+</div>
+</div>
+<div>
+<label class="block font-section-label text-section-label text-on-surface-variant mb-2">BELGILAR</label>
+<div class="flex flex-wrap gap-2">
+<button class="bg-primary text-on-primary px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-primary">Uyga boradi</button>
+<button class="bg-primary text-on-primary px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-primary">Kafolat</button>
+<button class="bg-background text-on-surface-variant px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-dashed border-outline-variant hover:border-primary transition-colors">+ belgi qo'shish</button>
+</div>
+</div>
+<div>
+<label class="block font-section-label text-section-label text-on-surface-variant mb-2">XIZMAT HUDUDI</label>
+<div class="flex flex-wrap gap-2">
+<button class="bg-primary text-on-primary px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-primary">3-mavze</button>
+<button class="bg-primary text-on-primary px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-primary">4-mavze</button>
+<button class="bg-background text-on-surface-variant px-3 py-1.5 rounded-full font-body-secondary text-body-secondary border border-dashed border-outline-variant hover:border-primary transition-colors">+ hudud</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Optional Fields -->
+<section class="flex flex-col gap-stack-sm">
+<h2 class="font-section-label text-section-label text-on-surface-variant uppercase px-1">IXTIYORIY</h2>
+<div class="bg-surface rounded-xl p-4 flex flex-col gap-3">
+<input class="w-full bg-background border border-outline-variant rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary placeholder-on-surface-variant focus:outline-none focus:border-primary" placeholder="ANIQ XIZMATLARI" type="text"/>
+<input class="w-full bg-background border border-outline-variant rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary placeholder-on-surface-variant focus:outline-none focus:border-primary" placeholder="NARX" type="text"/>
+<textarea class="w-full bg-background border border-outline-variant rounded-lg px-4 py-3 font-body-main text-body-main text-on-secondary placeholder-on-surface-variant focus:outline-none focus:border-primary" placeholder="IZOH" rows="2"></textarea>
+</div>
+</section>
+<!-- Trust Status -->
+<section class="bg-surface rounded-xl p-4">
+<label class="block font-section-label text-section-label text-on-surface-variant mb-3">HOLAT</label>
+<div class="flex bg-background rounded-lg p-1">
+<button class="flex-1 py-2 rounded-md font-body-secondary text-body-secondary text-on-surface-variant transition-colors">✅ Tasdiqlangan</button>
+<button class="flex-1 py-2 rounded-md bg-surface text-on-secondary font-body-secondary text-body-secondary shadow-sm transition-colors">⚠️ Xalq aytgan</button>
+</div>
+</section>
+<!-- Actions -->
+<div class="flex flex-col gap-3 mt-4">
+<button class="w-full bg-gradient-to-r from-primary to-secondary text-on-primary py-3.5 rounded-xl font-title-bold text-title-bold shadow-[0_4px_14px_0_rgba(42,171,238,0.39)] active:scale-[0.98] transition-transform">Saqlash</button>
+<button class="w-full text-on-surface-variant py-3 rounded-xl font-body-main text-body-main active:bg-surface transition-colors">Bekor qilish</button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="bg-surface docked full-width bottom-0 border-t border-outline-variant z-50 flat no shadows fixed left-0 right-0 h-16 max-w-container-max mx-auto px-2">
+<ul class="flex justify-around items-center h-full">
+<li class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:scale-95 duration-100 cursor-pointer w-16">
+<span class="material-symbols-outlined">home</span>
+<span class="font-caption text-caption mt-1">Bosh sahifa</span>
+</li>
+<li class="flex flex-col items-center justify-center bg-primary-container/14 text-primary rounded-full px-4 py-1 hover:bg-surface-container-high transition-all active:scale-95 duration-100 cursor-pointer w-auto">
+<span class="material-symbols-outlined fill">add_circle</span>
+<span class="font-caption text-caption mt-1">Qo'shish</span>
+</li>
+<li class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:scale-95 duration-100 cursor-pointer w-16">
+<span class="material-symbols-outlined">message</span>
+<span class="font-caption text-caption mt-1">So'rovlar</span>
+</li>
+<li class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:scale-95 duration-100 cursor-pointer w-16">
+<span class="material-symbols-outlined">database</span>
+<span class="font-caption text-caption mt-1">Baza</span>
+</li>
+<li class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all active:scale-95 duration-100 cursor-pointer w-16">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="font-caption text-caption mt-1">Yana</span>
+</li>
+</ul>
+</nav>
+</body></html>
