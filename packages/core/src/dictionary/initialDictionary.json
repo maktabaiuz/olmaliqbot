@@ -1,0 +1,275 @@
+{
+  "categories": [
+    {
+      "id": "gazavik",
+      "name": "Gazavik",
+      "synonyms": ["gazovik", "gaz ustasi", "gaz mastir", "kolonka ustasi", "gaz kolonka ustasi", "plita ustasi", "газавик", "газовщик", "газ устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "santexnik",
+      "name": "Santexnik",
+      "synonyms": ["suv ustasi", "quvur ustasi", "santexnika ustasi", "сантехник", "сув устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "elektrik",
+      "name": "Elektrik",
+      "synonyms": ["elektr ustasi", "elektromontyor", "svet ustasi", "электрик", "электр устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "svarshik",
+      "name": "Svarshik",
+      "synonyms": ["payvandchi", "svarka ustasi", "svarshchik", "сварщик", "пайвандчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "kafelchi",
+      "name": "Kafelchi",
+      "synonyms": ["plitkachi", "kafel ustasi", "kafel yotqizuvchi", "plitka ustasi", "плиточник", "кафельчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "shtukaturchi",
+      "name": "Shtukaturchi",
+      "synonyms": ["suvoqchi", "shtukatur", "штукатур", "сувоқчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "malyar",
+      "name": "Malyar",
+      "synonyms": ["bo'yoqchi", "bo'yash ustasi", "маляр", "бўёқчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "natyajnoy",
+      "name": "Natyajnoy",
+      "synonyms": ["natyajnoy potolok", "cho'ziluvchi shift", "натяжной потолок"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "gipsokarton",
+      "name": "Gipsokarton",
+      "synonyms": ["gipsokarton ustasi", "shift ustasi", "гипсокартон"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "eshik-deraza",
+      "name": "Eshik-deraza",
+      "synonyms": ["plastik deraza", "stekloplaket", "okna", "deraza ustasi", "пластик дераза", "окна", "стеклопакет"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "qulf-ustasi",
+      "name": "Qulf ustasi",
+      "synonyms": ["eshik qulfi", "zamok ustasi", "замочник", "қулф устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "tom-ustasi",
+      "name": "Tom ustasi",
+      "synonyms": ["shifer ustasi", "tom yopish", "krovelshik", "кровельщик", "том устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "betonchi",
+      "name": "Betonchi",
+      "synonyms": ["beton quyish", "бетонщик"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "gisht-teruvchi",
+      "name": "G'isht teruvchi",
+      "synonyms": ["quruvchi", "kamenshik", "каменщик", "ғишт теровчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "temirchi",
+      "name": "Temirchi",
+      "synonyms": ["kuznets", "metall ustasi", "кузнец", "темирчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "burgulash",
+      "name": "Burg'ulash",
+      "synonyms": ["perforator", "teshik teshish", "бурение", "перфоратор"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "konditsioner-ustasi",
+      "name": "Konditsioner ustasi",
+      "synonyms": ["split ustasi", "konditsioner o'rnatuvchi", "konditsioner ta'mirlash", "кондиционерщик", "сплит устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "muzlatgich-ustasi",
+      "name": "Muzlatgich ustasi",
+      "synonyms": ["xolodilnik ustasi", "muzlatkich", "холодильщик", "холодильник устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "kir-yuvish-mashinasi-ustasi",
+      "name": "Kir yuvish mashinasi ustasi",
+      "synonyms": ["stiralka ustasi", "mashinka ustasi", "стиральная машина устаси", "стиралка"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "televizor-ustasi",
+      "name": "Televizor ustasi",
+      "synonyms": ["telemaster", "TV ustasi", "телемастер", "телевизор устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "kompyuter-ustasi",
+      "name": "Kompyuter ustasi",
+      "synonyms": ["noutbuk ustasi", "komp ustasi", "компьютерный мастер", "ноутбук устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "telefon-ustasi",
+      "name": "Telefon ustasi",
+      "synonyms": ["telefon ta'mirlash", "ekran almashtirish", "телефон устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "isitish-ustasi",
+      "name": "Isitish ustasi",
+      "synonyms": ["kotyol ustasi", "batareya ustasi", "отопление устаси", "котёл"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "avtoelektrik",
+      "name": "Avtoelektrik",
+      "synonyms": ["mashina elektrigi", "автоэлектрик"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "avtomexanik",
+      "name": "Avtomexanik",
+      "synonyms": ["mashina ustasi", "motorist", "автомеханик", "машина устаси"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "shinamontaj",
+      "name": "Shinamontaj",
+      "synonyms": ["shina ustasi", "balansirovka", "rezina almashtirish", "шиномонтаж"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "avtomoyka",
+      "name": "Avtomoyka",
+      "synonyms": ["mashina yuvish", "moyka", "автомойка"],
+      "object_type": "DOKON_OBYEKT"
+    },
+    {
+      "id": "evakuator",
+      "name": "Evakuator",
+      "synonyms": ["tortuvchi mashina", "эвакуатор"],
+      "object_type": "TRANSPORT"
+    },
+    {
+      "id": "taksi",
+      "name": "Taksi",
+      "synonyms": ["mashina", "yo'lovchi tashish", "такси"],
+      "object_type": "TRANSPORT"
+    },
+    {
+      "id": "yuk-mashinasi",
+      "name": "Yuk mashinasi",
+      "synonyms": ["gruzovoy", "yuk tashish", "gruzovik", "грузовая", "юк ташиш"],
+      "object_type": "TRANSPORT"
+    },
+    {
+      "id": "gruzchik",
+      "name": "Gruzchik",
+      "synonyms": ["yuk ko'taruvchi", "ko'chirish", "грузчик", "юк кўтарувчи"],
+      "object_type": "USTA"
+    },
+    {
+      "id": "dorixona",
+      "name": "Dorixona",
+      "synonyms": ["apteka", "аптека", "дорихона"],
+      "object_type": "DOKON_OBYEKT"
+    },
+    {
+      "id": "non-dokoni",
+      "name": "Non do'koni",
+      "synonyms": ["nonvoyxona", "tandir", "pekarnya", "пекарня", "нон дўкони"],
+      "object_type": "DOKON_OBYEKT"
+    },
+    {
+      "id": "oziq-ovqat",
+      "name": "Oziq-ovqat",
+      "synonyms": ["produkt", "magazin", "продукты", "магазин"],
+      "object_type": "DOKON_OBYEKT"
+    },
+    {
+      "id": "qurilish-dokoni",
+      "name": "Qurilish do'koni",
+      "synonyms": ["stroymateriali", "qurilish mollari", "стройматериалы"],
+      "object_type": "DOKON_OBYEKT"
+    },
+    {
+      "id": "shifoxona",
+      "name": "Shifoxona",
+      "synonyms": ["kasalxona", "poliklinika", "больница", "поликлиника", "шифохона"],
+      "object_type": "MUASSASA"
+    },
+    {
+      "id": "notarius",
+      "name": "Notarius",
+      "synonyms": ["нотариус"],
+      "object_type": "MUASSASA"
+    },
+    {
+      "id": "bank",
+      "name": "Bank",
+      "synonyms": ["банк"],
+      "object_type": "MUASSASA"
+    }
+  ],
+  "olmaliq_landmarks": [
+    {
+      "official_name": "Korzinka",
+      "folk_names": ["karzinka", "korzinka", "карзинка", "корзинка"]
+    },
+    {
+      "official_name": "Markaziy Bozor",
+      "folk_names": ["bozor", "markaziy bozor", "бозор", "марказий бозор"]
+    },
+    {
+      "official_name": "3-mavze",
+      "folk_names": ["3-mavze", "3 mavze", "uchinchi mavze", "3-мавзе", "3 мавзе", "третий микрорайон"]
+    },
+    {
+      "official_name": "Eski Bozor",
+      "folk_names": ["eski bozor", "эски бозор"]
+    },
+    {
+      "official_name": "Avtostansiya",
+      "folk_names": ["avtovokzal", "avtostansiya", "автостанция", "автовокзал"]
+    },
+    {
+      "official_name": "Poliklinika",
+      "folk_names": ["shahar poliklinikasi", "markaziy poliklinika", "поликлиника"]
+    }
+  ],
+  "suffixes": [
+    "oldi", "oldida", "orqasi", "orqasida", "yoni", "yonida",
+    "atrofi", "atrofida", "yaqinida", "yaqin", "ro'parasi", "qarshisida",
+    "tepasi", "pastida", "ichida", "tomonda",
+    "рядом", "около", "возле", "напротив", "за", "перед"
+  ],
+  "question_words": [
+    "kim bor", "kim biladi", "kim bilsa", "bilasizmi", "bilasizlarmi",
+    "aytinglar", "aytib yuboringlar", "kerak edi", "kerak", "zarur",
+    "tavsiya qilinglar", "maslahat beringlar",
+    "nomeri", "nomer", "raqami", "raqam", "telefoni", "telefon",
+    "nechigacha", "ochiqmi", "ishlaydimi",
+    "qayerda", "qayerdan topaman", "manzili",
+    "qancha", "qanchaga", "narxi",
+    "кто знает", "подскажите", "кто-нибудь", "нужен", "нужна", "надо",
+    "номер", "телефон", "контакт", "где", "сколько"
+  ]
+}

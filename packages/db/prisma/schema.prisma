@@ -1,0 +1,240 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  CITY_ADMIN
+  MODERATOR_APPROVER
+  MODERATOR_EDITOR
+  MODERATOR_VIEWER
+}
+
+enum ListingType {
+  USTA
+  DOKON_OBYEKT
+  MUASSASA
+  TRANSPORT
+}
+
+enum ListingStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum VerificationStatus {
+  VERIFIED
+  COMMUNITY_UNVERIFIED
+}
+
+enum IntentType {
+  CONTACT
+  SERVICE
+  HOURS
+  LOCATION
+  PRICE
+  EMERGENCY
+  NOT_RELEVANT
+}
+
+model City {
+  id              String   @id @default(uuid())
+  name            String
+  slug            String   @unique
+  isActive        Boolean  @default(true)
+  subscriptionEnd DateTime?
+  planType        String   @default("STANDARD")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users           User[]
+  landmarks       Landmark[]
+  listings        Listing[]
+  queryLogs       QueryLog[]
+  emergencyNumbers EmergencyNumber[]
+  cityGroups      CityGroup[]
+
+  @@map("cities")
+}
+
+model CityGroup {
+  id          String   @id @default(uuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  chatId      BigInt   @unique
+  title       String?
+  createdAt   DateTime @default(now())
+
+  @@map("city_groups")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  telegramId    BigInt   @unique
+  firstName     String?
+  lastName      String?
+  username      String?
+  role          Role     @default(MODERATOR_VIEWER)
+  cityId        String?
+  city          City?    @relation(fields: [cityId], references: [id])
+  passwordHash  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  reviews       Review[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  nameRu      String?
+  nameCyrl    String?
+  synonyms    String[]
+  description String?
+  createdAt   DateTime @default(now())
+
+  listings    Listing[]
+
+  @@map("categories")
+}
+
+model Landmark {
+  id          String   @id @default(uuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  name        String
+  synonyms    String[]
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+
+  primaryListings Listing[] @relation("PrimaryLandmark")
+
+  @@map("landmarks")
+}
+
+model Listing {
+  id                  String             @id @default(uuid())
+  cityId              String
+  city                City               @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  categoryId          String
+  category            Category           @relation(fields: [categoryId], references: [id])
+  type                ListingType        @default(USTA)
+  
+  // 1-Daraja: Majburiy maydonlar
+  name                String
+  phone               String
+  primaryLandmarkId   String
+  primaryLandmark     Landmark           @relation("PrimaryLandmark", fields: [primaryLandmarkId], references: [id])
+
+  // 2-Daraja: Muhim maydonlar
+  workingHours        String?
+  badges              String[]
+  serviceAreas        String[]
+
+  // 3-Daraja: Ixtiyoriy maydonlar
+  specificServices    String?
+  approxPrice         String?
+  photoFileId         String?
+  description         String?
+
+  // Tizim maydonlari
+  status              ListingStatus      @default(ACTIVE)
+  verification        VerificationStatus @default(COMMUNITY_UNVERIFIED)
+  source              String             @default("manual")
+  isSponsored         Boolean            @default(false)
+  sponsorUntil        DateTime?
+  completenessScore   Int                @default(50)
+  
+  // Rating calculation (Bayesian average)
+  thumbsUpCount       Int                @default(0)
+  thumbsDownCount     Int                @default(0)
+  bayesianRating      Float              @default(3.0)
+
+  lastVerifiedAt      DateTime           @default(now())
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  reviews             Review[]
+  history             ListingHistory[]
+
+  @@index([cityId, categoryId])
+  @@index([cityId, status])
+  @@map("listings")
+}
+
+model ListingHistory {
+  id          String   @id @default(uuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  changedBy   String
+  snapshot    Json
+  createdAt   DateTime @default(now())
+
+  @@map("listing_histories")
+}
+
+model QueryLog {
+  id                String      @id @default(uuid())
+  cityId            String
+  city              City        @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  telegramUserId    BigInt
+  rawMessage        String
+  intent            IntentType  @default(SERVICE)
+  categoryName      String?
+  landmarkName      String?
+  resolvedListingId String?
+  isResolved        Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+
+  @@index([cityId, isResolved])
+  @@map("query_logs")
+}
+
+model EmergencyNumber {
+  id          String   @id @default(uuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  key         String
+  label       String
+  phoneNumber String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([cityId, key])
+  @@map("emergency_numbers")
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  isPositive  Boolean
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  @@map("reviews")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  cityId      String?
+  action      String
+  details     Json
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}

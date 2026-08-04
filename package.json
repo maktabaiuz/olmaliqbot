@@ -1,0 +1,21 @@
+{
+  "name": "kimbor-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "dev": "pnpm --parallel run dev",
+    "db:generate": "pnpm --filter @kimbor/db db:generate",
+    "db:push": "pnpm --filter @kimbor/db db:push",
+    "db:migrate": "pnpm --filter @kimbor/db db:migrate",
+    "test": "pnpm --recursive run test"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "@types/node": "^20.14.12"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
