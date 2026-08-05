@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
+import { ColoredGridSelector, GridOption } from '../components/ColoredGridSelector';
 
 export interface PublicDirectoryScreenProps {
   cityName?: string;
 }
 
 export const PublicDirectoryScreen: React.FC<PublicDirectoryScreenProps> = ({
-  cityName = 'Olmaliq',
+  cityName: initialCityName = 'Olmaliq',
 }) => {
+  const [cityName, setCityName] = useState(initialCityName);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedLang, setSelectedLang] = useState('uz');
 
   const categories = [
     { id: 'c1', name: 'Gazavik', icon: '🔥', count: 12 },
@@ -80,7 +83,7 @@ export const PublicDirectoryScreen: React.FC<PublicDirectoryScreenProps> = ({
       </header>
 
       {/* Main Search Bar */}
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-5">
         <div className="relative">
           <input
             type="text"
@@ -93,6 +96,38 @@ export const PublicDirectoryScreen: React.FC<PublicDirectoryScreenProps> = ({
             search
           </span>
         </div>
+
+        {/* 🎨 Colored 2x2 Grid Selector (Matching Exact User Screenshot) */}
+        <ColoredGridSelector
+          title="🌐 Muloqot tili (Language)"
+          selectedId={selectedLang}
+          topRowOptions={[
+            { id: 'uz', label: "O'zbekcha", flag: '🇺🇿' },
+            { id: 'kz', label: 'Қазақша', flag: '🇰🇿' },
+          ]}
+          bottomRowOptions={[
+            { id: 'tj', label: 'Тоҷикӣ', flag: '🇹🇯' },
+            { id: 'kg', label: 'Кыргызча', flag: '🇰🇬' },
+          ]}
+          onSelect={(opt: GridOption) => setSelectedLang(opt.id)}
+        />
+
+        {/* 🏙️ Colored 2x2 City Selector */}
+        <ColoredGridSelector
+          title="🏙️ Shahar tanlash (City)"
+          selectedId={cityName.toLowerCase()}
+          topRowOptions={[
+            { id: 'olmaliq', label: 'Olmaliq', flag: '🏙️' },
+            { id: 'chirchiq', label: 'Chirchiq', flag: '🏙️' },
+          ]}
+          bottomRowOptions={[
+            { id: 'angren', label: 'Angren', flag: '🏙️' },
+            { id: 'other', label: 'Boshqa', flag: '🌐' },
+          ]}
+          onSelect={(opt: GridOption) => {
+            if (opt.id !== 'other') setCityName(opt.label);
+          }}
+        />
 
         {/* Category Chips */}
         <div>
