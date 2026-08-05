@@ -2,11 +2,11 @@ import { Bot, InlineKeyboard } from 'grammy';
 import dotenv from 'dotenv';
 import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
-import { handleDirectMessage } from './handlers/directHandler';
+import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHandler';
 
 dotenv.config({ path: '../../.env' });
 
-const token = process.env.BOT_TOKEN || '8942221158:AAHV4cNIKA_b37jGwE4AXvaWyquTEco6UfU';
+const token = process.env.BOT_TOKEN || '8603273053:AAFazZJBTKPnZZGsvIEpwIAhJSejsUQQSSU';
 
 console.log('🤖 "Kim bor?" Telegram Boti ishga tushmoqda...');
 
@@ -30,19 +30,14 @@ async function startBot() {
   const cityId = olmaliqCity.id;
   const bot = new Bot(token);
 
-  // 1. /start command
+  // 1. /start command in private chat
   bot.command('start', async (ctx) => {
-    const welcomeText = `Assalomu alaykum! "Kim bor?" — Shahar Ma'lumotnomasi Botiga xush kelibsiz! 🚀\n\nMen shahringizdagi ishonchli usta va xizmat ko'rsatuvchilarni topishga yordam beraman.\n\nSiz menga erkin uslubda savol berishingiz mumkin:\n• "karzinka oldida gazavik bormi?"\n• "santexnik kerak 3-mavze"\n• "bahromni nomeri nechi?"\n\nSavolingizni yozib yuboring! 👇`;
-
-    const keyboard = new InlineKeyboard().url(
-      '🌐 Web App Paneli',
-      process.env.WEBAPP_URL || 'http://localhost:3000'
-    );
-
-    await ctx.reply(welcomeText, { reply_markup: keyboard });
+    if (ctx.chat.type === 'private') {
+      await handleDirectMessage(ctx, cityId);
+    }
   });
 
-  // 2. Callback query handler (Baholash, Shikoyat, Hudud tanlash)
+  // 2. Callback query handler (City selection, Quick search, Candidate & Franchise actions)
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
 
@@ -50,15 +45,24 @@ async function startBot() {
       await ctx.answerCallbackQuery({ text: "⭐ Rahmat! Bahoyingiz qabul qilindi." });
     } else if (data.startsWith('report_')) {
       await ctx.answerCallbackQuery({ text: "⚠️ Shikoyat moderatorlarga yuborildi." });
-    } else if (data.startsWith('area_')) {
-      await ctx.answerCallbackQuery({ text: "Hudud tanlandi, qidirilmoqda..." });
-      await ctx.reply("Qidirilmoqda... Tez orada natija yuboriladi.");
     } else {
-      await ctx.answerCallbackQuery();
+      await handleDirectCallbacks(ctx, cityId);
     }
   });
 
-  // 3. Message routing (Group vs Direct Chat)
+  // 3. Bot joined new group intro message (TZ 10.4)
+  bot.on('message:new_chat_members', async (ctx) => {
+    const newMembers = ctx.message.new_chat_members;
+    const botInfo = await ctx.api.getMe();
+    const isBotAdded = newMembers.some((m) => m.id === botInfo.id);
+
+    if (isBotAdded) {
+      const introText = `Assalomu alaykum! Men "Kim bor?" — ${olmaliqCity?.name} shahri bo'yicha yordamchi botman. 🚀\n\nGuruhda savollaringizni bemalol berishingiz mumkin:\n• *"karzinka oldida gazavik bormi?"*\n• *"santexnik kerak 3-mavze"*`;
+      await ctx.reply(introText);
+    }
+  });
+
+  // 4. Message routing (Group vs Direct Chat)
   bot.on('message:text', async (ctx) => {
     const chatType = ctx.chat.type;
 
