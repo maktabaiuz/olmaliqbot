@@ -8,7 +8,6 @@ const userSessions: Record<number, {
   step?: 'CITY_SELECT' | 'CANDIDATE_NAME' | 'CANDIDATE_CAT' | 'CANDIDATE_PHONE' | 'CANDIDATE_LANDMARK' | 'FRANCHISE_NAME' | 'FRANCHISE_PHONE' | 'FRANCHISE_CITY' | 'FRANCHISE_LINK';
   cityId?: string;
   cityName?: string;
-  language?: 'lotin' | 'kirill' | 'rus' | 'auto';
   candidateData?: { name?: string; category?: string; phone?: string; landmark?: string };
   franchiseData?: { name?: string; phone?: string; city?: string; link?: string };
 }> = {};
@@ -24,78 +23,91 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   // Retrieve user session
   let session = userSessions[userId];
   if (!session) {
-    session = { cityId: defaultCityId, language: 'lotin' };
+    session = { cityId: defaultCityId };
     userSessions[userId] = session;
+  }
+
+  // Handle City Selection Reply Buttons
+  if (messageText === '🏙 Olmaliq' || messageText === '🏙️ Olmaliq') {
+    let city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+    session.cityId = city ? city.id : defaultCityId;
+    session.cityName = 'Olmaliq';
+    session.step = undefined;
+
+    await sendMainMenu(ctx, 'Olmaliq', isSuperAdmin);
+    return;
+  }
+
+  if (messageText === '🏙 Chirchiq' || messageText === '🏙️ Chirchiq') {
+    let city = await db.city.findFirst({ where: { slug: 'chirchiq' } });
+    if (!city) {
+      city = await db.city.create({ data: { name: 'Chirchiq', slug: 'chirchiq', isActive: true } });
+    }
+    session.cityId = city.id;
+    session.cityName = 'Chirchiq';
+    session.step = undefined;
+
+    await sendMainMenu(ctx, 'Chirchiq', isSuperAdmin);
+    return;
+  }
+
+  if (messageText === '🏙 Angren' || messageText === '🏙️ Angren') {
+    let city = await db.city.findFirst({ where: { slug: 'angren' } });
+    if (!city) {
+      city = await db.city.create({ data: { name: 'Angren', slug: 'angren', isActive: true } });
+    }
+    session.cityId = city.id;
+    session.cityName = 'Angren';
+    session.step = undefined;
+
+    await sendMainMenu(ctx, 'Angren', isSuperAdmin);
+    return;
+  }
+
+  if (messageText === '🌐 Boshqa') {
+    await ctx.reply('Bu shaharda bot hali yo\'q.');
+    return;
   }
 
   // 1. COMMAND: /start
   if (messageText === '/start') {
     session.step = 'CITY_SELECT';
 
-    // 2x2 Grid City Keyboard
-    const cityKeyboard = new InlineKeyboard()
-      .text('🏙️ Olmaliq', 'select_city_olmaliq')
-      .text('🏙️ Chirchiq', 'select_city_chirchiq')
+    // 2x2 Grid Reply Keyboard for City Selection (is_persistent: true, resize_keyboard: true)
+    const cityKeyboard = new Keyboard()
+      .text('🏙 Olmaliq').text('🏙 Chirchiq')
       .row()
-      .text('🏙️ Angren', 'select_city_angren')
-      .text('🌐 Boshqa shahar', 'select_city_other');
+      .text('🏙 Angren').text('🌐 Boshqa')
+      .resized()
+      .persistent();
 
-    await ctx.reply(
-      `Salom! Men **"Kim bor?"** — shahar bo'yicha yordamchiman. 🚀\n\nQaysi shahardansiz?`,
-      { parse_mode: 'Markdown', reply_markup: cityKeyboard }
-    );
+    const startMessage = `**Assalomu alaykum!**\n\nQaysi shahardansiz? Tanlang:`;
+
+    await ctx.reply(startMessage, {
+      parse_mode: 'Markdown',
+      reply_markup: cityKeyboard,
+    });
     return;
   }
 
-  // 2. MAIN MENU BUTTONS HANDLER
-  if (messageText === '🌐 Tilni tanlash') {
-    const langKeyboard = new InlineKeyboard()
-      .text('🇺🇿 O\'zbekcha (Lotin)', 'set_lang_lotin')
-      .text('🇺🇿 Ўзбекча (Кирилл)', 'set_lang_kirill')
-      .row()
-      .text('🇷🇺 Русский', 'set_lang_rus')
-      .text('🌐 Avtomatik', 'set_lang_auto');
+  // 2. MAIN PERSISTENT MENU BUTTONS
+  if (messageText === '🔍 Qidirish') {
+    const cityName = session.cityName || 'Olmaliq';
+    const searchMessage = `**Nima kerak? Yozing**\n\n` +
+      `${cityName} bo'yicha ishonchli usta, xizmat yoki do'konlarni 3 soniyada topib beraman.\n\n` +
+      `_Masalan: gazavik kerak · karzinka oldida dorixona_`;
 
-    await ctx.reply('Muloqot tilini tanlang / Choose language:', { reply_markup: langKeyboard });
+    await ctx.reply(searchMessage, { parse_mode: 'Markdown' });
     return;
   }
 
-  if (messageText === '🔍 Usta topish' || messageText === '🔍 Usta yoki do\'kon topish') {
-    // 2x2 Grid Category Keyboard
-    const quickCatKeyboard = new InlineKeyboard()
-      .text('⚡ Elektrik', 'quick_search_elektrik')
-      .text('🚰 Santexnik', 'quick_search_santexnik')
-      .row()
-      .text('🔥 Gazavik', 'quick_search_gazavik')
-      .text('🧱 Kafelchi', 'quick_search_kafelchi')
-      .row()
-      .text('🪑 Mebelchi', 'quick_search_mebelchi')
-      .text('🎨 Malyar', 'quick_search_malyar');
-
-    await ctx.reply(
-      `Qaysi kasb yoki usta kerak? Nomi yoki mo'ljal bo'yicha yozing (masalan: *"karzinka oldida gazavik"*) yoki pastdagi 2x2 tugmalardan tanlang:`,
-      { parse_mode: 'Markdown', reply_markup: quickCatKeyboard }
-    );
-    return;
-  }
-
-  if (messageText === '➕ Ma\'lumot qo\'shish') {
-    session.step = 'CANDIDATE_NAME';
-    session.candidateData = {};
-
-    await ctx.reply(
-      `Siz bilgan ishonchli usta yoki do'kon haqida ma'lumot berishingiz mumkin! 🙌\n\n1/4. Usta yoki do'kon nomini kiriting:`
-    );
-    return;
-  }
-
-  if (messageText === '🏢 O\'z shahringizga bot') {
-    const franchiseText = `🏢 **"Kim bor?" botini o'z shahringizga ulash va shahar admini bo'lish**\n\n` +
+  if (messageText === '🤝 Hamkor' || messageText === '🏢 O\'z shahringizga bot') {
+    const franchiseText = `**"Kim bor?" botini o'z shahringizga ulash va shahar admini bo'lish**\n\n` +
       `Tariflar:\n` +
-      `• 🌟 **Asoschi**: 149 000 so'm/oy (Birinchi 3 shahar uchun)\n` +
+      `• 🌟 **Asoschi**: 149 000 so'm/oy (Birinchi 3 shahar)\n` +
       `• 🏙️ **Standart**: 299 000 so'm/oy\n` +
       `• 🏛️ **Katta shahar**: 499 000 so'm/oy (10 000+ auditoriya)\n\n` +
-      `To'lov hozircha qo'lda qabul qilinadi: hisob taqdim etiladi va chek yuboriladi.\n\n` +
+      `To'lov hozircha qo'lda: hisob beriladi, chek yuboriladi.\n\n` +
       `Arizani to'ldirish uchun pastdagi tugmani bosing:`;
 
     const appUrl = process.env.WEBAPP_URL || 'https://7d0905ff78ad33.lhr.life';
@@ -105,6 +117,17 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
       .text('📝 Chatda ariza berish', 'start_franchise_chat');
 
     await ctx.reply(franchiseText, { parse_mode: 'Markdown', reply_markup: franchiseKeyboard });
+    return;
+  }
+
+  if (messageText === '➕ Ma\'lumot qo\'shish') {
+    session.step = 'CANDIDATE_NAME';
+    session.candidateData = {};
+
+    await ctx.reply(
+      `**Ma'lumot qo'shish**\n\n1/4. Usta yoki do'kon nomini kiriting:`,
+      { parse_mode: 'Markdown' }
+    );
     return;
   }
 
@@ -214,7 +237,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     return;
   }
 
-  // 5. STANDARD SEARCH FLOW
+  // 5. STANDARD FREE-TEXT SEARCH FLOW
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -291,63 +314,11 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
   const userId = ctx.from.id;
   let session = userSessions[userId];
   if (!session) {
-    session = { cityId: defaultCityId, language: 'lotin' };
+    session = { cityId: defaultCityId };
     userSessions[userId] = session;
   }
 
-  // 1. Language callbacks
-  if (data.startsWith('set_lang_')) {
-    const lang = data.replace('set_lang_', '') as any;
-    session.language = lang;
-    await ctx.answerCallbackQuery({ text: 'Til sozlamasi o\'zgartirildi! ✅' });
-    await sendMainMenu(ctx, session.cityName || 'Olmaliq', ctx.from.id === 6355516451);
-    return;
-  }
-
-  // 2. City selection callbacks
-  if (data === 'select_city_olmaliq') {
-    let city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
-    session.cityId = city ? city.id : defaultCityId;
-    session.cityName = 'Olmaliq';
-
-    await ctx.answerCallbackQuery({ text: 'Olmaliq shahri tanlandi! 🏙️' });
-    await sendMainMenu(ctx, 'Olmaliq', ctx.from.id === 6355516451);
-    return;
-  }
-
-  if (data === 'select_city_chirchiq') {
-    let city = await db.city.findFirst({ where: { slug: 'chirchiq' } });
-    if (!city) {
-      city = await db.city.create({ data: { name: 'Chirchiq', slug: 'chirchiq', isActive: true } });
-    }
-    session.cityId = city.id;
-    session.cityName = 'Chirchiq';
-
-    await ctx.answerCallbackQuery({ text: 'Chirchiq shahri tanlandi! 🏙️' });
-    await sendMainMenu(ctx, 'Chirchiq', ctx.from.id === 6355516451);
-    return;
-  }
-
-  if (data === 'select_city_angren') {
-    let city = await db.city.findFirst({ where: { slug: 'angren' } });
-    if (!city) {
-      city = await db.city.create({ data: { name: 'Angren', slug: 'angren', isActive: true } });
-    }
-    session.cityId = city.id;
-    session.cityName = 'Angren';
-
-    await ctx.answerCallbackQuery({ text: 'Angren shahri tanlandi! 🏙️' });
-    await sendMainMenu(ctx, 'Angren', ctx.from.id === 6355516451);
-    return;
-  }
-
-  if (data === 'select_city_other') {
-    await ctx.answerCallbackQuery();
-    await ctx.reply('Bu shaharda bot hali yo\'q.');
-    return;
-  }
-
-  // 3. Franchise chat start callback
+  // 1. Franchise chat start callback
   if (data === 'start_franchise_chat') {
     session.step = 'FRANCHISE_NAME';
     session.franchiseData = {};
@@ -356,33 +327,7 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     return;
   }
 
-  // 4. Quick search callbacks
-  if (data.startsWith('quick_search_')) {
-    const category = data.replace('quick_search_', '');
-    await ctx.answerCallbackQuery({ text: `${category} qidirilmoqda...` });
-
-    const searchResult = await searchListings({
-      cityId: session.cityId || defaultCityId,
-      categoryName: category,
-      limit: 1,
-    });
-
-    if (!searchResult) {
-      await ctx.reply(`"Kim bor?" — ${category} bo'yicha hozircha ma'lumot topilmadi.`);
-      return;
-    }
-
-    const resultKeyboard = new InlineKeyboard()
-      .text(`📋 Nusxalash (${searchResult.listing.phone})`, `copy_phone_${searchResult.listing.phone}`)
-      .row()
-      .text('⭐ Baholash', `rate_${searchResult.listingId}`)
-      .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
-
-    await ctx.reply(searchResult.formattedText, { reply_markup: resultKeyboard });
-    return;
-  }
-
-  // 5. Copy phone callback
+  // 2. Copy phone callback
   if (data.startsWith('copy_phone_')) {
     const phone = data.replace('copy_phone_', '');
     await ctx.answerCallbackQuery({ text: `📋 Telefon raqami: ${phone}`, show_alert: true });
@@ -390,32 +335,25 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
   }
 }
 
-// Helper to send main menu reply keyboard with clean 2x2 grid layout
+// Helper to send persistent 2x2 reply keyboard matching exact user specification
 async function sendMainMenu(ctx: Context, cityName: string, isAdmin: boolean) {
-  // 2x2 Grid Reply Keyboard
+  // 2x2 Grid Reply Keyboard (is_persistent: true, resize_keyboard: true)
   const replyMenu = new Keyboard()
-    .text('🔍 Usta topish').text('➕ Ma\'lumot qo\'shish')
-    .row()
-    .text('🏢 O\'z shahringizga bot').text('🌐 Tilni tanlash')
-    .resized();
+    .text('🔍 Qidirish').text('🤝 Hamkor')
+    .row();
 
-  let text = `Siz **${cityName}** shahrini tanladingiz. ✅\n\n` +
-    `Quyidagi 2x2 tugmalardan birini bosing yoki shunchaki savolingizni yozing:\n` +
-    `• *"karzinka oldida gazavik bormi?"*\n` +
-    `• *"santexnik kerak 3-mavze"*`;
-
-  const inlineButtons = new InlineKeyboard();
   if (isAdmin) {
-    const appUrl = process.env.WEBAPP_URL || 'https://7d0905ff78ad33.lhr.life';
-    inlineButtons.url('🌐 Admin Paneli (Boshqaruv)', `${appUrl}`);
+    replyMenu.text('🌐 Admin Paneli').text('➕ Ma\'lumot qo\'shish').row();
   }
 
-  await ctx.reply(text, {
+  replyMenu.resized().persistent();
+
+  const messageText = `**${cityName}** tanlandi\n\n` +
+    `Nima kerak? Yozing — shu shahar ichidan topib beraman.\n\n` +
+    `_Masalan: gazavik kerak · karzinka oldida dorixona_`;
+
+  await ctx.reply(messageText, {
     parse_mode: 'Markdown',
-    reply_markup: isAdmin ? inlineButtons : replyMenu,
+    reply_markup: replyMenu,
   });
-
-  if (isAdmin) {
-    await ctx.reply('Menyu tugmalaridan ham foydalanishingiz mumkin:', { reply_markup: replyMenu });
-  }
 }
