@@ -1,0 +1,16 @@
+{$DOMAIN:kimbor.uz} {
+    # Web App Frontend
+    handle /* {
+        reverse_proxy webapp:80
+    }
+
+    # Fastify REST API Backend
+    handle /api/* {
+        reverse_proxy api:4000
+    }
+
+    encode gzip zstd
+    log {
+        output stdout
+    }
+}

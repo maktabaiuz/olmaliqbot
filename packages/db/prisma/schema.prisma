@@ -351,14 +351,15 @@ model EmergencyNumber {
 }
 
 model Review {
-  id          String   @id @default(uuid())
-  listingId   String
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  isPositive  Boolean  // true = 👍, false = 👎
-  comment     String?
-  createdAt   DateTime @default(now())
+  id             String   @id @default(uuid())
+  listingId      String
+  listing        Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  telegramUserId BigInt?  // Telegram User ID for single vote rule
+  isPositive     Boolean  // true = 👍, false = 👎
+  comment        String?
+  createdAt      DateTime @default(now())
 
   @@map("reviews")
 }
