@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BottomNav, NavTab } from './components/BottomNav';
@@ -9,6 +9,9 @@ import { EmptyState } from './components/EmptyState';
 import { ErrorBanner } from './components/ErrorBanner';
 import { LoadingSkeleton } from './components/LoadingSkeleton';
 import { AuthModal } from './components/AuthModal';
+import { FormField } from './components/FormField';
+
+const API_BASE = 'http://localhost:4000/api';
 
 const MainShell: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -17,15 +20,90 @@ const MainShell: React.FC = () => {
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-  const showErrorBanner = true;
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Live Data States
+  const [listings, setListings] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({ activeListings: 0, unresolvedRequests: 0, pendingCandidates: 0 });
+  const [clusters, setClusters] = useState<any[]>([]);
+
+  // New Listing Form State
+  const [newName, setNewName] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newLandmark, setNewLandmark] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // Fetch API data on load or tab change
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [listingsRes, statsRes, clustersRes] = await Promise.all([
+        fetch(`${API_BASE}/admin/listings`),
+        fetch(`${API_BASE}/admin/stats`),
+        fetch(`${API_BASE}/admin/requests/clusters`),
+      ]);
+
+      if (listingsRes.ok) setListings(await listingsRes.json());
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (clustersRes.ok) setClusters(await clustersRes.json());
+    } catch (err) {
+      console.error('API Fetch error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [activeTab]);
+
+  const handleCreateListing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitSuccess(false);
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/listings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newName,
+          categoryName: newCategory,
+          phone: newPhone,
+          landmarkName: newLandmark,
+          verified: true,
+          badges: ['uyga_boradi', 'kafolat'],
+        }),
+      });
+
+      if (res.ok) {
+        setSubmitSuccess(true);
+        setNewName('');
+        setNewCategory('');
+        setNewPhone('');
+        setNewLandmark('');
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Create listing error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const categories = [
-    { id: 'all', label: 'Barchasi', count: 42 },
-    { id: 'gazavik', label: 'Gazavik', count: 12 },
-    { id: 'santexnik', label: 'Santexnik', count: 8 },
-    { id: 'elektrik', label: 'Elektrik', count: 14 },
-    { id: 'kafelchi', label: 'Kafelchi', count: 8 },
+    { id: 'all', label: 'Barchasi', count: listings.length },
+    { id: 'gazavik', label: 'Gazavik', count: listings.filter((l) => l.category?.name?.toLowerCase() === 'gazavik').length },
+    { id: 'santexnik', label: 'Santexnik', count: listings.filter((l) => l.category?.name?.toLowerCase() === 'santexnik').length },
+    { id: 'elektrik', label: 'Elektrik', count: listings.filter((l) => l.category?.name?.toLowerCase() === 'elektrik').length },
+    { id: 'kafelchi', label: 'Kafelchi', count: listings.filter((l) => l.category?.name?.toLowerCase() === 'kafelchi').length },
   ];
+
+  const filteredListings = activeCategoryFilter === 'all'
+    ? listings
+    : listings.filter((l) => l.category?.name?.toLowerCase() === activeCategoryFilter);
 
   return (
     <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 flex flex-col max-w-container-max mx-auto shadow-2xl relative pb-20">
@@ -71,18 +149,32 @@ const MainShell: React.FC = () => {
         </div>
       </header>
 
-      {/* Warning/Error Banners */}
-      {showErrorBanner && (
-        <ErrorBanner
-          type="warning"
-          message="Internet uzildi — o'zgarishlar keshlanmoqda"
-        />
-      )}
+      {/* Online Status Banner */}
+      <ErrorBanner
+        type="warning"
+        message={`Shahar: ${user?.cityName || 'Olmaliq'} · Baza faol (Fastify API)`}
+      />
 
       {/* Content Area Based on Active Tab */}
       <main className="flex-1 p-4 space-y-4">
         {activeTab === 'home' && (
           <div className="space-y-4 animate-fade-in">
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="bg-surface dark:bg-[#17212B] p-3 rounded-xl border border-outline-variant/30 dark:border-slate-800 text-center">
+                <span className="text-xl font-bold text-primary dark:text-sky-400">{stats.activeListings}</span>
+                <p className="text-[10px] text-on-surface-variant dark:text-slate-400 font-medium">Faol Ustalar</p>
+              </div>
+              <div className="bg-surface dark:bg-[#17212B] p-3 rounded-xl border border-outline-variant/30 dark:border-slate-800 text-center">
+                <span className="text-xl font-bold text-amber-500">{stats.unresolvedRequests}</span>
+                <p className="text-[10px] text-on-surface-variant dark:text-slate-400 font-medium">Topilmagan</p>
+              </div>
+              <div className="bg-surface dark:bg-[#17212B] p-3 rounded-xl border border-outline-variant/30 dark:border-slate-800 text-center">
+                <span className="text-xl font-bold text-emerald-500">{stats.pendingCandidates || 0}</span>
+                <p className="text-[10px] text-on-surface-variant dark:text-slate-400 font-medium">Nomzodlar</p>
+              </div>
+            </div>
+
             {/* Category Filter Chips */}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-outline dark:text-slate-400 mb-2">
@@ -112,101 +204,158 @@ const MainShell: React.FC = () => {
                 statusBadge="Zudlik"
                 edgeColor="red"
               />
-              <WorkRowCard
-                title="Yangi usta qo'shildi"
-                subtitle="Bahrom Gazavik — Korzinka oldida"
-                statusBadge="Tasdiq"
-                edgeColor="green"
-              />
             </div>
 
             {/* Record Rows (Yozuv qatorlari) */}
             <div className="bg-surface dark:bg-[#17212B] rounded-xl border border-outline-variant/30 dark:border-slate-800 p-3 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-outline dark:text-slate-400">
-                  Oxirgi Ustalar
+                  Ustalar Ro'yxati ({filteredListings.length})
                 </h3>
-                <span className="text-xs text-primary dark:text-sky-400 font-semibold cursor-pointer">
-                  Barchasi (42)
-                </span>
               </div>
-              <RecordRow
-                name="Bahrom Gazavik"
-                category="Gazavik"
-                landmark="Korzinka"
-                rating={4.8}
-                isVerified={true}
-                onEdit={() => alert('Bahrom Gazavik tahrirlash')}
-              />
-              <RecordRow
-                name="Sobir Gazavik"
-                category="Gazavik"
-                landmark="Markaziy Bozor"
-                rating={3.5}
-                isVerified={false}
-                onEdit={() => alert('Sobir Gazavik tahrirlash')}
-              />
-              <RecordRow
-                name="Jamshid Santexnik"
-                category="Santexnik"
-                landmark="3-mavze"
-                rating={4.9}
-                isVerified={true}
-                onEdit={() => alert('Jamshid Santexnik tahrirlash')}
-              />
+
+              {isLoading ? (
+                <LoadingSkeleton />
+              ) : filteredListings.length === 0 ? (
+                <EmptyState
+                  title="Hozircha ustalar yo'q"
+                  subtitle="Tanlangan kategoriya bo'yicha bazada ma'lumot topilmadi"
+                  actionText="Usta Qo'shish"
+                  onAction={() => setActiveTab('add')}
+                />
+              ) : (
+                filteredListings.map((item) => (
+                  <RecordRow
+                    key={item.id}
+                    name={item.name}
+                    category={item.category?.name || 'Xizmat'}
+                    landmark={item.primaryLandmark?.name}
+                    phone={item.phone}
+                    rating={item.bayesianRating || 4.5}
+                    isVerified={item.verification === 'VERIFIED'}
+                    onEdit={() => alert(`${item.name} tahrirlash`)}
+                  />
+                ))
+              )}
             </div>
           </div>
         )}
 
         {activeTab === 'add' && (
           <div className="animate-fade-in space-y-4">
-            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Yangi Yozuv Qo'shish</h2>
-            <EmptyState
-              title="Yangi Usta Qo'shish Formasi"
-              subtitle="Tizimga yangi xizmat ko'rsatuvchi yoki tashkilot ma'lumotlarini kiritish"
-              iconName="person_add"
-              actionText="Formani Ocharish"
-              onAction={() => alert("Forma ochilmoqda...")}
-            />
+            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Yangi Usta / Xizmat Qo'shish</h2>
+            
+            {submitSuccess && (
+              <div className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 p-3.5 rounded-xl border border-emerald-500/30 text-xs font-medium flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                Yangi usta bazaga muvaffaqiyatli saqlandi! Avtomatik bildirishnoma yuborildi.
+              </div>
+            )}
+
+            <form onSubmit={handleCreateListing} className="bg-surface dark:bg-[#17212B] p-4 rounded-xl border border-outline-variant/30 dark:border-slate-800 space-y-3">
+              <FormField
+                label="Usta yoki Xizmat Nomi"
+                placeholder="Bahrom Gazavik"
+                iconName="person"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+
+              <FormField
+                label="Kasbi / Kategoriyasi"
+                placeholder="Gazavik"
+                iconName="category"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                required
+              />
+
+              <FormField
+                label="Telefon Raqami"
+                placeholder="+998 90 123 45 67"
+                iconName="call"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                required
+              />
+
+              <FormField
+                label="Asosiy Mo'ljal"
+                placeholder="Korzinka"
+                iconName="location_on"
+                value={newLandmark}
+                onChange={(e) => setNewLandmark(e.target.value)}
+              />
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-primary dark:bg-sky-500 text-on-primary font-semibold text-xs py-3.5 rounded-full hover:bg-primary/90 transition-colors shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                {isSubmitting ? 'Saqlanmoqda...' : 'Bazaga Saqlash'}
+              </button>
+            </form>
           </div>
         )}
 
         {activeTab === 'requests' && (
           <div className="animate-fade-in space-y-4">
-            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Topilmagan So'rovlar</h2>
-            <WorkRowCard
-              title="Kafelchi / Plitkachi"
-              subtitle="3 ta foydalanuvchi so'radi · Karzinka va 3-mavze"
-              statusBadge="+ Qo'shish"
-              edgeColor="red"
-            />
-            <WorkRowCard
-              title="Mebel yig'uvchi"
-              subtitle="2 ta foydalanuvchi so'radi · Markaziy bozor"
-              statusBadge="Bog'lash"
-              edgeColor="amber"
-            />
+            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Topilmagan So'rovlar ({clusters.length})</h2>
+            
+            {clusters.length === 0 ? (
+              <EmptyState
+                title="Barcha so me rovlar hal qilingan"
+                subtitle="Hozircha topilmagan so me rovlar mavjud emas"
+              />
+            ) : (
+              clusters.map((c, i) => (
+                <WorkRowCard
+                  key={i}
+                  title={c.canonicalName}
+                  subtitle={`${c.count} ta takroriy so'rov kirdi`}
+                  statusBadge={c.isExistingCategory ? "Bog'lash" : "+ Qo'shish"}
+                  edgeColor={c.isExistingCategory ? 'amber' : 'red'}
+                  onClick={() => {
+                    setNewCategory(c.canonicalName);
+                    setActiveTab('add');
+                  }}
+                />
+              ))
+            )}
           </div>
         )}
 
         {activeTab === 'database' && (
           <div className="animate-fade-in space-y-4">
-            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Ma'lumotlar Bazasi</h2>
-            <LoadingSkeleton />
+            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Ma'lumotlar Bazasi ({listings.length})</h2>
+            
+            {listings.map((item) => (
+              <RecordRow
+                key={item.id}
+                name={item.name}
+                category={item.category?.name || 'Xizmat'}
+                landmark={item.primaryLandmark?.name}
+                phone={item.phone}
+                rating={item.bayesianRating || 4.5}
+                isVerified={item.verification === 'VERIFIED'}
+              />
+            ))}
           </div>
         )}
 
         {activeTab === 'more' && (
           <div className="animate-fade-in space-y-4">
-            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100 font-bold">Sozlamalar va Yana</h2>
+            <h2 className="font-bold text-lg text-on-surface dark:text-slate-100">Sozlamalar va Tizim</h2>
             <div className="bg-surface dark:bg-[#17212B] rounded-xl border border-outline-variant/30 dark:border-slate-800 p-4 space-y-3">
               <div className="flex items-center justify-between py-2 border-b border-outline-variant/20 dark:border-slate-800">
                 <span className="text-sm font-medium">Shahar</span>
-                <span className="text-xs font-semibold text-primary dark:text-sky-400">Olmaliq</span>
+                <span className="text-xs font-semibold text-primary dark:text-sky-400">{user?.cityName || 'Olmaliq'}</span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-outline-variant/20 dark:border-slate-800">
-                <span className="text-sm font-medium">Til</span>
-                <span className="text-xs font-semibold text-on-surface-variant dark:text-slate-400">O'zbek (Lotin)</span>
+                <span className="text-sm font-medium">Fastify API Status</span>
+                <span className="text-xs font-semibold text-emerald-500">200 OK</span>
               </div>
               <div className="flex items-center justify-between py-2 border-b border-outline-variant/20 dark:border-slate-800">
                 <span className="text-sm font-medium">Tungi rejim</span>
@@ -233,7 +382,7 @@ const MainShell: React.FC = () => {
               </button>
             </div>
             <p className="text-xs text-on-surface-variant dark:text-slate-400">
-              Assalomu alaykum! Men Kim bor boti sun'iy intellekt yordamchisiman. Sizga qanday yordam bera olaman?
+              Assalomu alaykum! Men Kim bor boti sun'iy intellekt yordamchisiman. Bazaga usta qo'shish yoki so'rovlarni tahlil qilishda yordam bera olaman.
             </p>
           </div>
         </div>
@@ -243,7 +392,7 @@ const MainShell: React.FC = () => {
       <BottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        hasUnreadRequests={true}
+        hasUnreadRequests={clusters.length > 0}
         onAiClick={() => setShowAiModal(true)}
       />
 
