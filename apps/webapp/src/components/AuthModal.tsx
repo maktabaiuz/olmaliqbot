@@ -21,7 +21,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setError('');
     setIsSubmitting(true);
 
-    const success = await loginWithPassword(username, password);
+    const success = await loginWithPassword(password);
     setIsSubmitting(false);
 
     if (success) {

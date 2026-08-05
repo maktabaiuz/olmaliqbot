@@ -11,9 +11,13 @@ import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
 import { OnboardingWizardScreen } from './screens/OnboardingWizardScreen';
 import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
 
+import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
+import { LoginScreen } from './screens/LoginScreen';
+import { PasswordSetupScreen } from './screens/PasswordSetupScreen';
+
 const MainShell: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, authState, isAuthenticated, isLoading, loginWithPassword, setupPassword } = useAuth();
   
   // Navigation & Control States
   const [activeTab, setActiveTab] = useState<NavTab>('home');
@@ -25,7 +29,48 @@ const MainShell: React.FC = () => {
   const [showAiModal, setShowAiModal] = useState(false);
   const [prefilledCategory, setPrefilledCategory] = useState<string | undefined>();
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN' || true; // Allow testing Super-Admin mode
+  // ----------------------------------------------------
+  // STRICT SECURITY CHECK
+  // Unauthenticated users CANNOT access the panel UI!
+  // ----------------------------------------------------
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6 font-sans">
+        <div className="animate-pulse flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-slate-800"></div>
+          <div className="h-4 w-32 bg-slate-800 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'REQUIRES_PASSWORD') {
+    return (
+      <LoginScreen
+        adminName={user?.name || 'Admin'}
+        onLogin={async (pass) => {
+          return await loginWithPassword(pass);
+        }}
+      />
+    );
+  }
+
+  if (authState === 'REQUIRES_SETUP') {
+    return (
+      <PasswordSetupScreen
+        adminName={user?.name || 'Admin'}
+        onSetupPassword={async (oneTime, newP) => {
+          return await setupPassword(oneTime, newP);
+        }}
+      />
+    );
+  }
+
+  if (!isAuthenticated || authState === 'ACCESS_DENIED') {
+    return <AccessDeniedScreen />;
+  }
+
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   // Hide Bottom Navigation in Super-Admin Control, Onboarding, or Expired mode
   const isBottomNavVisible = viewMode === 'normal';

@@ -9,11 +9,15 @@ export interface AuthUser {
   cityName: string;
 }
 
+export type AuthState = 'CHECKING' | 'AUTHENTICATED' | 'ACCESS_DENIED' | 'REQUIRES_PASSWORD' | 'REQUIRES_SETUP';
+
 interface AuthContextType {
   user: AuthUser | null;
+  authState: AuthState;
   isAuthenticated: boolean;
   isLoading: boolean;
-  loginWithPassword: (username: string, pass: string) => Promise<boolean>;
+  loginWithPassword: (password: string) => Promise<boolean>;
+  setupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -21,46 +25,56 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [authState, setAuthState] = useState<AuthState>('CHECKING');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Attempt Telegram initData auto-login or session restore
+    // ----------------------------------------------------
+    // STRICT SECURITY RULE:
+    // No mock session fallback!
+    // No role or cityId from localStorage!
+    // Must be HMAC verified via Telegram initData or API session header.
+    // ----------------------------------------------------
     const initAuth = async () => {
       try {
         const tgData = window.Telegram?.WebApp?.initData;
-        
-        if (tgData) {
-          // Send initData to Fastify API server for HMAC verification
-          const res = await fetch('/api/auth/telegram', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData: tgData }),
-          });
 
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data.user);
-            setIsLoading(false);
-            return;
-          }
+        if (!tgData) {
+          // Unauthenticated or opened in standard browser without Telegram initData
+          setUser(null);
+          setAuthState('ACCESS_DENIED');
+          setIsLoading(false);
+          return;
         }
 
-        // Fallback: check stored token/session
-        const storedUser = localStorage.getItem('kimbor_user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
+        // Send initData to Fastify API server for HMAC-SHA256 signature verification
+        const res = await fetch('/api/auth/telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData: tgData }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.user) {
+            setUser(data.user);
+            setAuthState('AUTHENTICATED');
+          } else if (data.requiresPassword) {
+            setAuthState('REQUIRES_PASSWORD');
+          } else if (data.requiresSetup) {
+            setAuthState('REQUIRES_SETUP');
+          } else {
+            setUser(null);
+            setAuthState('ACCESS_DENIED');
+          }
         } else {
-          // Default mock session for development preview
-          setUser({
-            id: 'demo-user-1',
-            name: 'Bobur (Olmaliq Admin)',
-            role: 'SUPER_ADMIN',
-            cityId: 'olmaliq-city-id',
-            cityName: 'Olmaliq',
-          });
+          setUser(null);
+          setAuthState('ACCESS_DENIED');
         }
       } catch (err) {
-        console.error('Auth initialization error:', err);
+        console.error('Auth verification error:', err);
+        setUser(null);
+        setAuthState('ACCESS_DENIED');
       } finally {
         setIsLoading(false);
       }
@@ -69,33 +83,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const loginWithPassword = async (username: string, pass: string): Promise<boolean> => {
+  const loginWithPassword = async (password: string): Promise<boolean> => {
     try {
+      const tgData = window.Telegram?.WebApp?.initData;
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password: pass }),
+        body: JSON.stringify({ initData: tgData, password }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
-        localStorage.setItem('kimbor_user', JSON.stringify(data.user));
-        return true;
+        if (data.success && data.user) {
+          setUser(data.user);
+          setAuthState('AUTHENTICATED');
+          return true;
+        }
       }
     } catch (err) {
-      console.error('Login failed:', err);
+      console.error('Password login failed:', err);
+    }
+    return false;
+  };
+
+  const setupPassword = async (oneTimePass: string, newPass: string): Promise<boolean> => {
+    try {
+      const tgData = window.Telegram?.WebApp?.initData;
+      const res = await fetch('/api/auth/setup-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tgData, oneTimePass, newPass }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          setUser(data.user);
+          setAuthState('AUTHENTICATED');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('Setup password failed:', err);
     }
     return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('kimbor_user');
+    setAuthState('ACCESS_DENIED');
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, loginWithPassword, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        authState,
+        isAuthenticated: authState === 'AUTHENTICATED' && !!user,
+        isLoading,
+        loginWithPassword,
+        setupPassword,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
