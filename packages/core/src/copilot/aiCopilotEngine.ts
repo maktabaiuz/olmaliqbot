@@ -175,7 +175,7 @@ export async function executeCopilotCommand(
             primaryLandmarkId: landmark.id,
             type: ListingType.USTA,
             name,
-            phone,
+            phone: phone || `+99893${Date.now().toString().slice(-7)}`,
             verification: VerificationStatus.COMMUNITY_UNVERIFIED, // Forced COMMUNITY_UNVERIFIED
             badges: ['uyga_boradi'],
           },
@@ -185,7 +185,7 @@ export async function executeCopilotCommand(
         const audit = await db.auditLog.create({
           data: {
             cityId: enforcedCityId,
-            userId,
+            userId: (userId && userId.includes('-')) ? userId : null,
             action: 'CREATE_LISTING',
             details: JSON.stringify({ entity: 'Listing', entityId: newListing.id, record: newListing }),
           },
@@ -223,7 +223,7 @@ export async function executeCopilotCommand(
         const audit = await db.auditLog.create({
           data: {
             cityId: enforcedCityId,
-            userId,
+            userId: (userId && userId.includes('-')) ? userId : null,
             action: 'DELETE_LISTING',
             details: JSON.stringify({ entity: 'Listing', entityId: recordId, record: listing }),
           },
