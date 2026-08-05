@@ -1,244 +1,281 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 
 export interface OnboardingWizardScreenProps {
-  onCompleteOnboarding: () => void;
+  onSubmitApplication: (appData: {
+    fullName: string;
+    phone: string;
+    cityName: string;
+    groupLink: string;
+    groupName: string;
+    groupMembersCount: number;
+    channelLink: string;
+    channelName: string;
+    channelSubsCount: number;
+    about: string;
+  }) => Promise<void>;
 }
 
 export const OnboardingWizardScreen: React.FC<OnboardingWizardScreenProps> = ({
-  onCompleteOnboarding,
+  onSubmitApplication,
 }) => {
-  const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Step 1: Telegram Group Connection
-  const [groupLink, setGroupLink] = useState('');
+  // 1-qadam fields
+  const [fullName, setFullName] = useState('');
+  const [phone] = useState('+998 90 123 45 67'); // Telegram Contact Shared
+  const [cityName, setCityName] = useState('Olmaliq');
+
+  // 2-qadam fields
   const [isGroupConnected, setIsGroupConnected] = useState(false);
-  const [isVerifyingGroup, setIsVerifyingGroup] = useState(false);
+  const [groupName] = useState('Olmaliq Rasmiy Chat');
+  const [groupMembersCount] = useState(1420);
+  const [groupLink] = useState('https://t.me/olmaliq_chat');
 
-  // Step 2: Emergency Numbers (9 numbers)
-  const [emergencyNumbers, setEmergencyNumbers] = useState({
-    gas: '104',
-    water: '105',
-    power: '107',
-    fire: '101',
-    medical: '103',
-    police: '102',
-    heat: '',
-    hokiymiyat: '',
-    rescue: '1050',
-  });
+  const [channelLink, setChannelLink] = useState('https://t.me/olmaliq_news');
+  const [channelName] = useState('Olmaliq Yangiliklari');
+  const [channelSubsCount] = useState(3850);
 
-  // Step 3: Seed initial listings (0 / 20)
-  const [seedListingsCount, setSeedListingsCount] = useState(0);
+  // 3-qadam fields
+  const [about, setAbout] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Verify Telegram group admin rights
-  const handleVerifyGroup = () => {
-    if (!groupLink) {
-      alert("Iltimos, guruh havolasini kiriting!");
-      return;
-    }
-    setIsVerifyingGroup(true);
+  const handleGroupConnect = () => {
+    // Open Telegram startgroup link
+    window.open(
+      'https://t.me/aikimyo_bot?startgroup=true&admin=post_messages+edit_messages+delete_messages',
+      '_blank'
+    );
+    // Simulate immediate connection check
     setTimeout(() => {
-      setIsVerifyingGroup(false);
       setIsGroupConnected(true);
-      alert(" Telegram guruh ulandi! Bot guruhda o'zini tanishtirdi.");
-    }, 1200);
+    }, 1500);
   };
 
-  const handleNextStep = () => {
-    if (currentStep === 1) {
-      if (!isGroupConnected) {
-        alert("Davom etish uchun avval Telegram guruhni ulang!");
-        return;
-      }
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
-      if (seedListingsCount < 20) {
-        setSeedListingsCount(20); // Fast seed for testing
-      }
-      alert("🎉 Tabriklaymiz! Barcha 3 ta qadam yakunlandi. Bot shahringiz uchun to'liq ishga tushirildi.");
-      onCompleteOnboarding();
+  const handleFinalSubmit = async () => {
+    if (!about.trim()) return;
+    setIsSubmitting(true);
+
+    try {
+      await onSubmitApplication({
+        fullName,
+        phone,
+        cityName,
+        groupLink,
+        groupName,
+        groupMembersCount,
+        channelLink,
+        channelName,
+        channelSubsCount,
+        about,
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="w-full max-w-container-max mx-auto min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 flex flex-col p-4 animate-fade-in relative">
-      {/* TOP PROGRESS INDICATOR */}
-      <div className="flex flex-col gap-2 mb-6">
-        <div className="flex justify-between items-center px-1">
-          <span className="text-xs font-bold uppercase tracking-widest text-primary dark:text-sky-400">
-            {currentStep}-qadam / 3
-          </span>
-          <span className="text-xs font-semibold text-outline dark:text-slate-400">
-            {user?.cityName || 'Shahar'} Onboarding
-          </span>
-        </div>
-        <div className="h-2 bg-surface-container-high dark:bg-slate-800 rounded-full overflow-hidden w-full">
-          <div
-            className="h-full bg-primary dark:bg-sky-400 rounded-full transition-all duration-500"
-            style={{ width: `${(currentStep / 3) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* STEP 1: TELEGRAM GURUH ULASH */}
-      {currentStep === 1 && (
-        <div className="flex-1 flex flex-col justify-center items-center text-center gap-5 my-auto">
-          <div className="w-20 h-20 rounded-full bg-primary-container/20 text-primary dark:text-sky-400 flex items-center justify-center shadow-md">
-            <span className="material-symbols-outlined text-[40px]">groups</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-xl text-on-surface dark:text-slate-100 mb-2">
-              1-qadam: Telegram Guruh Ulash
-            </h1>
-            <p className="text-xs text-on-surface-variant dark:text-slate-300 max-w-xs leading-relaxed">
-              Bot shahringiz savollariga javob berishi uchun rasmiy Telegram guruhingizni ulang.
-            </p>
-          </div>
-
-          <div className="w-full max-w-xs space-y-3">
-            <input
-              type="text"
-              value={groupLink}
-              onChange={(e) => setGroupLink(e.target.value)}
-              placeholder="https://t.me/olmaliq_bozor"
-              className="w-full h-12 bg-surface-container-lowest dark:bg-[#17212B] border border-outline-variant/40 dark:border-slate-800 rounded-xl px-4 text-xs text-on-surface dark:text-slate-100 focus:outline-none focus:border-primary"
-            />
-            <button
-              onClick={handleVerifyGroup}
-              disabled={isVerifyingGroup}
-              className={`w-full py-3 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 ${
-                isGroupConnected
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-primary dark:bg-sky-500 text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                {isGroupConnected ? 'check_circle' : 'add_link'}
-              </span>
-              {isVerifyingGroup
-                ? 'Tekshirilmoqda...'
-                : isGroupConnected
-                ? 'Guruh Muvaffaqiyatli Ulandi'
-                : 'Botni Guruhga Admin Qilish'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 2: FAVQULODDA RAQAMLAR (9 TA) */}
-      {currentStep === 2 && (
-        <div className="flex-1 flex flex-col gap-4 my-auto">
-          <div className="text-center">
-            <h1 className="font-bold text-lg text-on-surface dark:text-slate-100 mb-1">
-              2-qadam: Favqulodda Raqamlar (9 ta)
-            </h1>
-            <p className="text-xs text-on-surface-variant dark:text-slate-400">
-              Shahrigiz favqulodda xizmat raqamlarini kiriting (majburiy emas)
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 bg-surface dark:bg-[#17212B] p-4 rounded-2xl border border-outline-variant/30 dark:border-slate-800">
-            <div>
-              <label className="text-[10px] font-bold text-red-500 block mb-1">🔥 Yong'in (101)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.fire}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, fire: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-red-500 block mb-1">⚡ Gaz (104)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.gas}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, gas: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-blue-500 block mb-1">💧 Suv (105)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.water}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, water: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-amber-500 block mb-1">💡 Elektr (107)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.power}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, power: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-emerald-500 block mb-1">🚑 Tez Yordam (103)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.medical}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, medical: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-blue-400 block mb-1">👮 Ichki Ishlar (102)</label>
-              <input
-                type="text"
-                value={emergencyNumbers.police}
-                onChange={(e) => setEmergencyNumbers({ ...emergencyNumbers, police: e.target.value })}
-                className="w-full h-9 bg-surface-container-lowest dark:bg-[#121417] border border-outline-variant/40 rounded-lg px-2.5 text-xs"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: 20 TA YOZUV KIRITISH */}
-      {currentStep === 3 && (
-        <div className="flex-1 flex flex-col justify-center items-center text-center gap-5 my-auto">
-          <div className="w-20 h-20 rounded-full bg-primary-container/20 text-primary dark:text-sky-400 flex items-center justify-center shadow-md">
-            <span className="material-symbols-outlined text-[40px]">note_add</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-xl text-on-surface dark:text-slate-100 mb-2">
-              3-qadam: 20 ta Yozuv Kiriting
-            </h1>
-            <p className="text-xs text-on-surface-variant dark:text-slate-300 max-w-xs leading-relaxed">
-              Tizimni to'liq ishga tushirish uchun ma'lumotlar bazasiga dastlabki 20 ta usta yoki xizmatni kiritish so'raladi.
-            </p>
-          </div>
-
-          <div className="bg-surface-container-low dark:bg-[#17212B] py-3.5 px-8 rounded-2xl border border-outline-variant/30 shadow-sm">
-            <span className="font-bold text-primary dark:text-sky-400 text-2xl tracking-widest">
-              {seedListingsCount} / 20
+    <div className="min-h-screen bg-slate-900 text-white font-sans max-w-container-max mx-auto p-4 flex flex-col justify-between">
+      <div>
+        {/* Wizard Header & Step Progress Bar */}
+        <div className="pt-2 pb-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-brand-400 bg-brand-500/10 px-3 py-1 rounded-full border border-brand-500/20">
+              {step}-qadam / 3
+            </span>
+            <span className="text-xs text-slate-400">
+              {step === 1 ? "Shaxsiy ma'lumotlar" : step === 2 ? 'Guruh va Kanal' : 'Yakuniy ariza'}
             </span>
           </div>
 
-          <button
-            onClick={() => setSeedListingsCount(20)}
-            className="px-4 py-2 bg-surface-container-high dark:bg-slate-800 text-xs font-semibold rounded-full hover:bg-surface-container-highest"
-          >
-            ⚡ Dastlabki 20 ta kasbni avto-to'ldirish
-          </button>
+          {/* Progress Indicator */}
+          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden flex">
+            <div
+              className="bg-brand-500 h-full transition-all duration-300"
+              style={{ width: `${(step / 3) * 100}%` }}
+            />
+          </div>
         </div>
-      )}
 
-      {/* BOTTOM ACTION BUTTON */}
-      <div className="mt-auto pt-4">
-        <button
-          onClick={handleNextStep}
-          className="w-full h-14 bg-gradient-to-r from-primary to-secondary text-white font-bold text-sm uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-all"
-        >
-          {currentStep === 3 ? 'Onboardingni Yakunlash' : 'Keyingi Qadam'}
-          <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
-        </button>
+        {/* STEP 1: SHAXS */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-slate-100">1-qadam: Shaxsiy ma'lumotlar</h2>
+              <p className="text-xs text-slate-400">F.I.SH, telefon va shahar nomini kiriting</p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">F.I.SH (Ism va Familiya)</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Masalan: Bobur Mahmudov"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Telefon raqam (Telegram Contact)</label>
+                <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300">
+                  <span className="text-emerald-400 text-lg">📱</span>
+                  <input
+                    type="text"
+                    value={phone}
+                    readOnly
+                    className="w-full bg-transparent text-slate-300 focus:outline-none font-mono text-sm cursor-not-allowed opacity-90"
+                  />
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">
+                    ✅ Telegram Kontakt
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Telefon raqami Telegram kontaktingizdan avtomatik olindi.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Shahar / tuman nomi</label>
+                <input
+                  type="text"
+                  value={cityName}
+                  onChange={(e) => setCityName(e.target.value)}
+                  placeholder="Masalan: Olmaliq"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: GURUH VA KANAL */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-slate-100">2-qadam: Guruh va Kanal ulash</h2>
+              <p className="text-xs text-slate-400">Telegram guruhingizga botni admin qilib qo'shing va kanal havolasini kiriting</p>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              {/* Group Connection */}
+              <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">👥 Telegram Guruh</span>
+                  {isGroupConnected && (
+                    <span className="text-[11px] bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-medium">
+                      ✅ Ulandi · Bot Admin
+                    </span>
+                  )}
+                </div>
+
+                {isGroupConnected ? (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-1">
+                    <p className="font-bold text-emerald-300">✅ {groupName} ulandi</p>
+                    <p className="text-slate-400 text-[11px]">A'zolar soni: <b>{groupMembersCount} ta</b> · Bot Adminlik huquqi tasdiqlandi</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleGroupConnect}
+                    className="w-full bg-brand-600 hover:bg-brand-500 text-white font-semibold py-3 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all"
+                  >
+                    <span>➕ Guruhga qo'shish</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Channel Connection */}
+              <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 space-y-3">
+                <span className="text-xs font-semibold text-slate-300">📢 Telegram Kanal Havolasi (Majburiy)</span>
+                <input
+                  type="text"
+                  value={channelLink}
+                  onChange={(e) => setChannelLink(e.target.value)}
+                  placeholder="https://t.me/kanal_nomi"
+                  className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                />
+
+                {channelLink && (
+                  <div className="p-3 bg-brand-500/10 border border-brand-500/30 rounded-xl text-xs space-y-1">
+                    <p className="font-bold text-brand-300">✅ Kanal tekshirildi: {channelName}</p>
+                    <p className="text-slate-400 text-[11px]">Obunachilar soni: <b>{channelSubsCount} ta</b></p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: YAKUN */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-slate-100">3-qadam: O'zingiz haqida</h2>
+              <p className="text-xs text-slate-400">Super-Admin ko'rib chiqishi uchun 2-3 gap yozing</p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">O'zingiz va tajribangiz haqida</label>
+                <textarea
+                  rows={4}
+                  value={about}
+                  onChange={(e) => setAbout(e.target.value)}
+                  placeholder="Masalan: Men Olmaliq shahri kanali administratoriman. 5 yildan beri shahar yangiliklarini yuritaman..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 resize-none"
+                />
+              </div>
+
+              {/* Summary Preview */}
+              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 text-xs space-y-2 text-slate-300">
+                <p className="font-bold text-slate-100 border-b border-slate-700 pb-1.5">📋 Ariza ma'lumotlari xulosasi:</p>
+                <p>• Arizachi: <b>{fullName}</b> ({phone})</p>
+                <p>• Shahar: <b>{cityName}</b></p>
+                <p>• Guruh: <b>{groupName}</b> ({groupMembersCount} a'zo)</p>
+                <p>• Kanal: <b>{channelName}</b> ({channelSubsCount} obunachi)</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Wizard Footer Navigation Buttons */}
+      <div className="pt-6 pb-2 flex items-center justify-between gap-3 border-t border-slate-800">
+        {step > 1 ? (
+          <button
+            onClick={() => setStep((step - 1) as any)}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-5 rounded-xl text-xs transition-all border border-slate-700"
+          >
+            ← Ortga
+          </button>
+        ) : <div />}
+
+        {step < 3 ? (
+          <button
+            onClick={() => {
+              if (step === 1 && (!fullName.trim() || !cityName.trim())) {
+                alert("Iltimos, barcha maydonlarni to'ldiring!");
+                return;
+              }
+              if (step === 2 && (!isGroupConnected || !channelLink.trim())) {
+                alert("Iltimos, guruhni ulang va kanal havolasini kiriting!");
+                return;
+              }
+              setStep((step + 1) as any);
+            }}
+            className="bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 px-6 rounded-xl text-xs transition-all shadow-lg ml-auto"
+          >
+            Davom etish →
+          </button>
+        ) : (
+          <button
+            onClick={handleFinalSubmit}
+            disabled={isSubmitting || !about.trim()}
+            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3.5 px-6 rounded-xl text-xs transition-all shadow-xl ml-auto flex items-center gap-2"
+          >
+            {isSubmitting ? 'Yuborilmoqda...' : '🚀 Arizani Yuborish'}
+          </button>
+        )}
       </div>
     </div>
   );

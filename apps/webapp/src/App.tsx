@@ -50,7 +50,7 @@ const MainShell: React.FC = () => {
     return (
       <LoginScreen
         adminName={user?.name || 'Admin'}
-        onLogin={async (pass) => {
+        onLogin={async (_loginCode, pass) => {
           return await loginWithPassword(pass);
         }}
       />
@@ -191,7 +191,16 @@ const MainShell: React.FC = () => {
         )}
 
         {viewMode === 'onboarding' && (
-          <OnboardingWizardScreen onCompleteOnboarding={() => setViewMode('normal')} />
+          <OnboardingWizardScreen
+            onSubmitApplication={async (appData) => {
+              await fetch('/api/auth/submit-application', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appData),
+              });
+              setViewMode('normal');
+            }}
+          />
         )}
 
         {viewMode === 'expired' && (
