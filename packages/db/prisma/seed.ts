@@ -73,7 +73,23 @@ async function main() {
     },
   });
 
-  // 5. Seed Admin Users (Super Admin, City Admin, Moderator)
+  // 5. Seed Admin Users (Super Admin 6355516451, Super Admin 8603273053, City Admin, Moderator)
+  await db.user.upsert({
+    where: { telegramId: BigInt(6355516451) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: false, passwordHash: null, oneTimeCode: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(6355516451),
+      firstName: 'Bobur',
+      lastName: 'Owner',
+      username: 'bobur_owner',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: false,
+      passwordHash: null,
+      oneTimeCode: 'kimbor2026',
+    },
+  });
+
   await db.user.upsert({
     where: { telegramId: BigInt(8603273053) },
     update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
