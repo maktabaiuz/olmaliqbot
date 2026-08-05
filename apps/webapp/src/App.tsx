@@ -11,9 +11,9 @@ import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
 import { OnboardingWizardScreen } from './screens/OnboardingWizardScreen';
 import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
 
-import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { PasswordSetupScreen } from './screens/PasswordSetupScreen';
+import { PublicDirectoryScreen } from './screens/PublicDirectoryScreen';
 
 const MainShell: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
@@ -69,7 +69,7 @@ const MainShell: React.FC = () => {
   }
 
   if (!isAuthenticated || authState === 'ACCESS_DENIED') {
-    return <AccessDeniedScreen />;
+    return <PublicDirectoryScreen cityName={user?.cityName || 'Olmaliq'} />;
   }
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';

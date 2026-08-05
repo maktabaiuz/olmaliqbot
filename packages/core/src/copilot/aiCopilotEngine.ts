@@ -200,6 +200,49 @@ export async function executeCopilotCommand(
         };
       }
 
+      case 'set_status': {
+        const { recordId, status } = args;
+        const targetStatus = (status || 'PAUSED').toUpperCase();
+
+        const listing = await db.listing.findFirst({
+          where: { id: recordId, cityId: enforcedCityId },
+        });
+
+        if (!listing) {
+          return {
+            success: false,
+            action: commandName,
+            message: "❌ Yozuv topilmadi yoki ushbu shahar ma'lumotlariga tegishli emas!",
+          };
+        }
+
+        const updated = await db.listing.update({
+          where: { id: recordId },
+          data: { status: targetStatus as any },
+        });
+
+        const audit = await db.auditLog.create({
+          data: {
+            cityId: enforcedCityId,
+            userId: (userId && userId.includes('-')) ? userId : null,
+            action: `SET_STATUS_${targetStatus}`,
+            details: JSON.stringify({ entity: 'Listing', entityId: recordId, previousStatus: listing.status, record: listing }),
+          },
+        });
+
+        console.log(`🤖 AI COPILOT LOG: Command set_status called for listing ${recordId} -> ${targetStatus}`);
+
+        return {
+          success: true,
+          action: commandName,
+          undoId: audit.id,
+          data: updated,
+          message: targetStatus === 'PAUSED'
+            ? `⏸️ Yozuv pauzaga qo'yildi (PAUSED): "${listing.name}". [AI Buyruq: set_status]`
+            : `▶️ Yozuv faollashtirildi (${targetStatus}): "${listing.name}". [AI Buyruq: set_status]`,
+        };
+      }
+
       case 'delete_record': {
         const { recordId } = args;
         const listing = await db.listing.findFirst({
@@ -229,12 +272,14 @@ export async function executeCopilotCommand(
           },
         });
 
+        console.log(`🤖 AI COPILOT LOG: Command delete_record called for listing ${recordId} -> ARCHIVED`);
+
         return {
           success: true,
           action: commandName,
           undoId: audit.id,
           data: updated,
-          message: `🗑️ Yozuv arxivga ko'chirildi: "${listing.name}".`,
+          message: `🗑️ Yozuv arxivga ko'chirildi (ARCHIVED): "${listing.name}". [AI Buyruq: delete_record]`,
         };
       }
 
