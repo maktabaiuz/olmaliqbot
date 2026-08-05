@@ -73,7 +73,53 @@ async function main() {
     },
   });
 
-  console.log('✅ Seeded local emergency numbers for Olmaliq.');
+  // 5. Seed Admin Users (Super Admin, City Admin, Moderator)
+  await db.user.upsert({
+    where: { telegramId: BigInt(8603273053) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(8603273053),
+      firstName: 'Bobur',
+      lastName: 'SuperAdmin',
+      username: 'bobur_admin',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100002) },
+    update: { role: 'CITY_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100002),
+      firstName: 'Sardor',
+      lastName: 'CityAdmin',
+      username: 'sardor_olmaliq',
+      role: 'CITY_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100003) },
+    update: { role: 'MODERATOR_VIEWER', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100003),
+      firstName: 'Alisher',
+      lastName: 'Moderator',
+      username: 'alisher_mod',
+      role: 'MODERATOR_VIEWER',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  console.log('✅ Seeded 3 admin users: Super Admin (8603273053), City Admin (100002), Moderator (100003).');
   console.log('🎉 Seeding completed successfully!');
 }
 

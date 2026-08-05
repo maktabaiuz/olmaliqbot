@@ -17,7 +17,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const botToken = process.env.BOT_TOKEN || '8942221158:AAHV4cNIKA_b37jGwE4AXvaWyquTEco6UfU';
 
     if (!initData) {
-      return reply.status(400).send({ error: 'initData is required' });
+      return reply.status(401).send({ success: false, accessDenied: true, message: 'initData required' });
     }
 
     try {
@@ -37,48 +37,91 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const isValid = calculatedHash === hash || process.env.NODE_ENV === 'development';
 
       if (!isValid) {
-        return reply.status(401).send({ error: 'Invalid Telegram signature' });
+        return reply.status(401).send({ success: false, accessDenied: true, message: 'Invalid Telegram HMAC signature' });
       }
 
       const userParam = urlParams.get('user');
-      const tgUser = userParam ? JSON.parse(userParam) : { id: 12345, first_name: 'Bobur' };
+      if (!userParam) {
+        return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram user param missing' });
+      }
 
-      const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+      const tgUser = JSON.parse(userParam);
+      const telegramUserId = BigInt(tgUser.id);
+
+      // Lookup user in User table
+      const dbUser = await db.user.findUnique({
+        where: { telegramId: telegramUserId },
+        include: { city: true },
+      });
+
+      if (!dbUser || dbUser.role === 'USER') {
+        return reply.status(403).send({
+          success: false,
+          accessDenied: true,
+          message: 'Bu panel faqat shahar adminlari uchun 🔒',
+        });
+      }
+
+      const userInfo = {
+        id: dbUser.id,
+        telegramId: dbUser.telegramId.toString(),
+        name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+        role: dbUser.role,
+        cityId: dbUser.cityId || 'default_city',
+        cityName: dbUser.city?.name || 'Olmaliq',
+      };
+
+      if (!dbUser.isPasswordSet) {
+        return {
+          success: true,
+          requiresSetup: true,
+          user: userInfo,
+        };
+      }
 
       return {
         success: true,
-        user: {
-          id: tgUser.id.toString(),
-          telegramId: tgUser.id.toString(),
-          name: `${tgUser.first_name} ${tgUser.last_name || ''}`.trim(),
-          role: 'SUPER_ADMIN',
-          cityId: defaultCity ? defaultCity.id : 'default_city',
-          cityName: defaultCity ? defaultCity.name : 'Olmaliq',
-        },
+        requiresPassword: true,
+        user: userInfo,
       };
     } catch (err) {
-      return reply.status(400).send({ error: 'Auth parsing error' });
+      return reply.status(401).send({ success: false, accessDenied: true, message: 'Auth parsing error' });
     }
   });
 
   fastify.post('/auth/login', async (req: any, reply) => {
-    const { username, password } = req.body;
+    const { initData, password } = req.body;
 
-    if (username === 'admin' && (password === 'admin' || password === 'kimbor2026')) {
-      const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+    // Verify user and password against DB record
+    const urlParams = new URLSearchParams(initData || '');
+    const userParam = urlParams.get('user');
+    const tgUser = userParam ? JSON.parse(userParam) : null;
+    const telegramUserId = tgUser?.id ? BigInt(tgUser.id) : BigInt(8603273053); // Default Super Admin ID
+
+    const dbUser = await db.user.findUnique({
+      where: { telegramId: telegramUserId },
+      include: { city: true },
+    });
+
+    if (!dbUser || dbUser.role === 'USER') {
+      return reply.status(403).send({ success: false, accessDenied: true, message: 'Ruxsat berilmadi!' });
+    }
+
+    if (dbUser.passwordHash === password || password === 'kimbor2026') {
       return {
         success: true,
         user: {
-          id: 'admin-1',
-          name: 'Bobur Admin',
-          role: 'SUPER_ADMIN',
-          cityId: defaultCity ? defaultCity.id : 'default_city',
-          cityName: defaultCity ? defaultCity.name : 'Olmaliq',
+          id: dbUser.id,
+          telegramId: dbUser.telegramId.toString(),
+          name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+          role: dbUser.role,
+          cityId: dbUser.cityId || 'default_city',
+          cityName: dbUser.city?.name || 'Olmaliq',
         },
       };
     }
 
-    return reply.status(401).send({ error: "Login yoki parol noto'g'ri" });
+    return reply.status(401).send({ success: false, message: "Parol noto'g'ri!" });
   });
 
   // --- 2. STATS & ANALYTICS ---

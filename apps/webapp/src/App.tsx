@@ -21,7 +21,9 @@ const MainShell: React.FC = () => {
   
   // Navigation & Control States
   const [activeTab, setActiveTab] = useState<NavTab>('home');
-  const [viewMode, setViewMode] = useState<'normal' | 'superadmin' | 'onboarding' | 'expired'>('normal');
+  const [viewMode, setViewMode] = useState<'normal' | 'superadmin' | 'onboarding' | 'expired'>(
+    user?.role === 'SUPER_ADMIN' ? 'superadmin' : 'normal'
+  );
   const [selectedCityName, setSelectedCityName] = useState(user?.cityName || 'Olmaliq');
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   
