@@ -4,6 +4,14 @@ import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries } from '@kimbor/
 import crypto from 'crypto';
 
 export async function adminRoutes(fastify: FastifyInstance) {
+  // Universal Telegram Webhook endpoint
+  fastify.post('/telegram/webhook', async (req: any, reply) => {
+    return { ok: true };
+  });
+
+  fastify.post('/webhook', async (req: any, reply) => {
+    return { ok: true };
+  });
   // Utility for resolving cityId safely
   const getCityId = async (req: any): Promise<string> => {
     if (req.user?.cityId) return req.user.cityId;
