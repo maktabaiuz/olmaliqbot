@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { TopQueriesWidget } from '../components/TopQueriesWidget';
 
 export interface TaskItem {
   id: string;
@@ -228,6 +229,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </div>
         </section>
       )}
+
+      {/* TOP 10 SEARCHED QUERIES WIDGET */}
+      <section>
+        <TopQueriesWidget />
+      </section>
 
       {/* 4. TASK LIST (ISHLAR) */}
       <section className="flex flex-col gap-4">

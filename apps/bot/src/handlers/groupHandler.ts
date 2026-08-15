@@ -51,6 +51,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         cityId,
         telegramUserId,
         rawMessage: messageText,
+        botResponse: 'Natija topilmadi',
         intent: classification.intent,
         categoryName: classification.category,
         landmarkName: classification.landmark,
@@ -59,6 +60,21 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     });
     return;
   }
+
+  // Record successful match query log with bot response
+  await db.queryLog.create({
+    data: {
+      cityId,
+      telegramUserId,
+      rawMessage: messageText,
+      botResponse: searchResult.formattedText,
+      intent: classification.intent,
+      categoryName: classification.category,
+      landmarkName: classification.landmark,
+      resolvedListingId: searchResult.listingId,
+      isResolved: true,
+    },
+  });
 
   // 5. Build group response buttons
   const keyboard = new InlineKeyboard();

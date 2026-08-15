@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type NavTab = 'home' | 'add' | 'requests' | 'database' | 'more';
+export type NavTab = 'home' | 'add' | 'requests' | 'users' | 'database' | 'more';
 
 export interface BottomNavProps {
   activeTab: NavTab;
@@ -19,6 +19,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     { id: 'home', label: 'Bosh sahifa', icon: 'home' },
     { id: 'add', label: "Qo'shish", icon: 'add_circle' },
     { id: 'requests', label: "So'rovlar", icon: 'forum' },
+    { id: 'users', label: 'Chatlar', icon: 'mark_chat_unread' },
     { id: 'database', label: 'Baza', icon: 'database' },
     { id: 'more', label: 'Yana', icon: 'more_horiz' },
   ];

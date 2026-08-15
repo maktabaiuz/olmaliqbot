@@ -7,6 +7,7 @@ import { DashboardScreen } from './screens/DashboardScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
+import { UsersChatScreen } from './screens/UsersChatScreen';
 import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
 import { OnboardingWizardScreen } from './screens/OnboardingWizardScreen';
 import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
@@ -232,6 +233,8 @@ const MainShell: React.FC = () => {
                 onSelectCategoryToAdd={(cat) => setPrefilledCategory(cat)}
               />
             )}
+
+            {activeTab === 'users' && <UsersChatScreen />}
 
             {activeTab === 'database' && (
               <DatabaseScreen onNavigateTab={setActiveTab} />

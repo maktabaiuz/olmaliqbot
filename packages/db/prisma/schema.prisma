@@ -336,16 +336,23 @@ model QueryLog {
   city              City        @relation(fields: [cityId], references: [id], onDelete: Cascade)
   telegramUserId    BigInt
   rawMessage        String
+  botResponse       String?     // AI yoki tizim bergan javob
   intent            IntentType  @default(SERVICE)
   categoryName      String?
   landmarkName      String?
   resolvedListingId String?
   isResolved        Boolean     @default(false)
+  isComplaint       Boolean     @default(false) // 👎 bosilgan yoki shikoyat yuborilgan
+  complaintReason   String?     // Shikoyat sababi (masalan: noto'g'ri nomer, javob bermadi)
+  adminReply        String?     // Admin chat orqali yozgan javob matni
+  adminReplyAt      DateTime?
   notifiedAt        DateTime?   // User faqat 1 marta xabardor qilinadi
   clusterKey        String?     // O'xshash so'rovlarni birlashtirish klyuchi
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])
+  @@index([cityId, isComplaint])
+  @@index([telegramUserId])
   @@map("query_logs")
 }
 
