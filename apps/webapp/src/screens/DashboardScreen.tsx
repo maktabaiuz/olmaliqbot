@@ -12,7 +12,7 @@ export interface TaskItem {
 }
 
 export interface DashboardScreenProps {
-  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'database' | 'more') => void;
+  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'users' | 'database' | 'more') => void;
   onSelectCategoryToAdd?: (categoryName: string) => void;
 }
 
@@ -187,9 +187,38 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </button>
       </div>
 
-      {/* 2. GREETING */}
-      <section>
+      {/* 2. GREETING & TOP QUICK ACCESS BUTTONS */}
+      <section className="flex flex-col gap-3">
         <h1 className="font-bold text-xl text-on-surface dark:text-slate-100">{greeting}</h1>
+        
+        {/* TOP MAIN SECTIONS QUICK BUTTONS */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            onClick={() => onNavigateTab('users')}
+            className="p-3.5 bg-gradient-to-br from-primary-container/40 to-primary/20 hover:from-primary-container/60 hover:to-primary/30 rounded-2xl border border-primary/30 flex items-center gap-3 transition shadow-sm active:scale-98 text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[24px]">forum</span>
+            </div>
+            <div>
+              <div className="font-bold text-body-main text-on-background">👥 Userlar Chatlari</div>
+              <div className="text-caption text-outline">Xabarlar & AI javoblari</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('users')}
+            className="p-3.5 bg-gradient-to-br from-error-container/40 to-error/20 hover:from-error-container/60 hover:to-error/30 rounded-2xl border border-error/30 flex items-center gap-3 transition shadow-sm active:scale-98 text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-error text-on-error flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[24px]">warning</span>
+            </div>
+            <div>
+              <div className="font-bold text-body-main text-error">⚠️ Shikoyatlar</div>
+              <div className="text-caption text-outline">Tushgan shikoyatlar</div>
+            </div>
+          </button>
+        </div>
       </section>
 
       {/* 3. AI BRIEFING CARD */}

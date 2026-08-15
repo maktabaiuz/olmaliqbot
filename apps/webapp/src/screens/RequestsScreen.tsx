@@ -14,7 +14,7 @@ export interface UnresolvedCluster {
 }
 
 export interface RequestsScreenProps {
-  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'database' | 'more') => void;
+  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'users' | 'database' | 'more') => void;
   onSelectCategoryToAdd: (categoryName: string) => void;
 }
 
@@ -142,6 +142,35 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in pb-16">
+      {/* TOP DIRECT CHATS & COMPLAINTS BAR */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <button
+          onClick={() => onNavigateTab('users')}
+          className="p-3 bg-gradient-to-br from-primary-container/40 to-primary/20 hover:from-primary-container/60 hover:to-primary/30 rounded-2xl border border-primary/30 flex items-center gap-2.5 transition shadow-sm text-left"
+        >
+          <div className="w-8 h-8 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">forum</span>
+          </div>
+          <div>
+            <div className="font-bold text-xs text-on-background">👥 Userlar Chatlari</div>
+            <div className="text-[10px] text-outline">Xabarlar & AI javoblar</div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab('users')}
+          className="p-3 bg-gradient-to-br from-error-container/40 to-error/20 hover:from-error-container/60 hover:to-error/30 rounded-2xl border border-error/30 flex items-center gap-2.5 transition shadow-sm text-left"
+        >
+          <div className="w-8 h-8 rounded-xl bg-error text-on-error flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[20px]">warning</span>
+          </div>
+          <div>
+            <div className="font-bold text-xs text-error">⚠️ Shikoyatlar</div>
+            <div className="text-[10px] text-outline">Shikoyat jurnali</div>
+          </div>
+        </button>
+      </div>
+
       {/* HEADER BAR */}
       <div className="flex items-center justify-between">
         <div>
