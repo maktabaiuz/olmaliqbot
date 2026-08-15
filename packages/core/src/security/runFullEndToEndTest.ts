@@ -1,4 +1,4 @@
-import { db, ListingType, VerificationStatus } from '@kimbor/db';
+import { db } from '@kimbor/db';
 import { searchListings } from '../search/searchEngine';
 import { notifyUsersOnNewListingAdded } from '../requests/queryLoop';
 import { executeCopilotCommand } from '../copilot/aiCopilotEngine';
@@ -30,10 +30,10 @@ export async function runEndToEndTest() {
       cityId: testCity.id,
       categoryId: catMebel.id,
       primaryLandmarkId: landmarkKarzinka.id,
-      type: ListingType.USTA,
+      type: 'USTA' as any,
       name: 'Hasan Mebelchi',
       phone: phoneNum,
-      verification: VerificationStatus.COMMUNITY_UNVERIFIED,
+      verification: 'COMMUNITY_UNVERIFIED' as any,
       badges: ['uyga_boradi', 'kafillik_beradi'],
       workFrom: '08:00',
       workTo: '20:00',

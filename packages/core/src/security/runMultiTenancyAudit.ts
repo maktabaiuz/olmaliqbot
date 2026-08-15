@@ -1,4 +1,4 @@
-import { db, ListingType, VerificationStatus } from '@kimbor/db';
+import { db } from '@kimbor/db';
 import { searchListings } from '../search/searchEngine';
 
 export async function runMultiTenancyAudit() {
@@ -43,10 +43,10 @@ export async function runMultiTenancyAudit() {
       cityId: cityA.id,
       categoryId: category.id,
       primaryLandmarkId: landmarkA.id,
-      type: ListingType.USTA,
+      type: 'USTA' as any,
       name: "Bahrom Gazavik (Olmaliq Sirlari)",
       phone: '+998901111111',
-      verification: VerificationStatus.VERIFIED,
+      verification: 'VERIFIED' as any,
       badges: ['uyga_boradi'],
     },
   });
@@ -57,10 +57,10 @@ export async function runMultiTenancyAudit() {
       cityId: cityB.id,
       categoryId: category.id,
       primaryLandmarkId: landmarkB.id,
-      type: ListingType.USTA,
+      type: 'USTA' as any,
       name: "Sardor Santexnik (Chirchiq Sirlari)",
       phone: '+998902222222',
-      verification: VerificationStatus.VERIFIED,
+      verification: 'VERIFIED' as any,
       badges: ['uyga_boradi'],
     },
   });

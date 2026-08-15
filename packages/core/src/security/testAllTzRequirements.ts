@@ -1,5 +1,4 @@
 import { db } from '@kimbor/db';
-import { handleDirectMessage, handleDirectCallbacks } from '../../../../apps/bot/src/handlers/directHandler';
 
 export async function testAllTzReqs() {
   console.log('🧪 ========================================================');

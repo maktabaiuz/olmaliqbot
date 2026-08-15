@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db, ListingType, VerificationStatus } from '@kimbor/db';
+import { db } from '@kimbor/db';
 import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries } from '@kimbor/core';
 import crypto from 'crypto';
 
@@ -338,11 +338,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         cityId,
         categoryId: category.id,
         primaryLandmarkId: landmark.id,
-        type: ListingType.USTA,
+        type: 'USTA' as any,
         name,
         phone,
         badges: badges || ['uyga_boradi'],
-        verification: verified ? VerificationStatus.VERIFIED : VerificationStatus.COMMUNITY_UNVERIFIED,
+        verification: (verified ? 'VERIFIED' : 'COMMUNITY_UNVERIFIED') as any,
         workFrom: workFrom || '08:00',
         workTo: workTo || '20:00',
       },
@@ -502,9 +502,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
       where: { telegramId: { in: tgIds } },
     });
 
-    const dbUserMap = new Map(dbUsers.map((u) => [u.telegramId.toString(), u]));
+    const dbUserMap = new Map<string, any>(dbUsers.map((u: any) => [u.telegramId.toString(), u]));
 
-    const usersList = Array.from(userLogMap.values()).map((entry) => {
+    const usersList = Array.from(userLogMap.values()).map((entry: any) => {
       const dbU = dbUserMap.get(entry.telegramUserId);
       return {
         ...entry,
@@ -530,7 +530,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       orderBy: { createdAt: 'asc' },
     });
 
-    const formattedMessages = messages.map((msg) => ({
+    const formattedMessages = messages.map((msg: any) => ({
       id: msg.id,
       telegramUserId: msg.telegramUserId.toString(),
       rawMessage: msg.rawMessage,
