@@ -82,6 +82,23 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   if (messageText === '/start') {
     session.step = 'CITY_SELECT';
 
+    // Auto-grant SUPER_ADMIN if SuperAdmin Telegram ID
+    if (userId === 6355516451 || userId === 8603273053) {
+      const olmaliqCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+      await db.user.upsert({
+        where: { telegramId: telegramUserIdBigInt },
+        update: { role: 'SUPER_ADMIN' },
+        create: {
+          telegramId: telegramUserIdBigInt,
+          firstName: ctx.from.first_name || 'Admin',
+          lastName: ctx.from.last_name || '',
+          username: ctx.from.username || 'admin',
+          role: 'SUPER_ADMIN',
+          cityId: olmaliqCity?.id,
+        },
+      });
+    }
+
     // 2x2 Grid Reply Keyboard for City Selection (is_persistent: true, resize_keyboard: true)
     const cityKeyboard = new Keyboard()
       .text('🏙 Olmaliq').text('🏙 Chirchiq')

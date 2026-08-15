@@ -62,7 +62,8 @@ services:
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      WEBHOOK_URL: https://${DOMAIN}/api/telegram/webhook
+      WEBAPP_URL: https://${DOMAIN:-olmaliq.online}
+      WEBHOOK_URL: https://${DOMAIN:-olmaliq.online}/api/telegram/webhook
     depends_on:
       postgres:
         condition: service_healthy
