@@ -1,0 +1,14 @@
+name: Hostinger VPS Auto Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Hostinger VPS Deploy
+        run: |
+          echo "GitHub push event triggered for main branch"
