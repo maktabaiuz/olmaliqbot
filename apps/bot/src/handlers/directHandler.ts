@@ -34,7 +34,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.cityName = 'Olmaliq';
     session.step = undefined;
 
-    await sendMainMenu(ctx, 'Olmaliq', isSuperAdmin);
+    const dbUser = await db.user.findUnique({ where: { telegramId: telegramUserIdBigInt } });
+    const hasAdminAccess = isSuperAdmin || (dbUser && dbUser.role !== 'USER');
+
+    await sendMainMenu(ctx, 'Olmaliq', !!hasAdminAccess);
     return;
   }
 
@@ -47,7 +50,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.cityName = 'Chirchiq';
     session.step = undefined;
 
-    await sendMainMenu(ctx, 'Chirchiq', isSuperAdmin);
+    const dbUser = await db.user.findUnique({ where: { telegramId: telegramUserIdBigInt } });
+    const hasAdminAccess = isSuperAdmin || (dbUser && dbUser.role !== 'USER');
+
+    await sendMainMenu(ctx, 'Chirchiq', !!hasAdminAccess);
     return;
   }
 
@@ -60,7 +66,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.cityName = 'Angren';
     session.step = undefined;
 
-    await sendMainMenu(ctx, 'Angren', isSuperAdmin);
+    const dbUser = await db.user.findUnique({ where: { telegramId: telegramUserIdBigInt } });
+    const hasAdminAccess = isSuperAdmin || (dbUser && dbUser.role !== 'USER');
+
+    await sendMainMenu(ctx, 'Angren', !!hasAdminAccess);
     return;
   }
 
@@ -337,13 +346,15 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
 // Helper to send persistent 2x2 reply keyboard matching exact user specification
 async function sendMainMenu(ctx: Context, cityName: string, isAdmin: boolean) {
-  // 2x2 Grid Reply Keyboard (is_persistent: true, resize_keyboard: true)
+  const webAppUrl = process.env.WEBAPP_URL || 'https://olmaliq.online';
+
+  // 2x2 Grid Reply Keyboard
   const replyMenu = new Keyboard()
     .text('🔍 Qidirish').text('🤝 Hamkor')
     .row();
 
   if (isAdmin) {
-    replyMenu.text('🌐 Admin Paneli').text('➕ Ma\'lumot qo\'shish').row();
+    replyMenu.webApp('🌐 Admin Paneli', webAppUrl).text('➕ Ma\'lumot qo\'shish').row();
   }
 
   replyMenu.resized().persistent();
@@ -352,8 +363,20 @@ async function sendMainMenu(ctx: Context, cityName: string, isAdmin: boolean) {
     `Nima kerak? Yozing — shu shahar ichidan topib beraman.\n\n` +
     `_Masalan: gazavik kerak · karzinka oldida dorixona_`;
 
-  await ctx.reply(messageText, {
-    parse_mode: 'Markdown',
-    reply_markup: replyMenu,
-  });
+  if (isAdmin) {
+    const inlineAdminMenu = new InlineKeyboard().webApp('⚡ Admin Panelni Ochish (Mini App)', webAppUrl);
+    await ctx.reply(messageText, {
+      parse_mode: 'Markdown',
+      reply_markup: replyMenu,
+    });
+    await ctx.reply(`👨‍💼 **Siz Shahar Adminisiz!**\nBoshqaruv paneliga kirish uchun pastdagi tugmani bosing:`, {
+      parse_mode: 'Markdown',
+      reply_markup: inlineAdminMenu,
+    });
+  } else {
+    await ctx.reply(messageText, {
+      parse_mode: 'Markdown',
+      reply_markup: replyMenu,
+    });
+  }
 }
