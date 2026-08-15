@@ -6,7 +6,7 @@ import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHan
 
 dotenv.config({ path: '../../.env' });
 
-const token = process.env.BOT_TOKEN || '8603273053:AAFazZJBTKPnZZGsvIEpwIAhJSejsUQQSSU';
+const token = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
 
 console.log('🤖 "Kim bor?" Telegram Boti ishga tushmoqda...');
 

@@ -14,7 +14,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // --- 1. AUTHENTICATION ---
   fastify.post('/auth/telegram', async (req: any, reply) => {
     const { initData } = req.body;
-    const botToken = process.env.BOT_TOKEN || '8942221158:AAHV4cNIKA_b37jGwE4AXvaWyquTEco6UfU';
+    const botToken = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
 
     if (!initData) {
       return reply.status(401).send({ success: false, accessDenied: true, message: 'initData required' });
@@ -555,7 +555,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Message text is required' });
     }
 
-    const botToken = process.env.BOT_TOKEN || '8942221158:AAHV4cNIKA_b37jGwE4AXvaWyquTEco6UfU';
+    const botToken = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
 
     try {
       // Send Telegram API direct message
