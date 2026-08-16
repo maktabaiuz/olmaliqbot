@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { TopQueriesWidget } from '../components/TopQueriesWidget';
+import { API_BASE_URL } from '../config';
 
 export interface TaskItem {
   id: string;
@@ -53,7 +54,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const fetchDashboardData = async () => {
       try {
         const [statsRes] = await Promise.all([
-          fetch('http://localhost:4000/api/admin/stats'),
+          fetch(`${API_BASE_URL}/admin/stats`),
         ]);
 
         let unresolvedCount = 12;

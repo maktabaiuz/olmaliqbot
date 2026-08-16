@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config';
 
 export interface UnresolvedCluster {
   id: string;
@@ -35,7 +36,7 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
   const fetchClusters = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:4000/api/admin/requests/clusters');
+      const res = await fetch(`${API_BASE_URL}/admin/requests/clusters`);
       if (res.ok) {
         const data = await res.json();
 
@@ -95,7 +96,7 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
     }
 
     try {
-      const res = await fetch('http://localhost:4000/api/admin/requests/bind-synonym', {
+      const res = await fetch(`${API_BASE_URL}/admin/requests/bind-synonym`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
