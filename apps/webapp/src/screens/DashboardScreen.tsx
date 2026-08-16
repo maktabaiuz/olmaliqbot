@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { TopQueriesWidget } from '../components/TopQueriesWidget';
 import { API_BASE_URL } from '../config';
+import { AiInsightCard, AiInsightData } from '../components/AiInsightCard';
+import { TopUnansweredQueriesWidget } from '../components/TopUnansweredQueriesWidget';
+import { DashboardTaskRow } from '../components/DashboardTaskRow';
 
-export interface TaskItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  count: number;
-  type: 'urgent' | 'later';
-  actionType: 'corrections' | 'unresolved' | 'stale' | 'low_ratings' | 'unverified';
+export interface DashboardStats {
+  unresolvedRequests: number;
+  pendingCorrections: number;
+  complaintsCount: number;
+  staleListings: number;
+  lowRatingListings: number;
+  pendingCandidates: number;
 }
 
 export interface DashboardScreenProps {
@@ -22,21 +24,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onSelectCategoryToAdd,
 }) => {
   const { user } = useAuth();
-  const [greeting, setGreeting] = useState('');
-  const [selectedCity, setSelectedCity] = useState(user?.cityName || 'Olmaliq');
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [greeting, setGreeting] = useState<string>('');
+  const [aiInsight, setAiInsight] = useState<AiInsightData | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Stats & Task Counts State
-  const [urgentTasks, setUrgentTasks] = useState<TaskItem[]>([]);
-  const [laterTasks, setLaterTasks] = useState<TaskItem[]>([]);
-  const dailyCompletedCount = 6;
-  const dailyTarget = 20;
-  const [aiInsight, setAiInsight] = useState<{ message: string; suggestedCategory?: string } | null>({
-    message: "Bugun 12 savolga javob berolmadim. Ko'pchiligi kafelchi haqida edi.",
-    suggestedCategory: 'Kafelchi',
-  });
-
-  // Calculate Time-of-Day Greeting
+  // 1. Time-of-Day Greeting Calculation
   useEffect(() => {
     const hour = new Date().getHours();
     let timeGreeting = 'Xayrli kun';
@@ -45,360 +38,198 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     else if (hour >= 18 && hour < 23) timeGreeting = 'Xayrli kech';
     else timeGreeting = 'Xayrli tun';
 
-    const userName = user?.name ? user.name.split(' ')[0] : 'Bobur';
-    setGreeting(`${timeGreeting}, ${userName} 👋`);
+    const rawName = user?.name ? user.name.trim().split(' ')[0] : 'Admin';
+    const adminName = rawName || 'Admin';
+    setGreeting(`${timeGreeting}, ${adminName} 👋`);
   }, [user]);
 
-  // Fetch live tasks & counts for the selected city
+  // 2. Fetch AI Insight & Real Task Stats from API
   useEffect(() => {
     const fetchDashboardData = async () => {
+      setLoading(true);
       try {
-        const [statsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/admin/stats`),
-        ]);
+        const initData = window.Telegram?.WebApp?.initData || '';
+        const headers = { 'x-telegram-init-data': initData };
 
-        let unresolvedCount = 12;
-        let pendingCorrections = 4;
-        let staleCount = 7;
-        let lowRatingsCount = 3;
-        let unverifiedCount = 18;
+        const [statsRes, aiRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/admin/stats`, { headers }),
+          fetch(`${API_BASE_URL}/admin/ai-insight`, { headers }),
+        ]);
 
         if (statsRes.ok) {
           const statsData = await statsRes.json();
-          unresolvedCount = statsData.unresolvedRequests || 0;
-          unverifiedCount = statsData.pendingCandidates || 0;
-        }
-
-        // 1. SHOSHILINCH (Urgent) Tasks (Red edge)
-        const urgentList: TaskItem[] = [];
-        if (pendingCorrections > 0) {
-          urgentList.push({
-            id: 'corrections',
-            title: 'Tuzatishlar',
-            subtitle: 'botga javob qilib yozilgan',
-            count: pendingCorrections,
-            type: 'urgent',
-            actionType: 'corrections',
-          });
-        }
-        if (unresolvedCount > 0) {
-          urgentList.push({
-            id: 'unresolved',
-            title: 'Javobsiz savollar',
-            subtitle: 'bugun so\'ralgan',
-            count: unresolvedCount,
-            type: 'urgent',
-            actionType: 'unresolved',
+          setStats({
+            unresolvedRequests: statsData.unresolvedRequests || 0,
+            pendingCorrections: statsData.pendingCorrections || 0,
+            complaintsCount: statsData.complaintsCount || 0,
+            staleListings: statsData.staleListings || 0,
+            lowRatingListings: statsData.lowRatingListings || 0,
+            pendingCandidates: statsData.pendingCandidates || 0,
           });
         }
 
-        // 2. KEYINROQ (Later) Tasks (Grey edge)
-        const laterList: TaskItem[] = [];
-        if (staleCount > 0) {
-          laterList.push({
-            id: 'stale',
-            title: 'Eskirgan yozuvlar',
-            subtitle: '6 oydan beri tegilmagan',
-            count: staleCount,
-            type: 'later',
-            actionType: 'stale',
-          });
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          setAiInsight(aiData);
         }
-        if (lowRatingsCount > 0) {
-          laterList.push({
-            id: 'low_ratings',
-            title: 'Past baholar',
-            count: lowRatingsCount,
-            type: 'later',
-            actionType: 'low_ratings',
-          });
-        }
-        if (unverifiedCount > 0) {
-          laterList.push({
-            id: 'unverified',
-            title: 'Tasdiqlanmagan yozuvlar',
-            count: unverifiedCount,
-            type: 'later',
-            actionType: 'unverified',
-          });
-        }
-
-        setUrgentTasks(urgentList);
-        setLaterTasks(laterList);
       } catch (err) {
-        console.error('Failed to load dashboard data:', err);
+        console.error('Failed to fetch dashboard data:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, [selectedCity]);
+  }, []);
 
-  const totalTasksCount = urgentTasks.length + laterTasks.length;
-  const progressPercent = Math.min(100, Math.round((dailyCompletedCount / dailyTarget) * 100));
+  const handleCategoryAddSelect = (category: string) => {
+    if (onSelectCategoryToAdd) {
+      onSelectCategoryToAdd(category);
+    }
+    onNavigateTab('add');
+  };
+
+  const cityName = user?.cityName || 'Olmaliq';
+
+  // Task Counts
+  const unresolvedCount = stats?.unresolvedRequests || 0;
+  const correctionsCount = stats?.pendingCorrections || 0;
+  const complaintsCount = stats?.complaintsCount || 0;
+  const staleCount = stats?.staleListings || 0;
+  const lowRatingsCount = stats?.lowRatingListings || 0;
+  const unverifiedCount = stats?.pendingCandidates || 0;
+
+  const urgentTotal = unresolvedCount + correctionsCount + complaintsCount;
+  const laterTotal = staleCount + lowRatingsCount + unverifiedCount;
+  const grandTotal = urgentTotal + laterTotal;
 
   return (
-    <div className="flex flex-col gap-5 animate-fade-in">
-      {/* 1. TOP NAV / CITY SWITCHER */}
-      <div className="flex items-center justify-between relative">
-        <div className="relative">
-          <button
-            onClick={() => setShowCityDropdown(!showCityDropdown)}
-            className="flex items-center gap-1.5 bg-surface-container-high dark:bg-slate-800 px-3.5 py-1.5 rounded-full hover:bg-surface-container-highest dark:hover:bg-slate-700 transition-colors shadow-sm"
-          >
-            <span className="font-semibold text-sm text-on-surface dark:text-slate-100">
-              {selectedCity}
-            </span>
-            <span className="material-symbols-outlined text-[18px] text-on-surface-variant dark:text-slate-400">
-              expand_more
-            </span>
-          </button>
-
-          {/* City Selection Dropdown */}
-          {showCityDropdown && (
-            <div className="absolute top-10 left-0 bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl shadow-xl z-50 w-44 py-1 animate-fadeIn">
-              {['Olmaliq', 'Chirchiq', 'Angren', 'Buka'].map((cityName) => (
-                <button
-                  key={cityName}
-                  onClick={() => {
-                    setSelectedCity(cityName);
-                    setShowCityDropdown(false);
-                  }}
-                  className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center justify-between ${
-                    selectedCity === cityName
-                      ? 'text-primary dark:text-sky-400 bg-primary-container/10'
-                      : 'text-on-surface dark:text-slate-200'
-                  }`}
-                >
-                  {cityName}
-                  {selectedCity === cityName && (
-                    <span className="material-symbols-outlined text-[16px]">check</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+    <div className="flex flex-col gap-4 animate-fade-in pb-16">
+      {/* ① HEADER: Static City Name & Settings Icon */}
+      <header className="flex items-center justify-between py-1 border-b border-outline-variant/20 dark:border-slate-800/60">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary dark:text-sky-400 text-[22px]">
+            location_city
+          </span>
+          <span className="font-bold text-title-bold text-on-surface dark:text-slate-100">
+            {cityName}
+          </span>
         </div>
 
         <button
+          type="button"
           onClick={() => onNavigateTab('more')}
           className="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
           title="Sozlamalar"
         >
           <span className="material-symbols-outlined text-[20px]">settings</span>
         </button>
-      </div>
+      </header>
 
-      {/* 2. GREETING & TOP QUICK ACCESS BUTTONS */}
-      <section className="flex flex-col gap-3">
-        <h1 className="font-bold text-xl text-on-surface dark:text-slate-100">{greeting}</h1>
-        
-        {/* TOP MAIN SECTIONS QUICK BUTTONS */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            onClick={() => onNavigateTab('users')}
-            className="p-3.5 bg-gradient-to-br from-primary-container/40 to-primary/20 hover:from-primary-container/60 hover:to-primary/30 rounded-2xl border border-primary/30 flex items-center gap-3 transition shadow-sm active:scale-98 text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">forum</span>
-            </div>
-            <div>
-              <div className="font-bold text-body-main text-on-background">👥 Userlar Chatlari</div>
-              <div className="text-caption text-outline">Xabarlar & AI javoblari</div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => onNavigateTab('users')}
-            className="p-3.5 bg-gradient-to-br from-error-container/40 to-error/20 hover:from-error-container/60 hover:to-error/30 rounded-2xl border border-error/30 flex items-center gap-3 transition shadow-sm active:scale-98 text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-error text-on-error flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">warning</span>
-            </div>
-            <div>
-              <div className="font-bold text-body-main text-error">⚠️ Shikoyatlar</div>
-              <div className="text-caption text-outline">Tushgan shikoyatlar</div>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* 3. AI BRIEFING CARD */}
-      {aiInsight && (
-        <section className="bg-surface-container-low dark:bg-[#17212B] rounded-[20px] p-4 flex flex-col gap-3 relative overflow-hidden border border-outline-variant/30 dark:border-slate-800/80 shadow-sm">
-          <div className="flex gap-3 relative z-10">
-            <div className="w-10 h-10 rounded-full bg-primary-container/20 text-primary dark:text-sky-400 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                smart_toy
-              </span>
-            </div>
-            <div>
-              <p className="text-sm text-on-surface dark:text-slate-200 leading-snug">
-                {aiInsight.message}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-1 relative z-10 ml-13">
-            {aiInsight.suggestedCategory && (
-              <button
-                onClick={() => {
-                  if (onSelectCategoryToAdd) onSelectCategoryToAdd(aiInsight.suggestedCategory!);
-                  onNavigateTab('add');
-                }}
-                className="bg-primary dark:bg-sky-500 text-on-primary text-xs font-semibold px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors shadow-sm active:scale-95"
-              >
-                {aiInsight.suggestedCategory} qo'shish
-              </button>
-            )}
-            <button
-              onClick={() => setAiInsight(null)}
-              className="border border-outline-variant/60 dark:border-slate-700 text-on-surface-variant dark:text-slate-400 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors active:scale-95"
-            >
-              Keyinroq
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* TOP 10 SEARCHED QUERIES WIDGET */}
+      {/* ② SALOMLASHISH */}
       <section>
-        <TopQueriesWidget />
+        <h1 className="font-bold text-title-bold text-on-surface dark:text-slate-100">
+          {greeting}
+        </h1>
       </section>
 
-      {/* 4. TASK LIST (ISHLAR) */}
+      {/* ③ AI MASLAHAT KARTASI */}
+      <AiInsightCard
+        insight={aiInsight}
+        onDismiss={() => setAiInsight(null)}
+        onAddCategory={handleCategoryAddSelect}
+      />
+
+      {/* ④ KUNLIK TOP-10 JAVOBSIZ SAVOLLAR */}
+      <TopUnansweredQueriesWidget onSelectCategoryToAdd={handleCategoryAddSelect} />
+
+      {/* ⑤ ISHLAR RO'YXATI (SHOSHILINCH / KEYINROQ) */}
       <section className="flex flex-col gap-4">
-        {totalTasksCount === 0 ? (
+        {loading ? (
+          <div className="p-6 text-center text-caption text-outline">
+            Ishlar ro'yxati yuklanmoqda...
+          </div>
+        ) : grandTotal === 0 ? (
           /* EMPTY STATE WHEN ALL TASKS ARE 0 */
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
+          <div className="bg-surface-container-lowest dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-[14px] p-8 flex flex-col items-center justify-center text-center shadow-sm">
             <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center mb-3">
-              <span className="material-symbols-outlined text-[36px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              <span
+                className="material-symbols-outlined text-[36px]"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
                 check_circle
               </span>
             </div>
-            <h3 className="font-bold text-base text-on-surface dark:text-slate-100 mb-1">
+            <h3 className="font-bold text-body-main text-on-surface dark:text-slate-100 mb-1">
               Bugun hammasi joyida ✅
             </h3>
-            <p className="text-xs text-on-surface-variant dark:text-slate-400">
-              Hozircha kutilayotgan shoshilinch ishlar yo'q.
+            <p className="text-body-secondary text-outline">
+              Hozircha kutilayotgan shoshilinch va keyinroq bajariladigan ishlar yo'q.
             </p>
           </div>
         ) : (
           <>
-            {/* SHOSHILINCH (Urgent) Group - Hidden if 0 count */}
-            {urgentTasks.length > 0 && (
+            {/* SHOSHILINCH SEKSIYASI */}
+            {urgentTotal > 0 && (
               <div className="flex flex-col gap-2">
-                <h2 className="text-xs font-semibold tracking-wider text-error dark:text-red-400 uppercase px-1">
+                <h3 className="text-caption font-bold text-error uppercase tracking-wider pl-1">
                   SHOSHILINCH
-                </h2>
-                <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-xl flex flex-col overflow-hidden border border-outline-variant/30 dark:border-slate-800 shadow-sm divide-y divide-outline-variant/20 dark:divide-slate-800">
-                  {urgentTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => {
-                        if (task.actionType === 'unresolved') onNavigateTab('requests');
-                        else onNavigateTab('database');
-                      }}
-                      className="flex items-center p-3 relative hover:bg-surface-container-low dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                    >
-                      <div className="absolute left-0 top-0 bottom-0 w-[6px] bg-error rounded-l-xl" />
-                      <div className="pl-3.5 flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm text-on-surface dark:text-slate-100">
-                          {task.title}
-                        </h3>
-                        {task.subtitle && (
-                          <p className="text-xs text-on-surface-variant dark:text-slate-400">
-                            {task.subtitle}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-error-container dark:bg-red-950 text-on-error-container dark:text-red-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                          {task.count}
-                        </span>
-                        <span className="material-symbols-outlined text-[20px] text-on-surface-variant dark:text-slate-500">
-                          chevron_right
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                </h3>
+                <DashboardTaskRow
+                  title="Javobsiz savollar"
+                  subtitle="bugun so'ralgan"
+                  count={unresolvedCount}
+                  type="urgent"
+                  onClick={() => onNavigateTab('requests')}
+                />
+                <DashboardTaskRow
+                  title="Tuzatishlar"
+                  subtitle="botga javob qilib yozilgan"
+                  count={correctionsCount}
+                  type="urgent"
+                  onClick={() => onNavigateTab('requests')}
+                />
+                <DashboardTaskRow
+                  title="Shikoyatlar"
+                  subtitle="foydalanuvchilar bildirishgan"
+                  count={complaintsCount}
+                  type="urgent"
+                  onClick={() => onNavigateTab('users')}
+                />
               </div>
             )}
 
-            {/* KEYINROQ (Later) Group - Hidden if 0 count */}
-            {laterTasks.length > 0 && (
+            {/* KEYINROQ SEKSIYASI */}
+            {laterTotal > 0 && (
               <div className="flex flex-col gap-2">
-                <h2 className="text-xs font-semibold tracking-wider text-on-surface-variant dark:text-slate-400 uppercase px-1">
+                <h3 className="text-caption font-bold text-outline uppercase tracking-wider pl-1">
                   KEYINROQ
-                </h2>
-                <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-xl flex flex-col overflow-hidden border border-outline-variant/30 dark:border-slate-800 shadow-sm divide-y divide-outline-variant/20 dark:divide-slate-800">
-                  {laterTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => onNavigateTab('database')}
-                      className="flex items-center p-3 relative hover:bg-surface-container-low dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                    >
-                      <div className="absolute left-0 top-0 bottom-0 w-[6px] bg-outline-variant dark:bg-slate-600 rounded-l-xl" />
-                      <div className="pl-3.5 flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm text-on-surface dark:text-slate-100">
-                          {task.title}
-                        </h3>
-                        {task.subtitle && (
-                          <p className="text-xs text-on-surface-variant dark:text-slate-400">
-                            {task.subtitle}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-surface-container-high dark:bg-slate-800 text-on-surface-variant dark:text-slate-300 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                          {task.count}
-                        </span>
-                        <span className="material-symbols-outlined text-[20px] text-on-surface-variant dark:text-slate-500">
-                          chevron_right
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                </h3>
+                <DashboardTaskRow
+                  title="Eskirgan yozuvlar"
+                  subtitle="6 oydan beri tegilmagan"
+                  count={staleCount}
+                  type="later"
+                  onClick={() => onNavigateTab('database')}
+                />
+                <DashboardTaskRow
+                  title="Past baholar"
+                  subtitle="reytingi past yozuvlar"
+                  count={lowRatingsCount}
+                  type="later"
+                  onClick={() => onNavigateTab('database')}
+                />
+                <DashboardTaskRow
+                  title="Tasdiqlanmagan yozuvlar"
+                  subtitle="admin ko'rib chiqishi kerak"
+                  count={unverifiedCount}
+                  type="later"
+                  onClick={() => onNavigateTab('database')}
+                />
               </div>
             )}
           </>
         )}
-      </section>
-
-      {/* 5. DAILY PROGRESS CARD (KUNLIK NATIJA DOIRASI) */}
-      <section className="bg-surface-container-lowest dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-xl p-4 flex items-center gap-4 shadow-sm">
-        <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
-          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-            <path
-              className="text-surface-container-high dark:text-slate-800"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3.5"
-            />
-            <path
-              className="text-primary dark:text-sky-400"
-              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              fill="none"
-              stroke="currentColor"
-              strokeDasharray={`${progressPercent}, 100`}
-              strokeLinecap="round"
-              strokeWidth="3.5"
-            />
-          </svg>
-          <span className="absolute material-symbols-outlined text-[18px] text-primary dark:text-sky-400">
-            done_all
-          </span>
-        </div>
-        <div>
-          <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">
-            Bugun {dailyCompletedCount} ta bajarildi
-          </h3>
-          <p className="text-xs text-on-surface-variant dark:text-slate-400">
-            kunlik maqsad: {dailyTarget} ta
-          </p>
-        </div>
       </section>
     </div>
   );

@@ -285,14 +285,72 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
     const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
+    const pendingCorrections = await db.correction.count({ where: { cityId, status: 'NEW' } });
+    const complaintsCount = await db.queryLog.count({ where: { cityId, isComplaint: true } });
+    
+    // Stale listings (6 months old without verification)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const staleListings = await db.listing.count({
+      where: { cityId, lastVerifiedAt: { lte: sixMonthsAgo } },
+    });
+
+    // Low rating listings (Rating < 2.5)
+    const lowRatingListings = await db.listing.count({
+      where: { cityId, bayesianRating: { lt: 2.5 } },
+    });
+
     const totalCategories = await db.category.count();
 
     return {
       activeListings,
       unresolvedRequests,
       pendingCandidates,
+      pendingCorrections,
+      complaintsCount,
+      staleListings,
+      lowRatingListings,
       totalCategories,
       accuracyRate: 98.5,
+    };
+  });
+
+  // AI Insight briefing for Dashboard
+  fastify.get('/admin/ai-insight', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+
+    // Find recent unresolved queries
+    const unresolvedLogs = await db.queryLog.findMany({
+      where: { cityId, isResolved: false },
+      select: { categoryName: true, rawMessage: true },
+      take: 50,
+    });
+
+    if (unresolvedLogs.length === 0) {
+      return null;
+    }
+
+    // Count categories
+    const catMap = new Map<string, number>();
+    for (const log of unresolvedLogs) {
+      const cat = log.categoryName || log.rawMessage;
+      catMap.set(cat, (catMap.get(cat) || 0) + 1);
+    }
+
+    let topCat = '';
+    let maxCount = 0;
+    for (const [cat, count] of catMap.entries()) {
+      if (count > maxCount) {
+        maxCount = count;
+        topCat = cat;
+      }
+    }
+
+    const formattedCat = topCat ? topCat.charAt(0).toUpperCase() + topCat.slice(1) : 'Kafelchi';
+
+    return {
+      message: `Bugun ${unresolvedLogs.length} ta savolga javob berolmadim. Ko'pchiligi ${formattedCat.toLowerCase()} haqida edi.`,
+      suggestedCategory: formattedCat,
     };
   });
 
@@ -600,6 +658,66 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 8. TOP 10 SEARCHED QUERIES STATISTICS ---
+  fastify.get('/admin/top-queries', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const { period, status } = req.query || {};
+
+    let dateFilter = {};
+    if (period === 'today') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      dateFilter = { createdAt: { gte: todayStart } };
+    }
+
+    let statusFilter = {};
+    if (status === 'unanswered') {
+      statusFilter = { isResolved: false };
+    }
+
+    // Fetch query logs grouped by categoryName/rawMessage
+    const logs = await db.queryLog.findMany({
+      where: {
+        cityId,
+        ...dateFilter,
+        ...statusFilter,
+      },
+      select: {
+        id: true,
+        rawMessage: true,
+        categoryName: true,
+        isResolved: true,
+        intent: true,
+      },
+    });
+
+    const frequencyMap = new Map<string, { id: string; count: number; resolvedCount: number; category: string }>();
+
+    for (const log of logs) {
+      const keyword = (log.categoryName || log.rawMessage).toLowerCase().trim();
+      if (!keyword || keyword.length < 2) continue;
+
+      if (!frequencyMap.has(keyword)) {
+        frequencyMap.set(keyword, { id: log.id, count: 0, resolvedCount: 0, category: log.categoryName || keyword });
+      }
+      const item = frequencyMap.get(keyword)!;
+      item.count += 1;
+      if (log.isResolved) item.resolvedCount += 1;
+    }
+
+    const sortedTop = Array.from(frequencyMap.entries())
+      .map(([query, data]) => ({
+        id: data.id,
+        query: query.charAt(0).toUpperCase() + query.slice(1),
+        count: data.count,
+        successRate: Math.round((data.resolvedCount / data.count) * 100) || 0,
+        suggestedCategory: data.category ? data.category.charAt(0).toUpperCase() + data.category.slice(1) : undefined,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return sortedTop;
+  });
+
   fastify.get('/admin/stats/top-queries', async (req: any, reply) => {
     const cityId = await getCityId(req);
 
