@@ -522,30 +522,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  // --- 7. USER MANAGEMENT & LIVE SUPPORT CHAT ---
-  
-  // Get all users who interacted with the bot in this city (with complaint count and message stats)
+  // --- 7. USERS & LIVE CHAT SUPPORT ---
   fastify.get('/admin/users', async (req: any, reply) => {
     const cityId = await getCityId(req);
-    const filterComplaint = req.query.complaintOnly === 'true';
-    const { search, complaintsOnly } = req.query || {};
+    const { search, filter, sort } = req.query || {};
 
-    // 1. Fetch all registered users in DB
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // 1. Fetch registered users from User table for this cityId
     const dbUsers = await db.user.findMany({
       where: {
         cityId,
-        ...(search ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { username: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-          ],
-        } : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { username: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        city: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // 2. Fetch logs summary for queries/complaints
+    // 2. Fetch QueryLog stats for this city
     const logs = await db.queryLog.findMany({
       where: { cityId },
       orderBy: { createdAt: 'desc' },
@@ -557,13 +566,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const userLogMap = new Map<string, { totalQueries: number; complaintsCount: number; hasComplaint: boolean; lastActive: Date; latestLogId?: string }>();
+    const userLogMap = new Map<
+      string,
+      { totalQueries: number; todayCount: number; complaintsCount: number; hasComplaint: boolean; lastActive: Date; latestLogId?: string }
+    >();
 
     for (const log of logs) {
       const tgIdStr = log.telegramUserId.toString();
       if (!userLogMap.has(tgIdStr)) {
         userLogMap.set(tgIdStr, {
           totalQueries: 0,
+          todayCount: 0,
           complaintsCount: 0,
           hasComplaint: false,
           lastActive: log.createdAt,
@@ -572,27 +585,34 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
       const entry = userLogMap.get(tgIdStr)!;
       entry.totalQueries += 1;
+      if (log.createdAt >= todayStart) {
+        entry.todayCount += 1;
+      }
       if (log.isComplaint) {
         entry.complaintsCount += 1;
         entry.hasComplaint = true;
       }
     }
 
-    // Merge User records & QueryLog records
-    const registeredUserIds = new Set(dbUsers.map((u: any) => u.telegramId.toString()));
-    
-    // Process registered users first
-    let resultList = dbUsers.map((u: any) => {
+    const registeredUserIds = new Set(dbUsers.map((u) => u.telegramId.toString()));
+
+    let resultList = dbUsers.map((u) => {
       const tgIdStr = u.telegramId.toString();
       const logData = userLogMap.get(tgIdStr);
+      const fullName = u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || `User ID: ${tgIdStr}`;
       return {
         id: u.id,
         telegramUserId: tgIdStr,
-        name: u.name || 'Foydalanuvchi',
+        name: fullName,
+        firstName: u.firstName || '',
+        lastName: u.lastName || '',
         username: u.username ? (u.username.startsWith('@') ? u.username : `@${u.username}`) : null,
         phone: u.phone || null,
         role: u.role,
+        cityName: u.city?.name || 'Olmaliq',
+        createdAt: u.createdAt,
         lastActive: logData?.lastActive || u.updatedAt || u.createdAt,
+        todayCount: logData?.todayCount || 0,
         totalQueries: logData?.totalQueries || 0,
         complaintsCount: logData?.complaintsCount || 0,
         hasComplaint: logData?.hasComplaint || false,
@@ -600,7 +620,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       };
     });
 
-    // Also add users who sent queries but might not be in User table yet
+    // Also include query log users if not in dbUsers
     for (const [tgIdStr, logData] of userLogMap.entries()) {
       if (!registeredUserIds.has(tgIdStr)) {
         if (search && !tgIdStr.includes(search)) continue;
@@ -608,10 +628,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
           id: `tg-${tgIdStr}`,
           telegramUserId: tgIdStr,
           name: `User ID: ${tgIdStr}`,
+          firstName: '',
+          lastName: '',
           username: null,
           phone: null,
           role: 'USER',
+          cityName: 'Olmaliq',
+          createdAt: logData.lastActive,
           lastActive: logData.lastActive,
+          todayCount: logData.todayCount,
           totalQueries: logData.totalQueries,
           complaintsCount: logData.complaintsCount,
           hasComplaint: logData.hasComplaint,
@@ -620,12 +645,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
     }
 
-    if (complaintsOnly === 'true' || complaintsOnly === true) {
-      resultList = resultList.filter((u: any) => u.hasComplaint);
+    // Apply Filter Chips (all / active / complaints / new)
+    if (filter === 'active') {
+      resultList = resultList.filter((u) => u.todayCount > 0);
+    } else if (filter === 'complaints') {
+      resultList = resultList.filter((u) => u.hasComplaint);
+    } else if (filter === 'new') {
+      resultList = resultList.filter((u) => new Date(u.createdAt) >= twentyFourHoursAgo);
     }
 
-    // Sort by last active date
-    resultList.sort((a: any, b: any) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
+    // Apply Sorting (active / newest / complaints)
+    if (sort === 'newest') {
+      resultList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (sort === 'complaints') {
+      resultList.sort((a, b) => b.complaintsCount - a.complaintsCount);
+    } else {
+      // Default: active (most recently active first)
+      resultList.sort((a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
+    }
 
     return resultList;
   });
@@ -647,8 +684,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       id: msg.id,
       telegramUserId: msg.telegramUserId.toString(),
       rawMessage: msg.rawMessage,
-      botResponse: msg.botResponse || 'AI javobi saqlanmagan',
-      intent: msg.intent,
+      botResponse: msg.botResponse || 'Javob berilmagan',
+      intent: msg.intent || 'SERVICE',
       isComplaint: msg.isComplaint,
       complaintReason: msg.complaintReason,
       adminReply: msg.adminReply,
@@ -659,19 +696,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return formattedMessages;
   });
 
-  // Admin replies directly to user via Telegram Bot
-  fastify.post('/admin/users/:telegramId/send-message', async (req: any, reply) => {
+  // Direct Admin Message to User via Telegram Bot API + AuditLog
+  fastify.post('/admin/users/:telegramId/reply', async (req: any, reply) => {
+    const cityId = await getCityId(req);
     const { telegramId } = req.params;
     const { message, logId } = req.body;
 
     if (!message || !message.trim()) {
-      return reply.status(400).send({ error: 'Message text is required' });
+      return reply.status(400).send({ error: 'Message content is required' });
     }
 
     const botToken = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
 
     try {
-      // Send Telegram API direct message
+      // 1. Send Direct Telegram Message via Telegram API
       const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -687,7 +725,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.status(500).send({ error: 'Telegram message delivery failed', details: telegramRes });
       }
 
-      // Record admin reply in DB QueryLog if logId is passed
+      // 2. Record admin reply in DB QueryLog
       if (logId) {
         await db.queryLog.update({
           where: { id: logId },
@@ -696,7 +734,33 @@ export async function adminRoutes(fastify: FastifyInstance) {
             adminReplyAt: new Date(),
           },
         });
+      } else {
+        // Create new query log for admin message
+        await db.queryLog.create({
+          data: {
+            cityId,
+            telegramUserId: BigInt(telegramId),
+            rawMessage: `[Admin Xabari]`,
+            botResponse: message.trim(),
+            adminReply: message.trim(),
+            adminReplyAt: new Date(),
+            isResolved: true,
+          },
+        });
       }
+
+      // 3. Write to AuditLog
+      await db.auditLog.create({
+        data: {
+          cityId,
+          action: 'ADMIN_DIRECT_REPLY',
+          details: {
+            targetTelegramUserId: telegramId,
+            message: message.trim(),
+            deliveredAt: new Date(),
+          },
+        },
+      });
 
       return { success: true, deliveredAt: new Date() };
     } catch (err: any) {

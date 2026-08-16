@@ -270,10 +270,11 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     try {
       await db.application.create({
         data: {
-          applicantName: fData?.name || 'Arizachi',
+          fullName: fData?.name || 'Arizachi',
           phone: fData?.phone || '',
           cityName: fData?.city || 'Yangi Shahar',
           groupLink: fData?.link || '',
+          telegramUserId: telegramUserIdBigInt,
           status: 'PENDING',
         },
       });

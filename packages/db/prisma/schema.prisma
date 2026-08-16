@@ -112,9 +112,11 @@ model CityGroup {
 model User {
   id            String   @id @default(uuid())
   telegramId    BigInt   @unique
+  name          String?
   firstName     String?
   lastName      String?
   username      String?
+  phone         String?
   role          Role     @default(USER)
   cityId        String?
   city          City?    @relation(fields: [cityId], references: [id])
