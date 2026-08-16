@@ -3,10 +3,9 @@ import { API_BASE_URL } from '../config';
 
 interface UserItem {
   telegramUserId: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   username: string | null;
-  lastQuery: string;
+  phone?: string | null;
   lastActive: string;
   totalQueries: number;
   complaintsCount: number;
@@ -30,6 +29,7 @@ export const UsersChatScreen: React.FC = () => {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
   const [filterComplaints, setFilterComplaints] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,7 +45,11 @@ export const UsersChatScreen: React.FC = () => {
     setLoadingUsers(true);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
-      const res = await fetch(`${API_BASE_URL}/admin/users?complaintOnly=${filterComplaints}`, {
+      const queryParams = new URLSearchParams();
+      if (filterComplaints) queryParams.set('complaintsOnly', 'true');
+      if (searchQuery) queryParams.set('search', searchQuery);
+
+      const res = await fetch(`${API_BASE_URL}/admin/users?${queryParams.toString()}`, {
         headers: { 'x-telegram-init-data': initData },
       });
       if (res.ok) {
@@ -64,7 +68,7 @@ export const UsersChatScreen: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, [filterComplaints]);
+  }, [filterComplaints, searchQuery]);
 
   // Load Chat Messages for Selected User
   const fetchMessages = async (telegramUserId: string) => {
@@ -156,41 +160,72 @@ export const UsersChatScreen: React.FC = () => {
       {/* Main Content: Dual Pane (User List + Live Chat) */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Side: Users List */}
-        <div className="w-1/3 min-w-[260px] border-r border-outline-variant flex flex-col bg-surface-low overflow-y-auto">
+        <div className="w-1/3 min-w-[270px] border-r border-outline-variant flex flex-col bg-surface-low overflow-y-auto">
+          {/* Search Bar Input */}
+          <div className="p-3 border-b border-outline-variant/60 bg-surface">
+            <div className="relative flex items-center">
+              <span className="material-symbols-outlined absolute left-3 text-outline text-[18px]">
+                search
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Telegram ID, ism yoki username..."
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-surface-container border border-outline-variant/60 focus:outline-none focus:border-primary text-on-surface dark:text-slate-100 placeholder:text-outline"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 text-outline hover:text-on-surface text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
           {loadingUsers ? (
             <div className="p-6 text-center text-outline">Yuklanmoqda...</div>
           ) : users.length === 0 ? (
             <div className="p-6 text-center text-outline">
-              {filterComplaints ? 'Hozircha shikoyatlar yo\'q' : 'Foydalanuvchilar topilmadi'}
+              {filterComplaints ? "Hozircha shikoyatlar yo'q" : "Foydalanuvchilar topilmadi"}
             </div>
           ) : (
             users.map((u) => (
               <div
                 key={u.telegramUserId}
                 onClick={() => setSelectedUser(u)}
-                className={`p-3 border-b border-outline-variant cursor-pointer transition flex flex-col gap-1 ${
+                className={`p-3 border-b border-outline-variant/40 cursor-pointer transition flex flex-col gap-1 ${
                   selectedUser?.telegramUserId === u.telegramUserId
                     ? 'bg-primary-container/20 border-l-4 border-l-primary'
                     : 'hover:bg-surface-high'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-body-main text-on-background flex items-center gap-1.5">
-                    {u.firstName} {u.lastName}
+                  <span className="font-semibold text-body-main text-on-background flex items-center gap-1.5 line-clamp-1">
+                    {u.name || `User ID: ${u.telegramUserId}`}
                     {u.hasComplaint && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-error/15 text-error font-bold">
                         ⚠️ {u.complaintsCount}
                       </span>
                     )}
                   </span>
-                  <span className="text-caption text-outline">
+                  <span className="text-caption text-outline shrink-0 ml-1">
                     {new Date(u.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                {u.username && <span className="text-body-secondary text-primary font-mono">{u.username}</span>}
-                <p className="text-body-secondary text-outline line-clamp-1 italic">
-                  "{u.lastQuery}"
-                </p>
+
+                <div className="flex items-center justify-between text-caption text-outline">
+                  <span className="font-mono text-[11px] bg-surface-container px-1.5 py-0.5 rounded text-primary dark:text-sky-400 font-bold">
+                    ID: {u.telegramUserId}
+                  </span>
+                  {u.username && (
+                    <span className="text-body-secondary text-primary dark:text-sky-400 font-medium">
+                      {u.username}
+                    </span>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -204,8 +239,8 @@ export const UsersChatScreen: React.FC = () => {
               <div className="p-3 bg-surface-high border-b border-outline-variant flex items-center justify-between">
                 <div>
                   <div className="font-bold text-body-main text-on-background flex items-center gap-2">
-                    💬 {selectedUser.firstName} {selectedUser.lastName}
-                    <span className="text-caption text-outline font-mono">ID: {selectedUser.telegramUserId}</span>
+                    💬 {selectedUser.name || `User ID: ${selectedUser.telegramUserId}`}
+                    <span className="text-caption text-primary dark:text-sky-400 font-bold font-mono bg-surface-container px-2 py-0.5 rounded">ID: {selectedUser.telegramUserId}</span>
                   </div>
                   <div className="text-body-secondary text-outline">
                     Jami so'rovlar: {selectedUser.totalQueries} ta

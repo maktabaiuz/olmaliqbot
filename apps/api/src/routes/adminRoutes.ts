@@ -528,29 +528,45 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/users', async (req: any, reply) => {
     const cityId = await getCityId(req);
     const filterComplaint = req.query.complaintOnly === 'true';
+    const { search, complaintsOnly } = req.query || {};
 
-    // Fetch QueryLogs aggregated by telegramUserId
-    const logs = await db.queryLog.findMany({
+    // 1. Fetch all registered users in DB
+    const dbUsers = await db.user.findMany({
       where: {
         cityId,
-        ...(filterComplaint ? { isComplaint: true } : {}),
+        ...(search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { username: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+          ],
+        } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take: 200,
     });
 
-    // Group logs by telegramUserId
-    const userLogMap = new Map<string, any>();
+    // 2. Fetch logs summary for queries/complaints
+    const logs = await db.queryLog.findMany({
+      where: { cityId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        telegramUserId: true,
+        isComplaint: true,
+        createdAt: true,
+      },
+    });
+
+    const userLogMap = new Map<string, { totalQueries: number; complaintsCount: number; hasComplaint: boolean; lastActive: Date; latestLogId?: string }>();
+
     for (const log of logs) {
       const tgIdStr = log.telegramUserId.toString();
       if (!userLogMap.has(tgIdStr)) {
         userLogMap.set(tgIdStr, {
-          telegramUserId: tgIdStr,
-          lastQuery: log.rawMessage,
-          lastActive: log.createdAt,
           totalQueries: 0,
           complaintsCount: 0,
           hasComplaint: false,
+          lastActive: log.createdAt,
           latestLogId: log.id,
         });
       }
@@ -562,25 +578,56 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Fetch user profile info from User table
-    const tgIds = Array.from(userLogMap.keys()).map((id) => BigInt(id));
-    const dbUsers = await db.user.findMany({
-      where: { telegramId: { in: tgIds } },
-    });
-
-    const dbUserMap = new Map<string, any>(dbUsers.map((u: any) => [u.telegramId.toString(), u]));
-
-    const usersList = Array.from(userLogMap.values()).map((entry: any) => {
-      const dbU = dbUserMap.get(entry.telegramUserId);
+    // Merge User records & QueryLog records
+    const registeredUserIds = new Set(dbUsers.map((u: any) => u.telegramId.toString()));
+    
+    // Process registered users first
+    let resultList = dbUsers.map((u: any) => {
+      const tgIdStr = u.telegramId.toString();
+      const logData = userLogMap.get(tgIdStr);
       return {
-        ...entry,
-        firstName: dbU?.firstName || 'Foydalanuvchi',
-        lastName: dbU?.lastName || '',
-        username: dbU?.username ? `@${dbU.username}` : null,
+        id: u.id,
+        telegramUserId: tgIdStr,
+        name: u.name || 'Foydalanuvchi',
+        username: u.username ? (u.username.startsWith('@') ? u.username : `@${u.username}`) : null,
+        phone: u.phone || null,
+        role: u.role,
+        lastActive: logData?.lastActive || u.updatedAt || u.createdAt,
+        totalQueries: logData?.totalQueries || 0,
+        complaintsCount: logData?.complaintsCount || 0,
+        hasComplaint: logData?.hasComplaint || false,
+        latestLogId: logData?.latestLogId,
       };
     });
 
-    return usersList;
+    // Also add users who sent queries but might not be in User table yet
+    for (const [tgIdStr, logData] of userLogMap.entries()) {
+      if (!registeredUserIds.has(tgIdStr)) {
+        if (search && !tgIdStr.includes(search)) continue;
+        resultList.push({
+          id: `tg-${tgIdStr}`,
+          telegramUserId: tgIdStr,
+          name: `User ID: ${tgIdStr}`,
+          username: null,
+          phone: null,
+          role: 'USER',
+          lastActive: logData.lastActive,
+          totalQueries: logData.totalQueries,
+          complaintsCount: logData.complaintsCount,
+          hasComplaint: logData.hasComplaint,
+          latestLogId: logData.latestLogId,
+        });
+      }
+    }
+
+    if (complaintsOnly === 'true' || complaintsOnly === true) {
+      resultList = resultList.filter((u: any) => u.hasComplaint);
+    }
+
+    // Sort by last active date
+    resultList.sort((a: any, b: any) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
+
+    return resultList;
   });
 
   // Get full chat / query log history for a specific Telegram User

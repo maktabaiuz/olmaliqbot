@@ -18,7 +18,29 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
 
   const userId = ctx.from.id;
   const telegramUserIdBigInt = BigInt(userId);
-  const isSuperAdmin = telegramUserIdBigInt === BigInt(6355516451);
+  const isSuperAdmin = telegramUserIdBigInt === BigInt(6355516451) || telegramUserIdBigInt === BigInt(8603273053);
+
+  // Auto-upsert Telegram User details into DB
+  try {
+    const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') || 'Foydalanuvchi';
+    await db.user.upsert({
+      where: { telegramId: telegramUserIdBigInt },
+      update: {
+        name: fullName,
+        username: ctx.from.username || null,
+        role: isSuperAdmin ? 'SUPER_ADMIN' : undefined,
+      },
+      create: {
+        telegramId: telegramUserIdBigInt,
+        name: fullName,
+        username: ctx.from.username || null,
+        role: isSuperAdmin ? 'SUPER_ADMIN' : 'USER',
+        cityId: defaultCityId,
+      },
+    });
+  } catch (err) {
+    console.error('User upsert error:', err);
+  }
 
   // Retrieve user session
   let session = userSessions[userId];
