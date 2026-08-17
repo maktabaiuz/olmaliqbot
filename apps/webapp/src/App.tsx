@@ -1,29 +1,26 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { BottomNavFab } from './components/common/BottomNavFab';
+import { BottomNav } from './components/BottomNav';
 
-// Admin Screens
+// Existing Screens (Overwritten with new Telegram x Apple design)
 import { DashboardScreen } from './screens/DashboardScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
-import { AddListingWizardScreen } from './screens/AddListingWizardScreen';
+import { AddListingScreen } from './screens/AddListingScreen';
 import { UsersChatScreen } from './screens/UsersChatScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { MoreMenuScreen } from './screens/MoreMenuScreen';
+import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SubscriptionExpiredScreen } from './screens/SubscriptionExpiredScreen';
 
-// Super Admin Screens
-import { SuperAdminDashboardScreen } from './screens/superadmin/SuperAdminDashboardScreen';
-import { SuperAdminCityDetailScreen } from './screens/superadmin/SuperAdminCityDetailScreen';
-import { SuperAdminOnboardingScreen } from './screens/superadmin/SuperAdminOnboardingScreen';
-
-const AppRoutes: React.FC = () => {
+const MainShell: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>('home');
+  const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState<string>('');
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-tg-bgLight dark:bg-tg-bgDark text-tg-textMuted text-[14px]">
+      <div className="min-h-screen flex items-center justify-center bg-ios-bg dark:bg-[#0E141B] text-ios-gray text-[14px]">
         Yuklanmoqda...
       </div>
     );
@@ -39,41 +36,60 @@ const AppRoutes: React.FC = () => {
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
+  const handleSelectCategoryToAdd = (catName: string) => {
+    setSelectedCategoryToAdd(catName);
+    setActiveTab('add');
+  };
+
   return (
-    <div className="min-h-screen bg-tg-bgLight dark:bg-tg-bgDark text-tg-textLight dark:text-tg-textDark">
+    <div className="min-h-screen bg-ios-bg dark:bg-[#0E141B] text-[#1C1C1E] dark:text-[#E8EDF2]">
       <main className="max-w-container-max mx-auto min-h-screen">
-        <Routes>
-          {/* Super Admin Routes */}
-          {isSuperAdmin && (
-            <>
-              <Route path="/superadmin" element={<SuperAdminDashboardScreen />} />
-              <Route path="/superadmin/city/:id" element={<SuperAdminCityDetailScreen />} />
-              <Route path="/superadmin/onboarding" element={<SuperAdminOnboardingScreen />} />
-              <Route path="/superadmin/cities" element={<SuperAdminDashboardScreen />} />
-              <Route path="/superadmin/payments" element={<SuperAdminDashboardScreen />} />
-              <Route path="/superadmin/stats" element={<SuperAdminDashboardScreen />} />
-            </>
-          )}
-
-          {/* Admin Routes */}
-          <Route path="/dashboard" element={<DashboardScreen />} />
-          <Route path="/database" element={<DatabaseScreen />} />
-          <Route path="/add" element={<AddListingWizardScreen />} />
-          <Route path="/users" element={<UsersChatScreen />} />
-          <Route path="/requests" element={<RequestsScreen />} />
-          <Route path="/more" element={<MoreMenuScreen />} />
-          <Route path="/more/*" element={<MoreMenuScreen />} />
-
-          {/* Fallback Redirection */}
-          <Route
-            path="*"
-            element={<Navigate to={isSuperAdmin ? '/superadmin' : '/dashboard'} replace />}
-          />
-        </Routes>
+        {/* Render View Based on Active Tab */}
+        {isSuperAdmin && activeTab.startsWith('superadmin') ? (
+          <SuperAdminControlScreen />
+        ) : (
+          <>
+            {activeTab === 'home' && (
+              <DashboardScreen
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                onSelectCategoryToAdd={handleSelectCategoryToAdd}
+              />
+            )}
+            {activeTab === 'database' && (
+              <DatabaseScreen
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                onSelectCategoryToAdd={handleSelectCategoryToAdd}
+              />
+            )}
+            {activeTab === 'add' && (
+              <AddListingScreen
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                initialCategoryName={selectedCategoryToAdd}
+              />
+            )}
+            {activeTab === 'users' && (
+              <UsersChatScreen
+                onNavigateTab={(tab: string) => setActiveTab(tab)}
+                onSelectCategoryToAdd={handleSelectCategoryToAdd}
+              />
+            )}
+            {activeTab === 'requests' && (
+              <RequestsScreen
+                onNavigateTab={(tab: string) => setActiveTab(tab)}
+                onSelectCategoryToAdd={handleSelectCategoryToAdd}
+              />
+            )}
+            {activeTab === 'more' && <MoreMenuScreen />}
+          </>
+        )}
       </main>
 
-      {/* Floating Bottom Nav Bar */}
-      <BottomNavFab isSuperAdmin={isSuperAdmin} />
+      {/* Floating Bottom Nav Bar (Bosh · Baza · [＋ gradient] · Userlar · Yana) */}
+      <BottomNav
+        activeTab={isSuperAdmin && !activeTab.startsWith('superadmin') ? 'home' : activeTab}
+        onTabChange={(tab) => setActiveTab(tab)}
+        isSuperAdmin={isSuperAdmin}
+      />
     </div>
   );
 };
@@ -81,9 +97,7 @@ const AppRoutes: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <MainShell />
     </AuthProvider>
   );
 };

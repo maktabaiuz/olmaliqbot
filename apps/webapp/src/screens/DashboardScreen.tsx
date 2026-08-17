@@ -1,23 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config';
 import { SegmentControl } from '../components/common/SegmentControl';
 import { GroupedList } from '../components/common/GroupedList';
 
-export const DashboardScreen: React.FC = () => {
-  const navigate = useNavigate();
+export interface DashboardScreenProps {
+  onNavigateTab: (tab: string) => void;
+  onSelectCategoryToAdd?: (categoryName: string) => void;
+}
+
+export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigateTab }) => {
   const { user } = useAuth();
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
-  const [stats, setStats] = useState<{
-    totalQueries: number;
-    unresolvedCount: number;
-    accuracyRate: number;
-    correctionsCount: number;
-    complaintsCount: number;
-    listingsCount: number;
-    usersCount: number;
-  }>({
+  const [stats, setStats] = useState({
     totalQueries: 143,
     unresolvedCount: 12,
     accuracyRate: 88,
@@ -38,9 +33,7 @@ export const DashboardScreen: React.FC = () => {
           const data = await res.json();
           setStats((prev) => ({ ...prev, ...data }));
         }
-      } catch (err) {
-        console.error('Failed to fetch stats:', err);
-      }
+      } catch (err) {}
     };
     fetchStats();
   }, [period]);
@@ -49,9 +42,9 @@ export const DashboardScreen: React.FC = () => {
   const adminName = user?.name ? user.name.trim().split(' ')[0] : 'Bobur';
 
   return (
-    <div className="flex flex-col gap-4 p-4 pb-20 animate-fade-in max-w-container-max mx-auto">
+    <div className="flex flex-col gap-4 p-4 pb-24 animate-fade-in max-w-container-max mx-auto">
       {/* 1. Telegram Ko'k Gradient Salom Kartasi */}
-      <section className="bg-tg-gradient text-white rounded-card p-5 shadow-fab relative overflow-hidden flex flex-col gap-2">
+      <section className="bg-tg-grad text-white rounded-card p-5 shadow-fab relative overflow-hidden flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px]">location_city</span>
@@ -83,24 +76,24 @@ export const DashboardScreen: React.FC = () => {
 
       {/* 3. 3 Stat Karta (Savol · Javobsiz · Javob %) */}
       <section className="grid grid-cols-3 gap-2.5">
-        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
-          <span className="text-[11px] font-semibold text-tg-textMuted">Savol</span>
-          <span className="text-[20px] font-extrabold text-tg-textLight dark:text-tg-textDark">
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-ios-gray">Savol</span>
+          <span className="text-[20px] font-extrabold text-[#1C1C1E] dark:text-white">
             {stats.totalQueries}
           </span>
-          <span className="text-[10px] text-ios-blue font-bold">tushgan</span>
+          <span className="text-[10px] text-tg font-bold">tushgan</span>
         </div>
 
-        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
-          <span className="text-[11px] font-semibold text-tg-textMuted">Javobsiz</span>
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-ios-gray">Javobsiz</span>
           <span className="text-[20px] font-extrabold text-ios-red">
             {stats.unresolvedCount}
           </span>
           <span className="text-[10px] text-ios-red font-bold">kutilmoqda</span>
         </div>
 
-        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
-          <span className="text-[11px] font-semibold text-tg-textMuted">Javob %</span>
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-ios-gray">Javob %</span>
           <span className="text-[20px] font-extrabold text-ios-green">
             {stats.accuracyRate}%
           </span>
@@ -120,7 +113,7 @@ export const DashboardScreen: React.FC = () => {
             subtitle: 'AI berolmagan so\'rovlar',
             badge: stats.unresolvedCount,
             badgeColor: 'bg-ios-red/15 text-ios-red',
-            onClick: () => navigate('/requests'),
+            onClick: () => onNavigateTab('requests'),
           },
           {
             id: 'corrections',
@@ -130,7 +123,7 @@ export const DashboardScreen: React.FC = () => {
             subtitle: 'Jamoat yuborgan yangilanishlar',
             badge: stats.correctionsCount,
             badgeColor: 'bg-ios-orange/15 text-ios-orange',
-            onClick: () => navigate('/requests'),
+            onClick: () => onNavigateTab('requests'),
           },
           {
             id: 'complaints',
@@ -140,7 +133,7 @@ export const DashboardScreen: React.FC = () => {
             subtitle: 'Usta/do\'kondan bildirilgan',
             badge: stats.complaintsCount,
             badgeColor: 'bg-ios-purple/15 text-ios-purple',
-            onClick: () => navigate('/users'),
+            onClick: () => onNavigateTab('users'),
           },
         ]}
       />
@@ -156,7 +149,7 @@ export const DashboardScreen: React.FC = () => {
             title: 'Baza ma\'lumotlari',
             subtitle: 'Ustalar, do\'konlar, xizmatlar',
             badge: `${stats.listingsCount} ta`,
-            onClick: () => navigate('/database'),
+            onClick: () => onNavigateTab('database'),
           },
           {
             id: 'users',
@@ -165,7 +158,7 @@ export const DashboardScreen: React.FC = () => {
             title: 'Bot userlari',
             subtitle: 'Chat tarixi va limitlar',
             badge: `${stats.usersCount} kishi`,
-            onClick: () => navigate('/users'),
+            onClick: () => onNavigateTab('users'),
           },
         ]}
       />

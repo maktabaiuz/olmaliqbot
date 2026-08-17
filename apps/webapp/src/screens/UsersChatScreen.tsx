@@ -5,7 +5,12 @@ import { UserProfileCard } from '../components/users/UserProfileCard';
 import { ChatThread, ChatMessage } from '../components/users/ChatThread';
 import { ReplyBox } from '../components/users/ReplyBox';
 
-export const UsersChatScreen: React.FC = () => {
+export interface UsersChatScreenProps {
+  onNavigateTab?: (tab: string) => void;
+  onSelectCategoryToAdd?: (categoryName: string) => void;
+}
+
+export const UsersChatScreen: React.FC<UsersChatScreenProps> = () => {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);

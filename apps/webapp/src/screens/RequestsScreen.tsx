@@ -15,7 +15,12 @@ export interface UnresolvedCluster {
   timeAgo?: string;
 }
 
-export const RequestsScreen: React.FC = () => {
+export interface RequestsScreenProps {
+  onNavigateTab?: (tab: string) => void;
+  onSelectCategoryToAdd?: (categoryName: string) => void;
+}
+
+export const RequestsScreen: React.FC<RequestsScreenProps> = () => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'demand' | 'new'>('all');
   const [clusters, setClusters] = useState<UnresolvedCluster[]>([
