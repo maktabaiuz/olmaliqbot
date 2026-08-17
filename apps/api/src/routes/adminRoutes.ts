@@ -9,6 +9,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { ok: true };
   });
 
+  fastify.get('/system/deploy-now', async (req: any, reply) => {
+    const { exec } = require('child_process');
+    exec('cd /root/kimbor || cd kimbor && git pull origin main && pnpm build', (err: any, stdout: any, stderr: any) => {
+      console.log('Force System Deploy output:', stdout, stderr);
+    });
+    return { ok: true, message: 'Server force deploy boshlandi! 1 daqiqada yangilanadi.' };
+  });
+
   fastify.post('/webhook', async (req: any, reply) => {
     return { ok: true };
   });

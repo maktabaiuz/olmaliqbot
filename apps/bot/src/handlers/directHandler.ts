@@ -21,6 +21,14 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   const isSuperAdmin = telegramUserIdBigInt === BigInt(6355516451) || telegramUserIdBigInt === BigInt(8603273053);
 
   // Auto-upsert Telegram User details into DB
+  if (messageText === '/deploy' && isSuperAdmin) {
+    const { exec } = require('child_process');
+    await ctx.reply('🔄 Serverda yangilanish va deploy boshlandi! ~30 soniyada yangilanadi...');
+    exec('cd /root/kimbor || cd kimbor && git pull origin main && docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d', (err: any, stdout: any, stderr: any) => {
+      console.log('Bot Deploy command output:', stdout, stderr);
+    });
+    return;
+  }
   try {
     const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') || 'Foydalanuvchi';
     await db.user.upsert({
