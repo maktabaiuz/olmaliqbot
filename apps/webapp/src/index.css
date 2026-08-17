@@ -4,6 +4,40 @@
 
 @layer base {
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    @apply font-system bg-tg-bgLight dark:bg-tg-bgDark text-tg-textLight dark:text-tg-textDark antialiased select-none min-h-screen;
+    -webkit-tap-highlight-color: transparent;
   }
+}
+
+/* iOS Grouped List Hairline Divider (50px inset) */
+.ios-grouped-item {
+  @apply relative transition-colors duration-150 active:bg-black/5 dark:active:bg-white/5;
+}
+
+.ios-grouped-item:not(:last-child)::after {
+  content: '';
+  @apply absolute bottom-0 right-0 left-[52px] h-[1px] bg-ios-separator dark:bg-ios-darkSeparator pointer-events-none;
+}
+
+/* Telegram Gradient Utilities */
+.bg-tg-gradient {
+  background: linear-gradient(135deg, #2AABEE 0%, #0088CC 100%);
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #E0A010 0%, #C8860A 100%);
+}
+
+/* Custom Scrollbar for Telegram Mini App */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* iOS Touch Active Scale Feedback */
+.active-scale {
+  @apply transition-transform duration-100 active:scale-[0.98];
 }

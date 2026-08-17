@@ -7,6 +7,7 @@ export interface AuthUser {
   role: 'SUPER_ADMIN' | 'MODERATOR_FULL' | 'MODERATOR_VIEWER' | 'USER';
   cityId: string;
   cityName: string;
+  isSubscriptionExpired?: boolean;
 }
 
 export type AuthState = 'CHECKING' | 'AUTHENTICATED' | 'ACCESS_DENIED' | 'REQUIRES_PASSWORD' | 'REQUIRES_SETUP';
@@ -16,6 +17,7 @@ interface AuthContextType {
   authState: AuthState;
   isAuthenticated: boolean;
   isLoading: boolean;
+  login: (password: string) => Promise<{ success: boolean; message?: string }>;
   loginWithPassword: (password: string) => Promise<boolean>;
   setupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
   logout: () => void;
@@ -134,13 +136,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthState('ACCESS_DENIED');
   };
 
+  const login = async (password: string) => {
+    const ok = await loginWithPassword(password);
+    return { success: ok, message: ok ? undefined : "Parol noto'g'ri" };
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
         authState,
-        isAuthenticated: authState === 'AUTHENTICATED' && !!user,
+        isAuthenticated: authState === 'AUTHENTICATED',
         isLoading,
+        login,
         loginWithPassword,
         setupPassword,
         logout,

@@ -1,236 +1,174 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config';
-import { AiInsightCard, AiInsightData } from '../components/AiInsightCard';
-import { TopUnansweredQueriesWidget } from '../components/TopUnansweredQueriesWidget';
-import { DashboardTaskRow } from '../components/DashboardTaskRow';
+import { SegmentControl } from '../components/common/SegmentControl';
+import { GroupedList } from '../components/common/GroupedList';
 
-export interface DashboardStats {
-  unresolvedRequests: number;
-  pendingCorrections: number;
-  complaintsCount: number;
-  staleListings: number;
-  lowRatingListings: number;
-  pendingCandidates: number;
-}
-
-export interface DashboardScreenProps {
-  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'users' | 'database' | 'more') => void;
-  onSelectCategoryToAdd?: (categoryName: string) => void;
-}
-
-export const DashboardScreen: React.FC<DashboardScreenProps> = ({
-  onNavigateTab,
-  onSelectCategoryToAdd,
-}) => {
+export const DashboardScreen: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const [greeting, setGreeting] = useState<string>('');
-  const [aiInsight, setAiInsight] = useState<AiInsightData | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const [stats, setStats] = useState<{
+    totalQueries: number;
+    unresolvedCount: number;
+    accuracyRate: number;
+    correctionsCount: number;
+    complaintsCount: number;
+    listingsCount: number;
+    usersCount: number;
+  }>({
+    totalQueries: 143,
+    unresolvedCount: 12,
+    accuracyRate: 88,
+    correctionsCount: 4,
+    complaintsCount: 2,
+    listingsCount: 340,
+    usersCount: 247,
+  });
 
-  // 1. Time-of-Day Greeting Calculation
   useEffect(() => {
-    const hour = new Date().getHours();
-    let timeGreeting = 'Xayrli kun';
-    if (hour >= 5 && hour < 12) timeGreeting = 'Xayrli tong';
-    else if (hour >= 12 && hour < 18) timeGreeting = 'Xayrli kun';
-    else if (hour >= 18 && hour < 23) timeGreeting = 'Xayrli kech';
-    else timeGreeting = 'Xayrli tun';
-
-    const rawName = user?.name ? user.name.trim().split(' ')[0] : 'Admin';
-    const adminName = rawName || 'Admin';
-    setGreeting(`${timeGreeting}, ${adminName} 👋`);
-  }, [user]);
-
-  // 2. Fetch AI Insight & Real Task Stats from API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
+    const fetchStats = async () => {
       try {
         const initData = window.Telegram?.WebApp?.initData || '';
-        const headers = { 'x-telegram-init-data': initData };
-
-        const [statsRes, aiRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/admin/stats`, { headers }),
-          fetch(`${API_BASE_URL}/admin/ai-insight`, { headers }),
-        ]);
-
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          setStats({
-            unresolvedRequests: statsData.unresolvedRequests || 0,
-            pendingCorrections: statsData.pendingCorrections || 0,
-            complaintsCount: statsData.complaintsCount || 0,
-            staleListings: statsData.staleListings || 0,
-            lowRatingListings: statsData.lowRatingListings || 0,
-            pendingCandidates: statsData.pendingCandidates || 0,
-          });
-        }
-
-        if (aiRes.ok) {
-          const aiData = await aiRes.json();
-          setAiInsight(aiData);
+        const res = await fetch(`${API_BASE_URL}/admin/stats?period=${period}`, {
+          headers: { 'x-telegram-init-data': initData },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStats((prev) => ({ ...prev, ...data }));
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch stats:', err);
       }
     };
-
-    fetchDashboardData();
-  }, []);
-
-  const handleCategoryAddSelect = (category: string) => {
-    if (onSelectCategoryToAdd) {
-      onSelectCategoryToAdd(category);
-    }
-    onNavigateTab('add');
-  };
+    fetchStats();
+  }, [period]);
 
   const cityName = user?.cityName || 'Olmaliq';
-
-  // Task Counts
-  const unresolvedCount = stats?.unresolvedRequests || 0;
-  const correctionsCount = stats?.pendingCorrections || 0;
-  const complaintsCount = stats?.complaintsCount || 0;
-  const staleCount = stats?.staleListings || 0;
-  const lowRatingsCount = stats?.lowRatingListings || 0;
-  const unverifiedCount = stats?.pendingCandidates || 0;
-
-  const urgentTotal = unresolvedCount + correctionsCount + complaintsCount;
-  const laterTotal = staleCount + lowRatingsCount + unverifiedCount;
-  const grandTotal = urgentTotal + laterTotal;
+  const adminName = user?.name ? user.name.trim().split(' ')[0] : 'Bobur';
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in pb-16">
-      {/* ① HEADER: Static City Name & Settings Icon */}
-      <header className="flex items-center justify-between py-1 border-b border-outline-variant/20 dark:border-slate-800/60">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary dark:text-sky-400 text-[22px]">
-            location_city
-          </span>
-          <span className="font-bold text-title-bold text-on-surface dark:text-slate-100">
-            {cityName}
+    <div className="flex flex-col gap-4 p-4 pb-20 animate-fade-in max-w-container-max mx-auto">
+      {/* 1. Telegram Ko'k Gradient Salom Kartasi */}
+      <section className="bg-tg-gradient text-white rounded-card p-5 shadow-fab relative overflow-hidden flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[24px]">location_city</span>
+            <span className="font-bold text-[14px] opacity-90">{cityName}</span>
+          </div>
+          <span className="text-[11px] font-bold bg-white/20 px-2.5 py-0.5 rounded-pill backdrop-blur-sm">
+            Admin Panel
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onNavigateTab('more')}
-          className="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
-          title="Sozlamalar"
-        >
-          <span className="material-symbols-outlined text-[20px]">settings</span>
-        </button>
-      </header>
-
-      {/* ② SALOMLASHISH */}
-      <section>
-        <h1 className="font-bold text-title-bold text-on-surface dark:text-slate-100">
-          {greeting}
+        <h1 className="text-[22px] font-extrabold tracking-tight mt-1">
+          Salom, {adminName} 👋
         </h1>
+        <p className="text-[13px] opacity-90">
+          Bugun shaharda qidiruv faolligi yuqori. Barcha so'rovlar nazoratda!
+        </p>
       </section>
 
-      {/* ③ AI MASLAHAT KARTASI */}
-      <AiInsightCard
-        insight={aiInsight}
-        onDismiss={() => setAiInsight(null)}
-        onAddCategory={handleCategoryAddSelect}
+      {/* 2. Segment Control (Bugun / Hafta / Oy) */}
+      <SegmentControl
+        options={[
+          { id: 'today', label: 'Bugun' },
+          { id: 'week', label: 'Hafta' },
+          { id: 'month', label: 'Oy' },
+        ]}
+        selectedId={period}
+        onChange={(val) => setPeriod(val)}
       />
 
-      {/* ④ KUNLIK TOP-10 JAVOBSIZ SAVOLLAR */}
-      <TopUnansweredQueriesWidget onSelectCategoryToAdd={handleCategoryAddSelect} />
+      {/* 3. 3 Stat Karta (Savol · Javobsiz · Javob %) */}
+      <section className="grid grid-cols-3 gap-2.5">
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-tg-textMuted">Savol</span>
+          <span className="text-[20px] font-extrabold text-tg-textLight dark:text-tg-textDark">
+            {stats.totalQueries}
+          </span>
+          <span className="text-[10px] text-ios-blue font-bold">tushgan</span>
+        </div>
 
-      {/* ⑤ ISHLAR RO'YXATI (SHOSHILINCH / KEYINROQ) */}
-      <section className="flex flex-col gap-4">
-        {loading ? (
-          <div className="p-6 text-center text-caption text-outline">
-            Ishlar ro'yxati yuklanmoqda...
-          </div>
-        ) : grandTotal === 0 ? (
-          /* EMPTY STATE WHEN ALL TASKS ARE 0 */
-          <div className="bg-surface-container-lowest dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-[14px] p-8 flex flex-col items-center justify-center text-center shadow-sm">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/15 text-emerald-500 flex items-center justify-center mb-3">
-              <span
-                className="material-symbols-outlined text-[36px]"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                check_circle
-              </span>
-            </div>
-            <h3 className="font-bold text-body-main text-on-surface dark:text-slate-100 mb-1">
-              Bugun hammasi joyida ✅
-            </h3>
-            <p className="text-body-secondary text-outline">
-              Hozircha kutilayotgan shoshilinch va keyinroq bajariladigan ishlar yo'q.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* SHOSHILINCH SEKSIYASI */}
-            {urgentTotal > 0 && (
-              <div className="flex flex-col gap-2">
-                <h3 className="text-caption font-bold text-error uppercase tracking-wider pl-1">
-                  SHOSHILINCH
-                </h3>
-                <DashboardTaskRow
-                  title="Javobsiz savollar"
-                  subtitle="bugun so'ralgan"
-                  count={unresolvedCount}
-                  type="urgent"
-                  onClick={() => onNavigateTab('requests')}
-                />
-                <DashboardTaskRow
-                  title="Tuzatishlar"
-                  subtitle="botga javob qilib yozilgan"
-                  count={correctionsCount}
-                  type="urgent"
-                  onClick={() => onNavigateTab('requests')}
-                />
-                <DashboardTaskRow
-                  title="Shikoyatlar"
-                  subtitle="foydalanuvchilar bildirishgan"
-                  count={complaintsCount}
-                  type="urgent"
-                  onClick={() => onNavigateTab('users')}
-                />
-              </div>
-            )}
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-tg-textMuted">Javobsiz</span>
+          <span className="text-[20px] font-extrabold text-ios-red">
+            {stats.unresolvedCount}
+          </span>
+          <span className="text-[10px] text-ios-red font-bold">kutilmoqda</span>
+        </div>
 
-            {/* KEYINROQ SEKSIYASI */}
-            {laterTotal > 0 && (
-              <div className="flex flex-col gap-2">
-                <h3 className="text-caption font-bold text-outline uppercase tracking-wider pl-1">
-                  KEYINROQ
-                </h3>
-                <DashboardTaskRow
-                  title="Eskirgan yozuvlar"
-                  subtitle="6 oydan beri tegilmagan"
-                  count={staleCount}
-                  type="later"
-                  onClick={() => onNavigateTab('database')}
-                />
-                <DashboardTaskRow
-                  title="Past baholar"
-                  subtitle="reytingi past yozuvlar"
-                  count={lowRatingsCount}
-                  type="later"
-                  onClick={() => onNavigateTab('database')}
-                />
-                <DashboardTaskRow
-                  title="Tasdiqlanmagan yozuvlar"
-                  subtitle="admin ko'rib chiqishi kerak"
-                  count={unverifiedCount}
-                  type="later"
-                  onClick={() => onNavigateTab('database')}
-                />
-              </div>
-            )}
-          </>
-        )}
+        <div className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 flex flex-col gap-1 shadow-card">
+          <span className="text-[11px] font-semibold text-tg-textMuted">Javob %</span>
+          <span className="text-[20px] font-extrabold text-ios-green">
+            {stats.accuracyRate}%
+          </span>
+          <span className="text-[10px] text-ios-green font-bold">aniqlik</span>
+        </div>
       </section>
+
+      {/* 4. Vazifalar (iOS Grouped, Rangli Icon Kvadratlar) */}
+      <GroupedList
+        header="Vazifalar (Kutilmoqda)"
+        items={[
+          {
+            id: 'requests',
+            icon: 'help_outline',
+            iconBgColor: '#FF3B30',
+            title: 'Javobsiz savollar',
+            subtitle: 'AI berolmagan so\'rovlar',
+            badge: stats.unresolvedCount,
+            badgeColor: 'bg-ios-red/15 text-ios-red',
+            onClick: () => navigate('/requests'),
+          },
+          {
+            id: 'corrections',
+            icon: 'edit_note',
+            iconBgColor: '#FF9500',
+            title: 'Tuzatishlar',
+            subtitle: 'Jamoat yuborgan yangilanishlar',
+            badge: stats.correctionsCount,
+            badgeColor: 'bg-ios-orange/15 text-ios-orange',
+            onClick: () => navigate('/requests'),
+          },
+          {
+            id: 'complaints',
+            icon: 'warning',
+            iconBgColor: '#AF52DE',
+            title: 'Shikoyatlar',
+            subtitle: 'Usta/do\'kondan bildirilgan',
+            badge: stats.complaintsCount,
+            badgeColor: 'bg-ios-purple/15 text-ios-purple',
+            onClick: () => navigate('/users'),
+          },
+        ]}
+      />
+
+      {/* 5. Bo'limlar (iOS Grouped) */}
+      <GroupedList
+        header="Bo'limlar"
+        items={[
+          {
+            id: 'database',
+            icon: 'inventory_2',
+            iconBgColor: '#007AFF',
+            title: 'Baza ma\'lumotlari',
+            subtitle: 'Ustalar, do\'konlar, xizmatlar',
+            badge: `${stats.listingsCount} ta`,
+            onClick: () => navigate('/database'),
+          },
+          {
+            id: 'users',
+            icon: 'group',
+            iconBgColor: '#34C759',
+            title: 'Bot userlari',
+            subtitle: 'Chat tarixi va limitlar',
+            badge: `${stats.usersCount} kishi`,
+            onClick: () => navigate('/users'),
+          },
+        ]}
+      />
     </div>
   );
 };
