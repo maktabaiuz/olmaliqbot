@@ -363,15 +363,28 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 3. LISTINGS (USTALAR VA XIZMATLAR) ---
-  fastify.get('/admin/listings', async (req, reply) => {
+  fastify.get('/admin/listings', async (req: any, reply) => {
     const cityId = await getCityId(req);
+    const { type, categoryName, search } = req.query || {};
+
+    const where: any = { cityId };
+    if (type) where.type = type;
+    if (categoryName) {
+      where.category = { name: { equals: categoryName, mode: 'insensitive' } };
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { category: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
 
     const listings = await db.listing.findMany({
-      where: { cityId },
+      where,
       include: {
         category: true,
         primaryLandmark: true,
-        serviceAreaLandmarks: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -381,7 +394,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.post('/admin/listings', async (req: any, reply) => {
     const cityId = await getCityId(req);
-    const { name, categoryName, phone, landmarkName, badges, verified, workFrom, workTo } = req.body;
+    const { name, categoryName, phone, landmarkName, badges, verified, workFrom, workTo } = req.body || {};
 
     if (!name || !categoryName || !phone) {
       return reply.status(400).send({ error: "Ism, Kategoriya va Telefon majburiy!" });
@@ -398,7 +411,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Find or create landmark
+    // Find or create landmark for this city
     const targetLandmarkName = landmarkName || 'Markaz';
     let landmark = await db.landmark.findFirst({ where: { cityId, name: targetLandmarkName } });
     if (!landmark) {
@@ -415,12 +428,28 @@ export async function adminRoutes(fastify: FastifyInstance) {
         type: 'USTA' as any,
         name,
         phone,
-        badges: badges || ['uyga_boradi'],
+        badges: badges && badges.length > 0 ? badges : ['uyga_boradi'],
         verification: (verified ? 'VERIFIED' : 'COMMUNITY_UNVERIFIED') as any,
         workFrom: workFrom || '08:00',
         workTo: workTo || '20:00',
       },
+      include: {
+        category: true,
+        primaryLandmark: true,
+      },
     });
+
+    // Audit Log
+    try {
+      await db.auditLog.create({
+        data: {
+          cityId,
+          userId: req.user?.id || undefined,
+          action: 'CREATE_LISTING',
+          details: { listingId: listing.id, name, categoryName, phone, landmarkName },
+        },
+      });
+    } catch (e) {}
 
     // Auto-Notification Loop: Notify users who requested this category
     await notifyUsersOnNewListingAdded({
@@ -489,11 +518,34 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 5. CATEGORIES & LANDMARKS ---
-  fastify.get('/admin/categories', async (req, reply) => {
+  fastify.get('/admin/categories', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const { search, type } = req.query || {};
+
     const categories = await db.category.findMany({
+      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      include: {
+        _count: {
+          select: {
+            listings: {
+              where: {
+                cityId,
+                ...(type ? { type } : {}),
+              },
+            },
+          },
+        },
+      },
       orderBy: { name: 'asc' },
     });
-    return categories;
+
+    return categories.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      count: c._count.listings,
+      icon: 'work',
+      color: '#007AFF',
+    }));
   });
 
   fastify.get('/admin/landmarks', async (req, reply) => {

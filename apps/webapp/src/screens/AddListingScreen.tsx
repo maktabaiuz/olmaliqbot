@@ -24,16 +24,13 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   });
 
   const [saving, setSaving] = useState<boolean>(false);
+  const [successBanner, setSuccessBanner] = useState<string>('');
 
   useEffect(() => {
-    const draft = localStorage.getItem('kimbor_add_listing_draft');
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft);
-        setFormData((prev) => ({ ...prev, ...parsed }));
-      } catch (e) {}
+    if (initialCategoryName) {
+      setFormData((prev) => ({ ...prev, categoryName: initialCategoryName }));
     }
-  }, []);
+  }, [initialCategoryName]);
 
   const updateField = (field: string, value: any) => {
     const updated = { ...formData, [field]: value };
@@ -69,8 +66,24 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
       if (res.ok) {
         localStorage.removeItem('kimbor_add_listing_draft');
-        alert('Yangi yozuv muvaffaqiyatli saqlandi! ✅');
-        if (onNavigateTab) onNavigateTab('database');
+        setSuccessBanner("Yangi yozuv muvaffaqiyatli saqlandi va bazaga qo'shildi! ✅");
+
+        // Clear form
+        setFormData({
+          name: '',
+          categoryName: '',
+          phone: '',
+          landmarkName: '',
+          workFrom: '08:00',
+          workTo: '20:00',
+          badges: [],
+          approxPrice: '',
+        });
+        setStep(1);
+
+        setTimeout(() => {
+          if (onNavigateTab) onNavigateTab('database');
+        }, 800);
       } else {
         alert('Saqlashda xatolik yuz berdi');
       }
@@ -84,6 +97,12 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   return (
     <div className="flex flex-col gap-4 pb-24 animate-fade-in max-w-container-max mx-auto">
       <TopHeader title="Yangi yozuv qo'shish" />
+
+      {successBanner && (
+        <div className="mx-4 p-3 bg-ios-green/15 text-ios-green border border-ios-green/30 text-[13px] font-bold rounded-btn text-center">
+          {successBanner}
+        </div>
+      )}
 
       {/* 3 Step Wizard Numbers Bar */}
       <div className="px-4 flex items-center justify-between">
