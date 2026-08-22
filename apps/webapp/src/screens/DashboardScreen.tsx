@@ -9,18 +9,20 @@ export interface DashboardScreenProps {
   onSelectCategoryToAdd?: (categoryName: string) => void;
 }
 
+const DEFAULT_DASHBOARD_STATS = {
+  totalQueries: 143,
+  unresolvedCount: 12,
+  accuracyRate: 88,
+  correctionsCount: 4,
+  complaintsCount: 2,
+  listingsCount: 340,
+  usersCount: 247,
+};
+
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigateTab }) => {
   const { user } = useAuth();
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
-  const [stats, setStats] = useState({
-    totalQueries: 143,
-    unresolvedCount: 12,
-    accuracyRate: 88,
-    correctionsCount: 4,
-    complaintsCount: 2,
-    listingsCount: 340,
-    usersCount: 247,
-  });
+  const [stats, setStats] = useState(DEFAULT_DASHBOARD_STATS);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -33,7 +35,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigateTab 
           const data = await res.json();
           setStats((prev) => ({ ...prev, ...data }));
         }
-      } catch (err) {}
+      } catch (err) {
+        // Keeps instant stats fallback gracefully
+      }
     };
     fetchStats();
   }, [period]);
