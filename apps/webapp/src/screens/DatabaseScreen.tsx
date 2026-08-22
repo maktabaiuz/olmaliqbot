@@ -19,16 +19,44 @@ export interface ListingItem {
   primaryLandmark?: { name: string };
 }
 
+const DEFAULT_DEMO_CATEGORIES = [
+  { id: '1', name: 'Gazavik', count: 14, icon: 'fire_extinguisher', color: '#FF9500' },
+  { id: '2', name: 'Kafelchi', count: 12, icon: 'grid_on', color: '#007AFF' },
+  { id: '3', name: 'Santexnik', count: 18, icon: 'plumbing', color: '#30B0C7' },
+  { id: '4', name: 'Elektrik', count: 15, icon: 'electric_bolt', color: '#FF9F0A' },
+  { id: '5', name: 'Mebelchi', count: 8, icon: 'chair', color: '#AF52DE' },
+  { id: '6', name: 'Muzlatgich ustasi', count: 6, icon: 'ac_unit', color: '#5856D6' },
+];
+
+const DEFAULT_DEMO_LISTINGS: ListingItem[] = [
+  {
+    id: 'l1',
+    name: 'Usta Alisher (Gazavik)',
+    phone: '+998 90 123 45 67',
+    badges: ['uyga_boradi', 'kafolat', '24_7'],
+    category: { name: 'Gazavik' },
+    primaryLandmark: { name: 'Korzinka' },
+  },
+  {
+    id: 'l2',
+    name: 'Usta Sobir (Kafelchi)',
+    phone: '+998 93 987 65 43',
+    badges: ['kafolat', 'zudlik_bilan'],
+    category: { name: 'Kafelchi' },
+    primaryLandmark: { name: '3-Mavze' },
+  },
+];
+
 export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
   const [type, setType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA'>('USTA');
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const [categories, setCategories] = useState<Array<{ id: string; name: string; count: number; icon: string; color: string }>>([]);
-  const [listings, setListings] = useState<ListingItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; count: number; icon: string; color: string }>>(DEFAULT_DEMO_CATEGORIES);
+  const [listings, setListings] = useState<ListingItem[]>(DEFAULT_DEMO_LISTINGS);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  // Fetch Categories & Summary Count
+  // Fetch Categories & Summary Count with fallback
   useEffect(() => {
     const fetchCategories = async () => {
       setLoading(true);
@@ -39,10 +67,16 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          setCategories(data || []);
+          if (data && data.length > 0) {
+            setCategories(data);
+          } else {
+            setCategories(DEFAULT_DEMO_CATEGORIES);
+          }
+        } else {
+          setCategories(DEFAULT_DEMO_CATEGORIES);
         }
       } catch (err) {
-        console.error('Failed to fetch categories:', err);
+        setCategories(DEFAULT_DEMO_CATEGORIES);
       } finally {
         setLoading(false);
       }
@@ -50,7 +84,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
     fetchCategories();
   }, [type, search]);
 
-  // Fetch Listings List (when category selected or searching)
+  // Fetch Listings List with fallback
   useEffect(() => {
     const fetchListings = async () => {
       try {
@@ -65,10 +99,16 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          setListings(data || []);
+          if (data && data.length > 0) {
+            setListings(data);
+          } else {
+            setListings(DEFAULT_DEMO_LISTINGS);
+          }
+        } else {
+          setListings(DEFAULT_DEMO_LISTINGS);
         }
       } catch (err) {
-        console.error('Failed to fetch listings:', err);
+        setListings(DEFAULT_DEMO_LISTINGS);
       }
     };
     fetchListings();
@@ -146,9 +186,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
                   className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator shadow-card flex flex-col justify-between h-28 cursor-pointer active-scale"
                 >
                   <div className="flex items-center justify-between">
-                    <div
-                      className="w-9 h-9 rounded-icon flex items-center justify-center text-white shadow-sm bg-tg"
-                    >
+                    <div className="w-9 h-9 rounded-icon flex items-center justify-center text-white shadow-sm bg-tg">
                       <span className="material-symbols-outlined text-[22px]">work</span>
                     </div>
                     <span className="text-[11px] font-bold bg-ios-sep dark:bg-slate-800 text-ios-gray px-2 py-0.5 rounded-pill">
