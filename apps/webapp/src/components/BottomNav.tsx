@@ -20,13 +20,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     ];
 
     return (
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#16212F]/95 backdrop-blur-md border-t border-ios-sep dark:border-[#2C2C2E]">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#16212F]/95 backdrop-blur-md border-t border-ios-sep dark:border-[#2C2C2E]">
         <div className="max-w-container-max mx-auto flex items-center justify-around h-14 px-2">
           {superAdminTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => onTabChange(tab.id)}
                 className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                   isActive ? 'text-gold font-bold' : 'text-ios-gray hover:text-tg'
@@ -52,7 +53,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#16212F]/95 backdrop-blur-md border-t border-ios-sep dark:border-[#2C2C2E] shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#16212F]/95 backdrop-blur-md border-t border-ios-sep dark:border-[#2C2C2E] shadow-lg">
       <div className="max-w-container-max mx-auto flex items-center justify-between h-14 px-3 relative">
         {tabs.map((tab) => {
           if (tab.id === 'add') {
@@ -74,6 +75,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => onTabChange(tab.id)}
               className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
                 isActive ? 'text-tg font-bold' : 'text-ios-gray hover:text-tg'

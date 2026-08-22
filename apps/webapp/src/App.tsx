@@ -18,11 +18,12 @@ import { SubscriptionExpiredScreen } from './screens/SubscriptionExpiredScreen';
 // Common Header
 import { TopHeader } from './components/common/TopHeader';
 
+type ViewMode = 'home' | 'database' | 'add' | 'users' | 'requests' | 'more' | 'superadmin' | string;
+
 const MainShell: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [view, setView] = useState<ViewMode>('home');
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState<string>('');
-  const [drillDownScreen, setDrillDownScreen] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -42,42 +43,86 @@ const MainShell: React.FC = () => {
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  const handleTabChange = (tab: string) => {
-    setDrillDownScreen(null); // Clear any open sub-screen
-    setActiveTab(tab);
+  const handleTabSelect = (tab: string) => {
+    setView(tab);
   };
 
   const handleSelectCategoryToAdd = (catName: string) => {
     setSelectedCategoryToAdd(catName);
-    setDrillDownScreen(null);
-    setActiveTab('add');
+    setView('add');
   };
 
-  const handleNavigateSubScreen = (screenId: string) => {
-    setDrillDownScreen(screenId);
+  const handleNavigateSubScreen = (subScreenId: string) => {
+    setView(`sub_${subScreenId}`);
   };
 
   return (
     <div className="min-h-screen bg-ios-bg dark:bg-[#0E141B] text-[#1C1C1E] dark:text-[#E8EDF2]">
       <main className="max-w-container-max mx-auto min-h-screen">
-        {/* If a specific sub-screen (like category details or emergency) is open */}
-        {drillDownScreen ? (
+        {/* VIEW 1: HOME */}
+        {view === 'home' && (
+          <DashboardScreen
+            onNavigateTab={handleTabSelect}
+            onSelectCategoryToAdd={handleSelectCategoryToAdd}
+          />
+        )}
+
+        {/* VIEW 2: DATABASE (BAZA) */}
+        {view === 'database' && (
+          <DatabaseScreen
+            onNavigateTab={handleTabSelect}
+            onSelectCategoryToAdd={handleSelectCategoryToAdd}
+          />
+        )}
+
+        {/* VIEW 3: ADD (+ QO'SHISH) */}
+        {view === 'add' && (
+          <AddListingScreen
+            onNavigateTab={handleTabSelect}
+            initialCategoryName={selectedCategoryToAdd}
+          />
+        )}
+
+        {/* VIEW 4: USERS */}
+        {view === 'users' && <UsersChatScreen />}
+
+        {/* VIEW 5: REQUESTS */}
+        {view === 'requests' && (
+          <RequestsScreen
+            onNavigateTab={handleTabSelect}
+            onSelectCategoryToAdd={handleSelectCategoryToAdd}
+          />
+        )}
+
+        {/* VIEW 6: MORE (YANA) */}
+        {view === 'more' && (
+          <MoreMenuScreen onNavigateSubScreen={handleNavigateSubScreen} />
+        )}
+
+        {/* VIEW 7: SUPER-ADMIN CONTROL */}
+        {view === 'superadmin' && (
+          <SuperAdminControlScreen onNavigateSubScreen={handleNavigateSubScreen} />
+        )}
+
+        {/* VIEW 8: SUB-SCREENS */}
+        {view.startsWith('sub_') && (
           <div className="p-4 pb-24 animate-fade-in">
-            {drillDownScreen === 'categories' && (
+            {view === 'sub_categories' && (
               <div className="space-y-3">
-                <TopHeader title="Kategoriyalar va Sinonimlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Kategoriyalar va Sinonimlar" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
                   <div className="flex justify-between font-bold border-b pb-2"><span>Kategoriya</span><span>Sinonimlar</span></div>
                   <div className="flex justify-between"><span>🔧 Gazavik</span><span className="text-ios-gray">газовик, gaz ustasi</span></div>
                   <div className="flex justify-between"><span>🧱 Kafelchi</span><span className="text-ios-gray">плитщик, kafel</span></div>
                   <div className="flex justify-between"><span>🚰 Santexnik</span><span className="text-ios-gray">сантехник, truba</span></div>
+                  <div className="flex justify-between"><span>⚡ Elektrik</span><span className="text-ios-gray">электрик, svet</span></div>
                 </div>
               </div>
             )}
 
-            {drillDownScreen === 'landmarks' && (
+            {view === 'sub_landmarks' && (
               <div className="space-y-3">
-                <TopHeader title="Mo'ljallar va Manzillar" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Mo'ljallar va Manzillar" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
                   <div className="flex justify-between font-bold border-b pb-2"><span>Mo'ljal</span><span>Xalqona nomlar</span></div>
                   <div className="flex justify-between"><span>📍 Korzinka</span><span className="text-ios-gray">карзинка, супермаркет</span></div>
@@ -87,9 +132,9 @@ const MainShell: React.FC = () => {
               </div>
             )}
 
-            {drillDownScreen === 'bot-messages' && (
+            {view === 'sub_bot-messages' && (
               <div className="space-y-3">
-                <TopHeader title="Bot Javob Matnlari" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Bot Javob Matnlari" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-3 text-[13px]">
                   <div className="p-3 bg-ios-bg dark:bg-[#0E141B] rounded-btn border">
                     <span className="font-bold text-tg">1. Guruhda Usta Topilganda:</span>
@@ -99,9 +144,9 @@ const MainShell: React.FC = () => {
               </div>
             )}
 
-            {drillDownScreen === 'emergency' && (
+            {view === 'sub_emergency' && (
               <div className="space-y-3">
-                <TopHeader title="Favqulodda Raqamlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Favqulodda Raqamlar" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
                   <div className="flex justify-between font-bold text-ios-red"><span>🔥 Yong'in xavfsizligi</span><span>101</span></div>
                   <div className="flex justify-between font-bold text-ios-blue"><span>🚔 Militsiya</span><span>102</span></div>
@@ -111,9 +156,9 @@ const MainShell: React.FC = () => {
               </div>
             )}
 
-            {drillDownScreen === 'moderators' && (
+            {view === 'sub_moderators' && (
               <div className="space-y-3">
-                <TopHeader title="Moderatorlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Moderatorlar" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
                   <div className="flex justify-between items-center border-b pb-2">
                     <div><strong>Alisher Moderator</strong><div className="text-[11px] text-ios-gray">Tasdiqlovchi</div></div>
@@ -123,9 +168,9 @@ const MainShell: React.FC = () => {
               </div>
             )}
 
-            {drillDownScreen === 'subscription' && (
+            {view === 'sub_subscription' && (
               <div className="space-y-3">
-                <TopHeader title="Obuna & To'lovlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <TopHeader title="Obuna & To'lovlar" showBack onBack={() => setView('more')} />
                 <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-3 text-[13px]">
                   <div className="flex justify-between"><span>Joriy Tarif:</span> <strong className="text-tg">Standart (299 000 so'm/oy)</strong></div>
                   <div className="flex justify-between"><span>To'lov muddati:</span> <strong className="text-ios-green">14 Avgust 2026 y. (Faol)</strong></div>
@@ -133,59 +178,27 @@ const MainShell: React.FC = () => {
               </div>
             )}
 
-            {drillDownScreen === 'superadmin_city' && <SuperAdminCityDetailScreen />}
-            {drillDownScreen === 'superadmin_onboarding' && <SuperAdminOnboardingScreen />}
-          </div>
-        ) : (
-          /* Render Main Navigation Tabs */
-          <>
-            {isSuperAdmin && activeTab.startsWith('superadmin') ? (
-              <SuperAdminControlScreen onNavigateSubScreen={handleNavigateSubScreen} />
-            ) : (
-              <>
-                {activeTab === 'home' && (
-                  <DashboardScreen
-                    onNavigateTab={handleTabChange}
-                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
-                  />
-                )}
-
-                {activeTab === 'database' && (
-                  <DatabaseScreen
-                    onNavigateTab={handleTabChange}
-                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
-                  />
-                )}
-
-                {activeTab === 'add' && (
-                  <AddListingScreen
-                    onNavigateTab={handleTabChange}
-                    initialCategoryName={selectedCategoryToAdd}
-                  />
-                )}
-
-                {activeTab === 'users' && <UsersChatScreen />}
-
-                {activeTab === 'requests' && (
-                  <RequestsScreen
-                    onNavigateTab={handleTabChange}
-                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
-                  />
-                )}
-
-                {activeTab === 'more' && (
-                  <MoreMenuScreen onNavigateSubScreen={handleNavigateSubScreen} />
-                )}
-              </>
+            {view === 'sub_superadmin_city' && (
+              <div className="space-y-3">
+                <TopHeader title="Olmaliq shahri" showBack onBack={() => setView('superadmin')} />
+                <SuperAdminCityDetailScreen />
+              </div>
             )}
-          </>
+
+            {view === 'sub_superadmin_onboarding' && (
+              <div className="space-y-3">
+                <TopHeader title="Yangi shahar" showBack onBack={() => setView('superadmin')} />
+                <SuperAdminOnboardingScreen />
+              </div>
+            )}
+          </div>
         )}
       </main>
 
       {/* Floating Bottom Nav Bar */}
       <BottomNav
-        activeTab={isSuperAdmin && !activeTab.startsWith('superadmin') ? 'home' : activeTab}
-        onTabChange={handleTabChange}
+        activeTab={view.startsWith('sub_') ? 'more' : view}
+        onTabChange={handleTabSelect}
         isSuperAdmin={isSuperAdmin}
       />
     </div>
