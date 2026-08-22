@@ -5,6 +5,7 @@ export interface TopHeaderProps {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  onBack?: () => void;
   onBackClick?: () => void;
   rightAction?: React.ReactNode;
 }
@@ -13,13 +14,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   title,
   subtitle,
   showBack = false,
+  onBack,
   onBackClick,
   rightAction,
 }) => {
   const navigate = useNavigate();
 
   const handleBack = () => {
-    if (onBackClick) onBackClick();
+    if (onBack) onBack();
+    else if (onBackClick) onBackClick();
     else navigate(-1);
   };
 

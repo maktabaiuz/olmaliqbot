@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { GroupedList } from '../components/common/GroupedList';
 import { API_BASE_URL } from '../config';
 
-export const SuperAdminControlScreen: React.FC = () => {
+export interface SuperAdminControlScreenProps {
+  onNavigateSubScreen?: (screenId: string) => void;
+}
+
+export const SuperAdminControlScreen: React.FC<SuperAdminControlScreenProps> = ({ onNavigateSubScreen }) => {
   const [stats, setStats] = useState({
     totalCities: 3,
     totalRevenue: '1.2M',
@@ -40,9 +44,12 @@ export const SuperAdminControlScreen: React.FC = () => {
             <span className="material-symbols-outlined text-[24px]">workspace_premium</span>
             <span className="font-bold text-[14px]">SUPER-ADMIN</span>
           </div>
-          <span className="text-[11px] font-bold bg-white/20 px-2.5 py-0.5 rounded-pill backdrop-blur-sm">
-            Boshqaruv
-          </span>
+          <button
+            onClick={() => onNavigateSubScreen && onNavigateSubScreen('superadmin_onboarding')}
+            className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-pill text-[11px] font-bold backdrop-blur-sm"
+          >
+            ＋ Yangi shahar
+          </button>
         </div>
 
         <h1 className="text-[22px] font-extrabold tracking-tight mt-1">
@@ -91,6 +98,7 @@ export const SuperAdminControlScreen: React.FC = () => {
           subtitle: `${c.listingsCount} ta usta va do'kon`,
           badge: c.status,
           badgeColor: c.status === "To'langan" ? 'bg-ios-green/15 text-ios-green' : 'bg-ios-orange/15 text-ios-orange',
+          onClick: () => onNavigateSubScreen && onNavigateSubScreen('superadmin_city'),
         }))}
       />
     </div>

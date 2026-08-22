@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BottomNav } from './components/BottomNav';
 
-// Existing Screens (Overwritten with new Telegram x Apple design)
+// Existing Screens
 import { DashboardScreen } from './screens/DashboardScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
@@ -10,13 +10,19 @@ import { UsersChatScreen } from './screens/UsersChatScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { MoreMenuScreen } from './screens/MoreMenuScreen';
 import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
+import { SuperAdminCityDetailScreen } from './screens/superadmin/SuperAdminCityDetailScreen';
+import { SuperAdminOnboardingScreen } from './screens/superadmin/SuperAdminOnboardingScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { SubscriptionExpiredScreen } from './screens/SubscriptionExpiredScreen';
+
+// Common Header
+import { TopHeader } from './components/common/TopHeader';
 
 const MainShell: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('home');
   const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState<string>('');
+  const [drillDownScreen, setDrillDownScreen] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -38,56 +44,158 @@ const MainShell: React.FC = () => {
 
   const handleSelectCategoryToAdd = (catName: string) => {
     setSelectedCategoryToAdd(catName);
+    setDrillDownScreen(null);
     setActiveTab('add');
+  };
+
+  const handleNavigateSubScreen = (screenId: string) => {
+    setDrillDownScreen(screenId);
   };
 
   return (
     <div className="min-h-screen bg-ios-bg dark:bg-[#0E141B] text-[#1C1C1E] dark:text-[#E8EDF2]">
       <main className="max-w-container-max mx-auto min-h-screen">
-        {/* Render View Based on Active Tab */}
-        {isSuperAdmin && activeTab.startsWith('superadmin') ? (
-          <SuperAdminControlScreen />
+        {/* Render Drill-Down Sub-Screens if Active */}
+        {drillDownScreen ? (
+          <div className="p-4 pb-24 animate-fade-in">
+            {drillDownScreen === 'categories' && (
+              <div className="space-y-3">
+                <TopHeader title="Kategoriyalar va Sinonimlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
+                  <div className="flex justify-between font-bold border-b pb-2"><span>Kategoriya</span><span>Sinonimlar</span></div>
+                  <div className="flex justify-between"><span>🔧 Gazavik</span><span className="text-ios-gray">газовик, gaz ustasi</span></div>
+                  <div className="flex justify-between"><span>🧱 Kafelchi</span><span className="text-ios-gray">плитщик, kafel</span></div>
+                  <div className="flex justify-between"><span>🚰 Santexnik</span><span className="text-ios-gray">сантехник, truba</span></div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'landmarks' && (
+              <div className="space-y-3">
+                <TopHeader title="Mo'ljallar va Manzillar" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
+                  <div className="flex justify-between font-bold border-b pb-2"><span>Mo'ljal</span><span>Xalqona nomlar</span></div>
+                  <div className="flex justify-between"><span>📍 Korzinka</span><span className="text-ios-gray">карзинка, супермаркет</span></div>
+                  <div className="flex justify-between"><span>📍 3-Mavze</span><span className="text-ios-gray">3 микрорайон</span></div>
+                  <div className="flex justify-between"><span>📍 Bozor orqasi</span><span className="text-ios-gray">рынок, бозор</span></div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'bot-messages' && (
+              <div className="space-y-3">
+                <TopHeader title="Bot Javob Matnlari" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-3 text-[13px]">
+                  <div className="p-3 bg-ios-bg dark:bg-[#0E141B] rounded-btn border">
+                    <span className="font-bold text-tg">1. Guruhda Usta Topilganda:</span>
+                    <p className="text-ios-gray mt-1">"🔧 {`{category}`}\n{`{name}`} ✅ ⭐4.4\n📍 {`{landmark}`}\n📞 {`{phone}`}"</p>
+                  </div>
+                  <div className="p-3 bg-ios-bg dark:bg-[#0E141B] rounded-btn border">
+                    <span className="font-bold text-ios-red">2. Favqulodda (Gaz hidi/104):</span>
+                    <p className="text-ios-gray mt-1">"🔴 XAVF! Gaz hidi sezilsa darhol 104 ga qo'ng'iroq qiling!"</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'emergency' && (
+              <div className="space-y-3">
+                <TopHeader title="Favqulodda Raqamlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
+                  <div className="flex justify-between font-bold border-b pb-2"><span>Xizmat</span><span>Raqam</span></div>
+                  <div className="flex justify-between font-bold text-ios-red"><span>🔥 Yong'in xavfsizligi</span><span>101</span></div>
+                  <div className="flex justify-between font-bold text-ios-blue"><span>🚔 Militsiya</span><span>102</span></div>
+                  <div className="flex justify-between font-bold text-ios-green"><span>🚑 Tez yordam</span><span>103</span></div>
+                  <div className="flex justify-between font-bold text-ios-orange"><span>🔴 Gaz avariya xizmati</span><span>104</span></div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'moderators' && (
+              <div className="space-y-3">
+                <TopHeader title="Moderatorlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <div><strong>Alisher Moderator</strong><div className="text-[11px] text-ios-gray">Tasdiqlovchi</div></div>
+                    <span className="text-[11px] bg-ios-green/15 text-ios-green px-2 py-0.5 rounded-pill font-bold">Faol</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'subscription' && (
+              <div className="space-y-3">
+                <TopHeader title="Obuna & To'lovlar" showBack onBack={() => setDrillDownScreen(null)} />
+                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-3 text-[13px]">
+                  <div className="flex justify-between"><span>Joriy Tarif:</span> <strong className="text-tg">Standart (299 000 so'm/oy)</strong></div>
+                  <div className="flex justify-between"><span>To'lov muddati:</span> <strong className="text-ios-green">14 Avgust 2026 y. (Faol)</strong></div>
+                </div>
+              </div>
+            )}
+
+            {drillDownScreen === 'superadmin_city' && <SuperAdminCityDetailScreen />}
+            {drillDownScreen === 'superadmin_onboarding' && <SuperAdminOnboardingScreen />}
+          </div>
         ) : (
+          /* Render Main Navigation Tabs */
           <>
-            {activeTab === 'home' && (
-              <DashboardScreen
-                onNavigateTab={(tab) => setActiveTab(tab)}
-                onSelectCategoryToAdd={handleSelectCategoryToAdd}
-              />
+            {isSuperAdmin && activeTab.startsWith('superadmin') ? (
+              <SuperAdminControlScreen onNavigateSubScreen={handleNavigateSubScreen} />
+            ) : (
+              <>
+                {activeTab === 'home' && (
+                  <DashboardScreen
+                    onNavigateTab={(tab) => {
+                      setActiveTab(tab);
+                      setDrillDownScreen(null);
+                    }}
+                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
+                  />
+                )}
+                {activeTab === 'database' && (
+                  <DatabaseScreen
+                    onNavigateTab={(tab) => {
+                      setActiveTab(tab);
+                      setDrillDownScreen(null);
+                    }}
+                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
+                  />
+                )}
+                {activeTab === 'add' && (
+                  <AddListingScreen
+                    onNavigateTab={(tab) => {
+                      setActiveTab(tab);
+                      setDrillDownScreen(null);
+                    }}
+                    initialCategoryName={selectedCategoryToAdd}
+                  />
+                )}
+                {activeTab === 'users' && <UsersChatScreen />}
+                {activeTab === 'requests' && (
+                  <RequestsScreen
+                    onNavigateTab={(tab) => {
+                      setActiveTab(tab);
+                      setDrillDownScreen(null);
+                    }}
+                    onSelectCategoryToAdd={handleSelectCategoryToAdd}
+                  />
+                )}
+                {activeTab === 'more' && (
+                  <MoreMenuScreen onNavigateSubScreen={handleNavigateSubScreen} />
+                )}
+              </>
             )}
-            {activeTab === 'database' && (
-              <DatabaseScreen
-                onNavigateTab={(tab) => setActiveTab(tab)}
-                onSelectCategoryToAdd={handleSelectCategoryToAdd}
-              />
-            )}
-            {activeTab === 'add' && (
-              <AddListingScreen
-                onNavigateTab={(tab) => setActiveTab(tab)}
-                initialCategoryName={selectedCategoryToAdd}
-              />
-            )}
-            {activeTab === 'users' && (
-              <UsersChatScreen
-                onNavigateTab={(tab: string) => setActiveTab(tab)}
-                onSelectCategoryToAdd={handleSelectCategoryToAdd}
-              />
-            )}
-            {activeTab === 'requests' && (
-              <RequestsScreen
-                onNavigateTab={(tab: string) => setActiveTab(tab)}
-                onSelectCategoryToAdd={handleSelectCategoryToAdd}
-              />
-            )}
-            {activeTab === 'more' && <MoreMenuScreen />}
           </>
         )}
       </main>
 
-      {/* Floating Bottom Nav Bar (Bosh · Baza · [＋ gradient] · Userlar · Yana) */}
+      {/* Floating Bottom Nav Bar */}
       <BottomNav
         activeTab={isSuperAdmin && !activeTab.startsWith('superadmin') ? 'home' : activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setDrillDownScreen(null);
+        }}
         isSuperAdmin={isSuperAdmin}
       />
     </div>

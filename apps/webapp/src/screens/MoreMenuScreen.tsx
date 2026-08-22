@@ -1,30 +1,36 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GroupedList } from '../components/common/GroupedList';
 import { AiCopilotDrawer } from '../components/common/AiCopilotDrawer';
 
-export const MoreMenuScreen: React.FC = () => {
-  const navigate = useNavigate();
+export interface MoreMenuScreenProps {
+  onNavigateSubScreen?: (screenId: string) => void;
+}
+
+export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScreen }) => {
   const { user, logout } = useAuth();
   const [copilotOpen, setCopilotOpen] = useState<boolean>(false);
 
   const adminName = user?.name || 'Bobur Admin';
   const cityName = user?.cityName || 'Olmaliq';
 
+  const navigateTo = (screenId: string) => {
+    if (onNavigateSubScreen) onNavigateSubScreen(screenId);
+  };
+
   return (
     <div className="flex flex-col gap-3 p-4 pb-24 animate-fade-in max-w-container-max mx-auto">
       {/* 1. Admin Profile Header Card */}
-      <section className="bg-white dark:bg-[#16212F] rounded-card p-4 border border-ios-separator/50 dark:border-ios-darkSeparator/50 shadow-card flex items-center justify-between">
+      <section className="bg-white dark:bg-[#16212F] rounded-card p-4 border border-ios-sep/50 dark:border-ios-darkSeparator shadow-card flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-tg-gradient text-white font-bold text-[18px] flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-tg-grad text-white font-bold text-[18px] flex items-center justify-center shadow-sm">
             {adminName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <h2 className="font-bold text-[16px] text-tg-textLight dark:text-tg-textDark">
+            <h2 className="font-bold text-[16px] text-[#1C1C1E] dark:text-white">
               {adminName}
             </h2>
-            <p className="text-[12px] text-tg-textMuted">{cityName} Shahar Admini</p>
+            <p className="text-[12px] text-ios-gray">{cityName} Shahar Admini</p>
           </div>
         </div>
 
@@ -44,7 +50,7 @@ export const MoreMenuScreen: React.FC = () => {
           </div>
           <div>
             <h4 className="font-bold text-[14px] text-ios-purple">AI Copilot Agent</h4>
-            <p className="text-[11px] text-tg-textMuted">Savol so'rash va avto-boshqaruv</p>
+            <p className="text-[11px] text-ios-gray">Savol so'rash va avto-boshqaruv</p>
           </div>
         </div>
         <span className="material-symbols-outlined text-[20px] text-ios-purple">chevron_right</span>
@@ -61,7 +67,7 @@ export const MoreMenuScreen: React.FC = () => {
             title: 'Kategoriyalar va Sinonimlar',
             subtitle: 'Kasblar hamda o\'tkazish so\'zlari',
             badge: '42 ta',
-            onClick: () => navigate('/more/categories'),
+            onClick: () => navigateTo('categories'),
           },
           {
             id: 'landmarks',
@@ -70,7 +76,7 @@ export const MoreMenuScreen: React.FC = () => {
             title: 'Mo\'ljallar va Manzillar',
             subtitle: 'Xalqona joy nomlari',
             badge: '28 ta',
-            onClick: () => navigate('/more/landmarks'),
+            onClick: () => navigateTo('landmarks'),
           },
           {
             id: 'bot-messages',
@@ -78,7 +84,7 @@ export const MoreMenuScreen: React.FC = () => {
             iconBgColor: '#34C759',
             title: 'Bot javob matnlari',
             subtitle: 'Shablonlar va 3 tildagi matnlar',
-            onClick: () => navigate('/more/bot-messages'),
+            onClick: () => navigateTo('bot-messages'),
           },
           {
             id: 'emergency',
@@ -88,7 +94,7 @@ export const MoreMenuScreen: React.FC = () => {
             subtitle: '3 darajali shoshilinch aloqa',
             badge: '🔴 1-Daraja',
             badgeColor: 'bg-ios-red/15 text-ios-red',
-            onClick: () => navigate('/more/emergency'),
+            onClick: () => navigateTo('emergency'),
           },
         ]}
       />
@@ -102,7 +108,7 @@ export const MoreMenuScreen: React.FC = () => {
             iconBgColor: '#AF52DE',
             title: 'Moderatorlar',
             subtitle: 'Yordamchilar va ruxsatnomalar',
-            onClick: () => navigate('/more/moderators'),
+            onClick: () => navigateTo('moderators'),
           },
           {
             id: 'subscription',
@@ -111,8 +117,8 @@ export const MoreMenuScreen: React.FC = () => {
             title: 'Obuna & To\'lov tarixi',
             subtitle: 'Joriy tarif va uzaytirish',
             badge: 'STANDART',
-            badgeColor: 'bg-tg-blue/15 text-tg-blue',
-            onClick: () => navigate('/more/subscription'),
+            badgeColor: 'bg-tg/15 text-tg',
+            onClick: () => navigateTo('subscription'),
           },
         ]}
       />
