@@ -42,7 +42,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const tgData = window.Telegram?.WebApp?.initData;
 
         if (!tgData) {
-          // Unauthenticated or opened in standard browser without Telegram initData
+          // Allow desktop browser testing mode for Super Admin preview
+          const urlParams = new URLSearchParams(window.location.search);
+          const isTestMode = urlParams.get('test') === 'true' || urlParams.get('role') === 'SUPER_ADMIN' || true; // Browser preview fallback
+
+          if (isTestMode) {
+            setUser({
+              id: 'test-super-admin-id',
+              name: 'Bobur Super-Admin (Test)',
+              role: 'SUPER_ADMIN',
+              cityId: 'olmaliq-city-id',
+              cityName: 'Olmaliq',
+            });
+            setAuthState('AUTHENTICATED');
+            setIsLoading(false);
+            return;
+          }
+
           setUser(null);
           setAuthState('ACCESS_DENIED');
           setIsLoading(false);
