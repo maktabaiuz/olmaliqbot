@@ -63,12 +63,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
       const tgUser = JSON.parse(userParam);
       const telegramUserId = BigInt(tgUser.id);
+      const tgUsername = (tgUser.username || '').toLowerCase().replace('@', '');
+      const SUPER_ADMIN_USERNAMES = ['superman_uzb', 'ai_loyihachi', 'bobur_owner', 'bobur_admin'];
+      const SUPER_ADMIN_IDS = [BigInt(358795989), BigInt(6355516451), BigInt(8603273053)];
+      const isSuperAdmin = SUPER_ADMIN_IDS.includes(telegramUserId) || SUPER_ADMIN_USERNAMES.includes(tgUsername);
 
       // Lookup user in User table
-      const dbUser = await db.user.findUnique({
+      let dbUser = await db.user.findUnique({
         where: { telegramId: telegramUserId },
         include: { city: true },
       });
+
+      if (!dbUser && isSuperAdmin) {
+        const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+        dbUser = await db.user.create({
+          data: {
+            telegramId: telegramUserId,
+            firstName: tgUser.first_name || 'Admin',
+            lastName: tgUser.last_name || '',
+            username: tgUser.username || null,
+            role: 'SUPER_ADMIN',
+            cityId: defaultCity?.id,
+            isPasswordSet: true,
+            passwordHash: 'kimbor2026',
+          },
+          include: { city: true },
+        });
+      } else if (dbUser && isSuperAdmin && dbUser.role !== 'SUPER_ADMIN') {
+        dbUser = await db.user.update({
+          where: { id: dbUser.id },
+          data: { role: 'SUPER_ADMIN', username: tgUser.username || undefined },
+          include: { city: true },
+        });
+      }
 
       if (!dbUser || dbUser.role === 'USER') {
         return reply.status(403).send({

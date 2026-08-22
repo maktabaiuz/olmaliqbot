@@ -17,8 +17,11 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   if (!messageText || !ctx.from) return;
 
   const userId = ctx.from.id;
+  const username = (ctx.from.username || '').toLowerCase().replace('@', '');
   const telegramUserIdBigInt = BigInt(userId);
-  const isSuperAdmin = telegramUserIdBigInt === BigInt(6355516451) || telegramUserIdBigInt === BigInt(8603273053);
+  const SUPER_ADMIN_IDS = [BigInt(358795989), BigInt(6355516451), BigInt(8603273053)];
+  const SUPER_ADMIN_USERNAMES = ['superman_uzb', 'ai_loyihachi', 'bobur_owner', 'bobur_admin'];
+  const isSuperAdmin = SUPER_ADMIN_IDS.includes(telegramUserIdBigInt) || SUPER_ADMIN_USERNAMES.includes(username);
 
   // Auto-upsert Telegram User details into DB
   if (messageText === '/deploy' && isSuperAdmin) {
@@ -112,12 +115,12 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   if (messageText === '/start') {
     session.step = 'CITY_SELECT';
 
-    // Auto-grant SUPER_ADMIN if SuperAdmin Telegram ID
-    if (userId === 6355516451 || userId === 8603273053) {
+    // Auto-grant SUPER_ADMIN if SuperAdmin
+    if (isSuperAdmin) {
       const olmaliqCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
       await db.user.upsert({
         where: { telegramId: telegramUserIdBigInt },
-        update: { role: 'SUPER_ADMIN' },
+        update: { role: 'SUPER_ADMIN', username: ctx.from.username || undefined },
         create: {
           telegramId: telegramUserIdBigInt,
           firstName: ctx.from.first_name || 'Admin',
@@ -146,7 +149,158 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     return;
   }
 
-  // 2. MAIN PERSISTENT MENU BUTTONS
+  // 2. SUPER ADMIN COMMANDS
+  if (isSuperAdmin) {
+    if (messageText === '/admin' || messageText === '/panel') {
+      const activeCityId = session.cityId || defaultCityId;
+      const listingsCount = await db.listing.count({ where: { cityId: activeCityId, status: 'ACTIVE' } });
+      const unresolvedCount = await db.queryLog.count({ where: { cityId: activeCityId, isResolved: false } });
+      const webAppUrl = process.env.WEBAPP_URL || 'https://olmaliq.online';
+
+      const panelKeyboard = new InlineKeyboard()
+        .webApp('⚡ Admin Panelni Ochish (TMA)', webAppUrl)
+        .row()
+        .text('📋 Oxirgi So\'rovlar', 'admin_view_unresolved')
+        .text('➕ Yangi Usta Qo\'shish', 'admin_quick_add');
+
+      const adminInfoText = `👑 **SUPER ADMIN BOSHQARUV PANELI**\n\n` +
+        `🏙 Shahar: **${session.cityName || 'Olmaliq'}**\n` +
+        `👷‍♂️ Faol Ustalar/Obyektlar: **${listingsCount} ta**\n` +
+        `❓ Yechilmagan So'rovlar: **${unresolvedCount} ta**\n\n` +
+        `Tezkor buyruqlar:\n` +
+        `• \`/qosh <kasb> <ism> <telefon> <mo'ljal>\` — Tezkor usta qo'shish\n` +
+        `• \`/ustalar\` — Barcha ustalar ro'yxati\n` +
+        `• \`/savollar\` — Guruhlardagi yechilmagan savollar\n` +
+        `• \`/deploy\` — Serverni yangilash`;
+
+      await ctx.reply(adminInfoText, { parse_mode: 'Markdown', reply_markup: panelKeyboard });
+      return;
+    }
+
+    if (messageText.startsWith('/qosh')) {
+      const parts = messageText.replace('/qosh', '').trim().split(/\s+/);
+      if (parts.length < 3) {
+        session.step = 'CANDIDATE_NAME';
+        session.candidateData = {};
+        await ctx.reply(`➕ **Usta qo'shish (1/4)**\n\nUsta yoki do'kon nomini kiriting:\n\n_(yoki bir qatorda yozing: \`/qosh malyar Akmal +998901234567 Karzinka\`)_`, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      const [categoryName, masterName, phone, ...landmarkParts] = parts;
+      const landmarkName = landmarkParts.join(' ') || 'Markaz';
+      const activeCityId = session.cityId || defaultCityId;
+
+      try {
+        let cat = await db.category.findFirst({
+          where: {
+            OR: [
+              { name: { equals: categoryName, mode: 'insensitive' } },
+              { synonyms: { has: categoryName.toLowerCase() } },
+            ],
+          },
+        });
+
+        if (!cat) {
+          cat = await db.category.create({
+            data: { name: categoryName, synonyms: [categoryName.toLowerCase()] },
+          });
+        }
+
+        let landmark = await db.landmark.findFirst({
+          where: {
+            cityId: activeCityId,
+            OR: [
+              { name: { equals: landmarkName, mode: 'insensitive' } },
+              { synonyms: { has: landmarkName.toLowerCase() } },
+            ],
+          },
+        });
+
+        if (!landmark && landmarkName) {
+          landmark = await db.landmark.create({
+            data: { cityId: activeCityId, name: landmarkName, synonyms: [landmarkName.toLowerCase()] },
+          });
+        }
+
+        const newListing = await db.listing.create({
+          data: {
+            cityId: activeCityId,
+            name: masterName,
+            phone: phone,
+            categoryId: cat.id,
+            objectType: 'USTA',
+            status: 'ACTIVE',
+            verificationStatus: 'VERIFIED',
+            primaryLandmarkId: landmark?.id,
+          },
+        });
+
+        await ctx.reply(
+          `✅ **Usta muvaffaqiyatli qo'shildi va darhol faollashdi!**\n\n` +
+          `👤 Ism: **${masterName}**\n` +
+          `🛠 Soha: **${cat.name}**\n` +
+          `📞 Tel: **${phone}**\n` +
+          `📍 Mo'ljal: **${landmarkName}**\n\n` +
+          `Endi guruhda ushbu soha bo'yicha savol berilsa, bot darhol javob qaytaradi! 🚀`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (err) {
+        console.error('Failed to create listing directly:', err);
+        await ctx.reply(`❌ Xatolik yuz berdi: ${err}`);
+      }
+      return;
+    }
+
+    if (messageText === '/savollar' || messageText === '📋 So\'rovlar') {
+      const activeCityId = session.cityId || defaultCityId;
+      const unresolvedQueries = await db.queryLog.findMany({
+        where: { cityId: activeCityId, isResolved: false },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      });
+
+      if (unresolvedQueries.length === 0) {
+        await ctx.reply(`🎉 Hozircha yechilmagan yangi so'rovlar yo'q! Barcha savollarga javob berilgan.`);
+        return;
+      }
+
+      let text = `📋 **GURUHLARDAGI YECHILMAGAN OXIRGI SAVOLLAR:**\n\n`;
+      unresolvedQueries.forEach((q, idx) => {
+        text += `${idx + 1}. ❓ *"${q.rawMessage}"*\n`;
+        text += `   🛠 Soha: \`${q.categoryName || 'Aniqlanmagan'}\` · 📍 Mo'ljal: \`${q.landmarkName || 'Yo\'q'}\`\n\n`;
+      });
+      text += `_Ushbu sohalarga usta qo'shish uchun: \`/qosh <soha> <ism> <tel>\` deb yozing._`;
+
+      await ctx.reply(text, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (messageText === '/ustalar') {
+      const activeCityId = session.cityId || defaultCityId;
+      const listings = await db.listing.findMany({
+        where: { cityId: activeCityId, status: 'ACTIVE' },
+        include: { category: true, primaryLandmark: true },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (listings.length === 0) {
+        await ctx.reply(`Bazada hozircha faol ustalar yo'q. Qo'shish uchun: \`/qosh\``);
+        return;
+      }
+
+      let text = `👷‍♂️ **FAOL USTALAR VA XIZMATLAR:**\n\n`;
+      listings.forEach((l, idx) => {
+        text += `${idx + 1}. **${l.name}** (${l.category.name})\n`;
+        text += `   📞 ${l.phone} · 📍 ${l.primaryLandmark?.name || 'Mavjud emas'}\n\n`;
+      });
+
+      await ctx.reply(text, { parse_mode: 'Markdown' });
+      return;
+    }
+  }
+
+  // 3. MAIN PERSISTENT MENU BUTTONS
   if (messageText === '🔍 Qidirish') {
     const cityName = session.cityName || 'Olmaliq';
     const searchMessage = `**Nima kerak? Yozing**\n\n` +
@@ -166,7 +320,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
       `To'lov hozircha qo'lda: hisob beriladi, chek yuboriladi.\n\n` +
       `Arizani to'ldirish uchun pastdagi tugmani bosing:`;
 
-    const appUrl = process.env.WEBAPP_URL || 'https://7d0905ff78ad33.lhr.life';
+    const appUrl = process.env.WEBAPP_URL || 'https://olmaliq.online';
     const franchiseKeyboard = new InlineKeyboard()
       .url('💳 Arizani to\'ldirish (Web App)', `${appUrl}`)
       .row()
@@ -187,11 +341,11 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     return;
   }
 
-  // 3. MULTI-STEP WIZARD: CANDIDATE SUBMISSION
+  // 4. MULTI-STEP WIZARD: CANDIDATE / MASTER SUBMISSION
   if (session.step === 'CANDIDATE_NAME') {
     session.candidateData = { name: messageText };
     session.step = 'CANDIDATE_CAT';
-    await ctx.reply(`2/4. Qaysi kasb yoki soha? (masalan: gazavik, santexnik, kafelchi):`);
+    await ctx.reply(`2/4. Qaysi kasb yoki soha? (masalan: gazavik, santexnik, malyar, kafelchi):`);
     return;
   }
 
@@ -231,6 +385,55 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
         });
       }
 
+      let candLandmark = null;
+      if (cand?.landmark) {
+        candLandmark = await db.landmark.findFirst({
+          where: {
+            cityId: session.cityId || defaultCityId,
+            OR: [
+              { name: { equals: cand.landmark, mode: 'insensitive' } },
+              { synonyms: { has: cand.landmark.toLowerCase() } },
+            ],
+          },
+        });
+        if (!candLandmark) {
+          candLandmark = await db.landmark.create({
+            data: {
+              cityId: session.cityId || defaultCityId,
+              name: cand.landmark,
+              synonyms: [cand.landmark.toLowerCase()],
+            },
+          });
+        }
+      }
+
+      if (isSuperAdmin) {
+        // Super Admin kiritgan ma'lumot to'g'ridan-to'g'ri ACTIVE holatda bazaga tushadi!
+        await db.listing.create({
+          data: {
+            cityId: session.cityId || defaultCityId,
+            name: cand?.name || 'Usta',
+            phone: cand?.phone || '',
+            categoryId: candCategory.id,
+            primaryLandmarkId: candLandmark?.id,
+            objectType: 'USTA',
+            status: 'ACTIVE',
+            verificationStatus: 'VERIFIED',
+          },
+        });
+
+        await ctx.reply(
+          `✅ **Usta muvaffaqiyatli saqlandi va darhol faollashtirildi!**\n\n` +
+          `👤 Nomi: **${cand?.name}**\n` +
+          `🛠 Kasbi: **${candCategory.name}**\n` +
+          `📞 Tel: **${cand?.phone}**\n` +
+          `📍 Mo'ljal: **${cand?.landmark || 'Ko\'rsatilmagan'}**\n\n` +
+          `Endi guruhda ushbu kasb so'ralsa, bot o'sha zahoti javob beradi! 🚀`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
       await db.candidate.create({
         data: {
           cityId: session.cityId || defaultCityId,
@@ -240,11 +443,11 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
           submittedBy: telegramUserIdBigInt.toString(),
         },
       });
+      await ctx.reply(`Rahmat, tekshirib qo'shamiz! 🙌\n\nMa'lumotlar adminga tasdiqlash uchun yuborildi.`);
     } catch (e) {
-      console.error('Failed to create candidate:', e);
+      console.error('Failed to create listing/candidate:', e);
+      await ctx.reply(`Xatolik yuz berdi: ${e}`);
     }
-
-    await ctx.reply(`Rahmat, tekshirib qo'shamiz! 🙌\n\nMa'lumotlar adminga tasdiqlash uchun yuborildi.`);
     return;
   }
 
@@ -384,7 +587,41 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     return;
   }
 
-  // 2. Copy phone callback
+  // 2. Admin Quick Add callback
+  if (data === 'admin_quick_add') {
+    session.step = 'CANDIDATE_NAME';
+    session.candidateData = {};
+    await ctx.answerCallbackQuery();
+    await ctx.reply('➕ **Yangi Usta/Obyekt Qo\'shish (1/4)**\n\nUsta yoki do\'kon nomini kiriting:', { parse_mode: 'Markdown' });
+    return;
+  }
+
+  // 3. Admin View Unresolved callback
+  if (data === 'admin_view_unresolved') {
+    await ctx.answerCallbackQuery();
+    const activeCityId = session.cityId || defaultCityId;
+    const unresolvedQueries = await db.queryLog.findMany({
+      where: { cityId: activeCityId, isResolved: false },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    });
+
+    if (unresolvedQueries.length === 0) {
+      await ctx.reply(`🎉 Yechilmagan yangi so'rovlar yo'q!`);
+      return;
+    }
+
+    let text = `📋 **GURUHLARDAGI YECHILMAGAN OXIRGI SAVOLLAR:**\n\n`;
+    unresolvedQueries.forEach((q, idx) => {
+      text += `${idx + 1}. ❓ *"${q.rawMessage}"*\n`;
+      text += `   🛠 Soha: \`${q.categoryName || 'Aniqlanmagan'}\` · 📍 Mo'ljal: \`${q.landmarkName || 'Yo\'q'}\`\n\n`;
+    });
+    text += `_Usta qo'shish uchun: \`/qosh <soha> <ism> <tel>\` deb yozing._`;
+    await ctx.reply(text, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  // 4. Copy phone callback
   if (data.startsWith('copy_phone_')) {
     const phone = data.replace('copy_phone_', '');
     await ctx.answerCallbackQuery({ text: `📋 Telefon raqami: ${phone}`, show_alert: true });

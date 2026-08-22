@@ -91,6 +91,21 @@ async function main() {
   });
 
   await db.user.upsert({
+    where: { telegramId: BigInt(358795989) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(358795989),
+      firstName: 'Super',
+      lastName: 'Admin',
+      username: 'superadmin_358795989',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
     where: { telegramId: BigInt(8603273053) },
     update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
     create: {
@@ -98,6 +113,36 @@ async function main() {
       firstName: 'Bobur',
       lastName: 'SuperAdmin',
       username: 'bobur_admin',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100004) },
+    update: { role: 'SUPER_ADMIN', username: 'superman_uzb', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100004),
+      firstName: 'Admin',
+      lastName: 'Superman',
+      username: 'superman_uzb',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100005) },
+    update: { role: 'SUPER_ADMIN', username: 'ai_loyihachi', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100005),
+      firstName: 'Admin',
+      lastName: 'AI Loyihachi',
+      username: 'ai_loyihachi',
       role: 'SUPER_ADMIN',
       cityId: olmaliq.id,
       isPasswordSet: true,
@@ -135,7 +180,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Seeded 3 admin users: Super Admin (8603273053), City Admin (100002), Moderator (100003).');
+  console.log('✅ Seeded admin users: Super Admins (@superman_uzb, @ai_loyihachi, 8603273053, 6355516451), City Admin, Moderator.');
   console.log('🎉 Seeding completed successfully!');
 }
 
