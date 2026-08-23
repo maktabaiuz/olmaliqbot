@@ -14,6 +14,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA'>('USTA');
 
   // Form Fields State (Prefilled or restored from LocalStorage)
   const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');
@@ -165,6 +166,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           'x-init-data': initData,
         },
         body: JSON.stringify({
+          type: listingType,
           name,
           categoryName: category,
           phone,
@@ -260,6 +262,30 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       {/* STEP 1 FORM */}
       {step === 1 && (
         <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Turi *</label>
+            <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
+              {[
+                { id: 'USTA', label: 'Usta' },
+                { id: 'DOKON_OBYEKT', label: "Do'kon" },
+                { id: 'MUASSASA', label: 'Muassasa' },
+              ].map((seg) => (
+                <button
+                  key={seg.id}
+                  type="button"
+                  onClick={() => setListingType(seg.id as any)}
+                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    listingType === seg.id
+                      ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {seg.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Ismi-familiyasi *</label>
             <input

@@ -2,15 +2,26 @@ import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
 import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries } from '@kimbor/core';
 import crypto from 'crypto';
-import { verifyTelegramInitData, verifyPassword, hashPassword } from './authSecurity';
+import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
 
 export async function adminRoutes(fastify: FastifyInstance) {
   const SUPER_ADMIN_IDS = [BigInt(6355516451), BigInt(8323651390), BigInt(5369180248)];
   const isSuperAdminId = (id?: bigint | null) => (id ? SUPER_ADMIN_IDS.some((a) => a === id) : false);
 
   // Utility for resolving cityId safely
+  // - Haqiqiy autentifikatsiya orqali o'ziga tegishli cityId ishlatadi
+  // - SUPER_ADMIN boshqa shaharni ko'rmoqchi bo'lsa, x-city-id header orqali almashtira oladi
+  // - Sessiya topilmasa (masalan initData yo'q), avvalgidek Olmaliqqa tushadi (backward-compat)
   const getCityId = async (req: any): Promise<string> => {
-    if (req.user?.cityId) return req.user.cityId;
+    const { user } = await authenticateRequest(req);
+    if (user) {
+      req.user = user;
+      if (user.role === 'SUPER_ADMIN') {
+        const overrideCityId = req.headers['x-city-id'];
+        if (typeof overrideCityId === 'string' && overrideCityId) return overrideCityId;
+      }
+      if (user.cityId) return user.cityId;
+    }
     const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
     return defaultCity ? defaultCity.id : 'default_city';
   };
@@ -318,21 +329,91 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return cities;
   });
 
-  // --- 2. STATS & ANALYTICS ---
-  fastify.get('/admin/stats', async (req, reply) => {
-    const cityId = await getCityId(req);
+  // --- SUPER-ADMIN: Platforma bo'yicha umumiy statistika (barcha shaharlar) ---
+  fastify.get('/admin/platform-stats', async (req: any, reply) => {
+    const { user, error } = await authenticateRequest(req);
+    if (error) return reply.status(error.status).send(error.body);
+    if (user.role !== 'SUPER_ADMIN') {
+      return reply.status(403).send({ error: "Bu ma'lumot faqat Super-Admin uchun 🔒" });
+    }
 
-    const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
-    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false } });
-    const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
-    const totalCategories = await db.category.count();
+    const [totalCities, totalListings, totalUsers, totalQueries, unresolvedQueries, cities] = await Promise.all([
+      db.city.count({ where: { isActive: true } }),
+      db.listing.count({ where: { status: 'ACTIVE' } }),
+      db.user.count({ where: { role: 'USER' } }),
+      db.queryLog.count(),
+      db.queryLog.count({ where: { isResolved: false } }),
+      db.city.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          planType: true,
+          subscriptionEnd: true,
+          _count: { select: { listings: true, users: true, queryLogs: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
     return {
-      activeListings,
+      totalCities,
+      totalListings,
+      totalUsers,
+      totalQueries,
+      unresolvedQueries,
+      cities: cities.map((c) => ({
+        id: c.id,
+        name: c.name,
+        planType: c.planType,
+        subscriptionEnd: c.subscriptionEnd,
+        listingsCount: c._count.listings,
+        usersCount: c._count.users,
+        queriesCount: c._count.queryLogs,
+      })),
+    };
+  });
+
+  // --- 2. STATS & ANALYTICS ---
+  fastify.get('/admin/stats', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const { period } = req.query || {};
+
+    let periodStart: Date | undefined;
+    if (period === 'today') {
+      periodStart = new Date();
+      periodStart.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'month') {
+      periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+    const periodFilter = periodStart ? { createdAt: { gte: periodStart } } : {};
+
+    const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
+    const totalQuestions = await db.queryLog.count({ where: { cityId, ...periodFilter } });
+    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
+    const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
+    const totalCategories = await db.category.count();
+    const totalUsers = await db.user.count({ where: { cityId } });
+
+    // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
+    const resolvedPercent = totalQuestions > 0
+      ? Math.round(((totalQuestions - unresolvedRequests) / totalQuestions) * 1000) / 10
+      : 100;
+
+    return {
+      // DashboardScreen.tsx kutgan nomlar:
+      totalQuestions,
       unresolvedRequests,
+      resolvedPercent,
+      totalListings: activeListings,
+      totalUsers,
+      // Qo'shimcha (boshqa ekranlar uchun):
+      activeListings,
       pendingCandidates,
       totalCategories,
-      accuracyRate: 98.5,
+      accuracyRate: resolvedPercent,
     };
   });
 
@@ -407,6 +488,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     try {
       const cityId = await getCityId(req);
       const {
+        type,
         name,
         categoryName,
         phone,
@@ -427,6 +509,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (!name || !categoryName || !phone) {
         return reply.status(400).send({ error: "Ism, Kategoriya va Telefon majburiy!" });
       }
+
+      const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT];
+      const listingType = VALID_LISTING_TYPES.includes(type) ? type : ListingType.USTA;
 
       // Find or create category
       let category = await db.category.findFirst({
@@ -455,14 +540,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
           cityId,
           categoryId: category.id,
           primaryLandmarkId: landmark.id,
-          type: ListingType.USTA,
+          type: listingType,
           name,
           phone,
           badges: badges || ['uyga_boradi'],
           verification: verified ? VerificationStatus.VERIFIED : VerificationStatus.COMMUNITY_UNVERIFIED,
           workFrom: workFrom || '08:00',
           workTo: workTo || '20:00',
-          addedByUserId: addedByUserId || req.user?.id || null,
+          addedByUserId: req.user?.id || addedByUserId || null,
           consentGiven: Boolean(consentGiven),
           consentAt: consentGiven ? new Date() : null,
           consentDevice: consentDevice || req.headers['user-agent'] || null,
@@ -498,7 +583,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     } catch (err: any) {
       req.log.error(err);
       return reply.status(400).send({
-        error: err?.message || "Yozuvni saqlashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
+        error: "Yozuvni saqlashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
       });
     }
   });

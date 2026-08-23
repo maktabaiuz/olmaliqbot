@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { RecordRow } from '../components/RecordRow';
 import { NavTab } from '../components/BottomNav';
+import { apiFetch } from '../config';
 
 export interface CategorySummary {
   id: string;
@@ -41,15 +42,20 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [listings, setListings] = useState<ListingItem[]>([]);
 
+  // Backend Prisma enum (USTA/DOKON_OBYEKT/MUASSASA/TRANSPORT) -> Frontend segment ids
+  const DB_TYPE_TO_SEGMENT: Record<string, 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS'> = {
+    USTA: 'MASTERS',
+    DOKON_OBYEKT: 'SHOPS',
+    MUASSASA: 'ORGANIZATIONS',
+    TRANSPORT: 'MASTERS',
+  };
+
   // Fetch categories & listings from API
   const fetchData = async () => {
     try {
-      const initData = window.Telegram?.WebApp?.initData || '';
-      const headers = { 'x-init-data': initData };
-
       const [catRes, listRes] = await Promise.all([
-        fetch('/api/admin/categories', { headers }),
-        fetch('/api/admin/listings', { headers }),
+        apiFetch('/api/admin/categories'),
+        apiFetch('/api/admin/listings'),
       ]);
 
       let fetchedListings: ListingItem[] = [];
@@ -65,7 +71,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
           verification: item.verification || 'COMMUNITY_UNVERIFIED',
           status: item.status || 'ACTIVE',
           updatedAt: item.updatedAt,
-          type: item.type || 'MASTERS',
+          type: DB_TYPE_TO_SEGMENT[item.type] || 'MASTERS',
         }));
         setListings(fetchedListings);
       }

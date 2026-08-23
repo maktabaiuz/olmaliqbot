@@ -1,16 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../config';
 
 export interface SuperAdminControlScreenProps {
   onBackToDashboard: () => void;
+  onOpenDictionary?: () => void;
 }
 
 export type ControlSection = 'menu' | 'cities' | 'applications' | 'payments' | 'stats' | 'dictionary' | 'bot_messages';
 
 export const SuperAdminControlScreen: React.FC<SuperAdminControlScreenProps> = ({
   onBackToDashboard,
+  onOpenDictionary,
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('menu');
   const [selectedCityForDetail, setSelectedCityForDetail] = useState<any | null>(null);
+
+  // Platform-wide statistics (barcha shaharlar bo'yicha)
+  const [platformStats, setPlatformStats] = useState<{
+    totalCities: number;
+    totalListings: number;
+    totalUsers: number;
+    totalQueries: number;
+    unresolvedQueries: number;
+    cities: Array<{ id: string; name: string; planType: string; listingsCount: number; usersCount: number; queriesCount: number }>;
+  } | null>(null);
+  const [platformStatsLoading, setPlatformStatsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeSection === 'stats' && !platformStats) {
+      setPlatformStatsLoading(true);
+      apiFetch('/api/admin/platform-stats')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => setPlatformStats(data))
+        .catch(() => {})
+        .finally(() => setPlatformStatsLoading(false));
+    }
+  }, [activeSection, platformStats]);
 
   // Cities Data State
   const [cities] = useState([
@@ -207,7 +232,7 @@ export const SuperAdminControlScreen: React.FC<SuperAdminControlScreenProps> = (
 
           {/* Row 5: Kategoriyalar va lug'at */}
           <button
-            onClick={() => setActiveSection('dictionary')}
+            onClick={() => (onOpenDictionary ? onOpenDictionary() : setActiveSection('dictionary'))}
             className="w-full flex items-center justify-between p-4 hover:bg-surface-container-low dark:hover:bg-slate-800/60 transition-colors text-left"
           >
             <div className="flex items-center gap-3">
@@ -359,6 +384,62 @@ export const SuperAdminControlScreen: React.FC<SuperAdminControlScreenProps> = (
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* SECTION: UMUMIY STATISTIKA (barcha shaharlar) */}
+      {activeSection === 'stats' && (
+        <div className="space-y-4">
+          {platformStatsLoading ? (
+            <div className="space-y-3">
+              <div className="h-20 bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 animate-pulse" />
+              <div className="h-20 bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 animate-pulse" />
+            </div>
+          ) : !platformStats ? (
+            <div className="bg-surface dark:bg-[#17212B] p-6 rounded-2xl border border-outline-variant/30 dark:border-slate-800 text-center text-xs text-slate-500">
+              Statistikani yuklab bo'lmadi. Qayta urinib ko'ring.
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">Shaharlar</span>
+                  <p className="text-xl font-black text-on-surface dark:text-slate-100">{platformStats.totalCities}</p>
+                </div>
+                <div className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">Jami yozuvlar</span>
+                  <p className="text-xl font-black text-on-surface dark:text-slate-100">{platformStats.totalListings}</p>
+                </div>
+                <div className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">Bot foydalanuvchilari</span>
+                  <p className="text-xl font-black text-on-surface dark:text-slate-100">{platformStats.totalUsers}</p>
+                </div>
+                <div className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase">Javobsiz so'rovlar</span>
+                  <p className="text-xl font-black text-rose-500">{platformStats.unresolvedQueries}</p>
+                  <p className="text-[9px] text-slate-500">{platformStats.totalQueries} tadan</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Shaharlar bo'yicha taqsimot</h4>
+                <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-outline-variant/20 dark:divide-slate-800">
+                  {platformStats.cities.map((c) => (
+                    <div key={c.id} className="p-3.5 flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-xs text-on-surface dark:text-slate-100">{c.name}</p>
+                        <p className="text-[10px] text-slate-500">{c.planType}</p>
+                      </div>
+                      <div className="text-right text-[10px] text-slate-500">
+                        <div>{c.listingsCount} ta yozuv</div>
+                        <div>{c.usersCount} ta user</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

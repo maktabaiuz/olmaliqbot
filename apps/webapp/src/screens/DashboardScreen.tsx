@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../config';
 
 export interface DashboardScreenProps {
   onNavigateTab: (tab: 'home' | 'database' | 'add' | 'users' | 'more' | 'requests') => void;
@@ -15,11 +16,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   // States
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [stats, setStats] = useState({
-    totalQuestions: 143,
-    unresolvedCount: 12,
-    resolvedPercent: 88,
-    totalListings: 340,
-    totalUsers: 247,
+    totalQuestions: 0,
+    unresolvedCount: 0,
+    resolvedPercent: 100,
+    totalListings: 0,
+    totalUsers: 0,
   });
 
   const [topSearches, setTopSearches] = useState<Array<{ query: string; count: number }>>([]);
@@ -45,31 +46,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const fetchDashboardData = async () => {
     try {
-      const initData = window.Telegram?.WebApp?.initData || '';
-      const headers = { 'x-init-data': initData };
-
       // 1. Fetch Stats based on selected period
-      const statsRes = await fetch(`/api/admin/stats?period=${period}`, { headers });
+      const statsRes = await apiFetch(`/api/admin/stats?period=${period}`);
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats({
-          totalQuestions: statsData.totalQuestions || 143,
-          unresolvedCount: statsData.unresolvedRequests || 12,
-          resolvedPercent: statsData.resolvedPercent || 88,
-          totalListings: statsData.totalListings || 340,
-          totalUsers: statsData.totalUsers || 247,
+          totalQuestions: statsData.totalQuestions ?? 0,
+          unresolvedCount: statsData.unresolvedRequests ?? 0,
+          resolvedPercent: statsData.resolvedPercent ?? 100,
+          totalListings: statsData.totalListings ?? 0,
+          totalUsers: statsData.totalUsers ?? 0,
         });
       }
 
       // 2. Fetch Top 10 Searches
-      const topRes = await fetch(`/api/admin/queries/top-10?period=${period}`, { headers });
+      const topRes = await apiFetch(`/api/admin/queries/top-10?period=${period}`);
       if (topRes.ok) {
         const topData = await topRes.json();
         setTopSearches(topData || []);
       }
 
       // 3. Fetch Complaints
-      const complaintsRes = await fetch('/api/admin/complaints', { headers });
+      const complaintsRes = await apiFetch('/api/admin/complaints');
       if (complaintsRes.ok) {
         const compData = await complaintsRes.json();
         setComplaints(compData || []);

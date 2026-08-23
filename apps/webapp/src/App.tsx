@@ -29,6 +29,7 @@ import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
 import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
+import { setCityOverride } from './config';
 
 export interface AppProps {
   previewConfig?: {
@@ -50,6 +51,8 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
     'normal' | 'superadmin' | 'onboarding' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
   >(user?.role === 'SUPER_ADMIN' ? 'superadmin' : 'normal');
   const [selectedCityName, setSelectedCityName] = useState(user?.cityName || 'Olmaliq');
+  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
+  const [cityList, setCityList] = useState<Array<{ id: string; name: string }>>([]);
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
@@ -91,6 +94,23 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
       setViewMode('superadmin');
     }
   }, [user?.role]);
+
+  // Super-Admin uchun haqiqiy shaharlar ro'yxatini yuklash (shahar almashtirish dropdowni uchun)
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetch('/api/cities')
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => setCityList(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
+  }, [isSuperAdmin]);
+
+  const handleSelectCity = (city: { id: string; name: string }) => {
+    setSelectedCityName(city.name);
+    setSelectedCityId(city.id);
+    setCityOverride(city.id);
+    setShowCityDropdown(false);
+  };
 
   // RBAC Security Guard: non-super-admins cannot access super-admin-only views
   useEffect(() => {
@@ -186,17 +206,14 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                   <div className="px-3 py-1.5 text-[10px] font-bold text-outline uppercase tracking-wider">
                     Shaharlar
                   </div>
-                  {['Olmaliq', 'Chirchiq', 'Angren'].map((cityName) => (
+                  {cityList.map((city) => (
                     <button
-                      key={cityName}
-                      onClick={() => {
-                        setSelectedCityName(cityName);
-                        setShowCityDropdown(false);
-                      }}
+                      key={city.id}
+                      onClick={() => handleSelectCity(city)}
                       className="w-full text-left px-4 py-2 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
                     >
-                      {cityName}
-                      {selectedCityName === cityName && (
+                      {city.name}
+                      {selectedCityName === city.name && (
                         <span className="material-symbols-outlined text-[16px] text-primary">check</span>
                       )}
                     </button>
@@ -268,7 +285,10 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
       {/* MAIN VIEW SWITCHER */}
       <main className="flex-1 p-4 space-y-4">
         {viewMode === 'superadmin' && isSuperAdmin && (
-          <SuperAdminControlScreen onBackToDashboard={() => setViewMode('normal')} />
+          <SuperAdminControlScreen
+            onBackToDashboard={() => setViewMode('normal')}
+            onOpenDictionary={() => setViewMode('dictionary')}
+          />
         )}
 
         {viewMode === 'moderators' && isSuperAdmin && (
@@ -367,7 +387,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         )}
 
         {viewMode === 'normal' && (
-          <>
+          <React.Fragment key={selectedCityId || 'own-city'}>
             {selectedListingId ? (
               <ListingDetailScreen
                 listingId={selectedListingId}
@@ -574,7 +594,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                 )}
               </>
             )}
-          </>
+          </React.Fragment>
         )}
       </main>
 
