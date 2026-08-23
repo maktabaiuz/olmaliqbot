@@ -1,214 +1,717 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { BottomNav } from './components/BottomNav';
-
-// Screens
+import { BottomNav, NavTab } from './components/BottomNav';
+import { AuthModal } from './components/AuthModal';
 import { DashboardScreen } from './screens/DashboardScreen';
-import { DatabaseScreen } from './screens/DatabaseScreen';
+import { UserChatScreen } from './screens/UserChatScreen';
+import { UsersScreen } from './screens/UsersScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
-import { UsersChatScreen } from './screens/UsersChatScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
-import { MoreMenuScreen } from './screens/MoreMenuScreen';
+import { DatabaseScreen } from './screens/DatabaseScreen';
 import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
-import { SuperAdminCityDetailScreen } from './screens/superadmin/SuperAdminCityDetailScreen';
-import { SuperAdminOnboardingScreen } from './screens/superadmin/SuperAdminOnboardingScreen';
+import { OnboardingWizardScreen } from './screens/OnboardingWizardScreen';
+import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
+
+import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 import { LoginScreen } from './screens/LoginScreen';
-import { CategoriesScreen } from './screens/CategoriesScreen';
-import { LandmarksScreen } from './screens/LandmarksScreen';
-import { SubscriptionExpiredScreen } from './screens/SubscriptionExpiredScreen';
+import { PasswordSetupScreen } from './screens/PasswordSetupScreen';
 
-// Common Header
-import { TopHeader } from './components/common/TopHeader';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { ModeratorManagementScreen } from './screens/ModeratorManagementScreen';
+import { ListingDetailScreen } from './screens/ListingDetailScreen';
+import { CitySettingsScreen } from './screens/CitySettingsScreen';
+import { CityStatisticsScreen } from './screens/CityStatisticsScreen';
+import { BotMessagesEditorScreen } from './screens/BotMessagesEditorScreen';
+import { EmergencyNumbersScreen } from './screens/EmergencyNumbersScreen';
+import { GlobalDictionaryScreen } from './screens/GlobalDictionaryScreen';
+import { CategoryDetailScreen } from './screens/CategoryDetailScreen';
+import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
+import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
+import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
+import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 
-type ViewMode = 'home' | 'database' | 'add' | 'users' | 'requests' | 'more' | 'superadmin' | string;
+export interface AppProps {
+  previewConfig?: {
+    theme: 'dark' | 'light';
+    role: 'SUPER_ADMIN' | 'CITY_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER';
+    initialTab: 'home' | 'add' | 'requests' | 'database' | 'moderators' | 'superadmin' | 'onboarding' | 'detail' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary';
+  };
+}
 
-const MainShell: React.FC = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const [view, setView] = useState<ViewMode>('home');
-  const [selectedCategoryToAdd, setSelectedCategoryToAdd] = useState<string>('');
+const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
+  const { theme, toggleTheme } = useTheme();
+  const { user, authState, isLoading, loginWithPassword, setupPassword } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  
+  // Navigation & Control States
+  const [activeTab, setActiveTab] = useState<NavTab>('home');
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<
+    'normal' | 'superadmin' | 'onboarding' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
+  >(user?.role === 'SUPER_ADMIN' ? 'superadmin' : 'normal');
+  const [selectedCityName, setSelectedCityName] = useState(user?.cityName || 'Olmaliq');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks'>('menu');
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [activeCategoryName, setActiveCategoryName] = useState<string>('');
+  const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
+  const [activeLandmarkName, setActiveLandmarkName] = useState<string>('');
+  
+  // Direct Chat states
+  const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
+  const [activeChatUserFullName, setActiveChatUserFullName] = useState<string>('');
+  const [activeChatUserUsername, setActiveChatUserUsername] = useState<string | undefined>();
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [prefilledCategory, setPrefilledCategory] = useState<string | undefined>();
 
+  // React to previewConfig changes
+  useEffect(() => {
+    if (previewConfig) {
+      const { initialTab } = previewConfig;
+      if (initialTab === 'superadmin') setViewMode('superadmin');
+      else if (initialTab === 'moderators') setViewMode('moderators');
+      else if (initialTab === 'onboarding') setViewMode('onboarding');
+      else if (initialTab === 'settings') setViewMode('settings');
+      else if (initialTab === 'statistics') setViewMode('statistics');
+      else if (initialTab === 'bot_messages') setViewMode('bot_messages');
+      else if (initialTab === 'emergency') setViewMode('emergency');
+      else if (initialTab === 'dictionary') setViewMode('dictionary');
+      else {
+        setViewMode('normal');
+        setActiveTab(initialTab as NavTab);
+      }
+    }
+  }, [previewConfig]);
+
+  // Auto-set viewMode when user role is resolved after async auth
+  useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN') {
+      setViewMode('superadmin');
+    }
+  }, [user?.role]);
+
+  // RBAC Security Guard: non-super-admins cannot access super-admin-only views
+  useEffect(() => {
+    const superAdminOnlyModes = ['superadmin', 'moderators', 'bot_messages', 'dictionary'];
+    if (superAdminOnlyModes.includes(viewMode) && !isSuperAdmin) {
+      setViewMode('normal');
+    }
+  }, [viewMode, isSuperAdmin]);
+
+  // ----------------------------------------------------
+  // STRICT SECURITY CHECK
+  // Unauthenticated users CANNOT access the panel UI!
+  // ----------------------------------------------------
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-ios-bg dark:bg-[#0E141B] text-ios-gray text-[14px]">
-        Yuklanmoqda...
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6 font-sans">
+        <div className="animate-pulse flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-slate-800"></div>
+          <div className="h-4 w-32 bg-slate-800 rounded"></div>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginScreen />;
+  if (authState === 'REQUIRES_PASSWORD') {
+    return (
+      <LoginScreen
+        adminName={user?.name || 'Admin'}
+        onLogin={async (_loginCode, pass) => {
+          return await loginWithPassword(pass);
+        }}
+      />
+    );
   }
 
-  if (user?.isSubscriptionExpired) {
-    return <SubscriptionExpiredScreen />;
+  if (authState === 'REQUIRES_SETUP') {
+    return (
+      <PasswordSetupScreen
+        adminName={user?.name || 'Admin'}
+        onSetupPassword={async (oneTime, newP) => {
+          return await setupPassword(oneTime, newP);
+        }}
+      />
+    );
   }
 
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  if (authState === 'ACCESS_DENIED') {
+    return <AccessDeniedScreen />;
+  }
 
-  const handleTabSelect = (tab: string) => {
-    setView(tab);
-  };
-
-  const handleSelectCategoryToAdd = (catName: string) => {
-    setSelectedCategoryToAdd(catName);
-    setView('add');
-  };
-
-  const handleNavigateSubScreen = (subScreenId: string) => {
-    setView(`sub_${subScreenId}`);
-  };
+  // Hide Bottom Navigation in Super-Admin Control, Onboarding, or Expired mode
+  const isBottomNavVisible = viewMode === 'normal';
 
   return (
-    <div className="min-h-screen bg-ios-bg dark:bg-[#0E141B] text-[#1C1C1E] dark:text-[#E8EDF2]">
-      <main className="max-w-container-max mx-auto min-h-screen">
-      <ErrorBoundary key={view} onReset={() => setView('home')}>
-        {/* VIEW 1: HOME */}
-        {view === 'home' && (
-          <DashboardScreen
-            onNavigateTab={handleTabSelect}
-            onSelectCategoryToAdd={handleSelectCategoryToAdd}
-          />
-        )}
+    <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 flex flex-col max-w-container-max mx-auto shadow-2xl relative pb-20 font-sans">
+      {/* Offline Status Banner */}
+      <OfflineStatusBanner />
 
-        {/* VIEW 2: DATABASE (BAZA) */}
-        {view === 'database' && (
-          <DatabaseScreen
-            onNavigateTab={handleTabSelect}
-            onSelectCategoryToAdd={handleSelectCategoryToAdd}
-          />
-        )}
+      {/* Top Header Bar */}
+      {viewMode === 'normal' && (
+        <header className="sticky top-0 z-30 bg-surface/95 dark:bg-[#17212B]/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#2AABEE] to-[#229ED9] text-white flex items-center justify-center font-bold text-base shadow-sm">
+              K
+            </div>
 
-        {/* VIEW 3: ADD (+ QO'SHISH) */}
-        {view === 'add' && (
-          <AddListingScreen
-            onNavigateTab={handleTabSelect}
-            initialCategoryName={selectedCategoryToAdd}
-          />
-        )}
-
-        {/* VIEW 4: USERS */}
-        {view === 'users' && <UsersChatScreen />}
-
-        {/* VIEW 5: REQUESTS */}
-        {view === 'requests' && (
-          <RequestsScreen
-            onNavigateTab={handleTabSelect}
-            onSelectCategoryToAdd={handleSelectCategoryToAdd}
-          />
-        )}
-
-        {/* VIEW 6: MORE (YANA) */}
-        {view === 'more' && (
-          <MoreMenuScreen
-            onNavigateSubScreen={handleNavigateSubScreen}
-            onNavigateTab={handleTabSelect}
-            isSuperAdmin={isSuperAdmin}
-          />
-        )}
-
-        {/* VIEW 7: SUPER-ADMIN CONTROL */}
-        {view === 'superadmin' && (
-          <SuperAdminControlScreen onNavigateSubScreen={handleNavigateSubScreen} />
-        )}
-
-        {/* VIEW 8: SUB-SCREENS */}
-        {view.startsWith('sub_') && (
-          <div className="p-4 pb-24 animate-fade-in">
-            {view === 'sub_categories' && (
-              <div className="space-y-3">
-                <TopHeader title="Kategoriyalar va Sinonimlar" showBack onBack={() => setView('more')} />
-                <CategoriesScreen />
-              </div>
-            )}
-
-            {view === 'sub_landmarks' && (
-              <div className="space-y-3">
-                <TopHeader title="Mo'ljallar va Manzillar" showBack onBack={() => setView('more')} />
-                <LandmarksScreen />
-              </div>
-            )}
-
-            {view === 'sub_bot-messages' && (
-              <div className="space-y-3">
-                <TopHeader title="Bot Javob Matnlari" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-3 text-[13px]">
-                  <div className="p-3 bg-ios-bg dark:bg-[#0E141B] rounded-btn border">
-                    <span className="font-bold text-tg">1. Guruhda Usta Topilganda:</span>
-                    <p className="text-ios-gray mt-1">"🔧 {`{category}`}\n{`{name}`} ✅ ⭐4.4\n📍 {`{landmark}`}\n📞 {`{phone}`}"</p>
+            {/* SUPER-ADMIN CITY SWITCHER DROPDOWN */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (isSuperAdmin) setShowCityDropdown(!showCityDropdown);
+                }}
+                className="flex items-center gap-1.5 hover:bg-surface-container-low dark:hover:bg-slate-800 px-2 py-1 rounded-lg transition-colors text-left"
+              >
+                <div>
+                  <div className="flex items-center gap-1">
+                    <h1 className="font-bold text-base text-on-surface dark:text-slate-100">{selectedCityName}</h1>
+                    {isSuperAdmin && (
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant dark:text-slate-400">
+                        expand_more
+                      </span>
+                    )}
                   </div>
+                  <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
+                    {user?.name || 'Bobur (Admin)'}
+                  </p>
                 </div>
-              </div>
-            )}
+              </button>
 
-            {view === 'sub_emergency' && (
-              <div className="space-y-3">
-                <TopHeader title="Favqulodda Raqamlar" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
-                  <div className="flex justify-between font-bold text-ios-red"><span>🔥 Yong'in xavfsizligi</span><span>101</span></div>
-                  <div className="flex justify-between font-bold text-ios-blue"><span>🚔 Militsiya</span><span>102</span></div>
-                  <div className="flex justify-between font-bold text-ios-green"><span>🚑 Tez yordam</span><span>103</span></div>
-                  <div className="flex justify-between font-bold text-ios-orange"><span>🔴 Gaz avariya xizmati</span><span>104</span></div>
-                </div>
-              </div>
-            )}
-
-            {view === 'sub_moderators' && (
-              <div className="space-y-3">
-                <TopHeader title="Moderatorlar" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
-                  <div className="flex justify-between items-center border-b pb-2">
-                    <div><strong>Alisher Moderator</strong><div className="text-[11px] text-ios-gray">Tasdiqlovchi</div></div>
-                    <span className="text-[11px] bg-ios-green/15 text-ios-green px-2 py-0.5 rounded-pill font-bold">Faol</span>
+              {/* DROPDOWN LIST */}
+              {showCityDropdown && isSuperAdmin && (
+                <div className="absolute top-12 left-0 bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl shadow-xl z-50 w-52 py-1 animate-fadeIn">
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-outline uppercase tracking-wider">
+                    Shaharlar
                   </div>
+                  {['Olmaliq', 'Chirchiq', 'Angren'].map((cityName) => (
+                    <button
+                      key={cityName}
+                      onClick={() => {
+                        setSelectedCityName(cityName);
+                        setShowCityDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                    >
+                      {cityName}
+                      {selectedCityName === cityName && (
+                        <span className="material-symbols-outlined text-[16px] text-primary">check</span>
+                      )}
+                    </button>
+                  ))}
+
+                  <div className="border-t border-outline-variant/30 dark:border-slate-800 my-1" />
+
+                  {/* 👑 BOSHQARUV (SUPER-ADMIN CONTROL PANEL) */}
+                  <button
+                    onClick={() => {
+                      setShowCityDropdown(false);
+                      setViewMode('superadmin');
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-2"
+                  >
+                    <span>👑</span> Boshqaruv
+                  </button>
+
+                  {/* 👥 MODERATORLAR */}
+                  <button
+                    onClick={() => {
+                      setShowCityDropdown(false);
+                      setViewMode('moderators');
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 transition-colors flex items-center gap-2"
+                  >
+                    <span>👥</span> Moderatorlar
+                  </button>
+
+                  {/* ＋ YANGI SHAHAR */}
+                  <button
+                    onClick={() => {
+                      setShowCityDropdown(false);
+                      setViewMode('onboarding');
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-primary dark:text-sky-400 hover:bg-primary-container/10 transition-colors flex items-center gap-2"
+                  >
+                    <span>＋</span> Yangi shahar
+                  </button>
                 </div>
-              </div>
-            )}
-
-            {view === 'sub_subscription' && (
-              <div className="space-y-3">
-                <TopHeader title="Obuna & To'lovlar" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-3 text-[13px]">
-                  <div className="flex justify-between"><span>Joriy Tarif:</span> <strong className="text-tg">Standart (299 000 so'm/oy)</strong></div>
-                  <div className="flex justify-between"><span>To'lov muddati:</span> <strong className="text-ios-green">14 Avgust 2026 y. (Faol)</strong></div>
-                </div>
-              </div>
-            )}
-
-            {view === 'sub_superadmin_city' && (
-              <div className="space-y-3">
-                <TopHeader title="Olmaliq shahri" showBack onBack={() => setView('superadmin')} />
-                <SuperAdminCityDetailScreen />
-              </div>
-            )}
-
-            {view === 'sub_superadmin_onboarding' && (
-              <div className="space-y-3">
-                <TopHeader title="Yangi shahar" showBack onBack={() => setView('superadmin')} />
-                <SuperAdminOnboardingScreen onComplete={() => setView('superadmin')} />
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
+              title="Mavzuni almashtirish"
+            >
+              <span className="material-symbols-outlined text-[20px]">
+                {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+              </span>
+            </button>
+
+            {/* Admin Login Button */}
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="p-2 rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
+              title="Admin hisobi"
+            >
+              <span className="material-symbols-outlined text-[20px]">account_circle</span>
+            </button>
+          </div>
+        </header>
+      )}
+
+      {/* MAIN VIEW SWITCHER */}
+      <main className="flex-1 p-4 space-y-4">
+        {viewMode === 'superadmin' && isSuperAdmin && (
+          <SuperAdminControlScreen onBackToDashboard={() => setViewMode('normal')} />
         )}
-      </ErrorBoundary>
+
+        {viewMode === 'moderators' && isSuperAdmin && (
+          <ModeratorManagementScreen
+            initData={window.Telegram?.WebApp?.initData || ''}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'settings' && (
+          <CitySettingsScreen
+            cityName={selectedCityName}
+            onNavigateScreen={(scr) => setViewMode(scr as any)}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'statistics' && (
+          <CityStatisticsScreen
+            cityName={selectedCityName}
+            onNavigateToAddListingWithCategory={(cat) => {
+              setPrefilledCategory(cat);
+              setViewMode('normal');
+              setActiveTab('add');
+            }}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'bot_messages' && isSuperAdmin && (
+          <BotMessagesEditorScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'emergency' && (
+          <EmergencyNumbersScreen
+            cityName={selectedCityName}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'dictionary' && isSuperAdmin && (
+          <GlobalDictionaryScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'onboarding' && isSuperAdmin && (
+          <OnboardingWizardScreen
+            onSubmitApplication={async (appData) => {
+              await fetch('/api/auth/submit-application', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appData),
+              });
+              setViewMode('normal');
+            }}
+          />
+        )}
+
+        {viewMode === 'expired' && (
+          <SubscriptionLockScreen
+            cityName={selectedCityName}
+            onRenewPayment={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'chat' && activeChatUserId && (
+          <UserChatScreen
+            telegramUserId={activeChatUserId}
+            userFullName={activeChatUserFullName}
+            userUsername={activeChatUserUsername}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'category_detail' && activeCategoryId && (
+          <CategoryDetailScreen
+            categoryId={activeCategoryId}
+            categoryName={activeCategoryName}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'landmark_detail' && activeLandmarkId && (
+          <LandmarkDetailScreen
+            landmarkId={activeLandmarkId}
+            landmarkName={activeLandmarkName}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'subscription_billing' && (
+          <SubscriptionBillingScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'settings_lang_theme' && (
+          <SettingsLanguageThemeScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'normal' && (
+          <>
+            {selectedListingId ? (
+              <ListingDetailScreen
+                listingId={selectedListingId}
+                onBack={() => setSelectedListingId(null)}
+              />
+            ) : (
+              <>
+                {activeTab === 'home' && (
+                  <DashboardScreen
+                    onNavigateTab={(tab) => {
+                      setSelectedListingId(null);
+                      setActiveTab(tab);
+                    }}
+                    onNavigateChat={(tgUserId, fullName, username) => {
+                      setActiveChatUserId(tgUserId);
+                      setActiveChatUserFullName(fullName);
+                      setActiveChatUserUsername(username);
+                      setViewMode('chat');
+                    }}
+                  />
+                )}
+
+                {activeTab === 'add' && (
+                  <AddListingScreen
+                    initialCategory={prefilledCategory}
+                    onNavigateTab={(tab) => {
+                      setSelectedListingId(null);
+                      setActiveTab(tab);
+                    }}
+                  />
+                )}
+
+                {activeTab === 'requests' && (
+                  <RequestsScreen
+                    onNavigateTab={(tab) => {
+                      setSelectedListingId(null);
+                      setActiveTab(tab);
+                    }}
+                    onSelectCategoryToAdd={(cat) => setPrefilledCategory(cat)}
+                  />
+                )}
+
+                {activeTab === 'database' && (
+                  <DatabaseScreen
+                    onNavigateTab={(tab) => {
+                      setSelectedListingId(null);
+                      setActiveTab(tab);
+                    }}
+                    onSelectListing={(id) => setSelectedListingId(id)}
+                  />
+                )}
+
+                {activeTab === 'users' && (
+                  <UsersScreen
+                    onSelectUser={(tgUserId, fullName, username) => {
+                      setActiveChatUserId(tgUserId);
+                      setActiveChatUserFullName(fullName);
+                      setActiveChatUserUsername(username);
+                      setViewMode('chat');
+                    }}
+                  />
+                )}
+
+                {activeTab === 'more' && (
+                  <div className="flex flex-col gap-4 pb-12">
+                    {moreSubView === 'menu' && (
+                      <div className="space-y-4">
+                        {/* Profile Info Card */}
+                        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                            {user?.name ? user.name[0].toUpperCase() : 'A'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-extrabold text-xs text-on-surface dark:text-slate-100 truncate">
+                              {user?.name || 'Bobur'}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-semibold uppercase mt-0.5">
+                              {user?.cityName || 'Olmaliq'} admini
+                            </p>
+                          </div>
+                          <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/25">
+                            Obuna faol
+                          </span>
+                        </div>
+
+                        {/* Bo'limlar group */}
+                        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-outline-variant/10 dark:divide-slate-800/80">
+                          {/* Kategoriyalar */}
+                          <button
+                            onClick={() => setMoreSubView('categories')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-indigo-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">category</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Kategoriyalar</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
+                          {/* Mo'ljallar */}
+                          <button
+                            onClick={() => setMoreSubView('landmarks')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-teal-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">location_on</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Mo'ljallar</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
+                          {/* Bot Matnlari */}
+                          <button
+                            onClick={() => setViewMode('bot_messages')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">smart_toy</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Bot matnlari</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
+                          {/* Favqulodda Raqamlar */}
+                          <button
+                            onClick={() => setViewMode('emergency')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">emergency</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Favqulodda raqamlar</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
+                          {/* Moderatorlar Boshqaruvi */}
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => setViewMode('moderators')}
+                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            >
+                              <span className="flex items-center gap-2.5">
+                                <span className="w-7 h-7 rounded-lg bg-purple-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">badge</span></span>
+                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Moderatorlar boshqaruvi</span>
+                              </span>
+                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Hisob group */}
+                        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-outline-variant/10 dark:divide-slate-800/80">
+                          {/* Obuna & To'lov */}
+                          <button
+                            onClick={() => setViewMode('subscription_billing')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-[#007AFF] text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">credit_card</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Obuna & to'lov</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
+                          {/* Til & Tema */}
+                          <button
+                            onClick={() => setViewMode('settings_lang_theme')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-slate-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">language</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Til / Tema</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* SUBVIEW: Categories List */}
+                    {moreSubView === 'categories' && (
+                      <MoreCategoriesSubView
+                        onBack={() => setMoreSubView('menu')}
+                        onSelectCategory={(id, name) => {
+                          setActiveCategoryId(id);
+                          setActiveCategoryName(name);
+                          setViewMode('category_detail');
+                        }}
+                      />
+                    )}
+
+                    {/* SUBVIEW: Landmarks List */}
+                    {moreSubView === 'landmarks' && (
+                      <MoreLandmarksSubView
+                        onBack={() => setMoreSubView('menu')}
+                        onSelectLandmark={(id, name) => {
+                          setActiveLandmarkId(id);
+                          setActiveLandmarkName(name);
+                          setViewMode('landmark_detail');
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
       </main>
 
-      {/* Floating Bottom Nav Bar */}
-      <BottomNav
-        activeTab={view.startsWith('sub_') ? 'more' : view}
-        onTabChange={handleTabSelect}
-        isSuperAdmin={isSuperAdmin}
-      />
+      {/* Floating AI Assistant Drawer */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end justify-center p-4">
+          <div className="bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-6 w-full max-w-container-max shadow-2xl space-y-3 animate-slide-up">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary dark:text-sky-400 text-[24px]">auto_awesome</span>
+                <h3 className="font-bold text-base">Gemini AI Copilot</h3>
+              </div>
+              <button onClick={() => setShowAiModal(false)} className="text-outline hover:text-on-surface">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <p className="text-xs text-on-surface-variant dark:text-slate-400">
+              Assalomu alaykum! Men Kim bor boti sun'iy intellekt yordamchisiman.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Navigation Bar (Hidden during SuperAdmin Control, Onboarding, or Expired view) */}
+      {isBottomNavVisible && (
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          hasUnreadRequests={true}
+          onAiClick={() => setShowAiModal(true)}
+        />
+      )}
+
+      {/* Admin Auth Modal */}
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   );
 };
 
-export const App: React.FC = () => {
+const MoreCategoriesSubView: React.FC<{
+  onBack: () => void;
+  onSelectCategory: (id: string, name: string) => void;
+}> = ({ onBack, onSelectCategory }) => {
+  const [cats, setCats] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    fetch('/api/admin/categories')
+      .then(r => r.json())
+      .then(data => setCats(data || []));
+  }, []);
+
   return (
-    <AuthProvider>
-      <MainShell />
-    </AuthProvider>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+        </button>
+        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kategoriyalar</h3>
+      </div>
+      <input
+        type="text"
+        placeholder="Kategoriyani qidirish..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
+      />
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[300px] overflow-y-auto">
+        {cats
+          .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+          .map(c => (
+            <button
+              key={c.id}
+              onClick={() => onSelectCategory(c.id, c.name)}
+              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
+            >
+              <span>{c.name}</span>
+              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+            </button>
+          ))}
+      </div>
+    </div>
   );
 };
 
-export default App;
+const MoreLandmarksSubView: React.FC<{
+  onBack: () => void;
+  onSelectLandmark: (id: string, name: string) => void;
+}> = ({ onBack, onSelectLandmark }) => {
+  const [lands, setLands] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    fetch('/api/admin/landmarks')
+      .then(r => r.json())
+      .then(data => setLands(data || []));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+        </button>
+        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Mo'ljallar</h3>
+      </div>
+      <input
+        type="text"
+        placeholder="Mo'ljalni qidirish..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
+      />
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[300px] overflow-y-auto">
+        {lands
+          .filter(l => l.name.toLowerCase().includes(search.toLowerCase()))
+          .map(l => (
+            <button
+              key={l.id}
+              onClick={() => onSelectLandmark(l.id, l.name)}
+              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
+            >
+              <span>{l.name}</span>
+              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+            </button>
+          ))}
+      </div>
+    </div>
+  );
+};
+
+export default function App(props: AppProps) {
+  return (
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <MainShell {...props} />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
+}

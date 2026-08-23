@@ -3,6 +3,7 @@ import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
 import { renderEmergencyTemplate, searchListings } from '@kimbor/core';
 import { db } from '@kimbor/db';
+import { scheduleMessageDeletion } from '../queue/deleteQueue';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -51,7 +52,6 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         cityId,
         telegramUserId,
         rawMessage: messageText,
-        botResponse: 'Natija topilmadi',
         intent: classification.intent,
         categoryName: classification.category,
         landmarkName: classification.landmark,
@@ -60,21 +60,6 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     });
     return;
   }
-
-  // Record successful match query log with bot response
-  await db.queryLog.create({
-    data: {
-      cityId,
-      telegramUserId,
-      rawMessage: messageText,
-      botResponse: searchResult.formattedText,
-      intent: classification.intent,
-      categoryName: classification.category,
-      landmarkName: classification.landmark,
-      resolvedListingId: searchResult.listingId,
-      isResolved: true,
-    },
-  });
 
   // 5. Build group response buttons
   const keyboard = new InlineKeyboard();
@@ -93,15 +78,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     reply_markup: keyboard,
   });
 
-  // 15 minutdan keyin avtomatik o'chirish logikasi (BullMQ / setTimeout task runner)
+  // 15 minutdan keyin avtomatik o'chirish — BullMQ (Redis-based, restart-safe)
   if (sentMsg && sentMsg.message_id && ctx.chat?.id) {
-    const chatId = ctx.chat.id;
-    setTimeout(async () => {
-      try {
-        await ctx.api.deleteMessage(chatId, sentMsg.message_id);
-      } catch (err) {
-        // Ignore deletion error if message was already deleted
-      }
-    }, 15 * 60 * 1000);
+    await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
   }
 }

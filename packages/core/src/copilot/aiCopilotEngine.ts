@@ -1,8 +1,8 @@
-import { db } from '@kimbor/db';
+import { db, Role, ListingType, VerificationStatus } from '@kimbor/db';
 
 export interface UserContext {
   userId: string;
-  role: string;
+  role: Role;
   cityId: string;
 }
 
@@ -48,7 +48,7 @@ export async function executeCopilotCommand(
     'get_city_status',
   ];
 
-  if (role === 'MODERATOR_VIEWER' && !readOnlyCommands.includes(commandName)) {
+  if (role === Role.MODERATOR_VIEWER && !readOnlyCommands.includes(commandName)) {
     return {
       success: false,
       action: commandName,
@@ -173,10 +173,10 @@ export async function executeCopilotCommand(
             cityId: enforcedCityId,
             categoryId: category.id,
             primaryLandmarkId: landmark.id,
-            type: 'USTA' as any,
+            type: ListingType.USTA,
             name,
             phone: phone || `+99893${Date.now().toString().slice(-7)}`,
-            verification: 'COMMUNITY_UNVERIFIED' as any, // Forced COMMUNITY_UNVERIFIED
+            verification: VerificationStatus.COMMUNITY_UNVERIFIED, // Forced COMMUNITY_UNVERIFIED
             badges: ['uyga_boradi'],
           },
         });

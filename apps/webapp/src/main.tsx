@@ -1,13 +1,14 @@
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { ThemeProvider } from './context/ThemeContext';
+import { PreviewScreen } from './screens/PreviewScreen';
 import './index.css';
+
+const isPreviewPath = window.location.pathname === '/preview';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
+    {isPreviewPath ? <PreviewScreen /> : <App />}
   </StrictMode>
 );
+

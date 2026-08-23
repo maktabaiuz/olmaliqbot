@@ -1,37 +1,20 @@
-# Multi-stage build for React Vite WebApp
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+COPY packages/types/package.json packages/types/
+COPY apps/webapp/package.json apps/webapp/
 
-# Copy workspace package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
-COPY packages/db/package.json ./packages/db/
-COPY packages/types/package.json ./packages/types/
-COPY packages/core/package.json ./packages/core/
-COPY apps/webapp/package.json ./apps/webapp/
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile --ignore-scripts || pnpm install
-
-# Copy source files
-COPY packages/ ./packages/
+COPY packages/types/ ./packages/types/
 COPY apps/webapp/ ./apps/webapp/
 
-# Build dependencies and webapp
-RUN pnpm --filter @kimbor/db build || true
-RUN pnpm --filter @kimbor/types build || true
-RUN pnpm --filter @kimbor/core build || true
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @kimbor/webapp build
 
-# Stage 2: Serve static files with Nginx
-FROM nginx:alpine
-
-# Copy custom nginx config if needed or replace default static files
+FROM nginx:alpine AS runner
 COPY --from=builder /app/apps/webapp/dist /usr/share/nginx/html
-
+COPY apps/webapp/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]

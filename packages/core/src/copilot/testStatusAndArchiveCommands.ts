@@ -1,5 +1,5 @@
 import { executeCopilotCommand } from './aiCopilotEngine';
-import { db } from '@kimbor/db';
+import { db, ListingType, VerificationStatus } from '@kimbor/db';
 
 export async function testStatusCommands() {
   console.log('🤖 ========================================================');
@@ -35,8 +35,8 @@ export async function testStatusCommands() {
       primaryLandmark: { connect: { id: testLandmark.id } },
       name: 'Bahrom Santexnik',
       phone: `+99890${Date.now().toString().slice(-7)}`,
-      type: 'USTA' as any,
-      verification: 'VERIFIED' as any,
+      type: ListingType.USTA,
+      verification: VerificationStatus.COMMUNITY_UNVERIFIED,
     },
   });
 

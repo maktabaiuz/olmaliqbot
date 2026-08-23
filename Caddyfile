@@ -1,4 +1,9 @@
-{$DOMAIN:olmaliq.online} {
+olmaliq.online {
+    # Telegram Webhook
+    handle /webhook {
+        reverse_proxy bot:3001
+    }
+
     # Fastify REST API Backend
     handle /api/* {
         reverse_proxy api:4000

@@ -1,17 +1,23 @@
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot, webhookCallback } from 'grammy';
+import http from 'http';
 import dotenv from 'dotenv';
 import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHandler';
+import { startDeletionWorker } from './queue/deleteQueue';
 
 dotenv.config({ path: '../../.env' });
 
-const token = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
+
+const token = process.env.BOT_TOKEN;
+if (!token) {
+  console.error('❌ BOT_TOKEN muhit o\'zgaruvchisi berilmagan. Bot ishga tushmaydi.');
+  process.exit(1);
+}
 
 console.log('🤖 "Kim bor?" Telegram Boti ishga tushmoqda...');
 
 async function startBot() {
-  // Fetch default Olmaliq city from DB
   let olmaliqCity = await db.city.findFirst({
     where: { slug: 'olmaliq' },
   });
@@ -28,7 +34,85 @@ async function startBot() {
   }
 
   const cityId = olmaliqCity.id;
-  const bot = new Bot(token);
+  // token is guaranteed non-undefined: process.exit(1) is called above if missing
+  const bot = new Bot(token!);
+
+  // GrammY Outbound API message logging middleware
+  bot.api.config.use((prev, method, payload, signal) => {
+    if (method === 'sendMessage' && payload && 'chat_id' in payload && 'text' in payload) {
+      const chatId = (payload as any).chat_id;
+      const text = (payload as any).text;
+      const tgUserId = BigInt(chatId);
+      if (tgUserId > BigInt(0)) {
+        db.chatMessage.create({
+          data: {
+            telegramUserId: tgUserId,
+            senderType: 'BOT_SEARCH',
+            text: text,
+          },
+        }).catch(err => console.error('Failed to log outgoing bot message:', err));
+      }
+    }
+    return prev(method, payload, signal);
+  });
+
+  // GrammY Inbound message logging and user upsert middleware
+  bot.use(async (ctx, next) => {
+    if (ctx.chat?.type === 'private' && ctx.from) {
+      const tgUserId = BigInt(ctx.from.id);
+      
+      // Upsert User profile
+      await db.user.upsert({
+        where: { telegramId: tgUserId },
+        update: {
+          firstName: ctx.from.first_name || null,
+          lastName: ctx.from.last_name || null,
+          username: ctx.from.username || null,
+        },
+        create: {
+          telegramId: tgUserId,
+          firstName: ctx.from.first_name || null,
+          lastName: ctx.from.last_name || null,
+          username: ctx.from.username || null,
+          role: 'USER',
+        },
+      }).catch(err => console.error('Failed to upsert user:', err));
+
+      // If text message, log it
+      if (ctx.message?.text) {
+        await db.chatMessage.create({
+          data: {
+            telegramUserId: tgUserId,
+            senderType: 'USER',
+            text: ctx.message.text.trim(),
+          },
+        }).catch(err => console.error('Failed to log inbound user message:', err));
+      }
+    }
+    await next();
+  });
+
+  // Start BullMQ deletion worker — persists across restarts via Redis
+  startDeletionWorker(async (chatId, messageId) => {
+    await bot.api.deleteMessage(chatId, messageId);
+  });
+
+  console.log('✅ BullMQ deletion worker started.');
+
+  // Set Chat Menu Button for Telegram Mini App
+  const webappUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  try {
+    await bot.api.setChatMenuButton({
+      menu_button: {
+        type: 'web_app',
+        text: '🛍 Kim bor? ilovasi',
+        web_app: { url: webappUrl },
+      },
+    });
+    console.log(`✅ Menu Button set to: ${webappUrl}`);
+  } catch (err) {
+    console.error('⚠️ Failed to set menu button:', err);
+  }
 
   // 1. /start command in private chat
   bot.command('start', async (ctx) => {
@@ -37,7 +121,7 @@ async function startBot() {
     }
   });
 
-  // 2. Callback query handler (City selection, Quick search, Candidate & Franchise actions)
+  // 2. Callback query handler
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
 
@@ -45,12 +129,34 @@ async function startBot() {
       await ctx.answerCallbackQuery({ text: "⭐ Rahmat! Bahoyingiz qabul qilindi." });
     } else if (data.startsWith('report_')) {
       await ctx.answerCallbackQuery({ text: "⚠️ Shikoyat moderatorlarga yuborildi." });
+      try {
+        const listingId = data.replace('report_', '');
+        const listing = await db.listing.findUnique({
+          where: { id: listingId },
+          include: { category: true }
+        });
+        const listingInfo = listing 
+          ? `"${listing.name}" (${listing.phone}) - Kategoriya: ${listing.category?.name || 'Noma\'lum'}`
+          : `ID: ${listingId}`;
+        const complaintText = `⚠️ Shikoyat: Foydalanuvchi ${listingInfo} ustidan shikoyat qildi.`;
+        
+        await db.chatMessage.create({
+          data: {
+            telegramUserId: BigInt(ctx.from.id),
+            senderType: 'USER',
+            text: complaintText,
+            isComplaint: true,
+          },
+        });
+      } catch (err) {
+        console.error('Failed to log complaint ChatMessage:', err);
+      }
     } else {
       await handleDirectCallbacks(ctx, cityId);
     }
   });
 
-  // 3. Bot joined new group intro message (TZ 10.4)
+  // 3. Bot joined new group intro message
   bot.on('message:new_chat_members', async (ctx) => {
     const newMembers = ctx.message.new_chat_members;
     const botInfo = await ctx.api.getMe();
@@ -62,7 +168,7 @@ async function startBot() {
     }
   });
 
-  // 4. Message routing (Group vs Direct Chat)
+  // 4. Message routing
   bot.on('message:text', async (ctx) => {
     const chatType = ctx.chat.type;
 
@@ -78,16 +184,39 @@ async function startBot() {
     console.error('❌ Bot error:', err);
   });
 
-  await bot.start({
-    onStart(botInfo) {
+  const useWebhook = process.env.USE_WEBHOOK === 'true' || process.env.WEBHOOK_URL !== undefined;
+
+  if (useWebhook) {
+    const webhookUrl = process.env.WEBHOOK_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}/webhook`;
+    await bot.api.setWebhook(webhookUrl);
+    console.log(`✅ Webhook set to: ${webhookUrl}`);
+
+    const handleUpdate = webhookCallback(bot, 'http');
+    const server = http.createServer((req, res) => {
+      if (req.method === 'POST') {
+        handleUpdate(req, res);
+      } else {
+        res.statusCode = 200;
+        res.end('OK');
+      }
+    });
+
+    server.listen(3001, () => {
       console.log(`======================================================`);
-      console.log(`🚀 BOT MUVAFFAQIYATLI ISHGA TUSHDI!`);
-      console.log(`🤖 Bot nomi: @${botInfo.username}`);
-      console.log(`ID: ${botInfo.id}`);
-      console.log(`Shahar: ${olmaliqCity?.name} (${cityId})`);
+      console.log(`🚀 BOT WEBHOOK MODE DA ISHGA TUSHDI! (Port: 3001)`);
       console.log(`======================================================`);
-    },
-  });
+    });
+  } else {
+    await bot.start({
+      onStart(botInfo) {
+        console.log(`======================================================`);
+        console.log(`🚀 BOT POLLING MODE DA ISHGA TUSHDI!`);
+        console.log(`🤖 Bot nomi: @${botInfo.username}`);
+        console.log(`ID: ${botInfo.id}`);
+        console.log(`======================================================`);
+      },
+    });
+  }
 }
 
 startBot().catch((err) => {

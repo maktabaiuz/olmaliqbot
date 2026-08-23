@@ -192,9 +192,18 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
     landmark = '3-mavze';
   }
 
-  // Low confidence for generic non-actionable chatter
+  // Low confidence for generic non-actionable chatter unless a keyword remains
   if (intent === IntentType.NOT_RELEVANT && !category && !name && !landmark) {
-    confidence = 0.35;
+    const cleanQuery = normalized
+      .replace(/\b(salom|privet|xayr|rahmat|assalomu|alaykum|kerak|bormi|yoki|nomeri|nomer|raqami|telefoni|telefon|bormikan|qayerda|bor|toshkent|olmaliq|yangi|usta|ustasi)\b/g, '')
+      .trim();
+    if (cleanQuery.length >= 2) {
+      category = cleanQuery;
+      intent = IntentType.SERVICE;
+      confidence = 0.85;
+    } else {
+      confidence = 0.35;
+    }
   }
 
   return {

@@ -1,159 +1,326 @@
-import React, { useEffect, useState } from 'react';
-import { TopHeader } from '../components/common/TopHeader';
-import { FilterChips } from '../components/common/FilterChips';
-import { API_BASE_URL } from '../config';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 export interface UnresolvedCluster {
   id: string;
+  clusterKey?: string;
   canonicalName: string;
   count: number;
   rawExamples: string[];
   isExistingCategory: boolean;
   matchedCategoryName?: string;
   matchedCategoryId?: string;
+  isStale?: boolean;
   timeAgo?: string;
 }
 
 export interface RequestsScreenProps {
-  onNavigateTab?: (tab: string) => void;
-  onSelectCategoryToAdd?: (categoryName: string) => void;
+  onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'database' | 'more') => void;
+  onSelectCategoryToAdd: (categoryName: string) => void;
 }
 
-function formatTimeAgo(iso?: string): string {
-  if (!iso) return 'Yangi';
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'Hozirgina';
-  if (minutes < 60) return `${minutes} daqiqa oldin`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} soat oldin`;
-  return `${Math.floor(hours / 24)} kun oldin`;
-}
-
-export const RequestsScreen: React.FC<RequestsScreenProps> = ({ onNavigateTab, onSelectCategoryToAdd }) => {
-  const [filter, setFilter] = useState<'all' | 'demand' | 'new'>('all');
+export const RequestsScreen: React.FC<RequestsScreenProps> = ({
+  onNavigateTab,
+  onSelectCategoryToAdd,
+}) => {
+  const { user } = useAuth();
   const [clusters, setClusters] = useState<UnresolvedCluster[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'missing' | 'bindable'>('all');
+  
+  // Multi-select state
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    const fetchClusters = async () => {
-      setLoading(true);
-      try {
-        const initData = window.Telegram?.WebApp?.initData || '';
-        const res = await fetch(`${API_BASE_URL}/admin/requests/clusters?filter=${filter}`, {
-          headers: { 'x-telegram-init-data': initData },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setClusters(
-            (data || []).map((c: any) => ({
-              id: c.clusterKey,
-              canonicalName: c.canonicalName,
-              count: c.count,
-              rawExamples: c.rawExamples || [],
-              isExistingCategory: c.isExistingCategory,
-              matchedCategoryName: c.matchedCategoryName,
-              matchedCategoryId: c.matchedCategoryId,
-              timeAgo: formatTimeAgo(c.latestAt),
-            }))
-          );
-        }
-      } catch (err) {
-        console.error('Failed to fetch clusters:', err);
-      } finally {
-        setLoading(false);
+  // Fetch Clusters from REST API
+  const fetchClusters = async () => {
+    setIsLoading(true);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/requests/clusters', {
+        headers: { 'x-init-data': initData },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setClusters(data);
       }
-    };
-    fetchClusters();
-  }, [filter]);
-
-  const handleAddCategory = (categoryName: string) => {
-    onSelectCategoryToAdd?.(categoryName);
+    } catch (err) {
+      console.error("Failed to load requests clusters:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  useEffect(() => {
+    fetchClusters();
+  }, [user?.cityId]);
+
+  // Bind Synonym Action (Sariq Bog'lash)
+  const handleBindSynonym = async (cluster: UnresolvedCluster) => {
+    if (!cluster.matchedCategoryId) {
+      alert("Mos keladigan kategoriya ID topilmadi");
+      return;
+    }
+
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/requests/bind-synonym', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({
+          categoryId: cluster.matchedCategoryId,
+          synonym: cluster.canonicalName,
+        }),
+      });
+
+      if (res.ok) {
+        alert(`"${cluster.canonicalName}" so'zi "${cluster.matchedCategoryName}" kategoriyasiga sinonim bo'lib bog'landi! ✅`);
+        setClusters(clusters.filter((c) => c.id !== cluster.id));
+      }
+    } catch (err) {
+      console.error("Bind synonym error:", err);
+    }
+  };
+
+  // Close Single Cluster Card (✕)
   const handleDismissCluster = (id: string) => {
     setClusters(clusters.filter((c) => c.id !== id));
   };
 
+  // Toggle Selection for Multi-select
+  const handleToggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((item) => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  // Batch Close Selected Items
+  const handleBatchClose = () => {
+    setClusters(clusters.filter((c) => !selectedIds.includes(c.id)));
+    setSelectedIds([]);
+    setIsMultiSelectMode(false);
+  };
+
+  const filteredClusters = clusters.filter((c) => {
+    if (activeFilter === 'missing') return !c.isExistingCategory;
+    if (activeFilter === 'bindable') return c.isExistingCategory;
+    return true;
+  });
+
   return (
-    <div className="flex flex-col gap-3 pb-20 animate-fade-in max-w-container-max mx-auto">
-      <TopHeader
-        title="Topilmagan so'rovlar"
-        subtitle="AI tomonidan klasterlangan va javob kutilayotgan savollar"
-        showBack
-        onBack={() => onNavigateTab?.('home')}
-      />
+    <div className="flex flex-col gap-4 animate-fade-in pb-16">
+      {/* HEADER BAR */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-bold text-lg text-on-surface dark:text-slate-100">
+            Topilmagan So'rovlar
+          </h1>
+          <p className="text-xs text-on-surface-variant dark:text-slate-400">
+            Foydalanuvchilar qidirgan, lekin bazada topilmagan so'rovlar
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold bg-primary-container/20 text-primary dark:text-sky-400 px-2.5 py-1 rounded-full border border-primary/20">
+            {clusters.length} ta
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              setSelectedIds([]);
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              isMultiSelectMode
+                ? 'bg-primary text-white'
+                : 'bg-surface-container-high dark:bg-slate-800 text-on-surface-variant dark:text-slate-300'
+            }`}
+            title="Bir nechtasini tanlash"
+          >
+            <span className="material-symbols-outlined text-[20px]">checklist</span>
+          </button>
+        </div>
+      </div>
 
-      <div className="px-4 flex flex-col gap-3">
-        {/* Filter Chips */}
-        <FilterChips
-          chips={[
-            { id: 'all', label: 'Hammasi' },
-            { id: 'demand', label: 'Talab yuqori' },
-            { id: 'new', label: "Yangi so'rovlar" },
-          ]}
-          selectedId={filter}
-          onChange={(val) => setFilter(val)}
-        />
+      {/* FILTER CHIPS */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+            activeFilter === 'all'
+              ? 'bg-primary text-white shadow-md'
+              : 'bg-surface-container-high dark:bg-slate-800 text-on-surface-variant dark:text-slate-300'
+          }`}
+        >
+          Barchasi ({clusters.length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('missing')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+            activeFilter === 'missing'
+              ? 'bg-error text-white shadow-md'
+              : 'bg-surface-container-high dark:bg-slate-800 text-on-surface-variant dark:text-slate-300'
+          }`}
+        >
+          Bazada yo'q (+ Qo'shish)
+        </button>
+        <button
+          onClick={() => setActiveFilter('bindable')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+            activeFilter === 'bindable'
+              ? 'bg-amber-500 text-white shadow-md'
+              : 'bg-surface-container-high dark:bg-slate-800 text-on-surface-variant dark:text-slate-300'
+          }`}
+        >
+          Bazada bor (Bog'lash)
+        </button>
+      </div>
 
-        {/* Clusters Cards List */}
-        {loading ? (
-          <div className="space-y-3 pt-2">
-            {[1, 2].map((n) => (
-              <div key={n} className="h-32 bg-white dark:bg-[#16212F] rounded-card animate-pulse" />
-            ))}
+      {/* QUERY CLUSTER LIST */}
+      {isLoading ? (
+        <div className="space-y-3">
+          <div className="h-24 bg-surface-container-high dark:bg-slate-800 animate-pulse rounded-2xl" />
+          <div className="h-24 bg-surface-container-high dark:bg-slate-800 animate-pulse rounded-2xl" />
+        </div>
+      ) : filteredClusters.length === 0 ? (
+        <div className="bg-surface-container-lowest dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-3">
+            <span className="material-symbols-outlined text-[32px]">task_alt</span>
           </div>
-        ) : clusters.length === 0 ? (
-          <div className="p-8 text-center text-tg-textMuted text-[14px]">
-            Hozircha topilmagan so'rovlar yo'q 👍
-          </div>
-        ) : (
-          <div className="space-y-3 pt-1">
-            {clusters.map((c) => (
+          <h3 className="font-bold text-base text-on-surface dark:text-slate-100 mb-1">
+            Barcha so'rovlar hal qilingan 🎉
+          </h3>
+          <p className="text-xs text-on-surface-variant dark:text-slate-400">
+            Hozircha topilmagan so'rovlar klasteri mavjud emas.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredClusters.map((cluster, idx) => {
+            const clusterId = cluster.id || cluster.clusterKey || `cluster_${idx}`;
+            const isSelected = selectedIds.includes(clusterId);
+            const exampleText = (Array.isArray(cluster.rawExamples) && cluster.rawExamples.length > 0)
+              ? cluster.rawExamples[0]
+              : cluster.canonicalName || 'so\'rov';
+
+            return (
               <div
-                key={c.id}
-                className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-separator/50 dark:border-ios-darkSeparator/50 shadow-card flex flex-col gap-2.5 relative"
+                key={clusterId}
+                className={`relative rounded-2xl p-4 shadow-sm border transition-all flex items-center ${
+                  cluster.isStale
+                    ? 'bg-surface-container-lowest dark:bg-[#17212B]/60 border-outline-variant/30 opacity-60 grayscale-[20%]'
+                    : 'bg-surface dark:bg-[#17212B] border-outline-variant/30 dark:border-slate-800 hover:shadow-md'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold bg-ios-red/15 text-ios-red px-2.5 py-0.5 rounded-pill">
-                      {c.count}× so'ralgan
-                    </span>
-                    <h4 className="font-bold text-[16px] text-tg-textLight dark:text-tg-textDark">
-                      {c.canonicalName}
-                    </h4>
+                {/* Left Color Accent Bar */}
+                <div
+                  className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl ${
+                    cluster.isStale
+                      ? 'bg-slate-400'
+                      : cluster.isExistingCategory
+                      ? 'bg-amber-500'
+                      : 'bg-error dark:bg-red-500'
+                  }`}
+                />
+
+                {/* Multi-select Checkbox */}
+                {isMultiSelectMode && (
+                  <div className="pr-3 pl-1">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleSelect(clusterId)}
+                      className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary"
+                    />
                   </div>
-                  <span className="text-[11px] text-tg-textMuted">{c.timeAgo || 'Yangi'}</span>
-                </div>
+                )}
 
-                {/* Example query text */}
-                <div className="bg-tg-bgLight dark:bg-tg-bgDark p-2.5 rounded-btn text-[12px] text-tg-textMuted italic border border-ios-separator/30">
-                  "{c.rawExamples[0] || c.canonicalName}"
-                </div>
+                <div className="flex-1 pl-2.5 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="font-bold text-base text-on-surface dark:text-slate-100 capitalize">
+                      {cluster.canonicalName}
+                    </h2>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-base text-primary dark:text-sky-400">
+                        {cluster.count}
+                      </span>
+                      {!isMultiSelectMode && (
+                        <button
+                          type="button"
+                          onClick={() => handleDismissCluster(clusterId)}
+                          className="text-outline hover:text-error transition-colors p-1"
+                          title="O'chirish"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                {/* Actions Bar */}
-                <div className="flex items-center justify-between pt-1 border-t border-ios-separator/40">
-                  <button
-                    type="button"
-                    onClick={() => handleAddCategory(c.canonicalName)}
-                    className="px-3.5 py-1.5 bg-tg-blue text-white rounded-pill text-[12px] font-bold shadow-sm active-scale flex items-center gap-1"
-                  >
-                    <span>＋ Yozuv qo'shish</span>
-                  </button>
+                  {/* Raw Example User Chat Text */}
+                  <p className="text-xs text-on-surface-variant dark:text-slate-300 mb-3 italic">
+                    "{exampleText}"
+                  </p>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDismissCluster(c.id)}
-                    className="px-3 py-1.5 text-tg-textMuted hover:text-ios-red text-[12px] font-semibold"
-                  >
-                    Yopish ✕
-                  </button>
+                  {/* Matched info if exists */}
+                  {cluster.isExistingCategory && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-3 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px]">info</span>
+                      bazada bor: {cluster.matchedCategoryName || 'kafelchi'}
+                    </p>
+                  )}
+
+                  {/* Card Action & Timestamp */}
+                  <div className="flex items-center justify-between">
+                    {!isMultiSelectMode && (
+                      cluster.isExistingCategory ? (
+                        <button
+                          type="button"
+                          onClick={() => handleBindSynonym(cluster)}
+                          className="bg-amber-500 text-white rounded-full px-4 py-1.5 text-xs font-bold shadow-sm hover:bg-amber-600 active:scale-95 transition-all"
+                        >
+                          Bog'lash
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectCategoryToAdd(cluster.canonicalName);
+                            onNavigateTab('add');
+                          }}
+                          className="bg-error dark:bg-red-500 text-white rounded-full px-4 py-1.5 text-xs font-bold shadow-sm hover:bg-red-600 active:scale-95 transition-all"
+                        >
+                          + Qo'shish
+                        </button>
+                      )
+                    )}
+
+                    <span className="text-[11px] text-outline dark:text-slate-500 flex items-center gap-1 ml-auto">
+                      <span className="material-symbols-outlined text-[13px]">schedule</span>
+                      {cluster.timeAgo || '10 min oldin'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* BATCH ACTION FLOATING BAR */}
+      {isMultiSelectMode && selectedIds.length > 0 && (
+        <div className="fixed bottom-20 left-4 right-4 max-w-container-max mx-auto bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl z-50 flex items-center justify-between animate-slide-up">
+          <span className="text-xs font-bold">{selectedIds.length} ta so'rov tanlandi</span>
+          <button
+            type="button"
+            onClick={handleBatchClose}
+            className="bg-error text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-red-600 transition-colors shadow-sm"
+          >
+            Yopish (O'chirish)
+          </button>
+        </div>
+      )}
     </div>
   );
 };

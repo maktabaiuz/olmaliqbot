@@ -1,221 +1,295 @@
-import React, { useEffect, useState } from 'react';
-import { TopHeader } from '../components/common/TopHeader';
-import { SegmentControl } from '../components/common/SegmentControl';
-import { API_BASE_URL } from '../config';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { RecordRow } from '../components/RecordRow';
+import { NavTab } from '../components/BottomNav';
 
-export interface DatabaseScreenProps {
-  onNavigateTab: (tab: string) => void;
-  onSelectCategoryToAdd?: (categoryName: string) => void;
+export interface CategorySummary {
+  id: string;
+  name: string;
+  count: number;
+  synonyms: string[];
 }
 
 export interface ListingItem {
   id: string;
   name: string;
   phone: string;
-  badges?: string[];
-  workFrom?: string;
-  workTo?: string;
-  category?: { name: string };
-  primaryLandmark?: { name: string };
+  categoryName: string;
+  landmarkName?: string;
+  bayesianRating?: number;
+  verification: 'VERIFIED' | 'COMMUNITY_UNVERIFIED';
+  status: 'ACTIVE' | 'PAUSED' | 'INCOMPLETE';
+  updatedAt?: string;
+  type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS';
 }
 
-export const DatabaseScreen: React.FC<DatabaseScreenProps> = () => {
-  const [type, setType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA'>('USTA');
-  const [search, setSearch] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+export interface DatabaseScreenProps {
+  onNavigateTab: (tab: NavTab) => void;
+  onSelectListing?: (listingId: string) => void;
+}
 
-  const [categories, setCategories] = useState<Array<{ id: string; name: string; count: number; icon: string; color: string }>>([]);
+export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, onSelectListing }) => {
+  useAuth();
+
+  // Navigation & View States
+  const [selectedCategory, setSelectedCategory] = useState<CategorySummary | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS'>('MASTERS');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'verified' | 'unverified' | 'paused'>('all');
+
+  // Data States
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [listings, setListings] = useState<ListingItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
 
-  // Fetch Categories & Summary Count directly from Live Server API
-  useEffect(() => {
-    const fetchCategories = async () => {
-      setLoading(true);
-      try {
-        const initData = window.Telegram?.WebApp?.initData || '';
-        const res = await fetch(`${API_BASE_URL}/admin/categories?type=${type}&search=${encodeURIComponent(search)}`, {
-          headers: { 'x-telegram-init-data': initData },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCategories(data || []);
-        }
-      } catch (err) {
-        console.error('Live API fetch error:', err);
-      } finally {
-        setLoading(false);
+  // Fetch categories & listings from API
+  const fetchData = async () => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const headers = { 'x-init-data': initData };
+
+      const [catRes, listRes] = await Promise.all([
+        fetch('/api/admin/categories', { headers }),
+        fetch('/api/admin/listings', { headers }),
+      ]);
+
+      let fetchedListings: ListingItem[] = [];
+      if (listRes.ok) {
+        const rawList = await listRes.json();
+        fetchedListings = rawList.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          phone: item.phone,
+          categoryName: item.category?.name || 'Xizmat',
+          landmarkName: item.primaryLandmark?.name || 'Markaz',
+          bayesianRating: item.bayesianRating || 4.8,
+          verification: item.verification || 'COMMUNITY_UNVERIFIED',
+          status: item.status || 'ACTIVE',
+          updatedAt: item.updatedAt,
+          type: item.type || 'MASTERS',
+        }));
+        setListings(fetchedListings);
       }
-    };
-    fetchCategories();
-  }, [type, search]);
 
-  // Fetch Listings List from Live Server API
-  useEffect(() => {
-    const fetchListings = async () => {
-      try {
-        const initData = window.Telegram?.WebApp?.initData || '';
-        const queryParams = new URLSearchParams();
-        if (type) queryParams.set('type', type);
-        if (selectedCategory) queryParams.set('categoryName', selectedCategory);
-        if (search) queryParams.set('search', search);
-
-        const res = await fetch(`${API_BASE_URL}/admin/listings?${queryParams.toString()}`, {
-          headers: { 'x-telegram-init-data': initData },
+      if (catRes.ok) {
+        const rawCats = await catRes.json();
+        const catSummaries: CategorySummary[] = rawCats.map((cat: any) => {
+          const count = fetchedListings.filter(
+            (l) => l.categoryName.toLowerCase() === cat.name.toLowerCase() && l.type === listingType
+          ).length;
+          return {
+            id: cat.id,
+            name: cat.name,
+            count: count,
+            synonyms: cat.synonyms || [cat.name.toLowerCase()],
+          };
         });
-        if (res.ok) {
-          const data = await res.json();
-          setListings(data || []);
-        }
-      } catch (err) {
-        console.error('Live API listings error:', err);
+        setCategories(catSummaries.filter((c: any) => c.count > 0 || searchQuery));
       }
-    };
-    fetchListings();
-  }, [type, selectedCategory, search]);
+    } catch (err) {
+      console.error('Failed to load database data:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [listingType]);
+
+  // Filter listings based on type, search query, category, and filter chips
+  const getFilteredListings = () => {
+    return listings.filter((item) => {
+      // 1. Type filter
+      if (item.type !== listingType) return false;
+
+      // 2. Category filter
+      if (selectedCategory && item.categoryName.toLowerCase() !== selectedCategory.name.toLowerCase()) return false;
+
+      // 3. Search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = item.name.toLowerCase().includes(query);
+        const matchesCategory = item.categoryName.toLowerCase().includes(query);
+        const matchesLandmark = item.landmarkName?.toLowerCase().includes(query) || false;
+        const matchesPhone = item.phone.includes(query);
+        if (!matchesName && !matchesCategory && !matchesLandmark && !matchesPhone) return false;
+      }
+
+      // 4. Status/Verification filter
+      if (activeFilter === 'verified') return item.verification === 'VERIFIED';
+      if (activeFilter === 'unverified') return item.verification === 'COMMUNITY_UNVERIFIED';
+      if (activeFilter === 'paused') return item.status === 'PAUSED';
+
+      return true;
+    });
+  };
+
+  const filteredListings = getFilteredListings();
+
+  // Color mappings for Category Icons
+  const categoryGradients = [
+    'from-blue-500 to-indigo-600',
+    'from-emerald-400 to-teal-600',
+    'from-amber-400 to-orange-500',
+    'from-rose-500 to-pink-600',
+    'from-purple-500 to-indigo-700',
+    'from-cyan-400 to-blue-600',
+  ];
 
   return (
-    <div className="flex flex-col gap-3 pb-24 animate-fade-in max-w-container-max mx-auto">
-      <TopHeader title="Baza" subtitle="Ustalar, do'konlar va xizmatlar ma'lumotnomasi" />
-
-      <div className="px-4 flex flex-col gap-3">
-        {/* Segment Control */}
-        <SegmentControl
-          options={[
-            { id: 'USTA', label: 'Ustalar' },
-            { id: 'DOKON_OBYEKT', label: 'Do\'konlar' },
-            { id: 'MUASSASA', label: 'Muassasa' },
-          ]}
-          selectedId={type}
-          onChange={(val) => {
-            setType(val);
-            setSelectedCategory(null);
-          }}
-        />
-
-        {/* Search Bar */}
-        <div className="relative flex items-center">
-          <span className="material-symbols-outlined absolute left-3.5 text-ios-gray text-[20px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ism, telefon yoki kasb bo'yicha qidiruv..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-btn bg-white dark:bg-[#16212F] border border-ios-sep dark:border-ios-darkSeparator text-[14px] text-[#1C1C1E] dark:text-white placeholder:text-ios-gray focus:outline-none focus:border-tg shadow-card"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 text-ios-gray text-[12px]">
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Selected Category Header (if drill down active) */}
-        {selectedCategory && (
-          <div className="flex items-center justify-between bg-tg/10 border border-tg/30 p-3 rounded-btn text-[13px]">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-tg">📍 {selectedCategory}</span>
-              <span className="text-[11px] text-ios-gray">({listings.length} ta yozuv)</span>
-            </div>
+    <div className="flex flex-col gap-4 animate-fade-in pb-16">
+      
+      {/* 1. HEADER BAR */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {selectedCategory && (
             <button
               onClick={() => setSelectedCategory(null)}
-              className="text-[12px] font-bold text-ios-red hover:underline"
+              className="p-1.5 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors active:scale-95"
             >
-              Hammasi ✕
+              <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
             </button>
+          )}
+          <div>
+            <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">
+              {selectedCategory ? selectedCategory.name : 'Baza'}
+            </h1>
+            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+              {selectedCategory ? `${filteredListings.length} ta yozuv` : `${listings.filter(l => l.type === listingType).length} ta jami`}
+            </p>
           </div>
-        )}
+        </div>
 
-        {/* Category Grid or Detailed Listing Rows */}
-        {!selectedCategory && !search ? (
-          /* 2 Ustunli Kasb Kartalar Setkasi */
-          loading ? (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              {[1, 2, 3, 4].map((n) => (
-                <div key={n} className="h-28 bg-white dark:bg-[#16212F] rounded-card animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              {categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.name)}
-                  className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator shadow-card flex flex-col justify-between h-28 cursor-pointer active-scale"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="w-9 h-9 rounded-icon flex items-center justify-center text-white shadow-sm bg-tg">
-                      <span className="material-symbols-outlined text-[22px]">work</span>
-                    </div>
-                    <span className="text-[11px] font-bold bg-ios-sep dark:bg-slate-800 text-ios-gray px-2 py-0.5 rounded-pill">
-                      {cat.count} ta
-                    </span>
-                  </div>
+        <button
+          onClick={() => onNavigateTab('add')}
+          className="bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md hover:scale-105 active:scale-95 transition-all flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined text-[16px] font-bold">add</span>
+          Qo'shish
+        </button>
+      </div>
 
-                  <div>
-                    <h4 className="font-bold text-[15px] text-[#1C1C1E] dark:text-white truncate">
-                      {cat.name}
-                    </h4>
-                    <p className="text-[11px] text-ios-gray">Ko'rish uchun bosing →</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        ) : (
-          /* Detailed Listings List */
-          <div className="space-y-2.5 pt-1">
-            {listings.length === 0 ? (
-              <div className="p-8 text-center text-ios-gray text-[14px]">
-                Hozircha yozuvlar mavjud emas. Markaziy ＋ FAB tugmasi orqali qo'shishingiz mumkin!
-              </div>
-            ) : (
-              listings.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white dark:bg-[#16212F] p-3.5 rounded-card border border-ios-sep/60 dark:border-ios-darkSeparator shadow-card flex flex-col gap-1.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-[15px] text-[#1C1C1E] dark:text-white">
-                      {item.name}
-                    </h4>
-                    <span className="text-[11px] font-bold bg-ios-green/15 text-ios-green px-2.5 py-0.5 rounded-pill">
-                      ✅ Tasdiqlangan
-                    </span>
-                  </div>
+      {/* 2. SEGMENT CONTROL (Ustalar / Do'konlar / Muassasalar) */}
+      {!selectedCategory && (
+        <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
+          {[
+            { id: 'MASTERS', label: 'Ustalar' },
+            { id: 'SHOPS', label: "Do'konlar" },
+            { id: 'ORGANIZATIONS', label: 'Muassasalar' },
+          ].map((seg) => (
+            <button
+              key={seg.id}
+              onClick={() => {
+                setListingType(seg.id as any);
+              }}
+              className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
+                listingType === seg.id
+                  ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {seg.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-ios-gray">
-                      🔧 {item.category?.name || 'Usta'} · 📍 {item.primaryLandmark?.name || 'Markaz'}
-                    </span>
-                    <a
-                      href={`tel:${item.phone}`}
-                      className="font-bold text-tg font-mono hover:underline"
-                    >
-                      📞 {item.phone}
-                    </a>
-                  </div>
-
-                  {item.badges && item.badges.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {item.badges.map((b, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[10px] bg-ios-bg dark:bg-[#0E141B] text-ios-gray px-2 py-0.5 rounded-pill"
-                        >
-                          🏷 {b}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+      {/* 3. SEARCH BAR */}
+      <div className="relative flex items-center w-full">
+        <span className="material-symbols-outlined absolute left-3.5 text-slate-500 pointer-events-none text-[20px]">
+          search
+        </span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Ism, kasb, telefon yoki mo'ljal..."
+          className="w-full bg-surface-container-low dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary dark:focus:border-sky-500 transition-colors shadow-sm"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 text-slate-400 hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
         )}
       </div>
+
+      {/* 4. FILTER CHIPS (Horizontal Scroll) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
+        {[
+          { id: 'all', label: 'Hammasi', colorClass: 'bg-primary dark:bg-sky-500 text-white' },
+          { id: 'verified', label: '✅ Tasdiqlangan', colorClass: 'bg-emerald-600 text-white' },
+          { id: 'unverified', label: '⚠️ Tasdiqlanmagan', colorClass: 'bg-amber-500 text-white' },
+          { id: 'paused', label: '⏸ Pauzada', colorClass: 'bg-slate-600 text-white' },
+        ].map((chip) => (
+          <button
+            key={chip.id}
+            onClick={() => {
+              setActiveFilter(chip.id as any);
+            }}
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
+              activeFilter === chip.id
+                ? chip.colorClass
+                : 'bg-surface-container-high dark:bg-[#1C2733] text-on-surface-variant dark:text-slate-300 border border-outline-variant/20'
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 5. VIEW 1: CATEGORY GRID (Visible when no category is selected and no search) */}
+      {!selectedCategory && !searchQuery ? (
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          {categories.map((cat, idx) => {
+            const grad = categoryGradients[idx % categoryGradients.length];
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat)}
+                className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm flex flex-col items-start gap-2 text-left hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                {/* Colored Icon Square */}
+                <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-sm shadow-sm`}>
+                  {cat.name[0].toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate w-full">
+                    {cat.name}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                    {cat.count} ta yozuv
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        /* VIEW 2: LISTINGS ROWS */
+        <div className="flex flex-col gap-2.5 mt-1">
+          {filteredListings.length === 0 ? (
+            <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500 shadow-sm">
+              Hech qanday usta topilmadi.
+            </div>
+          ) : (
+            filteredListings.map((item) => (
+              <div key={item.id} className="cursor-pointer" onClick={() => onSelectListing && onSelectListing(item.id)}>
+                <RecordRow
+                  name={item.name}
+                  category={item.categoryName}
+                  landmark={item.landmarkName}
+                  phone={item.phone}
+                  rating={item.bayesianRating}
+                  isVerified={item.verification === 'VERIFIED'}
+                />
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };
