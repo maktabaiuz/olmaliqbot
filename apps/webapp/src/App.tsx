@@ -13,10 +13,13 @@ import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
 import { SuperAdminCityDetailScreen } from './screens/superadmin/SuperAdminCityDetailScreen';
 import { SuperAdminOnboardingScreen } from './screens/superadmin/SuperAdminOnboardingScreen';
 import { LoginScreen } from './screens/LoginScreen';
+import { CategoriesScreen } from './screens/CategoriesScreen';
+import { LandmarksScreen } from './screens/LandmarksScreen';
 import { SubscriptionExpiredScreen } from './screens/SubscriptionExpiredScreen';
 
 // Common Header
 import { TopHeader } from './components/common/TopHeader';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 type ViewMode = 'home' | 'database' | 'add' | 'users' | 'requests' | 'more' | 'superadmin' | string;
 
@@ -59,6 +62,7 @@ const MainShell: React.FC = () => {
   return (
     <div className="min-h-screen bg-ios-bg dark:bg-[#0E141B] text-[#1C1C1E] dark:text-[#E8EDF2]">
       <main className="max-w-container-max mx-auto min-h-screen">
+      <ErrorBoundary key={view} onReset={() => setView('home')}>
         {/* VIEW 1: HOME */}
         {view === 'home' && (
           <DashboardScreen
@@ -96,7 +100,11 @@ const MainShell: React.FC = () => {
 
         {/* VIEW 6: MORE (YANA) */}
         {view === 'more' && (
-          <MoreMenuScreen onNavigateSubScreen={handleNavigateSubScreen} />
+          <MoreMenuScreen
+            onNavigateSubScreen={handleNavigateSubScreen}
+            onNavigateTab={handleTabSelect}
+            isSuperAdmin={isSuperAdmin}
+          />
         )}
 
         {/* VIEW 7: SUPER-ADMIN CONTROL */}
@@ -110,25 +118,14 @@ const MainShell: React.FC = () => {
             {view === 'sub_categories' && (
               <div className="space-y-3">
                 <TopHeader title="Kategoriyalar va Sinonimlar" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
-                  <div className="flex justify-between font-bold border-b pb-2"><span>Kategoriya</span><span>Sinonimlar</span></div>
-                  <div className="flex justify-between"><span>🔧 Gazavik</span><span className="text-ios-gray">газовик, gaz ustasi</span></div>
-                  <div className="flex justify-between"><span>🧱 Kafelchi</span><span className="text-ios-gray">плитщик, kafel</span></div>
-                  <div className="flex justify-between"><span>🚰 Santexnik</span><span className="text-ios-gray">сантехник, truba</span></div>
-                  <div className="flex justify-between"><span>⚡ Elektrik</span><span className="text-ios-gray">электрик, svet</span></div>
-                </div>
+                <CategoriesScreen />
               </div>
             )}
 
             {view === 'sub_landmarks' && (
               <div className="space-y-3">
                 <TopHeader title="Mo'ljallar va Manzillar" showBack onBack={() => setView('more')} />
-                <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep space-y-2 text-[14px]">
-                  <div className="flex justify-between font-bold border-b pb-2"><span>Mo'ljal</span><span>Xalqona nomlar</span></div>
-                  <div className="flex justify-between"><span>📍 Korzinka</span><span className="text-ios-gray">карзинка, супермаркет</span></div>
-                  <div className="flex justify-between"><span>📍 3-Mavze</span><span className="text-ios-gray">3 микрорайон</span></div>
-                  <div className="flex justify-between"><span>📍 Bozor orqasi</span><span className="text-ios-gray">рынок, бозор</span></div>
-                </div>
+                <LandmarksScreen />
               </div>
             )}
 
@@ -188,11 +185,12 @@ const MainShell: React.FC = () => {
             {view === 'sub_superadmin_onboarding' && (
               <div className="space-y-3">
                 <TopHeader title="Yangi shahar" showBack onBack={() => setView('superadmin')} />
-                <SuperAdminOnboardingScreen />
+                <SuperAdminOnboardingScreen onComplete={() => setView('superadmin')} />
               </div>
             )}
           </div>
         )}
+      </ErrorBoundary>
       </main>
 
       {/* Floating Bottom Nav Bar */}

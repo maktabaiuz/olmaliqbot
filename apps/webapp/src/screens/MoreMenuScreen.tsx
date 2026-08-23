@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { GroupedList } from '../components/common/GroupedList';
 import { AiCopilotDrawer } from '../components/common/AiCopilotDrawer';
+import { Switch } from '../components/common/Switch';
 
 export interface MoreMenuScreenProps {
   onNavigateSubScreen?: (screenId: string) => void;
+  onNavigateTab?: (tab: string) => void;
+  isSuperAdmin?: boolean;
 }
 
-export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScreen }) => {
+export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScreen, onNavigateTab, isSuperAdmin }) => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [copilotOpen, setCopilotOpen] = useState<boolean>(false);
 
   const adminName = user?.name || 'Bobur Admin';
@@ -56,6 +61,39 @@ export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScr
         <span className="material-symbols-outlined text-[20px] text-ios-purple">chevron_right</span>
       </div>
 
+      {/* Super-Admin Boshqaruv Markaziga kirish (faqat SUPER_ADMIN rolida ko'rinadi) */}
+      {isSuperAdmin && (
+        <GroupedList
+          header="Super-Admin"
+          items={[
+            {
+              id: 'superadmin',
+              icon: 'workspace_premium',
+              iconBgColor: '#C8860A',
+              title: 'Super-Admin Boshqaruv Markazi',
+              subtitle: 'Barcha shaharlar, arizalar va to\'lovlar',
+              onClick: () => onNavigateTab?.('superadmin'),
+            },
+          ]}
+        />
+      )}
+
+      {/* Ko'rinish (Dark / Light rejim) */}
+      <GroupedList
+        header="Ko'rinish"
+        items={[
+          {
+            id: 'theme',
+            icon: theme === 'dark' ? 'dark_mode' : 'light_mode',
+            iconBgColor: '#1C1C1E',
+            title: 'Tungi rejim',
+            subtitle: theme === 'dark' ? 'Yoqilgan' : "O'chirilgan",
+            onClick: toggleTheme,
+            rightElement: <Switch checked={theme === 'dark'} onChange={toggleTheme} label="Tungi rejim" />,
+          },
+        ]}
+      />
+
       {/* 2. Sozlamalar & Boshqaruv (iOS Grouped Lists) */}
       <GroupedList
         header="Boshqaruv Sozlamalari"
@@ -66,7 +104,6 @@ export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScr
             iconBgColor: '#007AFF',
             title: 'Kategoriyalar va Sinonimlar',
             subtitle: 'Kasblar hamda o\'tkazish so\'zlari',
-            badge: '42 ta',
             onClick: () => navigateTo('categories'),
           },
           {
@@ -75,7 +112,6 @@ export const MoreMenuScreen: React.FC<MoreMenuScreenProps> = ({ onNavigateSubScr
             iconBgColor: '#FF9500',
             title: 'Mo\'ljallar va Manzillar',
             subtitle: 'Xalqona joy nomlari',
-            badge: '28 ta',
             onClick: () => navigateTo('landmarks'),
           },
           {

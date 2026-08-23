@@ -314,15 +314,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 2. STATS & ANALYTICS ---
-  fastify.get('/admin/stats', async (req, reply) => {
+  fastify.get('/admin/stats', async (req: any, reply) => {
     const cityId = await getCityId(req);
+    const { period } = req.query || {};
+
+    let periodStart: Date | undefined;
+    if (period === 'today') {
+      periodStart = new Date();
+      periodStart.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'month') {
+      periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+    const periodFilter = periodStart ? { createdAt: { gte: periodStart } } : {};
 
     const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
-    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false } });
+    const totalQueries = await db.queryLog.count({ where: { cityId, ...periodFilter } });
+    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
     const pendingCorrections = await db.correction.count({ where: { cityId, status: 'NEW' } });
-    const complaintsCount = await db.queryLog.count({ where: { cityId, isComplaint: true } });
-    
+    const complaintsCount = await db.queryLog.count({ where: { cityId, isComplaint: true, ...periodFilter } });
+    const usersCount = await db.user.count({ where: { cityId } });
+
     // Stale listings (6 months old without verification)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -337,16 +351,28 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const totalCategories = await db.category.count();
 
+    // Javob % — haqiqiy hisob: (jami so'rov - javobsiz) / jami so'rov
+    const accuracyRate = totalQueries > 0
+      ? Math.round(((totalQueries - unresolvedRequests) / totalQueries) * 1000) / 10
+      : 100;
+
     return {
+      // Dashboard (apps/webapp/src/screens/DashboardScreen.tsx) mos nomlar:
+      totalQueries,
+      unresolvedCount: unresolvedRequests,
+      correctionsCount: pendingCorrections,
+      listingsCount: activeListings,
+      usersCount,
+      complaintsCount,
+      accuracyRate,
+      // Qo'shimcha (kelajakdagi ekranlar uchun):
       activeListings,
       unresolvedRequests,
       pendingCandidates,
       pendingCorrections,
-      complaintsCount,
       staleListings,
       lowRatingListings,
       totalCategories,
-      accuracyRate: 98.5,
     };
   });
 
@@ -572,6 +598,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       count: c._count.listings,
       icon: 'work',
       color: '#007AFF',
+      synonyms: c.synonyms,
     }));
   });
 

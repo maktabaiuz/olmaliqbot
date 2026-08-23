@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { TopHeader } from '../../components/common/TopHeader';
 
-export const SuperAdminOnboardingScreen: React.FC = () => {
-  const navigate = useNavigate();
+export interface SuperAdminOnboardingScreenProps {
+  onComplete?: () => void;
+}
+
+export const SuperAdminOnboardingScreen: React.FC<SuperAdminOnboardingScreenProps> = ({ onComplete }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [formData, setFormData] = useState({
     cityName: '',
@@ -19,14 +20,12 @@ export const SuperAdminOnboardingScreen: React.FC = () => {
     if (step < 3) setStep((step + 1) as any);
     else {
       alert('Yangi shahar muvaffaqiyatli qo\'shildi va tarif faollashtirildi! 🚀');
-      navigate('/superadmin');
+      onComplete?.();
     }
   };
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-24 animate-fade-in max-w-container-max mx-auto">
-      <TopHeader title="Yangi Shahar Qo'shish" showBack />
-
       {/* 3 Step Indicator */}
       <div className="flex items-center justify-around">
         {[

@@ -21,11 +21,11 @@ export const UserProfileCard: React.FC<UserProfileCardProps> = ({ user }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-primary text-on-primary font-bold text-lg flex items-center justify-center shrink-0 shadow-sm">
-            {user.name.charAt(0).toUpperCase()}
+            {(user.name || '?').charAt(0).toUpperCase()}
           </div>
           <div>
             <h3 className="font-bold text-title-bold text-on-surface dark:text-slate-100 flex items-center gap-2">
-              {user.name}
+              {user.name || `ID: ${user.telegramUserId}`}
             </h3>
             <div className="flex items-center gap-2 text-body-secondary text-outline">
               {user.username && (

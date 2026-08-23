@@ -12,14 +12,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
-    // 1. Telegram WebApp Theme detection
+    // 1. Foydalanuvchi ilova ichida aniq tanlagan qiymat — eng ustuvor
+    const saved = localStorage.getItem('kimbor_theme') as Theme;
+    if (saved === 'light' || saved === 'dark') return saved;
+    // 2. Telegram WebApp mavzusi (agar haqiqiy Telegram ichida ochilgan bo'lsa)
     if (window.Telegram?.WebApp?.colorScheme) {
       return window.Telegram.WebApp.colorScheme === 'dark' ? 'dark' : 'light';
     }
-    // 2. Local Storage fallback
-    const saved = localStorage.getItem('kimbor_theme') as Theme;
-    if (saved) return saved;
-    // 3. System preference fallback
+    // 3. Tizim (OS/brauzer) sozlamasi — oxirgi variant
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 

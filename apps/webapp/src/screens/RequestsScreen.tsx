@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { TopHeader } from '../components/common/TopHeader';
 import { FilterChips } from '../components/common/FilterChips';
 import { API_BASE_URL } from '../config';
@@ -20,28 +19,21 @@ export interface RequestsScreenProps {
   onSelectCategoryToAdd?: (categoryName: string) => void;
 }
 
-export const RequestsScreen: React.FC<RequestsScreenProps> = () => {
-  const navigate = useNavigate();
+function formatTimeAgo(iso?: string): string {
+  if (!iso) return 'Yangi';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'Hozirgina';
+  if (minutes < 60) return `${minutes} daqiqa oldin`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} soat oldin`;
+  return `${Math.floor(hours / 24)} kun oldin`;
+}
+
+export const RequestsScreen: React.FC<RequestsScreenProps> = ({ onNavigateTab, onSelectCategoryToAdd }) => {
   const [filter, setFilter] = useState<'all' | 'demand' | 'new'>('all');
-  const [clusters, setClusters] = useState<UnresolvedCluster[]>([
-    {
-      id: 'c1',
-      canonicalName: 'Kafelchi usta',
-      count: 8,
-      rawExamples: ['kechasi ishlaydigan kafelchi bormi?', 'plitkachi usta telefon noilmi?'],
-      isExistingCategory: false,
-      timeAgo: '10 daqiqa oldin',
-    },
-    {
-      id: 'c2',
-      canonicalName: 'Natyajnoy potolok',
-      count: 5,
-      rawExamples: ['potolok ustasi bormi?'],
-      isExistingCategory: false,
-      timeAgo: '1 soat oldin',
-    },
-  ]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [clusters, setClusters] = useState<UnresolvedCluster[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchClusters = async () => {
@@ -53,7 +45,18 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          if (data && data.length > 0) setClusters(data);
+          setClusters(
+            (data || []).map((c: any) => ({
+              id: c.clusterKey,
+              canonicalName: c.canonicalName,
+              count: c.count,
+              rawExamples: c.rawExamples || [],
+              isExistingCategory: c.isExistingCategory,
+              matchedCategoryName: c.matchedCategoryName,
+              matchedCategoryId: c.matchedCategoryId,
+              timeAgo: formatTimeAgo(c.latestAt),
+            }))
+          );
         }
       } catch (err) {
         console.error('Failed to fetch clusters:', err);
@@ -65,11 +68,7 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = () => {
   }, [filter]);
 
   const handleAddCategory = (categoryName: string) => {
-    localStorage.setItem(
-      'kimbor_add_listing_draft',
-      JSON.stringify({ categoryName, name: '', phone: '', landmarkName: '' })
-    );
-    navigate('/add');
+    onSelectCategoryToAdd?.(categoryName);
   };
 
   const handleDismissCluster = (id: string) => {
@@ -81,6 +80,8 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = () => {
       <TopHeader
         title="Topilmagan so'rovlar"
         subtitle="AI tomonidan klasterlangan va javob kutilayotgan savollar"
+        showBack
+        onBack={() => onNavigateTab?.('home')}
       />
 
       <div className="px-4 flex flex-col gap-3">

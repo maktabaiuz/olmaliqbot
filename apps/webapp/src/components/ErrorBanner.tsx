@@ -21,13 +21,13 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({
   }
 
   return (
-    <div className="bg-error-container dark:bg-red-950/50 text-on-error-container dark:text-red-300 px-4 py-2.5 flex items-center gap-2.5 border-b border-error/20 dark:border-red-900/50 text-xs">
+    <div className="bg-ios-red/15 dark:bg-red-950/50 text-ios-red dark:text-red-300 px-4 py-2.5 flex items-center gap-2.5 border-b border-ios-red/20 dark:border-red-900/50 text-xs rounded-btn">
       <span className="material-symbols-outlined text-[18px]">error</span>
       <span className="font-medium flex-1">{message}</span>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="text-error dark:text-red-400 font-bold uppercase tracking-wider text-[11px] hover:underline"
+          className="text-ios-red dark:text-red-400 font-bold uppercase tracking-wider text-[11px] hover:underline"
         >
           Qayta
         </button>

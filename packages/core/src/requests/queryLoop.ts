@@ -7,7 +7,10 @@ export interface ClusterGroup {
   count: number;
   isExistingCategory: boolean; // true = "bazada bor, bot tanimadi", false = "bazada yo'q"
   matchedCategoryId?: string;
+  matchedCategoryName?: string;
   queryLogIds: string[];
+  rawExamples: string[];
+  latestAt: Date;
 }
 
 /**
@@ -82,7 +85,10 @@ export async function clusterUnresolvedQueries(cityId: string): Promise<ClusterG
       count: ids.length,
       isExistingCategory: !!group.matchedCat,
       matchedCategoryId: group.matchedCat?.id,
+      matchedCategoryName: group.matchedCat?.name,
       queryLogIds: ids,
+      rawExamples: group.logs.slice(0, 3).map((l) => l.rawMessage),
+      latestAt: group.logs[0].createdAt,
     });
   }
 

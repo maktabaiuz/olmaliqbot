@@ -25,6 +25,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   const [saving, setSaving] = useState<boolean>(false);
   const [successBanner, setSuccessBanner] = useState<string>('');
+  const [step1Error, setStep1Error] = useState<string>('');
 
   useEffect(() => {
     if (initialCategoryName) {
@@ -36,6 +37,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     const updated = { ...formData, [field]: value };
     setFormData(updated);
     localStorage.setItem('kimbor_add_listing_draft', JSON.stringify(updated));
+  };
+
+  const goToStep = (targetStep: 1 | 2 | 3) => {
+    if (targetStep > 1 && step === 1) {
+      if (!formData.name || !formData.categoryName || !formData.phone || !formData.landmarkName) {
+        setStep1Error("Iltimos, barcha majburiy (*) maydonlarni to'ldiring");
+        return;
+      }
+      setStep1Error('');
+    }
+    setStep(targetStep);
   };
 
   const toggleBadge = (badge: string) => {
@@ -96,7 +108,20 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   return (
     <div className="flex flex-col gap-4 pb-24 animate-fade-in max-w-container-max mx-auto">
-      <TopHeader title="Yangi yozuv qo'shish" />
+      <TopHeader
+        title="Yangi yozuv qo'shish"
+        rightAction={
+          <button
+            type="button"
+            onClick={() => onNavigateTab?.('home')}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-ios-gray hover:bg-ios-sep dark:hover:bg-slate-800 active:bg-ios-sep transition-colors"
+            title="Yopish"
+            aria-label="Yopish"
+          >
+            <span className="material-symbols-outlined text-[22px]">close</span>
+          </button>
+        }
+      />
 
       {successBanner && (
         <div className="mx-4 p-3 bg-ios-green/15 text-ios-green border border-ios-green/30 text-[13px] font-bold rounded-btn text-center">
@@ -105,7 +130,8 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       )}
 
       {/* 3 Step Wizard Numbers Bar */}
-      <div className="px-4 flex items-center justify-between">
+      <div className="px-4 text-[11px] font-semibold text-ios-gray">{step}-qadam / 3</div>
+      <div className="px-4 flex items-center justify-between -mt-2">
         {[
           { num: 1, title: '1 Asosiy' },
           { num: 2, title: '2 Belgilar' },
@@ -116,7 +142,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           return (
             <div
               key={s.num}
-              onClick={() => setStep(s.num as any)}
+              onClick={() => goToStep(s.num as 1 | 2 | 3)}
               className="flex items-center gap-2 cursor-pointer"
             >
               <div
@@ -187,6 +213,12 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                   className="w-full mt-1 p-3 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
                 />
               </div>
+
+              {step1Error && (
+                <div className="p-2.5 bg-ios-red/15 text-ios-red border border-ios-red/30 text-[12px] font-bold rounded-btn">
+                  {step1Error}
+                </div>
+              )}
             </>
           )}
 
@@ -268,7 +300,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
           {step < 3 ? (
             <button
-              onClick={() => setStep((step + 1) as any)}
+              onClick={() => goToStep((step + 1) as 1 | 2 | 3)}
               className="flex-1 py-3 rounded-btn bg-tg text-white font-bold shadow-fab"
             >
               Keyingi →
