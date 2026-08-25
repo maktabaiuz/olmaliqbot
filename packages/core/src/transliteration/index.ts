@@ -48,3 +48,50 @@ export function indexThreeScripts(text: string): { latin: string; cyrillic: stri
     normalized
   };
 }
+
+/**
+ * Ikki matn orasidagi tahrirlash (Levenshtein) masofasi — yozilish
+ * xatolariga (typo) chidamli qidiruv uchun ishlatiladi.
+ */
+export function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+// So'roq/umumiy so'zlar — jargon iborani yoki xabarni solishtirishdan oldin
+// olib tashlanadi, shunda faqat "yadro" (masalan "baliq haus") qoladi va
+// "nomeri", "kerak" kabi qo'shimchalar solishtirishga xalaqit bermaydi.
+const NOISE_WORDS = new Set([
+  'kerak', 'bormi', 'bormikan', 'kimda', 'bor', 'nomeri', 'nomer', 'raqami', 'raqam',
+  'telefoni', 'telefon', 'dastavka', 'degan', 'qayerda', 'joylashgan', 'manzili',
+  'qanday', 'qancha', 'qanaqa', 'vaqti', 'yoki', 'kim', 'biladi', 'aytinglar', 'edi',
+  'bolsa', "bo'lsa", 'kerakmi', 'bera', 'olasizmi', 'bermi', 'kiradi', 'ochiq', 'yopiq',
+  'qayoqda', 'qaerda', 'ega', 'bolarkan', 'bolarmikan',
+]);
+
+/**
+ * Xabar/jargon iborasini solishtirish uchun "yadro" shaklga keltiradi:
+ * kichik harf, so'roq/umumiy so'zlar olib tashlanadi, bo'shliq va tinish
+ * belgilari yig'ishtiriladi. Natijada "Baliq haus nomeri kerakmi?" va
+ * "baliqhaus" bir xil "baliqhaus" shakliga keladi.
+ */
+export function coreMatchText(text: string): string {
+  if (!text) return '';
+  const normalized = normalizeText(text);
+  const words = normalized.split(' ').filter((w) => w && !NOISE_WORDS.has(w));
+  return words.join('').replace(/[^a-z0-9]/g, '');
+}

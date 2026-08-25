@@ -1,7 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
-import { normalizeText } from '../transliteration';
+import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
 // matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
@@ -36,24 +36,6 @@ const DEFAULT_EMOJI_BY_OBJECT_TYPE: Record<string, string> = {
 // saqlangan bo'lsa, oddiy "contains" qidiruv topa olmaydi (bitta ortiqcha
 // harf butun so'zni buzadi). Levenshtein masofasi orqali "yetarlicha yaqin"
 // so'zlarni ham moslashtiramiz.
-function levenshteinDistance(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  let prev = new Array(n + 1);
-  let curr = new Array(n + 1);
-  for (let j = 0; j <= n; j++) prev[j] = j;
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
-    }
-    [prev, curr] = [curr, prev];
-  }
-  return prev[n];
-}
 
 // Xabar matnidan qidiruv "nomzod"larini ajratib oladi: har bir so'z, va
 // qo'shni 2 so'zning bo'shliqsiz birikmasi ("avto elektrik" -> "avtoelektrik")
@@ -147,17 +129,32 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // bo'ladi (masalan "oydindagi evosni nomeri") — shu orqali AI klassifikator
   // (Gemini) vaqtinchalik ishlamay qolsa yoki noaniq kategoriya chiqarsa ham,
   // bot admin bilgan aniq iborani xabar ichidan topib, javobni yo'qotmaydi.
+  // Solishtirish uchun "yadro" shakl: kichik harf, so'roq/umumiy so'zlar
+  // ("nomeri", "kerak" kabi) olib tashlangan, bo'shliqsiz. Shu orqali admin
+  // uzun ibora yozgan bo'lsa-yu ("Baliq haus nomeri kerak"), foydalanuvchi
+  // qisqa so'ragan bo'lsa ham ("Baliq haus"), yoki aksincha — ikkalasi ham
+  // moslashadi. Yozilish farqiga (masalan "baliq haus"/"baliqhaus") ham
+  // chidamli, chunki bo'shliqlar allaqachon olib tashlangan.
   let jargonMatchedIds = new Set<string>();
   if (rawMessage) {
-    const normalizedMsg = normalizeText(rawMessage);
+    const msgCore = coreMatchText(rawMessage);
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, jargonSynonyms: true },
     });
     for (const cand of jargonCandidates) {
       const hit = cand.jargonSynonyms.some((j) => {
-        const cleanJargon = normalizeText(j);
-        return cleanJargon.length >= MIN_JARGON_PHRASE_LENGTH && normalizedMsg.includes(cleanJargon);
+        const jargonCore = coreMatchText(j);
+        if (jargonCore.length < MIN_JARGON_PHRASE_LENGTH || msgCore.length < MIN_JARGON_PHRASE_LENGTH) return false;
+        // Ikki tomonlama qamrash: xabar jargon "yadrosi"ni o'z ichiga oladimi,
+        // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa)
+        if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) return true;
+        // Kichik yozilish xatosiga chidamli oxirgi tekshiruv (uzunliklari yaqin bo'lsa)
+        if (Math.abs(msgCore.length - jargonCore.length) <= 3) {
+          const threshold = Math.max(1, Math.floor(Math.max(msgCore.length, jargonCore.length) / 6));
+          return levenshteinDistance(msgCore, jargonCore) <= threshold;
+        }
+        return false;
       });
       if (hit) jargonMatchedIds.add(cand.id);
     }

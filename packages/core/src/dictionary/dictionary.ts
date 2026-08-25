@@ -1,5 +1,5 @@
 import initialDictionaryData from './initialDictionary.json';
-import { normalizeText } from '../transliteration';
+import { normalizeText, levenshteinDistance } from '../transliteration';
 
 export interface CategorySeed {
   id: string;
@@ -75,7 +75,27 @@ export function resolveCanonicalCategoryName(inputName: string): string {
   if (!inputName) return inputName;
   const normalized = normalizeText(inputName);
   const lookup = getCanonicalCategoryLookup();
-  return lookup.get(normalized) || inputName;
+  const exact = lookup.get(normalized);
+  if (exact) return exact;
+
+  // Aniq moslik topilmasa — yozilish xatosiga chidamli qidiruv (masalan
+  // "Choyxon" -> "Choyxona"). Shu orqali kichik xato tufayli lug'atda
+  // allaqachon bor kategoriyaning dublikati yaralishining oldi olinadi.
+  const compact = normalized.replace(/[\s'-]+/g, '');
+  if (compact.length < 4) return inputName;
+
+  const patterns = getSortedCategoryPatterns();
+  let best: { canonicalName: string; distance: number } | null = null;
+  for (const p of patterns) {
+    const patternCompact = p.pattern.replace(/[\s'-]+/g, '');
+    if (patternCompact.length < 4 || Math.abs(patternCompact.length - compact.length) > 3) continue;
+    const dist = levenshteinDistance(compact, patternCompact);
+    const threshold = Math.max(1, Math.floor(patternCompact.length / 6));
+    if (dist <= threshold && (!best || dist < best.distance)) {
+      best = { canonicalName: p.canonicalName, distance: dist };
+    }
+  }
+  return best ? best.canonicalName : inputName;
 }
 
 export interface CategoryTextMatch {
