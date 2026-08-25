@@ -160,6 +160,7 @@ model Category {
   description String?
   objectType  ListingType? // Usta/Do'kon/Muassasa/Transport bo'yicha filtrlash uchun
   group       String?      // Masalan: "Qurilish va ta'mirlash" — kasblarni mantiqiy guruhlash uchun
+  emoji       String?      // Bot javobida kategoriyaga mos ikonka (masalan santexnik -> 🚿)
   createdAt   DateTime     @default(now())
 
   listings    Listing[]

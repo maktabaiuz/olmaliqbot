@@ -79,7 +79,7 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
   useEffect(() => {
     fetchMessages();
     fetchUserStats();
-    const interval = setInterval(() => fetchMessages(true), 3000);
+    const interval = setInterval(() => fetchMessages(true), 5000);
     return () => clearInterval(interval);
   }, [telegramUserId]);
 

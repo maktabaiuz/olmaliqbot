@@ -80,7 +80,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 5000);
+    // 5 soniya juda tez edi — doim fon rejimida so'rov yuborilib, ilovani
+    // sekinlashtirar edi. 20 soniya ham "jonli" his qiladi, lekin yukni kamaytiradi.
+    const interval = setInterval(fetchDashboardData, 20000);
     return () => clearInterval(interval);
   }, [period]);
 

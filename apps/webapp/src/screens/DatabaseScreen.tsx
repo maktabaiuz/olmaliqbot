@@ -100,7 +100,9 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000);
+    // 5 soniya juda tez edi — doim fon rejimida so'rov yuborilib, ilovani
+    // sekinlashtirar edi. 20 soniya ham "jonli" his qiladi, lekin yukni kamaytiradi.
+    const interval = setInterval(fetchData, 20000);
     return () => clearInterval(interval);
   }, [listingType]);
 

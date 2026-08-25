@@ -571,10 +571,36 @@ const MoreCategoriesSubView: React.FC<{
     loadGroups();
   }, []);
 
+  // Tanlangan Turi (Usta/Do'kon/Muassasa/Transport)ga tegishli guruhlarni
+  // haqiqiy ma'lumotdan (cats) aniqlaydi — bir guruh bir nechta turga tegishli
+  // bo'lishi mumkin (masalan "Avtomobil va transport" — Usta HAM Transport).
+  // Eng ko'p ishlatilgani birinchi ko'rsatiladi. Hech narsa topilmasa,
+  // barcha mavjud guruhlar ko'rsatiladi.
+  const groupsForType = (ot: string): string[] => {
+    const counts: Record<string, number> = {};
+    for (const c of cats) {
+      if (c.objectType === ot && c.group) counts[c.group] = (counts[c.group] || 0) + 1;
+    }
+    const relevant = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    return relevant.length > 0 ? relevant : groups;
+  };
+
+  const groupCountForType = (g: string, ot: string): number =>
+    cats.filter((c) => c.group === g && c.objectType === ot).length;
+
+  // Turi o'zgarganda, unga mos guruh ro'yxati ham yangilanadi
+  useEffect(() => {
+    const relevant = groupsForType(newObjectType);
+    if (relevant.length > 0 && !relevant.includes(newGroup)) {
+      setNewGroup(relevant[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newObjectType, cats]);
+
   const resetForm = () => {
     setNewName('');
     setNewObjectType('USTA');
-    setNewGroup(groups[0] || '');
+    setNewGroup(groupsForType('USTA')[0] || groups[0] || '');
     setIsAddingNewGroup(false);
     setCustomGroupInput('');
     setNewSynonyms([]);
@@ -742,8 +768,8 @@ const MoreCategoriesSubView: React.FC<{
                     onChange={(e) => setNewGroup(e.target.value)}
                     className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
                   >
-                    {groups.map((g) => (
-                      <option key={g} value={g}>{g}</option>
+                    {groupsForType(newObjectType).map((g) => (
+                      <option key={g} value={g}>{g} ({groupCountForType(g, newObjectType)})</option>
                     ))}
                   </select>
                   <button

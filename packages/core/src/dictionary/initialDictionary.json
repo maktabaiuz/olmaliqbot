@@ -15,7 +15,8 @@
         "газ устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🔥"
     },
     {
       "id": "santexnik",
@@ -28,7 +29,8 @@
         "сув устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🚿"
     },
     {
       "id": "elektrik",
@@ -41,7 +43,8 @@
         "электр устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "⚡"
     },
     {
       "id": "svarshik",
@@ -54,7 +57,8 @@
         "пайвандчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🔩"
     },
     {
       "id": "kafelchi",
@@ -68,7 +72,8 @@
         "кафельчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🧱"
     },
     {
       "id": "shtukaturchi",
@@ -80,7 +85,8 @@
         "сувоқчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🧱"
     },
     {
       "id": "malyar",
@@ -92,7 +98,8 @@
         "бўёқчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🎨"
     },
     {
       "id": "natyajnoy",
@@ -103,7 +110,8 @@
         "натяжной потолок"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🪟"
     },
     {
       "id": "gipsokarton",
@@ -114,7 +122,8 @@
         "гипсокартон"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🧱"
     },
     {
       "id": "eshik-deraza",
@@ -129,7 +138,8 @@
         "стеклопакет"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🚪"
     },
     {
       "id": "qulf-ustasi",
@@ -141,7 +151,8 @@
         "қулф устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🔐"
     },
     {
       "id": "tom-ustasi",
@@ -154,7 +165,8 @@
         "том устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🏠"
     },
     {
       "id": "betonchi",
@@ -164,7 +176,8 @@
         "бетонщик"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🧱"
     },
     {
       "id": "gisht-teruvchi",
@@ -176,7 +189,8 @@
         "ғишт теровчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🧱"
     },
     {
       "id": "temirchi",
@@ -188,7 +202,8 @@
         "темирчи"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🔨"
     },
     {
       "id": "burgulash",
@@ -200,7 +215,8 @@
         "перфоратор"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🛠️"
     },
     {
       "id": "konditsioner-ustasi",
@@ -213,7 +229,8 @@
         "сплит устаси"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "❄️"
     },
     {
       "id": "muzlatgich-ustasi",
@@ -225,7 +242,8 @@
         "холодильник устаси"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "🧊"
     },
     {
       "id": "kir-yuvish-mashinasi-ustasi",
@@ -237,7 +255,8 @@
         "стиралка"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "🧺"
     },
     {
       "id": "televizor-ustasi",
@@ -249,7 +268,8 @@
         "телевизор устаси"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "📺"
     },
     {
       "id": "kompyuter-ustasi",
@@ -261,7 +281,8 @@
         "ноутбук устаси"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "💻"
     },
     {
       "id": "telefon-ustasi",
@@ -272,7 +293,8 @@
         "телефон устаси"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "📱"
     },
     {
       "id": "isitish-ustasi",
@@ -284,7 +306,8 @@
         "котёл"
       ],
       "object_type": "USTA",
-      "group": "Maishiy texnika ustalari"
+      "group": "Maishiy texnika ustalari",
+      "emoji": "🔥"
     },
     {
       "id": "avtoelektrik",
@@ -294,7 +317,8 @@
         "автоэлектрик"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🔋"
     },
     {
       "id": "avtomexanik",
@@ -306,7 +330,8 @@
         "машина устаси"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🔧"
     },
     {
       "id": "shinamontaj",
@@ -318,7 +343,8 @@
         "шиномонтаж"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🛞"
     },
     {
       "id": "avtomoyka",
@@ -329,7 +355,8 @@
         "автомойка"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🚿"
     },
     {
       "id": "evakuator",
@@ -339,7 +366,8 @@
         "эвакуатор"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🚛"
     },
     {
       "id": "taksi",
@@ -351,7 +379,8 @@
         "такси"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🚕"
     },
     {
       "id": "yuk-mashinasi",
@@ -364,7 +393,8 @@
         "юк ташиш"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🚚"
     },
     {
       "id": "gruzchik",
@@ -376,7 +406,8 @@
         "юк кўтарувчи"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "📦"
     },
     {
       "id": "dorixona",
@@ -387,7 +418,8 @@
         "дорихона"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Tibbiyot"
+      "group": "Tibbiyot",
+      "emoji": "💊"
     },
     {
       "id": "non-dokoni",
@@ -400,7 +432,8 @@
         "нон дўкони"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "🍞"
     },
     {
       "id": "oziq-ovqat",
@@ -412,7 +445,8 @@
         "магазин"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "🛒"
     },
     {
       "id": "qurilish-dokoni",
@@ -423,7 +457,8 @@
         "стройматериалы"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "🧱"
     },
     {
       "id": "shifoxona",
@@ -436,7 +471,8 @@
         "шифохона"
       ],
       "object_type": "MUASSASA",
-      "group": "Tibbiyot"
+      "group": "Tibbiyot",
+      "emoji": "🏥"
     },
     {
       "id": "notarius",
@@ -445,7 +481,8 @@
         "нотариус"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "📜"
     },
     {
       "id": "bank",
@@ -454,7 +491,8 @@
         "банк"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🏦"
     },
     {
       "id": "duradgor",
@@ -467,7 +505,8 @@
         "дурадгор"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🪚"
     },
     {
       "id": "pardaboz",
@@ -480,7 +519,8 @@
         "пардабоз"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🪟"
     },
     {
       "id": "mebel-ustasi",
@@ -492,7 +532,8 @@
         "мебель устаси"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🪑"
     },
     {
       "id": "domofon-ustasi",
@@ -503,7 +544,8 @@
         "домофончик"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🔔"
     },
     {
       "id": "internet-ustasi",
@@ -517,7 +559,8 @@
         "вайфай"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🌐"
     },
     {
       "id": "signalizatsiya-ustasi",
@@ -530,7 +573,8 @@
         "видеонаблюдение"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "🚨"
     },
     {
       "id": "antenna-ustasi",
@@ -542,7 +586,8 @@
         "спутник антенна"
       ],
       "object_type": "USTA",
-      "group": "Qurilish va ta'mirlash"
+      "group": "Qurilish va ta'mirlash",
+      "emoji": "📡"
     },
     {
       "id": "tozalash-xizmati",
@@ -554,7 +599,8 @@
         "уй тозалаш хизмати"
       ],
       "object_type": "USTA",
-      "group": "Uy xizmatlari va xavfsizlik"
+      "group": "Uy xizmatlari va xavfsizlik",
+      "emoji": "🧹"
     },
     {
       "id": "dezinfeksiya-xizmati",
@@ -567,7 +613,8 @@
         "тараканлар"
       ],
       "object_type": "USTA",
-      "group": "Uy xizmatlari va xavfsizlik"
+      "group": "Uy xizmatlari va xavfsizlik",
+      "emoji": "🦟"
     },
     {
       "id": "sartarosh",
@@ -580,7 +627,8 @@
         "сартарош"
       ],
       "object_type": "USTA",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "💈"
     },
     {
       "id": "gozallik-saloni",
@@ -593,7 +641,8 @@
         "гўзаллик салони"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "💅"
     },
     {
       "id": "massajist",
@@ -604,7 +653,8 @@
         "массажист"
       ],
       "object_type": "USTA",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "💆"
     },
     {
       "id": "stomatolog",
@@ -616,7 +666,8 @@
         "стоматология"
       ],
       "object_type": "MUASSASA",
-      "group": "Tibbiyot"
+      "group": "Tibbiyot",
+      "emoji": "🦷"
     },
     {
       "id": "shifokor",
@@ -629,7 +680,8 @@
         "шифокор"
       ],
       "object_type": "USTA",
-      "group": "Tibbiyot"
+      "group": "Tibbiyot",
+      "emoji": "🩺"
     },
     {
       "id": "veterinar",
@@ -640,7 +692,8 @@
         "ветеринар"
       ],
       "object_type": "USTA",
-      "group": "Tibbiyot"
+      "group": "Tibbiyot",
+      "emoji": "🐾"
     },
     {
       "id": "tikuvchi",
@@ -653,7 +706,8 @@
         "тикувчи"
       ],
       "object_type": "USTA",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "🧵"
     },
     {
       "id": "kimyoviy-tozalash",
@@ -666,7 +720,8 @@
         "прачечная"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "🧺"
     },
     {
       "id": "poyabzal-ustasi",
@@ -678,7 +733,8 @@
         "пойабзал устаси"
       ],
       "object_type": "USTA",
-      "group": "Go'zallik va parvarish"
+      "group": "Go'zallik va parvarish",
+      "emoji": "👞"
     },
     {
       "id": "repetitor",
@@ -690,7 +746,8 @@
         "репетитор"
       ],
       "object_type": "USTA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "📚"
     },
     {
       "id": "advokat",
@@ -703,7 +760,8 @@
         "юрист"
       ],
       "object_type": "USTA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "⚖️"
     },
     {
       "id": "buxgalter",
@@ -714,7 +772,8 @@
         "бухгалтер"
       ],
       "object_type": "USTA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🧮"
     },
     {
       "id": "tarjimon",
@@ -725,7 +784,8 @@
         "переводчик"
       ],
       "object_type": "USTA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🗣️"
     },
     {
       "id": "haydovchilik-maktabi",
@@ -737,7 +797,8 @@
         "ҳайдовчилик мактаби"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🚦"
     },
     {
       "id": "shaxsiy-haydovchi",
@@ -749,7 +810,8 @@
         "шахсий ҳайдовчи"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport"
+      "group": "Avtomobil va transport",
+      "emoji": "🚗"
     },
     {
       "id": "fotograf",
@@ -760,7 +822,8 @@
         "фотограф"
       ],
       "object_type": "USTA",
-      "group": "Tadbir va ijodiy xizmatlar"
+      "group": "Tadbir va ijodiy xizmatlar",
+      "emoji": "📷"
     },
     {
       "id": "videograf",
@@ -772,7 +835,8 @@
         "видеооператор"
       ],
       "object_type": "USTA",
-      "group": "Tadbir va ijodiy xizmatlar"
+      "group": "Tadbir va ijodiy xizmatlar",
+      "emoji": "🎥"
     },
     {
       "id": "tamada",
@@ -785,7 +849,8 @@
         "ведущий"
       ],
       "object_type": "USTA",
-      "group": "Tadbir va ijodiy xizmatlar"
+      "group": "Tadbir va ijodiy xizmatlar",
+      "emoji": "🎤"
     },
     {
       "id": "gulchi",
@@ -797,7 +862,8 @@
         "гулчи"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "💐"
     },
     {
       "id": "bogbon",
@@ -809,7 +875,8 @@
         "боғбон"
       ],
       "object_type": "USTA",
-      "group": "Uy xizmatlari va xavfsizlik"
+      "group": "Uy xizmatlari va xavfsizlik",
+      "emoji": "🌳"
     },
     {
       "id": "qorovul",
@@ -821,7 +888,8 @@
         "қоровул"
       ],
       "object_type": "USTA",
-      "group": "Uy xizmatlari va xavfsizlik"
+      "group": "Uy xizmatlari va xavfsizlik",
+      "emoji": "💂"
     },
     {
       "id": "mebel-dokoni",
@@ -832,7 +900,8 @@
         "мебел дўкони"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "🛋️"
     },
     {
       "id": "elektr-jihozlar-dokoni",
@@ -844,7 +913,8 @@
         "электроника"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "🔌"
     },
     {
       "id": "kiyim-dokoni",
@@ -856,7 +926,8 @@
         "кийим дўкони"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "👕"
     },
     {
       "id": "optika",
@@ -867,7 +938,8 @@
         "оптика"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Savdo do'konlari"
+      "group": "Savdo do'konlari",
+      "emoji": "👓"
     },
     {
       "id": "bolalar-boghchasi",
@@ -879,7 +951,8 @@
         "болалар боғчаси"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🧸"
     },
     {
       "id": "maktab",
@@ -890,7 +963,8 @@
         "мактаб"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🏫"
     },
     {
       "id": "fitnes-klub",
@@ -902,7 +976,8 @@
         "тренажёрный зал"
       ],
       "object_type": "MUASSASA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🏋️"
     },
     {
       "id": "sugurta-agenti",
@@ -914,7 +989,70 @@
         "страховой агент"
       ],
       "object_type": "USTA",
-      "group": "Ta'lim, huquq va moliya"
+      "group": "Ta'lim, huquq va moliya",
+      "emoji": "🛡️"
+    },
+    {
+      "id": "choyxona",
+      "name": "Choyxona",
+      "synonyms": [
+        "choyhona",
+        "milliy taomlar",
+        "чойхона",
+        "чойхана"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ovqatlanish joylari",
+      "emoji": "🍵"
+    },
+    {
+      "id": "restoran",
+      "name": "Restoran",
+      "synonyms": [
+        "restaran",
+        "restoran",
+        "ресторан"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ovqatlanish joylari",
+      "emoji": "🍽️"
+    },
+    {
+      "id": "kafe",
+      "name": "Kafe",
+      "synonyms": [
+        "kafe",
+        "cafe",
+        "кафе"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ovqatlanish joylari",
+      "emoji": "☕"
+    },
+    {
+      "id": "fast-food",
+      "name": "Fast Food",
+      "synonyms": [
+        "fastfud",
+        "tez tamoq",
+        "fast food",
+        "фаст фуд"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ovqatlanish joylari",
+      "emoji": "🍔"
+    },
+    {
+      "id": "oshxona",
+      "name": "Oshxona",
+      "synonyms": [
+        "osh markazi",
+        "milliy osh",
+        "ошхона"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ovqatlanish joylari",
+      "emoji": "🍲"
     }
   ],
   "olmaliq_landmarks": [

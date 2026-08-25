@@ -23,6 +23,14 @@ export interface SearchOptions {
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
 
+// Kategoriyada o'ziga xos emoji topilmasa, turi bo'yicha umumiy belgi ishlatiladi
+const DEFAULT_EMOJI_BY_OBJECT_TYPE: Record<string, string> = {
+  USTA: '🔧',
+  DOKON_OBYEKT: '🏪',
+  MUASSASA: '🏢',
+  TRANSPORT: '🚗',
+};
+
 // --- Yozilish xatolariga (typo) chidamli kategoriya moslashtirish ---
 // Foydalanuvchi "avtoelektirik" deb yozsa-yu, bazada "Avtoelektrik" deb
 // saqlangan bo'lsa, oddiy "contains" qidiruv topa olmaydi (bitta ortiqcha
@@ -350,6 +358,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // chiqargan bo'lsa ham, foydalanuvchiga toza va to'g'ri nom ko'rinadi).
   categoryDisplayName = bestMatch.category?.name || categoryDisplayName;
 
+  // Kategoriyaga mos ikonka (masalan santexnik -> 🚿, taksi -> 🚕) — har bir
+  // javob bir xil umumiy 🔧 belgisi bilan emas, aynan shu kasbga mos ko'rinadi.
+  // Kategoriyada o'ziga xos emoji bo'lmasa (masalan admin qo'lda qo'shgan yangi
+  // kategoriya), turi (Usta/Do'kon/Muassasa/Transport) bo'yicha umumiy belgi ishlatiladi.
+  const categoryEmoji = bestMatch.category?.emoji || DEFAULT_EMOJI_BY_OBJECT_TYPE[bestMatch.category?.objectType || ''] || '🔧';
+
   // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — TZ §3.5 namunasiga mos:
   // ikonka + qiymat, ortiqcha yorliqlarsiz. "Xalq atamalari" faqat qidiruv uchun,
   // foydalanuvchiga ko'rsatilmaydi.
@@ -362,7 +376,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     : '';
 
   const lines: string[] = [];
-  lines.push(`🔧 <b>${escapeHtml(categoryDisplayName)}</b>`);
+  lines.push(`${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>`);
   lines.push('');
   lines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
   if (landmarkText) lines.push(`📍 ${escapeHtml(landmarkText)}`);
@@ -377,7 +391,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   // Kompakt 1-7 ranked ro'yxat ("Yana ko'rish" tugmasi bosilganda ko'rsatiladi)
   const rankedListText =
-    `🔧 <b>${escapeHtml(categoryDisplayName)}</b> — top ${rankedTop.length} ta:\n\n` +
+    `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b> — top ${rankedTop.length} ta:\n\n` +
     rankedTop.map((s, i) => formatRankedLine(s.listing, i + 1, s.bayesianRating)).join('\n\n');
 
   const executionTimeMs = Date.now() - startTime;
