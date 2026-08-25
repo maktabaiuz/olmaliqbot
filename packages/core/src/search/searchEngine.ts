@@ -2,6 +2,15 @@ import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
 
+// Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
+// matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export interface SearchOptions {
   cityId: string;
   categoryName?: string | null;
@@ -175,27 +184,30 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const bestMatch = topMatches[0];
   const bestBayesianRating = scoredListings[0].bayesianRating;
 
-  // 5. Rich Group Response Format
-  const verifiedBadge = bestMatch.verification === 'VERIFIED' ? '✅ Tasdiqlangan' : '⚠️ Sinovda';
-  const ratingText = `⭐ ${bestBayesianRating.toFixed(1)}`;
+  // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — TZ §3.5 namunasiga mos:
+  // ikonka + qiymat, ortiqcha yorliqlarsiz. "Xalq atamalari" faqat qidiruv uchun,
+  // foydalanuvchiga ko'rsatilmaydi.
+  const verifiedIcon = bestMatch.verification === 'VERIFIED' ? '✅' : '⚠️';
   const landmarkText = bestMatch.primaryLandmark ? bestMatch.primaryLandmark.name : landmarkName || '';
-  
-  // Pretty format badges (e.g. uyga_boradi -> Uyga boradi)
+
+  // Belgilarni chiroyli ko'rinishga keltirish (masalan uyga_boradi -> Uyga boradi)
   const badgesText = Array.isArray(bestMatch.badges) && bestMatch.badges.length > 0
     ? bestMatch.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
     : '';
 
-  let formattedText = `🔧 **${categoryDisplayName.toUpperCase()}**\n\n`;
-  formattedText += `👤 **${bestMatch.name}** | ${verifiedBadge} (${ratingText})\n`;
-  if (landmarkText) formattedText += `📍 **Manzil / Mo'ljal:** ${landmarkText}\n`;
-  if (bestMatch.workFrom && bestMatch.workTo) formattedText += `🕒 **Ish vaqti:** ${bestMatch.workFrom} — ${bestMatch.workTo}\n`;
-  if (bestMatch.specificServices) formattedText += `🛠 **Xizmatlar:** ${bestMatch.specificServices}\n`;
-  if (bestMatch.approxPrice) formattedText += `💵 **Narxi:** ${bestMatch.approxPrice}\n`;
-  if (badgesText) formattedText += `🏷 **Xususiyatlar:** ${badgesText}\n`;
-  if (Array.isArray(bestMatch.jargonSynonyms) && bestMatch.jargonSynonyms.length > 0) {
-    formattedText += `💬 **Xalq atamalari:** ${bestMatch.jargonSynonyms.map((j: string) => '#' + j.trim()).join(' ')}\n`;
-  }
-  formattedText += `\n📞 **Telefon:** \`${bestMatch.phone}\``;
+  const lines: string[] = [];
+  lines.push(`🔧 <b>${escapeHtml(categoryDisplayName)}</b>`);
+  lines.push('');
+  lines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
+  if (landmarkText) lines.push(`📍 ${escapeHtml(landmarkText)}`);
+  if (bestMatch.workFrom && bestMatch.workTo) lines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
+  if (badgesText) lines.push(`🏷 ${escapeHtml(badgesText)}`);
+  if (bestMatch.specificServices) lines.push(`🛠 ${escapeHtml(bestMatch.specificServices)}`);
+  if (bestMatch.approxPrice) lines.push(`💵 ${escapeHtml(bestMatch.approxPrice)}`);
+  lines.push('');
+  lines.push(`📞 <code>${escapeHtml(bestMatch.phone)}</code>`);
+
+  const formattedText = lines.join('\n');
 
   const executionTimeMs = Date.now() - startTime;
 

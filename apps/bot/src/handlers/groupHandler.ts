@@ -74,6 +74,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // Javob savolga reply qilib yuboriladi
   const sentMsg = await ctx.reply(fullResponse, {
+    parse_mode: 'HTML',
     reply_parameters: { message_id: ctx.message.message_id },
     reply_markup: keyboard,
   });
