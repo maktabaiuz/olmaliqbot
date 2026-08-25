@@ -45,6 +45,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [workFrom, setWorkFrom] = useState('08:00');
   const [workTo, setWorkTo] = useState('20:00');
   const [badges, setBadges] = useState<string[]>([]);
+  const [jargonSynonyms, setJargonSynonyms] = useState<string[]>([]);
   const [specificServices, setSpecificServices] = useState('');
   const [approxPrice, setApproxPrice] = useState('');
   const [description, setDescription] = useState('');
@@ -65,6 +66,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [showBotModal, setShowBotModal] = useState(false);
   const [newBadgeInput, setNewBadgeInput] = useState('');
   const [showNewBadgeInput, setShowNewBadgeInput] = useState(false);
+  const [newJargonInput, setNewJargonInput] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const headers = {
@@ -93,6 +95,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setWorkFrom(l.workFrom || '08:00');
         setWorkTo(l.workTo || '20:00');
         setBadges(l.badges || []);
+        setJargonSynonyms(l.jargonSynonyms || []);
         setSpecificServices(l.specificServices || '');
         setApproxPrice(l.approxPrice || '');
         setDescription(l.description || '');
@@ -130,7 +133,8 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         specificServices !== (originalData.specificServices || '') ||
         approxPrice !== (originalData.approxPrice || '') ||
         description !== (originalData.description || '') ||
-        JSON.stringify(badges) !== JSON.stringify(originalData.badges || []))
+        JSON.stringify(badges) !== JSON.stringify(originalData.badges || []) ||
+        JSON.stringify(jargonSynonyms) !== JSON.stringify(originalData.jargonSynonyms || []))
   );
 
   // Save changes
@@ -149,6 +153,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           workFrom,
           workTo,
           badges,
+          jargonSynonyms,
           verification,
           status,
           specificServices,
@@ -222,6 +227,18 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const handleRemoveBadge = (bToRemove: string) => {
     setBadges(badges.filter(b => b !== bToRemove));
+  };
+
+  const handleAddJargon = () => {
+    const clean = newJargonInput.trim().toLowerCase();
+    if (clean && !jargonSynonyms.includes(clean)) {
+      setJargonSynonyms([...jargonSynonyms, clean]);
+      setNewJargonInput('');
+    }
+  };
+
+  const handleRemoveJargon = (wToRemove: string) => {
+    setJargonSynonyms(jargonSynonyms.filter(w => w !== wToRemove));
   };
 
   if (loading) {
@@ -503,6 +520,56 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                     + Qo'shish
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* JARGON / XALQ ATAMALARI */}
+            <div>
+              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                Jargon / xalq atamalari
+              </label>
+              <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
+                Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {jargonSynonyms.map((w) => (
+                  <span
+                    key={w}
+                    className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
+                  >
+                    {w}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveJargon(w)}
+                      className="hover:text-red-400 font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newJargonInput}
+                    onChange={e => setNewJargonInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddJargon();
+                      }
+                    }}
+                    placeholder="masalan: trubkachi"
+                    className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddJargon}
+                    className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 

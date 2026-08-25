@@ -21,6 +21,11 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [category, setCategory] = useState(() => initialCategory || localStorage.getItem('draft_category') || '');
   const [phone, setPhone] = useState(() => localStorage.getItem('draft_phone') || '+998 ');
   const [primaryLandmark, setPrimaryLandmark] = useState(() => localStorage.getItem('draft_landmark') || '');
+  const [jargonWords, setJargonWords] = useState<string[]>(() => {
+    const saved = localStorage.getItem('draft_jargonWords');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newJargonWord, setNewJargonWord] = useState('');
 
   const [workFrom, setWorkFrom] = useState(() => localStorage.getItem('draft_workFrom') || '08:00');
   const [workTo, setWorkTo] = useState(() => localStorage.getItem('draft_workTo') || '20:00');
@@ -65,6 +70,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_category', category);
     localStorage.setItem('draft_phone', phone);
     localStorage.setItem('draft_landmark', primaryLandmark);
+    localStorage.setItem('draft_jargonWords', JSON.stringify(jargonWords));
     localStorage.setItem('draft_workFrom', workFrom);
     localStorage.setItem('draft_workTo', workTo);
     localStorage.setItem('draft_badges', JSON.stringify(badges));
@@ -73,7 +79,15 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_approxPrice', approxPrice);
     localStorage.setItem('draft_description', description);
     localStorage.setItem('draft_consentGiven', String(consentGiven));
-  }, [name, category, phone, primaryLandmark, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven]);
+  }, [name, category, phone, primaryLandmark, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven]);
+
+  const handleAddJargonWord = () => {
+    const clean = newJargonWord.trim().toLowerCase();
+    if (clean && !jargonWords.includes(clean)) {
+      setJargonWords([...jargonWords, clean]);
+      setNewJargonWord('');
+    }
+  };
 
   // Duplicate checks
   useEffect(() => {
@@ -179,7 +193,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           addedByUserId: user?.id,
           consentGiven: true,
           consentDevice: navigator.userAgent || 'Unknown Mobile Device',
-          jargonSynonyms: [primaryLandmark.toLowerCase()],
+          jargonSynonyms: Array.from(new Set([...jargonWords, primaryLandmark.toLowerCase()])),
           approxPrice,
           specificServices,
           description,
@@ -192,6 +206,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         localStorage.removeItem('draft_category');
         localStorage.removeItem('draft_phone');
         localStorage.removeItem('draft_landmark');
+        localStorage.removeItem('draft_jargonWords');
         localStorage.removeItem('draft_workFrom');
         localStorage.removeItem('draft_workTo');
         localStorage.removeItem('draft_badges');
@@ -341,6 +356,49 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
             )}
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Jargon / xalq atamalari</label>
+            <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar bu usta/do'konni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
+            {jargonWords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {jargonWords.map(word => (
+                  <span key={word} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    {word}
+                    <button
+                      type="button"
+                      onClick={() => setJargonWords(jargonWords.filter(w => w !== word))}
+                      className="hover:text-red-500 text-[14px] leading-none"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newJargonWord}
+                onChange={(e) => setNewJargonWord(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddJargonWord();
+                  }
+                }}
+                placeholder="Masalan, trubkachi"
+                className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAddJargonWord}
+                className="bg-primary dark:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
+              >
+                Qo'shish
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Telefon raqami *</label>
             <input
@@ -465,6 +523,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               <div className="flex justify-between"><span className="text-slate-500">Ish vaqti:</span> <span className="font-bold text-on-surface dark:text-slate-100">{workFrom} - {workTo}</span></div>
               {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
               {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}
+              {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{w}</span>)}</div>}
             </div>
           </div>
 

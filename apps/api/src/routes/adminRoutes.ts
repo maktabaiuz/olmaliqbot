@@ -542,6 +542,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       specificServices,
       approxPrice,
       description,
+      jargonSynonyms,
     } = req.body;
 
     const existing = await db.listing.findUnique({ where: { id } });
@@ -587,6 +588,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(specificServices !== undefined && { specificServices }),
         ...(approxPrice !== undefined && { approxPrice }),
         ...(description !== undefined && { description }),
+        ...(Array.isArray(jargonSynonyms) && { jargonSynonyms }),
         categoryId,
         primaryLandmarkId,
         lastVerifiedAt: new Date(),
