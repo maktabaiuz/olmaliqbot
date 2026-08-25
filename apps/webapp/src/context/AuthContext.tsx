@@ -9,14 +9,20 @@ export interface AuthUser {
   cityName: string;
 }
 
-export type AuthState = 'CHECKING' | 'AUTHENTICATED' | 'ACCESS_DENIED' | 'REQUIRES_PASSWORD' | 'REQUIRES_SETUP';
+export type AuthState = 'CHECKING' | 'AUTHENTICATED' | 'ACCESS_DENIED' | 'REQUIRES_PASSWORD' | 'REQUIRES_SETUP' | 'BANNED';
+
+export interface LoginResult {
+  success: boolean;
+  message?: string;
+}
 
 interface AuthContextType {
   user: AuthUser | null;
   authState: AuthState;
+  banMessage: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  loginWithPassword: (password: string) => Promise<boolean>;
+  loginWithPassword: (password: string) => Promise<LoginResult>;
   setupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -26,6 +32,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authState, setAuthState] = useState<AuthState>('CHECKING');
+  const [banMessage, setBanMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -77,7 +84,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Parol talab qilinishi har doim ustuvor tekshiriladi — aks holda
           // "success:true + user" mavjudligi parolni chetlab o'tib, foydalanuvchini
           // parol kiritmasdan turib "kirgan" deb hisoblab qo'yishi mumkin edi.
-          if (data.requiresSetup) {
+          if (data.banned) {
+            setBanMessage(data.bannedMessage || "Vaqtincha bloklangan.");
+            setAuthState('BANNED');
+          } else if (data.requiresSetup) {
             setAuthState('REQUIRES_SETUP');
           } else if (data.requiresPassword) {
             setAuthState('REQUIRES_PASSWORD');
@@ -104,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const loginWithPassword = async (password: string): Promise<boolean> => {
+  const loginWithPassword = async (password: string): Promise<LoginResult> => {
     try {
       const tgData = window.Telegram?.WebApp?.initData;
       const res = await fetch('/api/auth/login', {
@@ -113,18 +123,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ initData: tgData, password }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setUser(data.user);
-          setAuthState('AUTHENTICATED');
-          return true;
-        }
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success && data.user) {
+        setUser(data.user);
+        setAuthState('AUTHENTICATED');
+        return { success: true };
       }
+
+      if (data.banned) {
+        setBanMessage(data.message || "Vaqtincha bloklangan.");
+        setAuthState('BANNED');
+        return { success: false, message: data.message };
+      }
+
+      return { success: false, message: data.message };
     } catch (err) {
       console.error('Password login failed:', err);
+      return { success: false };
     }
-    return false;
   };
 
   const setupPassword = async (oneTimePass: string, newPass: string): Promise<boolean> => {
@@ -160,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         authState,
+        banMessage,
         isAuthenticated: authState === 'AUTHENTICATED' && !!user,
         isLoading,
         loginWithPassword,

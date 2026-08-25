@@ -4,6 +4,18 @@ import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonica
 import crypto from 'crypto';
 import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
 
+// Login bloklanish muddatini o'qishga qulay shaklga o'tkazadi (masalan "2 kun 5 soat")
+function formatRemainingTime(until: Date): string {
+  const ms = until.getTime() - Date.now();
+  if (ms <= 0) return 'bir necha soniya';
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  if (days > 0) return `${days} kun ${hours} soat`;
+  if (hours > 0) return `${hours} soat`;
+  const minutes = Math.max(1, Math.floor(ms / (60 * 1000)));
+  return `${minutes} daqiqa`;
+}
+
 export async function adminRoutes(fastify: FastifyInstance) {
   const SUPER_ADMIN_IDS = [BigInt(6355516451), BigInt(8323651390), BigInt(5369180248)];
   const isSuperAdminId = (id?: bigint | null) => (id ? SUPER_ADMIN_IDS.some((a) => a === id) : false);
@@ -85,6 +97,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
             cityName: 'Olmaliq',
           };
 
+      // Ko'p marta xato parol kiritilgan bo'lsa — parol ekranini ko'rsatishdan
+      // oldin ham bloklanganini bildiramiz (foydalanuvchi behuda urinmasin)
+      const loginAttempt = await db.loginAttempt.findUnique({ where: { telegramId: telegramUserId } });
+      if (loginAttempt?.bannedUntil && loginAttempt.bannedUntil > new Date()) {
+        return {
+          success: true,
+          banned: true,
+          bannedMessage: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(loginAttempt.bannedUntil)} keyin qayta urining.`,
+          user: userInfo,
+        };
+      }
+
       // Faqat oldindan taklif qilingan (moderator) va hali parol qo'ymagan
       // foydalanuvchi "parol o'rnatish" ekraniga yo'naltiriladi. Qolgan barcha
       // holatda — oddiy parol kirish ekrani ko'rsatiladi.
@@ -118,9 +142,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram imzo (HMAC) xatosi 🔒' });
     }
 
+    // 0. Brute-force himoyasi: 2 marta xato parol kiritilsa, 3 kunga bloklanadi.
+    const existingAttempt = await db.loginAttempt.findUnique({ where: { telegramId } });
+    if (existingAttempt?.bannedUntil && existingAttempt.bannedUntil > new Date()) {
+      return reply.status(403).send({
+        success: false,
+        banned: true,
+        message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(existingAttempt.bannedUntil)} keyin qayta urining.`,
+      });
+    }
+
     // 1. Yagona admin paroli (.env: ADMIN_PASSWORD) — to'g'ri kiritilsa, shu Telegram
     // foydalanuvchisi to'liq admin huquqi bilan yoziladi/yangilanadi.
     const adminPassword = process.env.ADMIN_PASSWORD;
+    let resultUser: any = null;
+
     if (adminPassword && password === adminPassword) {
       const olmaliq = await db.city.findFirst({ where: { slug: 'olmaliq' } });
       const dbUser = await db.user.upsert({
@@ -137,42 +173,50 @@ export async function adminRoutes(fastify: FastifyInstance) {
         },
         include: { city: true },
       });
+      resultUser = dbUser;
+    } else {
+      // 2. Oldindan tayinlangan (masalan moderator) shaxsiy paroli
+      const dbUser = await db.user.findUnique({ where: { telegramId }, include: { city: true } });
+      if (dbUser && dbUser.role !== 'USER' && !dbUser.isSuspended && dbUser.passwordHash && verifyPassword(password, dbUser.passwordHash)) {
+        resultUser = dbUser;
+      }
+    }
 
+    if (resultUser) {
+      // To'g'ri parol — oldingi xato urinishlar hisobi tozalanadi
+      if (existingAttempt) {
+        await db.loginAttempt.delete({ where: { telegramId } }).catch(() => {});
+      }
       return {
         success: true,
         user: {
-          id: dbUser.id,
-          telegramId: dbUser.telegramId.toString(),
-          name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
-          role: dbUser.role,
-          cityId: dbUser.cityId || 'default_city',
-          cityName: dbUser.city?.name || 'Olmaliq',
+          id: resultUser.id,
+          telegramId: resultUser.telegramId.toString(),
+          name: `${resultUser.firstName || ''} ${resultUser.lastName || ''}`.trim() || 'Admin',
+          role: resultUser.role,
+          cityId: resultUser.cityId || 'default_city',
+          cityName: resultUser.city?.name || 'Olmaliq',
         },
       };
     }
 
-    // 2. Oldindan tayinlangan (masalan moderator) shaxsiy paroli
-    const dbUser = await db.user.findUnique({
+    // Xato parol — urinishlar sonini oshiramiz, 2 taga yetsa 3 kunga bloklaymiz
+    const newFailedCount = (existingAttempt?.failedCount || 0) + 1;
+    const shouldBan = newFailedCount >= 2;
+    const bannedUntil = shouldBan ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
+
+    await db.loginAttempt.upsert({
       where: { telegramId },
-      include: { city: true },
+      update: { failedCount: shouldBan ? 0 : newFailedCount, bannedUntil, lastAttemptAt: new Date() },
+      create: { telegramId, failedCount: shouldBan ? 0 : newFailedCount, bannedUntil },
     });
 
-    if (!dbUser || dbUser.role === 'USER' || dbUser.isSuspended) {
-      return reply.status(401).send({ success: false, message: "Parol noto'g'ri!" });
-    }
-
-    if (dbUser.passwordHash && verifyPassword(password, dbUser.passwordHash)) {
-      return {
-        success: true,
-        user: {
-          id: dbUser.id,
-          telegramId: dbUser.telegramId.toString(),
-          name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
-          role: dbUser.role,
-          cityId: dbUser.cityId || 'default_city',
-          cityName: dbUser.city?.name || 'Olmaliq',
-        },
-      };
+    if (shouldBan) {
+      return reply.status(403).send({
+        success: false,
+        banned: true,
+        message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(bannedUntil!)} keyin qayta urining.`,
+      });
     }
 
     return reply.status(401).send({ success: false, message: "Parol noto'g'ri!" });

@@ -109,6 +109,18 @@ model CityGroup {
   @@map("city_groups")
 }
 
+// Admin panel login urinishlarini kuzatish — 2 marta xato parol kiritilsa,
+// 3 kunga bloklanadi (brute-force himoyasi). telegramId bo'yicha kuzatiladi,
+// shuning uchun hali User jadvalida yo'q shaxslarning urinishlari ham hisobga olinadi.
+model LoginAttempt {
+  telegramId    BigInt    @id
+  failedCount   Int       @default(0)
+  bannedUntil   DateTime?
+  lastAttemptAt DateTime  @default(now())
+
+  @@map("login_attempts")
+}
+
 model User {
   id            String   @id @default(uuid())
   telegramId    BigInt   @unique

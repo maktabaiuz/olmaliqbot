@@ -38,7 +38,7 @@ export interface AppProps {
 
 const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const { theme, toggleTheme } = useTheme();
-  const { user, authState, isLoading, loginWithPassword, setupPassword } = useAuth();
+  const { user, authState, banMessage, isLoading, loginWithPassword, setupPassword } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
   // Navigation & Control States
@@ -110,6 +110,20 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
           return await loginWithPassword(pass);
         }}
       />
+    );
+  }
+
+  if (authState === 'BANNED') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
+        <div className="bg-slate-800/90 border border-red-500/30 rounded-2xl p-7 max-w-sm w-full shadow-2xl backdrop-blur-md text-center">
+          <div className="w-14 h-14 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-red-400 text-2xl shadow-inner">
+            🚫
+          </div>
+          <h1 className="text-lg font-bold mb-2 text-slate-100">Vaqtincha bloklangan</h1>
+          <p className="text-slate-400 text-xs">{banMessage || 'Ko\'p marta xato parol kiritildi.'}</p>
+        </div>
+      </div>
     );
   }
 

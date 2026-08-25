@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 export interface LoginScreenProps {
   adminName?: string;
-  onLogin: (password: string) => Promise<boolean>;
+  onLogin: (password: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -21,9 +21,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setError(null);
 
     try {
-      const success = await onLogin(password);
-      if (!success) {
-        setError("Parol noto'g'ri. Qayta urinib ko'ring.");
+      const result = await onLogin(password);
+      if (!result.success) {
+        setError(result.message || "Parol noto'g'ri. Qayta urinib ko'ring.");
       }
     } catch (err: any) {
       setError("Autentifikatsiya xatoligi yuz berdi.");
