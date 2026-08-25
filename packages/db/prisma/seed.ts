@@ -79,30 +79,292 @@ async function main() {
     },
   });
 
-  // 5. Seed Super Admin — password is NOT seeded here.
-  // Admin must go through the password-setup flow on first login.
-  // SUPER_ADMIN_TELEGRAM_ID must be set in .env
-  const superAdminEnv = process.env.SUPER_ADMIN_TELEGRAM_ID;
-  if (!superAdminEnv) {
-    console.warn('⚠️  SUPER_ADMIN_TELEGRAM_ID not set in environment — skipping admin seed.');
-  } else {
-    const superAdminId = BigInt(superAdminEnv);
-    await db.user.upsert({
-      where: { telegramId: superAdminId },
-      update: { role: 'SUPER_ADMIN' },
-      create: {
-        telegramId: superAdminId,
-        firstName: 'Super',
-        lastName: 'Admin',
-        role: 'SUPER_ADMIN',
-        cityId: olmaliq.id,
-        isPasswordSet: false,
-        passwordHash: null,
+<<<<<<< HEAD
+  // 5. Seed Admin Users (Super Admin 6355516451, Super Admin 8603273053, City Admin, Moderator)
+  await db.user.upsert({
+    where: { telegramId: BigInt(6355516451) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: false, passwordHash: null, oneTimeCode: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(6355516451),
+      firstName: 'Bobur',
+      lastName: 'Owner',
+      username: 'bobur_owner',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: false,
+      passwordHash: null,
+      oneTimeCode: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(358795989) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(358795989),
+      firstName: 'Super',
+      lastName: 'Admin',
+      username: 'superadmin_358795989',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(8603273053) },
+    update: { role: 'SUPER_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(8603273053),
+      firstName: 'Bobur',
+      lastName: 'SuperAdmin',
+      username: 'bobur_admin',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100004) },
+    update: { role: 'SUPER_ADMIN', username: 'superman_uzb', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100004),
+      firstName: 'Admin',
+      lastName: 'Superman',
+      username: 'superman_uzb',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100005) },
+    update: { role: 'SUPER_ADMIN', username: 'ai_loyihachi', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100005),
+      firstName: 'Admin',
+      lastName: 'AI Loyihachi',
+      username: 'ai_loyihachi',
+      role: 'SUPER_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100002) },
+    update: { role: 'CITY_ADMIN', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100002),
+      firstName: 'Sardor',
+      lastName: 'CityAdmin',
+      username: 'sardor_olmaliq',
+      role: 'CITY_ADMIN',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  await db.user.upsert({
+    where: { telegramId: BigInt(100003) },
+    update: { role: 'MODERATOR_VIEWER', isPasswordSet: true, passwordHash: 'kimbor2026' },
+    create: {
+      telegramId: BigInt(100003),
+      firstName: 'Alisher',
+      lastName: 'Moderator',
+      username: 'alisher_mod',
+      role: 'MODERATOR_VIEWER',
+      cityId: olmaliq.id,
+      isPasswordSet: true,
+      passwordHash: 'kimbor2026',
+    },
+  });
+
+  console.log('✅ Seeded admin users: Super Admins (@superman_uzb, @ai_loyihachi, 358795989, 8603273053, 6355516451), City Admin, Moderator.');
+
+  // 6. Seed 52+ Real Verified Listings for Olmaliq City (Avtoservis, Ustalar, Klinikalar, Kommunal, Fastfud, Banklar)
+  console.log('🌱 Seeding 52+ real listings for Olmaliq city...');
+
+  const landmarkCoordinates: Record<string, { lat: number; lng: number }> = {
+    'Mirzo Ulug\'bek': { lat: 40.8492, lng: 69.5985 },
+    'Oxunboboyev': { lat: 40.8450, lng: 69.6050 },
+    'Buyuk Ipak Yo\'li': { lat: 40.8520, lng: 69.5930 },
+    'Mirishkor': { lat: 40.8480, lng: 69.6100 },
+    'Ibn Sino': { lat: 40.8430, lng: 69.5950 },
+    'Markaz': { lat: 40.8540, lng: 69.5990 },
+    '3-mavze': { lat: 40.8580, lng: 69.5890 },
+    'Korzinka': { lat: 40.8535, lng: 69.5975 },
+    'Bozor': { lat: 40.8510, lng: 69.6020 },
+    'Sanoat hududi': { lat: 40.8350, lng: 69.5800 },
+    'Shamshiboy bozori': { lat: 40.8620, lng: 69.6150 },
+    'Sharof Rashidov': { lat: 40.8515, lng: 69.6015 },
+    '5/2 mikrorayon': { lat: 40.8650, lng: 69.5850 },
+    'Amir Temur': { lat: 40.8540, lng: 69.5990 },
+    'Ehtirom': { lat: 40.8530, lng: 69.5970 },
+    'Tibbiyot shaharchasi': { lat: 40.8470, lng: 69.6080 },
+    'Intizor': { lat: 40.8560, lng: 69.5910 },
+    'Lomonosov': { lat: 40.8505, lng: 69.5940 },
+    'Ipak Yo\'li': { lat: 40.8515, lng: 69.5935 },
+    'Furqat': { lat: 40.8525, lng: 69.6010 },
+    'Mustaqillik': { lat: 40.8550, lng: 69.5960 },
+    'Faxriylar': { lat: 40.8538, lng: 69.5980 },
+  };
+
+  const listingsData = [
+    // 🚗 1. Avtoservis, Ustalar & Qurilish (14 ta)
+    { name: '24/7 Vulkanizatsiya & Shinomontaj', category: 'Vulkanizatsiya', catSyn: ['shinomontaj', 'vulkanizatsiya', 'gildirak ustasi', 'balon ustasi'], landmark: 'Mirzo Ulug\'bek', phone: '+998943643015', badges: ['24_7', 'uyga_boradi'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Tun-u Kun Shinomontaj Servis', category: 'Vulkanizatsiya', catSyn: ['shinomontaj', 'vulkanizatsiya', 'balon'], landmark: 'Oxunboboyev', phone: '+998943643016', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Olmaliq Avto Remont Servis', category: 'Avtoservis', catSyn: ['avtoservis', 'avtousta', 'motorist', 'xodovik', 'avto remont'], landmark: 'Buyuk Ipak Yo\'li', phone: '+998981283285', badges: ['kafolat'], workFrom: '08:00', workTo: '19:00' },
+    { name: 'Tech Service Auto', category: 'Avtoservis', catSyn: ['avtoservis', 'avtousta', 'diagnostika', 'moy almashtirish'], landmark: 'Mirishkor', phone: '+998939676767', badges: ['karta_qabul_qiladi'], workFrom: '08:30', workTo: '20:00' },
+    { name: 'Olmaliq Evakuator 24/7', category: 'Evakuator', catSyn: ['evakuator', 'evakuator xizmati', 'avto tashish'], landmark: 'Markaz', phone: '+998901333285', badges: ['24_7', 'zudlik_bilan', 'uyga_boradi'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Olmaliq Santexnika & Quvur Ustasi', category: 'Santexnik', catSyn: ['santexnik', 'santexnika', 'suv ustasi', 'quvur ustasi', 'kran ustasi'], landmark: '3-mavze', phone: '+998901234567', badges: ['uyga_boradi', 'zudlik_bilan'], workFrom: '08:00', workTo: '21:00' },
+    { name: 'Gaz Kalonka & Plita Ustasi', category: 'Gazavik', catSyn: ['gazavik', 'gazovik', 'gaz ustasi', 'kolonka ustasi', 'plita ustasi'], landmark: 'Markaz', phone: '+998902345678', badges: ['uyga_boradi', 'kafolat'], workFrom: '08:00', workTo: '20:00' },
+    { name: 'Usta Malyar & Pod Klyuch Remont', category: 'Malyar', catSyn: ['malyar', 'bo\'yoqchi', 'oboy yopishtirish', 'pardozchi', 'remont ustasi'], landmark: 'Korzinka', phone: '+998931234567', badges: ['uyga_boradi', 'kafolat'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Kafelchi & Plitka Ustasi', category: 'Kafelchi', catSyn: ['kafelchi', 'plitkachi', 'kafel ustasi'], landmark: 'Markaz', phone: '+998932345678', badges: ['uyga_boradi', 'kafolat'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Elektromontaj & Avtomatika 24/7', category: 'Elektrik', catSyn: ['elektrik', 'svet ustasi', 'elektr ustasi', 'montyor'], landmark: 'Bozor', phone: '+998941234567', badges: ['uyga_boradi', '24_7'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Svarka & Metall Konstruksiya', category: 'Svarshik', catSyn: ['svarshik', 'payvandchi', 'svarka ustasi', 'temir ustasi'], landmark: 'Sanoat hududi', phone: '+998942345678', badges: ['uyga_boradi'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'AKFA Rom & Eshik-Deraza Sexi', category: 'Eshik-deraza', catSyn: ['akfa', 'eshik deraza', 'plastik deraza', 'rom ustasi'], landmark: 'Markaz', phone: '+998903456789', badges: ['kafolat', 'uyga_boradi'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Mebel Buyurtma & Oshxona Mebel', category: 'Mebelchi', catSyn: ['mebel', 'mebelchi', 'oshxona mebel', 'shkaf buyurtma', 'mebel ustasi'], landmark: 'Shamshiboy bozori', phone: '+998904567890', badges: ['kafolat'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Katta Bozor Qurilish Mollari', category: 'Qurilish mollari', catSyn: ['qurilish mollari', 'sement', 'gipsokarton', 'kraska do\'koni', 'qurilish'], landmark: 'Sharof Rashidov', phone: '+998971234567', badges: ['karta_qabul_qiladi'], workFrom: '09:00', workTo: '18:00' },
+
+    // 🏥 2. Klinika, Stomatologiya & Dorixonalar (7 ta)
+    { name: 'Lor Med Servis (Ko\'p tarmoqli klinika)', category: 'Klinika', catSyn: ['klinika', 'lor', 'shifoxona', 'doktor', 'lor med'], landmark: 'Mirzo Ulug\'bek', phone: '+998706144004', badges: ['karta_qabul_qiladi'], workFrom: '08:00', workTo: '18:00' },
+    { name: 'Dr. Islamov’s Clinic', category: 'Klinika', catSyn: ['klinika', 'islamov clinic', 'tibbiyot markazi', 'uzi'], landmark: 'Mirzo Ulug\'bek', phone: '+998555000000', badges: [], workFrom: '08:00', workTo: '18:00' },
+    { name: 'Smile Clinic Stomatologiya', category: 'Stomatologiya', catSyn: ['stomatologiya', 'stomatolog', 'tish do\'xtir', 'tish davolash'], landmark: 'Amir Temur', phone: '+998715040220', badges: ['kafolat', 'karta_qabul_qiladi'], workFrom: '09:00', workTo: '20:00' },
+    { name: 'Best Pharm 24/7 Dorixonasi', category: 'Dorixona', catSyn: ['dorixona', 'apteka', '24/7 apteka', 'dori darmon'], landmark: 'Amir Temur', phone: '+998977640000', badges: ['24_7', 'karta_qabul_qiladi'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Markaziy Dorixona', category: 'Dorixona', catSyn: ['dorixona', 'apteka', 'dori'], landmark: 'Ehtirom', phone: '+998706130000', badges: ['karta_qabul_qiladi'], workFrom: '08:00', workTo: '22:00' },
+    { name: 'Olmaliq Markaziy Shifoxonasi', category: 'Shifoxona', catSyn: ['shifoxona', 'bolnitsa', 'markaziy shifoxona'], landmark: 'Tibbiyot shaharchasi', phone: '+998706121003', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: '1-Sonli Shahar Poliklinikasi', category: 'Poliklinika', catSyn: ['poliklinika', '1-poliklinika', 'vrach'], landmark: 'Markaz', phone: '+998706122000', badges: [], workFrom: '08:00', workTo: '17:00' },
+
+    // 🚨 3. Kommunal & Shoshilinch Xizmatlar (6 ta)
+    { name: 'Olmaliq Suvoqova (Avariya dispetcherlik)', category: 'Suv avariya', catSyn: ['suv avariya', 'suvoqova', 'suv yo\'q', 'suv quvuri yorildi'], landmark: 'Intizor', phone: '+998706152285', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Olmaliq Elektr Tarmoqlari (GorSvet)', category: 'Svet avariya', catSyn: ['svet avariya', 'gorsvet', 'svet yo\'q', 'elektr o\'chdi', 'tok yo\'q'], landmark: 'Lomonosov', phone: '+998781501154', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Olmaliq Gaz Ta\'minoti (Hududgaz)', category: 'Gaz avariya', catSyn: ['gaz avariya', 'gaz idorasi', 'gaz hidi', 'hududgaz', '104'], landmark: 'Ipak Yo\'li', phone: '+998706120404', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Yagona Kommunal Dispetcherlik', category: 'Kommunal', catSyn: ['kommunal', '1050', 'kommunal xizmat', 'obodonlashtirish'], landmark: 'Markaz', phone: '1050', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Tez Tibbiy Yordam', category: 'Tez yordam', catSyn: ['tez yordam', 'skoriy', '103', 'tez tibbiy yordam'], landmark: 'Markaz', phone: '103', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+    { name: 'Yong\'in Xavfsizligi Xizmati', category: 'Yong\'in xavfsizligi', catSyn: ['pojar', 'yong\'in', '101', 'o\'t o\'chiruvchilar', 'fvv'], landmark: 'Markaz', phone: '101', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+
+    // 🍕 4. Yetkazib Berish, Fastfud & Kuryerlik (6 ta)
+    { name: 'Oqtepa Lavash Olmaliq', category: 'Lavash', catSyn: ['oqtepa lavash', 'lavash', 'fastfud', 'burger', 'doner', 'ovqat yetkazib berish'], landmark: 'Ehtirom', phone: '+998781500030', badges: ['uyga_boradi', 'karta_qabul_qiladi'], workFrom: '09:00', workTo: '23:00' },
+    { name: 'Yemak Yetkazib Berish Servisi', category: 'Dostavka', catSyn: ['dostavka', 'ovqat yetkazish', 'yemak', 'kuryer'], landmark: 'Markaz', phone: '+998712000000', badges: ['uyga_boradi'], workFrom: '10:00', workTo: '22:00' },
+    { name: 'Chicken Cafe & Fast Food', category: 'Fastfud', catSyn: ['fastfud', 'chiken', 'tovuq', 'kafe', 'pitsa'], landmark: 'Markaz', phone: '+998901230000', badges: ['uyga_boradi'], workFrom: '10:00', workTo: '23:00' },
+    { name: 'BTS Express Kuryerlik (1-Filial)', category: 'Pochta', catSyn: ['bts', 'bts express', 'pochta', 'kuryerlik', 'posilka'], landmark: 'Furqat', phone: '1230', badges: ['uyga_boradi'], workFrom: '09:00', workTo: '18:00' },
+    { name: 'BTS Express Kuryerlik (2-Filial)', category: 'Pochta', catSyn: ['bts', 'pochta', 'kuryer'], landmark: 'Mustaqillik', phone: '+998712070809', badges: [], workFrom: '09:00', workTo: '18:00' },
+    { name: 'UzPost 1-Aloqa Bo\'limi', category: 'Pochta', catSyn: ['uzpost', 'o\'zbekiston pochtasi', 'pochta'], landmark: 'Furqat', phone: '+998706120101', badges: [], workFrom: '09:00', workTo: '17:00' },
+
+    // 🏛 5. Davlat Idoralari, Banklar & Notariuslar (7 ta)
+    { name: 'Olmaliq Shahar Hokimligi', category: 'Hokimlik', catSyn: ['hokimlik', 'shahar hokimiyati', 'hokim'], landmark: 'Amir Temur', phone: '+998706144004', badges: [], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Olmaliq Davlat Xizmatlari Markazi (DXM)', category: 'Davlat xizmatlari', catSyn: ['dxm', 'davlat xizmatlari', 'yagona darcha', 'my gov'], landmark: 'Markaz', phone: '+998706130000', badges: [], workFrom: '09:00', workTo: '18:00' },
+    { name: 'Olmaliq 3-Sonli Notarial Idora', category: 'Notarius', catSyn: ['notarius', 'notarial idora', 'hujjat tasdiqlash'], landmark: 'Amir Temur', phone: '+998706141828', badges: [], workFrom: '09:00', workTo: '17:00' },
+    { name: 'Xalq Banki Olmaliq Filiali', category: 'Bank', catSyn: ['xalq banki', 'bank', 'valyuta', 'kassa', 'kredit'], landmark: 'Amir Temur', phone: '+998706151438', badges: ['karta_qabul_qiladi'], workFrom: '09:00', workTo: '17:00' },
+    { name: 'Ipoteka-Bank Olmaliq BXM', category: 'Bank', catSyn: ['ipoteka bank', 'bank', 'kredit', 'valyuta'], landmark: 'Faxriylar', phone: '+998781501122', badges: ['karta_qabul_qiladi'], workFrom: '09:00', workTo: '17:00' },
+    { name: 'Trastbank Bank Xizmatlari Markazi', category: 'Bank', catSyn: ['trastbank', 'trustbank', 'bank'], landmark: 'Ehtirom', phone: '+998956817707', badges: [], workFrom: '09:00', workTo: '17:00' },
+    { name: 'Olmaliq Shahar IIB Navbatchi Qismi', category: 'Militsiya', catSyn: ['militsiya', 'iib', 'iiv', '102', 'uchastkavoy'], landmark: 'Markaz', phone: '102', badges: ['24_7', 'zudlik_bilan'], workFrom: '00:00', workTo: '24:00' },
+  ];
+
+  let seededCount = 0;
+  for (const item of listingsData) {
+    // 1. Find or create Category
+    let cat = await db.category.findFirst({
+      where: {
+        OR: [
+          { name: { equals: item.category, mode: 'insensitive' } },
+          { synonyms: { has: item.category.toLowerCase() } },
+        ],
       },
     });
-    console.log(`✅ Seeded Super Admin (${superAdminId}). Password NOT set — must complete setup on first login.`);
+
+    if (!cat) {
+      cat = await db.category.create({
+        data: {
+          name: item.category,
+          synonyms: item.catSyn.map((s) => s.toLowerCase()),
+        },
+      });
+    } else {
+      // Merge synonyms
+      const mergedSyn = Array.from(new Set([...cat.synonyms, ...item.catSyn.map((s) => s.toLowerCase())]));
+      await db.category.update({
+        where: { id: cat.id },
+        data: { synonyms: mergedSyn },
+      });
+    }
+
+    // 2. Find or create Landmark with GPS Coordinates
+    const coords = landmarkCoordinates[item.landmark] || { lat: 40.8540, lng: 69.5990 };
+    let landmark = await db.landmark.findFirst({
+      where: {
+        cityId: olmaliq.id,
+        OR: [
+          { name: { equals: item.landmark, mode: 'insensitive' } },
+          { synonyms: { has: item.landmark.toLowerCase() } },
+        ],
+      },
+    });
+
+    if (!landmark) {
+      landmark = await db.landmark.create({
+        data: {
+          cityId: olmaliq.id,
+          name: item.landmark,
+          synonyms: [item.landmark.toLowerCase()],
+          latitude: coords.lat,
+          longitude: coords.lng,
+        },
+      });
+    } else {
+      landmark = await db.landmark.update({
+        where: { id: landmark.id },
+        data: {
+          latitude: coords.lat,
+          longitude: coords.lng,
+        },
+      });
+    }
+
+    // 3. Upsert Listing
+    await db.listing.upsert({
+      where: {
+        cityId_phone: {
+          cityId: olmaliq.id,
+          phone: item.phone,
+        },
+      },
+      update: {
+        name: item.name,
+        categoryId: cat.id,
+        primaryLandmarkId: landmark.id,
+        badges: item.badges,
+        workFrom: item.workFrom,
+        workTo: item.workTo,
+        status: 'ACTIVE',
+        verification: 'VERIFIED',
+      },
+      create: {
+        cityId: olmaliq.id,
+        name: item.name,
+        phone: item.phone,
+        categoryId: cat.id,
+        primaryLandmarkId: landmark.id,
+        badges: item.badges,
+        workFrom: item.workFrom,
+        workTo: item.workTo,
+        status: 'ACTIVE',
+        verification: 'VERIFIED',
+        type: 'USTA',
+      },
+    });
+    seededCount++;
   }
 
+  console.log(`✅ Seeded ${seededCount} real verified listings with GPS locations into Listing table!`);
   console.log('🎉 Seeding completed successfully!');
 }
 

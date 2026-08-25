@@ -376,8 +376,24 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   lines.push(`${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>`);
   lines.push('');
   lines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
-  if (landmarkText) lines.push(`📍 ${escapeHtml(landmarkText)}`);
-  if (bestMatch.workFrom && bestMatch.workTo) lines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
+  
+  if (landmarkText) {
+    if (bestMatch.primaryLandmark?.latitude && bestMatch.primaryLandmark?.longitude) {
+      const mapUrl = `https://yandex.uz/maps/?pt=${bestMatch.primaryLandmark.longitude},${bestMatch.primaryLandmark.latitude}&z=16&l=map`;
+      lines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a> 🗺`);
+    } else {
+      lines.push(`📍 ${escapeHtml(landmarkText)}`);
+    }
+  }
+
+  if (bestMatch.workFrom && bestMatch.workTo) {
+    if (bestMatch.workFrom === '00:00' && (bestMatch.workTo === '24:00' || bestMatch.workTo === '23:59')) {
+      lines.push(`🕐 24/7 (Tunu-kun)`);
+    } else {
+      lines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
+    }
+  }
+
   if (badgesText) lines.push(`🏷 ${escapeHtml(badgesText)}`);
   if (bestMatch.specificServices) lines.push(`🛠 ${escapeHtml(bestMatch.specificServices)}`);
   if (bestMatch.approxPrice) lines.push(`💵 ${escapeHtml(bestMatch.approxPrice)}`);

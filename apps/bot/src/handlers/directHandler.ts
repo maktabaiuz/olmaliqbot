@@ -18,8 +18,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
 
   const userId = ctx.from.id;
   const telegramUserIdBigInt = BigInt(userId);
-  const superAdminIds = [BigInt(6355516451), BigInt(8323651390)];
-  const isSuperAdmin = superAdminIds.some((id) => id === telegramUserIdBigInt);
+  const username = (ctx.from.username || '').toLowerCase().replace('@', '');
+  const superAdminIds = [BigInt(358795989), BigInt(6355516451), BigInt(8323651390), BigInt(8603273053)];
+  const superAdminUsernames = ['superman_uzb', 'ai_loyihachi', 'bobur_owner', 'bobur_admin'];
+  const isSuperAdmin = superAdminIds.some((id) => id === telegramUserIdBigInt) || superAdminUsernames.includes(username);
 
   // Retrieve user session
   let session = userSessions[userId];
@@ -172,10 +174,15 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     return;
   }
 
-  // Build result response with Copy Phone button
+  // Build result response with Copy Phone and Map button
   const resultKeyboard = new InlineKeyboard()
-    .text('📋 Raqamni nusxalash', `copy_phone_${searchResult.listing.phone}`)
-    .row();
+    .text('📋 Raqamni nusxalash', `copy_phone_${searchResult.listing.phone}`);
+
+  if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
+    const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
+    resultKeyboard.url('📍 Xarita', mapUrl);
+  }
+  resultKeyboard.row();
 
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.rankedListText);
