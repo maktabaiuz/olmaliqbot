@@ -23,6 +23,84 @@ export interface SearchOptions {
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
 
+// --- Yozilish xatolariga (typo) chidamli kategoriya moslashtirish ---
+// Foydalanuvchi "avtoelektirik" deb yozsa-yu, bazada "Avtoelektrik" deb
+// saqlangan bo'lsa, oddiy "contains" qidiruv topa olmaydi (bitta ortiqcha
+// harf butun so'zni buzadi). Levenshtein masofasi orqali "yetarlicha yaqin"
+// so'zlarni ham moslashtiramiz.
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+// Xabar matnidan qidiruv "nomzod"larini ajratib oladi: har bir so'z, va
+// qo'shni 2 so'zning bo'shliqsiz birikmasi ("avto elektrik" -> "avtoelektrik")
+// — shu orqali so'z ajratilgan yoki qo'shib yozilgan variantlarning farqi
+// muammo bo'lmaydi.
+function extractFuzzyCandidates(text: string): string[] {
+  const words = normalizeText(text).replace(/[-']/g, '').split(/\s+/).filter((w) => w.length >= 3);
+  const candidates = new Set<string>();
+  for (let i = 0; i < words.length; i++) {
+    candidates.add(words[i]);
+    if (i + 1 < words.length) candidates.add(words[i] + words[i + 1]);
+  }
+  return Array.from(candidates);
+}
+
+/**
+ * Bazadagi BARCHA kategoriyalar (nomi + sinonimlari) bilan xabar matnini
+ * solishtirib, yozilish xatosi bo'lsa ham eng yaqin mosini topadi.
+ * Faqat aniq ("contains") qidiruv hech narsa topmagandagina chaqiriladi.
+ */
+async function fuzzyFindCategory(searchText: string): Promise<{ id: string; name: string }[]> {
+  const candidates = extractFuzzyCandidates(searchText);
+  if (candidates.length === 0) return [];
+
+  const allCategories = await db.category.findMany({ select: { id: true, name: true, synonyms: true } });
+
+  // Uzunroq (batafsilroq) nomzod har doim ustuvor — masalan "avto elektrik"
+  // so'zlaridan yasalgan "aftoelektirik" nomzodi "Avtoelektrik"ka mos kelsa,
+  // shu g'olib chiqishi kerak, qisqagina "elektirik" so'zi umumiy
+  // "Elektrik" kategoriyasiga tasodifan yaqinroq bo'lib qolgan taqdirda ham —
+  // to'liqroq mos kelish har doim aniqroq signal.
+  let best: { id: string; name: string; distance: number; candLength: number } | null = null;
+  for (const cat of allCategories) {
+    const targets = [cat.name, ...cat.synonyms]
+      .map((s) => normalizeText(s).replace(/[\s'-]+/g, ''))
+      .filter((t) => t.length >= 4);
+
+    for (const target of targets) {
+      for (const cand of candidates) {
+        if (Math.abs(target.length - cand.length) > 3) continue;
+        const dist = levenshteinDistance(cand, target);
+        const threshold = Math.max(1, Math.floor(target.length / 6)); // ~6 harfga 1 ta xato ruxsat
+        if (dist > threshold) continue;
+        const isBetter =
+          !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
+        if (isBetter) {
+          best = { id: cat.id, name: cat.name, distance: dist, candLength: cand.length };
+        }
+      }
+    }
+  }
+
+  return best ? [{ id: best.id, name: best.name }] : [];
+}
+
 export interface FormattedListingResult {
   listingId: string;
   formattedText: string;
@@ -88,7 +166,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
-    const categories = await db.category.findMany({
+    let categories = await db.category.findMany({
       where: {
         OR: [
           { name: { contains: cleanCat, mode: 'insensitive' } },
@@ -96,6 +174,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         ],
       },
     });
+
+    // Aniq moslik topilmasa — yozilish xatosiga chidamli qidiruvga o'tamiz
+    // (masalan "avtoelektirik" -> "Avtoelektrik"). Xabar matni ham
+    // qo'shiladi, chunki klassifikator ba'zan kategoriyani asl matndan
+    // to'liq ajrata olmaydi.
+    if (categories.length === 0) {
+      const fuzzyMatches = await fuzzyFindCategory(`${cleanCat} ${rawMessage || ''}`);
+      if (fuzzyMatches.length > 0) {
+        categories = fuzzyMatches as any;
+      }
+    }
 
     if (categories.length > 0) {
       const categoryIds = categories.map((c) => c.id);
