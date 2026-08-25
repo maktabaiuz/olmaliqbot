@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
@@ -32,10 +32,10 @@ export async function classifyQuery(
 
   // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa)
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
-    // Gemini sekin/osilib qolsa botni cheksiz kutdirmaslik uchun 5 soniyalik cheklov —
+    // Gemini sekin/osilib qolsa botni cheksiz kutdirmaslik uchun 8 soniyalik cheklov —
     // vaqt tugasa qoidalarga asoslangan fallback classifierga o'tiladi
     const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 5000);
+    const timeout = setTimeout(() => abortController.abort(), 8000);
 
     try {
       const response = await fetch(
@@ -136,35 +136,15 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
   let name: string | null = null;
   let confidence = 0.88;
 
-  // Category matching
-  if (/gazavik|gazovik|gaz ustasi|kolonka ustasi|plita ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'gazavik';
-  } else if (/santexnik|suv ustasi|quvur ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'santexnik';
-  } else if (/kafelchi|plitkachi|kafel ustasi|plitka ustasi|kafel yotqizadigan/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'kafelchi';
-  } else if (/elektrik|elektr ustasi|svet ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'elektrik';
-  } else if (/notarius/.test(normalized)) {
-    intent = IntentType.LOCATION;
-    objectType = ListingObjectType.MUASSASA;
-    category = 'notarius';
-  } else if (/dorixona|apteka/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.DOKON_OBYEKT;
-    category = 'dorixona';
-  } else if (/taksi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.TRANSPORT;
-    category = 'taksi';
+  // Category matching — 7 ta qattiq kodlangan so'z emas, balki BUTUN lug'at
+  // (76+ kasb/soha va ularning sinonimlari) bo'yicha qidiradi. Shu orqali
+  // Gemini ishlamay qolganda ham (tarmoq xatosi/timeout) bot "ko'r" bo'lib
+  // qolmaydi — barcha ma'lum kasblarni tanib oladi.
+  const dictMatch = matchCategoryFromText(normalized);
+  if (dictMatch) {
+    intent = dictMatch.canonicalName.toLowerCase() === 'notarius' ? IntentType.LOCATION : IntentType.SERVICE;
+    objectType = (dictMatch.objectType as ListingObjectType) || ListingObjectType.USTA;
+    category = dictMatch.canonicalName.toLowerCase();
   }
 
   // Name detection

@@ -152,6 +152,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     cityId: activeCityId,
     categoryName: classification.category,
     landmarkName: classification.landmark,
+    rawMessage: messageText,
   });
 
   if (!searchResult) {

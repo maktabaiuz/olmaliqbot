@@ -77,3 +77,45 @@ export function resolveCanonicalCategoryName(inputName: string): string {
   const lookup = getCanonicalCategoryLookup();
   return lookup.get(normalized) || inputName;
 }
+
+export interface CategoryTextMatch {
+  canonicalName: string;
+  objectType: string;
+}
+
+// Uzun (aniqroq) sinonimlar avval tekshirilishi uchun uzunlik bo'yicha kamayish
+// tartibida saralangan ro'yxat — masalan "kafel yotqizadigan" "kafel"dan oldin tekshiriladi.
+let sortedCategoryPatterns: { pattern: string; canonicalName: string; objectType: string }[] | null = null;
+
+function getSortedCategoryPatterns() {
+  if (sortedCategoryPatterns) return sortedCategoryPatterns;
+
+  const patterns: { pattern: string; canonicalName: string; objectType: string }[] = [];
+  for (const cat of initialDictionaryData.categories as CategorySeed[]) {
+    patterns.push({ pattern: normalizeText(cat.name), canonicalName: cat.name, objectType: cat.object_type });
+    for (const syn of cat.synonyms) {
+      patterns.push({ pattern: normalizeText(syn), canonicalName: cat.name, objectType: cat.object_type });
+    }
+  }
+  patterns.sort((a, b) => b.pattern.length - a.pattern.length);
+  sortedCategoryPatterns = patterns;
+  return patterns;
+}
+
+/**
+ * Xabar matni ichidan lug'atdagi (76+ kasb/soha) tanish kategoriya nomini
+ * qidiradi — Gemini AI ishlamay qolganda (tarmoq xatosi/timeout) mahalliy
+ * fallback klassifikator shundan foydalanadi, shu orqali faqat bir nechta
+ * qattiq kodlangan so'z emas, balki BUTUN lug'at bo'yicha "ko'ra oladi".
+ */
+export function matchCategoryFromText(normalizedText: string): CategoryTextMatch | null {
+  if (!normalizedText) return null;
+  const patterns = getSortedCategoryPatterns();
+  for (const { pattern, canonicalName, objectType } of patterns) {
+    if (pattern.length < 3) continue; // juda qisqa so'zlar noto'g'ri mos kelib qolmasligi uchun
+    if (normalizedText.includes(pattern)) {
+      return { canonicalName, objectType };
+    }
+  }
+  return null;
+}

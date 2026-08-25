@@ -43,6 +43,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     cityId,
     categoryName: classification.category,
     landmarkName: classification.landmark,
+    rawMessage: messageText,
   });
 
   if (!searchResult) {

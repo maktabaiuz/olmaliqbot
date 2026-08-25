@@ -1,6 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
+import { normalizeText } from '../transliteration';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
 // matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
@@ -16,7 +17,11 @@ export interface SearchOptions {
   categoryName?: string | null;
   landmarkName?: string | null;
   badgeFilter?: string[] | null;
+  /** Foydalanuvchining asl xabari — jargon so'zlarni to'g'ridan-to'g'ri qidirish uchun (AI klassifikator xato/vaqt tugashi holatida ham topish uchun). */
+  rawMessage?: string | null;
 }
+
+const MIN_JARGON_PHRASE_LENGTH = 4;
 
 export interface FormattedListingResult {
   listingId: string;
@@ -46,10 +51,31 @@ function formatRankedLine(item: any, rank: number, bayesianRating: number): stri
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter, rawMessage } = options;
 
   if (!cityId) return null;
-  if (!categoryName && !landmarkName) return null;
+  if (!categoryName && !landmarkName && !rawMessage) return null;
+
+  // 0. Jargon so'zni to'g'ridan-to'g'ri xabar matnidan qidirish. Admin bazaga
+  // qo'shganda odamlar shu narsani qanday so'rashini oldindan yozib qo'ygan
+  // bo'ladi (masalan "oydindagi evosni nomeri") — shu orqali AI klassifikator
+  // (Gemini) vaqtinchalik ishlamay qolsa yoki noaniq kategoriya chiqarsa ham,
+  // bot admin bilgan aniq iborani xabar ichidan topib, javobni yo'qotmaydi.
+  let jargonMatchedIds = new Set<string>();
+  if (rawMessage) {
+    const normalizedMsg = normalizeText(rawMessage);
+    const jargonCandidates = await db.listing.findMany({
+      where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
+      select: { id: true, jargonSynonyms: true },
+    });
+    for (const cand of jargonCandidates) {
+      const hit = cand.jargonSynonyms.some((j) => {
+        const cleanJargon = normalizeText(j);
+        return cleanJargon.length >= MIN_JARGON_PHRASE_LENGTH && normalizedMsg.includes(cleanJargon);
+      });
+      if (hit) jargonMatchedIds.add(cand.id);
+    }
+  }
 
   // Query ACTIVE listings strictly scoped by cityId
   const whereCondition: any = {
@@ -132,7 +158,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     whereCondition.badges = { hasEvery: badgeFilter };
   }
 
-  const candidateListings = await db.listing.findMany({
+  let candidateListings = await db.listing.findMany({
     where: whereCondition,
     include: {
       category: true,
@@ -141,6 +167,32 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       reviews: true,
     },
   });
+
+  // Agar categoryName/landmarkName umuman berilmagan bo'lsa (faqat rawMessage
+  // orqali jargon qidiruvi bo'lgan holat), whereCondition hali ham shahar
+  // bo'yicha CHEKSIZ ro'yxatni qaytaradi — bunday holatda faqat jargon so'z
+  // orqali aniq topilgan yozuvlar bilan cheklaymiz.
+  if (!categoryName && !landmarkName) {
+    candidateListings = candidateListings.filter((l) => jargonMatchedIds.has(l.id));
+  }
+
+  // Jargon orqali topilgan, lekin structured (kategoriya/mo'ljal) filtrga
+  // to'g'ri kelmagani uchun natijaga tushmagan yozuvlarni ham qo'shib qo'yamiz —
+  // admin qo'shgan aniq ibora har doim ustuvor topilishi kerak.
+  const candidateIds = new Set(candidateListings.map((l) => l.id));
+  const missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
+  if (missingJargonIds.length > 0) {
+    const extraJargonListings = await db.listing.findMany({
+      where: { id: { in: missingJargonIds }, cityId, status: 'ACTIVE' },
+      include: {
+        category: true,
+        primaryLandmark: true,
+        serviceAreaLandmarks: true,
+        reviews: true,
+      },
+    });
+    candidateListings = [...candidateListings, ...extraJargonListings];
+  }
 
   if (candidateListings.length === 0) {
     return null;
@@ -173,9 +225,15 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const hasJargonMatch = cleanLandmarkName && item.jargonSynonyms?.some((j) => j.toLowerCase().includes(cleanLandmarkName.toLowerCase()));
     const jargonBonus = hasJargonMatch ? 500 : 0;
 
+    // Xabar matnida admin qo'shgan jargon ibora to'g'ridan-to'g'ri topilgan
+    // bo'lsa — bu eng aniq signal, hatto tasdiqlanganlik holatidan ham
+    // ustunroq bo'lishi kerak (AI klassifikator xato/vaqt tugagan bo'lsa ham).
+    const directJargonBonus = jargonMatchedIds.has(item.id) ? 2000 : 0;
+
     const totalScore =
       isVerifiedBonus +
       jargonBonus +
+      directJargonBonus +
       ratingScore +
       countScore +
       recencyScore * 0.15 +
@@ -197,6 +255,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const topMatches = rankedTop.map((s) => s.listing);
   const bestMatch = topMatches[0];
   const bestBayesianRating = rankedTop[0].bayesianRating;
+
+  // Sarlavhada har doim TOPILGAN yozuvning haqiqiy kategoriyasini ko'rsatamiz —
+  // klassifikator taxminini emas (masalan Gemini ishlamay qolib, chalkash matn
+  // chiqargan bo'lsa ham, foydalanuvchiga toza va to'g'ri nom ko'rinadi).
+  categoryDisplayName = bestMatch.category?.name || categoryDisplayName;
 
   // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — TZ §3.5 namunasiga mos:
   // ikonka + qiymat, ortiqcha yorliqlarsiz. "Xalq atamalari" faqat qidiruv uchun,
