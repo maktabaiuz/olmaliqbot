@@ -142,7 +142,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram imzo (HMAC) xatosi 🔒' });
     }
 
-    // 0. Brute-force himoyasi: 2 marta xato parol kiritilsa, 3 kunga bloklanadi.
+    // 0. Brute-force himoyasi: 5 marta xato parol kiritilsa, 3 kunga bloklanadi.
     const existingAttempt = await db.loginAttempt.findUnique({ where: { telegramId } });
     if (existingAttempt?.bannedUntil && existingAttempt.bannedUntil > new Date()) {
       return reply.status(403).send({
@@ -200,9 +200,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
       };
     }
 
-    // Xato parol — urinishlar sonini oshiramiz, 2 taga yetsa 3 kunga bloklaymiz
+    // Xato parol — urinishlar sonini oshiramiz, 5 taga yetsa 3 kunga bloklaymiz
     const newFailedCount = (existingAttempt?.failedCount || 0) + 1;
-    const shouldBan = newFailedCount >= 2;
+    const shouldBan = newFailedCount >= 5;
     const bannedUntil = shouldBan ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
 
     await db.loginAttempt.upsert({
