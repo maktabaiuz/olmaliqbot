@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes } from '@kimbor/core';
 import crypto from 'crypto';
 import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
 
@@ -468,12 +468,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Find or create landmark
-      const targetLandmarkName = landmarkName || 'Markaz';
-      let landmark = await db.landmark.findFirst({ where: { cityId, name: targetLandmarkName } });
+      // Find or create landmark. Nom saqlashdan oldin "yonida", "orqasida" kabi
+      // qo'shimchalar olib tashlanadi (stripLandmarkSuffixes) — aks holda
+      // qidiruvda foydalanuvchi xabaridan xuddi shu qo'shimchalar olib
+      // tashlanib solishtirilgani uchun ("Vadakanal yonida" -> "vadakanal")
+      // to'liq nom ("Vadakanal yonidagi") bilan mos kelmay qolar edi.
+      const rawLandmarkInput = landmarkName || 'Markaz';
+      const targetLandmarkName = stripLandmarkSuffixes(rawLandmarkInput) || rawLandmarkInput;
+      let landmark = await db.landmark.findFirst({
+        where: { cityId, name: { equals: targetLandmarkName, mode: 'insensitive' } },
+      });
       if (!landmark) {
         landmark = await db.landmark.create({
-          data: { cityId, name: targetLandmarkName, synonyms: [targetLandmarkName.toLowerCase()] },
+          data: {
+            cityId,
+            name: targetLandmarkName,
+            synonyms: Array.from(new Set([targetLandmarkName.toLowerCase(), rawLandmarkInput.toLowerCase()])),
+          },
         });
       }
 
@@ -614,8 +625,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     let primaryLandmarkId = existing.primaryLandmarkId;
     if (landmarkName) {
-      let lm = await db.landmark.findFirst({ where: { cityId: existing.cityId, name: landmarkName } });
-      if (!lm) lm = await db.landmark.create({ data: { cityId: existing.cityId, name: landmarkName, synonyms: [landmarkName.toLowerCase()] } });
+      const cleanLandmarkName = stripLandmarkSuffixes(landmarkName) || landmarkName;
+      let lm = await db.landmark.findFirst({
+        where: { cityId: existing.cityId, name: { equals: cleanLandmarkName, mode: 'insensitive' } },
+      });
+      if (!lm) {
+        lm = await db.landmark.create({
+          data: {
+            cityId: existing.cityId,
+            name: cleanLandmarkName,
+            synonyms: Array.from(new Set([cleanLandmarkName.toLowerCase(), landmarkName.toLowerCase()])),
+          },
+        });
+      }
       primaryLandmarkId = lm.id;
     }
 
