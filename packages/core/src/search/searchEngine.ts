@@ -163,7 +163,24 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   let formattedText = `🔧 ${categoryDisplayName}\n\n`;
   formattedText += `${bestMatch.name} ${verifiedBadge} ${ratingText}\n`;
-  if (landmarkText) formattedText += `📍 ${landmarkText}\n`;
+  
+  if (landmarkText) {
+    if (bestMatch.primaryLandmark?.latitude && bestMatch.primaryLandmark?.longitude) {
+      const mapUrl = `https://yandex.uz/maps/?pt=${bestMatch.primaryLandmark.longitude},${bestMatch.primaryLandmark.latitude}&z=16&l=map`;
+      formattedText += `📍 [${landmarkText}](${mapUrl}) 🗺\n`;
+    } else {
+      formattedText += `📍 ${landmarkText}\n`;
+    }
+  }
+
+  if (bestMatch.workFrom && bestMatch.workTo) {
+    if (bestMatch.workFrom === '00:00' && (bestMatch.workTo === '24:00' || bestMatch.workTo === '23:59')) {
+      formattedText += `⏰ Ish vaqti: 24/7 (Tunu-kun)\n`;
+    } else {
+      formattedText += `⏰ Ish vaqti: ${bestMatch.workFrom} – ${bestMatch.workTo}\n`;
+    }
+  }
+
   if (badgesText) formattedText += `🏷 ${badgesText}\n`;
   formattedText += `📞 ${bestMatch.phone}`;
 

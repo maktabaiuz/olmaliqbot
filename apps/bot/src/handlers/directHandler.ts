@@ -556,8 +556,13 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     return;
   }
 
-  // Build result response with Copy Phone button
-  const resultKeyboard = new InlineKeyboard()
+  // Build result response with Copy Phone and Map button
+  const resultKeyboard = new InlineKeyboard();
+  if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
+    const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
+    resultKeyboard.url('📍 Xarita', mapUrl);
+  }
+  resultKeyboard
     .text(`📋 Nusxalash (${searchResult.listing.phone})`, `copy_phone_${searchResult.listing.phone}`)
     .row()
     .text('⭐ Baholash', `rate_${searchResult.listingId}`)

@@ -81,6 +81,12 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   if (searchResult.hasMore) {
     keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
   }
+
+  if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
+    const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
+    keyboard.url('📍 Xarita', mapUrl);
+  }
+
   keyboard
     .text('⭐ Baholash', `rate_${searchResult.listingId}`)
     .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
