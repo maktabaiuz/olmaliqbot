@@ -30,52 +30,16 @@ export async function classifyQuery(
   const geminiKey = apiKey || process.env.GEMINI_API_KEY;
   let result: ClassifierResult;
 
-  // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa)
+  // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa).
+  // Tarmoq/server tomonidan vaqtinchalik (bir martalik) xatolar odatiy hol —
+  // shuning uchun darhol qo'pol fallbackka o'tish o'rniga, qisqaroq muddat
+  // bilan BIR MARTA qayta urinib ko'riladi. Umumiy eng ko'p kutish vaqti
+  // avvalgidek ~8 soniya, lekin endi ikkita imkoniyat bilan.
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
-    // Gemini sekin/osilib qolsa botni cheksiz kutdirmaslik uchun 8 soniyalik cheklov —
-    // vaqt tugasa qoidalarga asoslangan fallback classifierga o'tiladi
-    const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 8000);
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `${classifierPrompt}\n\nINPUT: "${cleanText}"` }] }],
-            generationConfig: { responseMimeType: 'application/json' },
-          }),
-          signal: abortController.signal,
-        }
-      );
-
-      if (response.ok) {
-        const json = await response.json();
-        const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawOutput) {
-          const parsed = JSON.parse(rawOutput);
-          result = {
-            intent: parsed.intent as IntentType,
-            object_type: parsed.object_type as ListingObjectType | null,
-            category: parsed.category || null,
-            name: parsed.name || null,
-            landmark: parsed.landmark || null,
-            confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.85,
-          };
-        } else {
-          result = fallbackRuleClassification(normalized, cleanText);
-        }
-      } else {
-        result = fallbackRuleClassification(normalized, cleanText);
-      }
-    } catch (e) {
-      console.warn('⚠️ Gemini AI classification failed, using rule fallback:', e);
-      result = fallbackRuleClassification(normalized, cleanText);
-    } finally {
-      clearTimeout(timeout);
-    }
+    result =
+      (await callGeminiClassifier(cleanText, geminiKey, 4000)) ||
+      (await callGeminiClassifier(cleanText, geminiKey, 4000)) ||
+      fallbackRuleClassification(normalized, cleanText);
   } else {
     // API key bo'lmasa qoidalarga asoslangan lokal klassifikatsiya
     result = fallbackRuleClassification(normalized, cleanText);
@@ -106,6 +70,65 @@ export async function classifyQuery(
   }
 
   return result;
+}
+
+/**
+ * Gemini'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
+ * (tarmoq xatosi, vaqt tugashi, HTTP xato, yoki JSON parslanmasa) — sababini
+ * LOGGA yozib, `null` qaytaradi (avval HTTP-xato holatida hech narsa
+ * loglanmas edi, shu sabab guruhda nima uchun javob kelmayotgani
+ * ko'rinmas edi).
+ */
+async function callGeminiClassifier(
+  cleanText: string,
+  geminiKey: string,
+  timeoutMs: number
+): Promise<ClassifierResult | null> {
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${classifierPrompt}\n\nINPUT: "${cleanText}"` }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+        signal: abortController.signal,
+      }
+    );
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      console.warn(`⚠️ Gemini HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
+      return null;
+    }
+
+    const json = await response.json();
+    const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawOutput) {
+      console.warn('⚠️ Gemini javobida matn topilmadi:', JSON.stringify(json).slice(0, 200));
+      return null;
+    }
+
+    const parsed = JSON.parse(rawOutput);
+    return {
+      intent: parsed.intent as IntentType,
+      object_type: parsed.object_type as ListingObjectType | null,
+      category: parsed.category || null,
+      name: parsed.name || null,
+      landmark: parsed.landmark || null,
+      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.85,
+    };
+  } catch (e: any) {
+    console.warn(`⚠️ Gemini so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**

@@ -42,6 +42,26 @@ INITIAL_DICTIONARY.categories.forEach((cat) => {
   });
 });
 
+// Oddiy "includes" substring qidiruvi qisqa so'zlarda tasodifiy mos kelib
+// qolishi mumkin — masalan "дым" (tutun) normalize qilinganda "dim" bo'lib,
+// juda keng tarqalgan o'zbekcha fe'l qo'shimchasi "-dim" ("qildim", "bordim",
+// "keldim") ichida tasodifan topilib qolgan edi. Shu sabab favqulodda va
+// savol so'zlari endi FAQAT MUSTAQIL SO'Z sifatida (chap-o'ng tomonida harf
+// bo'lmaganda) hisoblanadi.
+function containsWholeWord(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  let fromIndex = 0;
+  const isWordChar = (c: string | undefined) => !!c && /[a-z0-9']/i.test(c);
+  while (true) {
+    const idx = haystack.indexOf(needle, fromIndex);
+    if (idx === -1) return false;
+    const before = idx === 0 ? undefined : haystack[idx - 1];
+    const after = haystack[idx + needle.length];
+    if (!isWordChar(before) && !isWordChar(after)) return true;
+    fromIndex = idx + 1;
+  }
+}
+
 /**
  * 0-Qavat Filtr funksiyasi.
  * Xabarni AI Klassifikatorga yuborish kerak bo'lsa `true`, aks holda `false` qaytaradi.
@@ -52,14 +72,14 @@ export function zeroLayerFilter(text: string): boolean {
   const normalized = normalizeText(text);
 
   // 1. Shoshilinch/Favqulodda holat kalit so'zi bormi? (Har doim o'tadi)
-  const isEmergencyMatch = EMERGENCY_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
+  const isEmergencyMatch = EMERGENCY_KEYWORDS.some((kw) => containsWholeWord(normalized, normalizeText(kw)));
   if (isEmergencyMatch) return true;
 
   // 2. So'roq belgisi '?' bormi?
   const hasQuestionMark = text.includes('?');
 
   // 3. Savol so'zlaridan biri bormi?
-  const hasQuestionWord = QUESTION_KEYWORDS.some((kw) => normalized.includes(normalizeText(kw)));
+  const hasQuestionWord = QUESTION_KEYWORDS.some((kw) => containsWholeWord(normalized, normalizeText(kw)));
 
   // 4. Kasb / Obyekt lug'atidan biror so'z bormi?
   const hasTradeKeyword = TRADE_KEYWORDS.some((kw) => kw.length > 2 && normalized.includes(kw));
@@ -70,8 +90,18 @@ export function zeroLayerFilter(text: string): boolean {
     return true;
   }
 
-  // 2. So'roq belgisi va savol so'zlari bormi
-  if (hasQuestionMark && hasQuestionWord) {
+  // 2. Savol so'zi bormi ("?" belgisi SHART EMAS — guruh suhbatida odamlar
+  // ko'pincha "?" qo'ymay yozadi, masalan "baliq haus nomeri kerak". Avval "?"
+  // ham talab qilingani sabab ko'plab haqiqiy so'rovlar sezilmasdan
+  // tashlab yuborilgan edi — 0-qavat faqat arzon dastlabki filtr, aniq
+  // qaror AI klassifikator bosqichida (confidence) qabul qilinadi.
+  if (hasQuestionWord) {
+    return true;
+  }
+
+  // 3. "?" belgisi yolg'iz o'zi ham yetarli (masalan "Kompyuter ustasi bormi?"
+  // kabi savol so'zisiz, faqat "?" bilan tugagan qisqa savollar)
+  if (hasQuestionMark) {
     return true;
   }
 
