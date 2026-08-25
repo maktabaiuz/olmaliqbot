@@ -32,6 +32,11 @@ export async function classifyQuery(
 
   // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa)
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
+    // Gemini sekin/osilib qolsa botni cheksiz kutdirmaslik uchun 5 soniyalik cheklov —
+    // vaqt tugasa qoidalarga asoslangan fallback classifierga o'tiladi
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), 5000);
+
     try {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`,
@@ -42,6 +47,7 @@ export async function classifyQuery(
             contents: [{ parts: [{ text: `${classifierPrompt}\n\nINPUT: "${cleanText}"` }] }],
             generationConfig: { responseMimeType: 'application/json' },
           }),
+          signal: abortController.signal,
         }
       );
 
@@ -67,6 +73,8 @@ export async function classifyQuery(
     } catch (e) {
       console.warn('⚠️ Gemini AI classification failed, using rule fallback:', e);
       result = fallbackRuleClassification(normalized, cleanText);
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     // API key bo'lmasa qoidalarga asoslangan lokal klassifikatsiya
@@ -82,23 +90,19 @@ export async function classifyQuery(
   memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   // 4. Har bir tahlil qilingan so'rovni QueryLog jadvaliga yozish
-  try {
-    if (cityId) {
-      await db.queryLog.create({
-        data: {
-          cityId,
-          telegramUserId: telegramUserId || BigInt(0),
-          rawMessage: cleanText,
-          intent: result.intent,
-          categoryName: result.category,
-          landmarkName: result.landmark,
-          isResolved: false,
-        },
-      });
-    }
-  } catch (err) {
-    // Log exception without breaking classifier flow
-    console.error('Failed to log QueryLog to DB:', err);
+  // Javobni sekinlashtirmasligi uchun kutilmaydi (fire-and-forget)
+  if (cityId) {
+    db.queryLog.create({
+      data: {
+        cityId,
+        telegramUserId: telegramUserId || BigInt(0),
+        rawMessage: cleanText,
+        intent: result.intent,
+        categoryName: result.category,
+        landmarkName: result.landmark,
+        isResolved: false,
+      },
+    }).catch((err) => console.error('Failed to log QueryLog to DB:', err));
   }
 
   return result;

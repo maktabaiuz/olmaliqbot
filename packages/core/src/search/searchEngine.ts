@@ -16,16 +16,28 @@ export interface SearchOptions {
   categoryName?: string | null;
   landmarkName?: string | null;
   badgeFilter?: string[] | null;
-  limit?: number;
 }
 
 export interface FormattedListingResult {
   listingId: string;
   formattedText: string;
+  /** Yulduzcha (Bayesian rating) bo'yicha saralangan, 1-7 ketma-ketlikda kompakt ro'yxat — "Yana ko'rish" tugmasi bosilganda ko'rsatiladi. */
+  rankedListText: string;
   hasMore: boolean;
   totalMatches: number;
   executionTimeMs: number;
   listing: any;
+}
+
+const MAX_RANKED_RESULTS = 7;
+const RANK_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣'];
+
+function formatRankedLine(item: any, rank: number, bayesianRating: number): string {
+  const verifiedIcon = item.verification === 'VERIFIED' ? '✅' : '⚠️';
+  const landmarkText = item.primaryLandmark?.name || '';
+  const rankLabel = RANK_EMOJI[rank - 1] || `${rank}.`;
+  const landmarkPart = landmarkText ? ` · 📍 ${escapeHtml(landmarkText)}` : '';
+  return `${rankLabel} <b>${escapeHtml(item.name)}</b> ${verifiedIcon} ⭐${bayesianRating.toFixed(1)}${landmarkPart}\n     📞 <code>${escapeHtml(item.phone)}</code>`;
 }
 
 /**
@@ -34,7 +46,7 @@ export interface FormattedListingResult {
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter, limit = 1 } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter } = options;
 
   if (!cityId) return null;
   if (!categoryName && !landmarkName) return null;
@@ -180,9 +192,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   scoredListings.sort((a, b) => b.score - a.score);
 
-  const topMatches = scoredListings.map((s) => s.listing);
+  // Yulduzcha (Bayesian rating) bo'yicha eng yaxshi 7 tasi — 1-7 ketma-ketlikda "Yana ko'rish"ga chiqadi
+  const rankedTop = scoredListings.slice(0, MAX_RANKED_RESULTS);
+  const topMatches = rankedTop.map((s) => s.listing);
   const bestMatch = topMatches[0];
-  const bestBayesianRating = scoredListings[0].bayesianRating;
+  const bestBayesianRating = rankedTop[0].bayesianRating;
 
   // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — TZ §3.5 namunasiga mos:
   // ikonka + qiymat, ortiqcha yorliqlarsiz. "Xalq atamalari" faqat qidiruv uchun,
@@ -209,13 +223,19 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   const formattedText = lines.join('\n');
 
+  // Kompakt 1-7 ranked ro'yxat ("Yana ko'rish" tugmasi bosilganda ko'rsatiladi)
+  const rankedListText =
+    `🔧 <b>${escapeHtml(categoryDisplayName)}</b> — top ${rankedTop.length} ta:\n\n` +
+    rankedTop.map((s, i) => formatRankedLine(s.listing, i + 1, s.bayesianRating)).join('\n\n');
+
   const executionTimeMs = Date.now() - startTime;
 
   return {
     listingId: bestMatch.id,
     formattedText,
-    hasMore: topMatches.length > limit,
-    totalMatches: topMatches.length,
+    rankedListText,
+    hasMore: scoredListings.length > 1,
+    totalMatches: rankedTop.length,
     executionTimeMs,
     listing: bestMatch,
   };

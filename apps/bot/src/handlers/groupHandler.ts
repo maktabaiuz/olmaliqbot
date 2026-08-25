@@ -4,6 +4,7 @@ import { classifyQuery } from '../filter/aiClassifier';
 import { renderEmergencyTemplate, searchListings } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
+import { setRankedList } from '../cache/rankedListCache';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -42,12 +43,11 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     cityId,
     categoryName: classification.category,
     landmarkName: classification.landmark,
-    limit: 1,
   });
 
   if (!searchResult) {
-    // Topilmasa: Guruhda JIM, QueryLog'ga isResolved=false yoziladi
-    await db.queryLog.create({
+    // Topilmasa: Guruhda JIM, QueryLog'ga isResolved=false yoziladi (javobni sekinlashtirmasligi uchun kutilmaydi)
+    db.queryLog.create({
       data: {
         cityId,
         telegramUserId,
@@ -57,13 +57,14 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         landmarkName: classification.landmark,
         isResolved: false,
       },
-    });
+    }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
     return;
   }
 
   // 5. Build group response buttons
   const keyboard = new InlineKeyboard();
   if (searchResult.hasMore) {
+    await setRankedList(searchResult.listingId, searchResult.rankedListText);
     keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
   }
   keyboard

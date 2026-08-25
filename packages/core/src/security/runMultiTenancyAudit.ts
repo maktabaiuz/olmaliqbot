@@ -105,7 +105,6 @@ export async function runMultiTenancyAudit() {
   const searchResultChirchiq = await searchListings({
     cityId: cityB.id,
     categoryName: 'gazavik-audit',
-    limit: 1,
   });
 
   if (

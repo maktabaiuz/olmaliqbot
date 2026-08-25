@@ -2,6 +2,7 @@ import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
 import { searchListings } from '@kimbor/core';
 import { db } from '@kimbor/db';
+import { setRankedList, getRankedList } from '../cache/rankedListCache';
 
 // User session state map for multi-step wizards in private chat
 const userSessions: Record<number, {
@@ -151,11 +152,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     cityId: activeCityId,
     categoryName: classification.category,
     landmarkName: classification.landmark,
-    limit: 1,
   });
 
   if (!searchResult) {
-    await db.queryLog.create({
+    db.queryLog.create({
       data: {
         cityId: activeCityId,
         telegramUserId: telegramUserIdBigInt,
@@ -165,7 +165,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
         landmarkName: classification.landmark,
         isResolved: false,
       },
-    });
+    }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 
     await ctx.reply("Bu bo'yicha hozircha ma'lumot yo'q. Tez orada qo'shamiz 🙌");
     return;
@@ -174,7 +174,14 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   // Build result response with Copy Phone button
   const resultKeyboard = new InlineKeyboard()
     .text('📋 Raqamni nusxalash', `copy_phone_${searchResult.listing.phone}`)
-    .row()
+    .row();
+
+  if (searchResult.hasMore) {
+    await setRankedList(searchResult.listingId, searchResult.rankedListText);
+    resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
+  }
+
+  resultKeyboard
     .text('⭐ Baholash', `rate_${searchResult.listingId}`)
     .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
 
@@ -197,6 +204,30 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
   if (data.startsWith('copy_phone_')) {
     const phone = data.replace('copy_phone_', '');
     await ctx.answerCallbackQuery({ text: `📋 Telefon raqami: ${phone}`, show_alert: true });
+    return;
+  }
+
+  // 2. "Yana N tasini ko'rish" — 1-7 ranked ro'yxatni ochish
+  if (data.startsWith('more_')) {
+    const listingId = data.replace('more_', '');
+    const rankedText = await getRankedList(listingId);
+
+    if (!rankedText) {
+      await ctx.answerCallbackQuery({ text: "Vaqti tugadi, savolni qayta yozing 🙏", show_alert: true });
+      return;
+    }
+
+    await ctx.answerCallbackQuery();
+    try {
+      await ctx.editMessageText(rankedText, {
+        parse_mode: 'HTML',
+        reply_markup: new InlineKeyboard()
+          .text('⭐ Baholash', `rate_${listingId}`)
+          .text('⚠️ Shikoyat', `report_${listingId}`),
+      });
+    } catch (err) {
+      console.error('Failed to expand ranked list:', err);
+    }
     return;
   }
 }

@@ -57,12 +57,12 @@ async function startBot() {
   });
 
   // GrammY Inbound message logging and user upsert middleware
-  bot.use(async (ctx, next) => {
+  // Analitika yozuvlari javobni sekinlashtirmasligi uchun kutilmaydi (fire-and-forget)
+  bot.use((ctx, next) => {
     if (ctx.chat?.type === 'private' && ctx.from) {
       const tgUserId = BigInt(ctx.from.id);
-      
-      // Upsert User profile
-      await db.user.upsert({
+
+      db.user.upsert({
         where: { telegramId: tgUserId },
         update: {
           firstName: ctx.from.first_name || null,
@@ -78,9 +78,8 @@ async function startBot() {
         },
       }).catch(err => console.error('Failed to upsert user:', err));
 
-      // If text message, log it
       if (ctx.message?.text) {
-        await db.chatMessage.create({
+        db.chatMessage.create({
           data: {
             telegramUserId: tgUserId,
             senderType: 'USER',
@@ -89,7 +88,7 @@ async function startBot() {
         }).catch(err => console.error('Failed to log inbound user message:', err));
       }
     }
-    await next();
+    return next();
   });
 
   // Start BullMQ deletion worker — persists across restarts via Redis
