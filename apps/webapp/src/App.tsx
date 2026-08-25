@@ -47,7 +47,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -387,6 +387,18 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                             <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
                           </button>
 
+                          {/* Guruhlar */}
+                          <button
+                            onClick={() => setMoreSubView('groups')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-sky-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">groups</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Guruhlar</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
                           {/* Bot Matnlari */}
                           <button
                             onClick={() => setViewMode('bot_messages')}
@@ -477,6 +489,11 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           setViewMode('landmark_detail');
                         }}
                       />
+                    )}
+
+                    {/* SUBVIEW: Connected Groups List */}
+                    {moreSubView === 'groups' && (
+                      <MoreGroupsSubView onBack={() => setMoreSubView('menu')} />
                     )}
                   </div>
                 )}
@@ -889,6 +906,60 @@ const MoreLandmarksSubView: React.FC<{
             </button>
           ))}
       </div>
+    </div>
+  );
+};
+
+const MoreGroupsSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin/groups')
+      .then(r => r.json())
+      .then(data => setGroups(data || []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+        </button>
+        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Guruhlar</h3>
+      </div>
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        Botni yangi guruh yoki kanalga qo'shish uchun — Telegram'da botni qidirib
+        (@ nomi bilan), o'sha guruhga a'zo sifatida qo'shing va <b>admin</b> qiling
+        (xabarlarni o'qishi uchun shart). Qo'shimcha sozlash shart emas — admin
+        qilib qo'yilgan zahoti bot avtomatik ishlay boshlaydi va shu yerda paydo bo'ladi.
+      </p>
+      {loading ? (
+        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-4 space-y-3">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          ))}
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-8 text-center text-xs text-slate-500">
+          Hali hech qanday guruhga qo'shilmagan
+        </div>
+      ) : (
+        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
+          {groups.map((g) => (
+            <div key={g.id} className="flex items-center justify-between p-3.5">
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span className="w-7 h-7 rounded-lg bg-sky-500 text-white flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-[16px]">groups</span></span>
+                <span className="text-xs font-bold text-on-surface dark:text-slate-100 truncate">{g.title}</span>
+              </span>
+              <span className="text-[10px] text-slate-500 shrink-0">
+                {new Date(g.createdAt).toLocaleDateString('uz-UZ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

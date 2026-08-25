@@ -37,6 +37,24 @@ async function startBot() {
   // token is guaranteed non-undefined: process.exit(1) is called above if missing
   const bot = new Bot(token!);
 
+  // Bot qaysi guruhlarda ishlashini kuzatib boradi (Admin panel > Yana >
+  // Guruhlar bo'limida ko'rinadi). Jarayon davomida bir guruhni qayta-qayta
+  // yozib turmaslik uchun xotirada saqlanadi.
+  const knownGroupChatIds = new Set<number>();
+  async function recordGroupIfNew(chatId: number, title: string | null | undefined) {
+    if (knownGroupChatIds.has(chatId)) return;
+    knownGroupChatIds.add(chatId);
+    try {
+      await db.cityGroup.upsert({
+        where: { chatId: BigInt(chatId) },
+        update: { title: title || null },
+        create: { cityId, chatId: BigInt(chatId), title: title || null },
+      });
+    } catch (err) {
+      console.error('Failed to record city group:', err);
+    }
+  }
+
   // GrammY Outbound API message logging middleware
   bot.api.config.use((prev, method, payload, signal) => {
     if (method === 'sendMessage' && payload && 'chat_id' in payload && 'text' in payload) {
@@ -162,8 +180,28 @@ async function startBot() {
     const isBotAdded = newMembers.some((m) => m.id === botInfo.id);
 
     if (isBotAdded) {
+      await recordGroupIfNew(ctx.chat.id, ctx.chat.title);
       const introText = `Assalomu alaykum! Men "Kim bor?" — ${olmaliqCity?.name} shahri bo'yicha yordamchi botman. 🚀\n\nGuruhda savollaringizni bemalol berishingiz mumkin:\n• *"karzinka oldida gazavik bormi?"*\n• *"santexnik kerak 3-mavze"*`;
       await ctx.reply(introText);
+    }
+  });
+
+  // 3b. Botning guruh/kanaldagi a'zolik holati o'zgarishi (qo'shildi, admin
+  // qilindi, chiqarib yuborildi) — "Guruhlar" ro'yxatini har doim aniq tutib
+  // turadi. Har qanday guruh/kanalga bot admin qilib qo'shilsa, qo'shimcha
+  // sozlashsiz avtomatik ro'yxatga tushadi va ishlay boshlaydi.
+  bot.on('my_chat_member', async (ctx) => {
+    const chat = ctx.update.my_chat_member.chat;
+    if (chat.type !== 'group' && chat.type !== 'supergroup' && chat.type !== 'channel') return;
+
+    const newStatus = ctx.update.my_chat_member.new_chat_member.status;
+    if (newStatus === 'member' || newStatus === 'administrator') {
+      await recordGroupIfNew(chat.id, 'title' in chat ? chat.title : null);
+    } else if (newStatus === 'left' || newStatus === 'kicked') {
+      knownGroupChatIds.delete(chat.id);
+      await db.cityGroup.deleteMany({ where: { chatId: BigInt(chat.id) } }).catch((err) =>
+        console.error('Failed to remove city group:', err)
+      );
     }
   });
 
@@ -174,6 +212,9 @@ async function startBot() {
     if (chatType === 'private') {
       await handleDirectMessage(ctx, cityId);
     } else if (chatType === 'group' || chatType === 'supergroup') {
+      // Eski (funksiya joriy etilishidan oldin qo'shilgan) guruhlarni ham
+      // orqaga qaytib "to'ldiradi" — birinchi xabar kelganda ro'yxatga tushadi
+      recordGroupIfNew(ctx.chat.id, ctx.chat.title).catch(() => {});
       await handleGroupMessage(ctx, cityId);
     }
   });

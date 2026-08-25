@@ -800,6 +800,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return landmarks;
   });
 
+  // Bot qaysi guruh/kanallarda ishlayotganini ko'rsatadi — botni yangi
+  // guruhga admin qilib qo'shsangiz, qo'shimcha sozlashsiz shu yerda
+  // avtomatik ko'rinadi (Telegram bot.on('my_chat_member') orqali yoziladi).
+  fastify.get('/admin/groups', async (req, reply) => {
+    const groups = await db.cityGroup.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return groups.map((g) => ({
+      id: g.id,
+      chatId: g.chatId.toString(),
+      title: g.title || 'Nomsiz guruh',
+      createdAt: g.createdAt,
+    }));
+  });
+
   // --- 6. BOT EMERGENCY MESSAGES ---
   fastify.get('/admin/bot-messages', async (req, reply) => {
     const messages = await db.botMessage.findMany({
