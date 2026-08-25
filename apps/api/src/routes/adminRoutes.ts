@@ -10,16 +10,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // Utility for resolving cityId safely
   // - Haqiqiy autentifikatsiya orqali o'ziga tegishli cityId ishlatadi
-  // - SUPER_ADMIN boshqa shaharni ko'rmoqchi bo'lsa, x-city-id header orqali almashtira oladi
-  // - Sessiya topilmasa (masalan initData yo'q), avvalgidek Olmaliqqa tushadi (backward-compat)
+  // - Sessiya topilmasa (masalan initData yo'q), Olmaliqqa tushadi (yagona shahar)
   const getCityId = async (req: any): Promise<string> => {
     const { user } = await authenticateRequest(req);
     if (user) {
       req.user = user;
-      if (user.role === 'SUPER_ADMIN') {
-        const overrideCityId = req.headers['x-city-id'];
-        if (typeof overrideCityId === 'string' && overrideCityId) return overrideCityId;
-      }
       if (user.cityId) return user.cityId;
     }
     const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
@@ -64,30 +59,36 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const tgUser = JSON.parse(userParam);
       const telegramUserId = BigInt(tgUser.id);
 
-      // Lookup user in User table
+      // Lookup user in User table (agar mavjud bo'lmasa yoki oddiy USER bo'lsa ham
+      // bloklanmaydi — parolning o'zi haqiqiy himoya, kirish urinishi shu yerda rad
+      // etilmaydi, faqat /auth/login bosqichida parol tekshiriladi)
       const dbUser = await db.user.findUnique({
         where: { telegramId: telegramUserId },
         include: { city: true },
       });
 
-      if (!dbUser || dbUser.role === 'USER') {
-        return reply.status(403).send({
-          success: false,
-          accessDenied: true,
-          message: 'Bu panel faqat shahar adminlari uchun 🔒',
-        });
-      }
+      const userInfo = dbUser
+        ? {
+            id: dbUser.id,
+            telegramId: dbUser.telegramId.toString(),
+            name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+            role: dbUser.role,
+            cityId: dbUser.cityId || 'default_city',
+            cityName: dbUser.city?.name || 'Olmaliq',
+          }
+        : {
+            id: '',
+            telegramId: telegramUserId.toString(),
+            name: `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim() || 'Admin',
+            role: 'USER',
+            cityId: 'default_city',
+            cityName: 'Olmaliq',
+          };
 
-      const userInfo = {
-        id: dbUser.id,
-        telegramId: dbUser.telegramId.toString(),
-        name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
-        role: dbUser.role,
-        cityId: dbUser.cityId || 'default_city',
-        cityName: dbUser.city?.name || 'Olmaliq',
-      };
-
-      if (!dbUser.isPasswordSet) {
+      // Faqat oldindan taklif qilingan (moderator) va hali parol qo'ymagan
+      // foydalanuvchi "parol o'rnatish" ekraniga yo'naltiriladi. Qolgan barcha
+      // holatda — oddiy parol kirish ekrani ko'rsatiladi.
+      if (dbUser && dbUser.role !== 'USER' && !dbUser.isPasswordSet) {
         return {
           success: true,
           requiresSetup: true,
@@ -112,18 +113,52 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, message: 'initData va parol talab qilinadi' });
     }
 
-    const { isValid, telegramId } = verifyTelegramInitData(initData);
+    const { isValid, telegramId, userRaw } = verifyTelegramInitData(initData);
     if (!isValid || !telegramId) {
       return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram imzo (HMAC) xatosi 🔒' });
     }
 
+    // 1. Yagona admin paroli (.env: ADMIN_PASSWORD) — to'g'ri kiritilsa, shu Telegram
+    // foydalanuvchisi to'liq admin huquqi bilan yoziladi/yangilanadi.
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (adminPassword && password === adminPassword) {
+      const olmaliq = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+      const dbUser = await db.user.upsert({
+        where: { telegramId },
+        update: { role: 'SUPER_ADMIN', isSuspended: false },
+        create: {
+          telegramId,
+          firstName: userRaw?.first_name || 'Admin',
+          lastName: userRaw?.last_name || '',
+          username: userRaw?.username || null,
+          role: 'SUPER_ADMIN',
+          cityId: olmaliq?.id,
+          isPasswordSet: true,
+        },
+        include: { city: true },
+      });
+
+      return {
+        success: true,
+        user: {
+          id: dbUser.id,
+          telegramId: dbUser.telegramId.toString(),
+          name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+          role: dbUser.role,
+          cityId: dbUser.cityId || 'default_city',
+          cityName: dbUser.city?.name || 'Olmaliq',
+        },
+      };
+    }
+
+    // 2. Oldindan tayinlangan (masalan moderator) shaxsiy paroli
     const dbUser = await db.user.findUnique({
       where: { telegramId },
       include: { city: true },
     });
 
     if (!dbUser || dbUser.role === 'USER' || dbUser.isSuspended) {
-      return reply.status(403).send({ success: false, accessDenied: true, message: 'Ruxsat berilmadi! 🔒' });
+      return reply.status(401).send({ success: false, message: "Parol noto'g'ri!" });
     }
 
     if (dbUser.passwordHash && verifyPassword(password, dbUser.passwordHash)) {
@@ -233,144 +268,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return {
       success: true,
       credentials: { loginCode, tempPassword },
-    };
-  });
-
-  // --- 1.3 SUBMIT ONBOARDING APPLICATION (Section 6, 7 & 9) ---
-  fastify.post('/auth/submit-application', async (req: any, reply) => {
-    const {
-      fullName,
-      phone,
-      cityName,
-      groupLink,
-      groupName,
-      groupMembersCount,
-      channelLink,
-      channelName,
-      channelSubsCount,
-      about,
-      telegramUserId,
-    } = req.body;
-
-    const tgUserId = telegramUserId ? BigInt(telegramUserId) : BigInt(6355516451);
-
-    // Save Application in DB
-    const appRecord = await db.application.create({
-      data: {
-        fullName: fullName || 'Arizachi',
-        phone: phone || '',
-        cityName: cityName || 'Yangi Shahar',
-        groupLink: groupLink || '',
-        groupName: groupName || 'Guruh',
-        groupMembersCount: groupMembersCount || 0,
-        channelLink: channelLink || '',
-        channelName: channelName || 'Kanal',
-        channelSubsCount: channelSubsCount || 0,
-        about: about || '',
-        telegramUserId: tgUserId,
-        status: 'APPROVED', // Test mode auto-approves
-        paymentReceived: true,
-      },
-    });
-
-    // Create City in DB if not exists
-    const citySlug = (cityName || 'shahar').toLowerCase().replace(/\s+/g, '-');
-    let city = await db.city.findFirst({ where: { slug: citySlug } });
-    if (!city) {
-      city = await db.city.create({
-        data: { name: cityName || 'Yangi Shahar', slug: citySlug, isActive: true },
-      });
-    }
-
-    // Assign User to City
-    await db.user.update({
-      where: { telegramId: tgUserId },
-      data: { cityId: city.id, role: isSuperAdminId(tgUserId) ? 'SUPER_ADMIN' : 'CITY_ADMIN' },
-    });
-
-    // Notify Super-Admin (6355516451) via Telegram Bot API
-    const botToken = process.env.BOT_TOKEN;
-    if (!botToken) throw new Error('BOT_TOKEN env variable is not configured');
-    const adminAlertText = `🎉 **YANGI SHAHAR ARIZASI (SINOV REJIMI: AUTO-APPROVED)**\n\n` +
-      `• Arizachi: **${fullName}** (${phone})\n` +
-      `• Shahar: **${cityName}**\n` +
-      `• Guruh: **${groupName}** (${groupMembersCount} a'zo)\n` +
-      `• Kanal: **${channelName}** (${channelSubsCount} obunachi)\n` +
-      `• Izoh: _${about}_`;
-
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: '6355516451',
-          text: adminAlertText,
-          parse_mode: 'Markdown',
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to alert super admin:', e);
-    }
-
-    return {
-      success: true,
-      applicationId: appRecord.id,
-      cityId: city.id,
-    };
-  });
-
-  // --- PUBLIC: Cities list (used by local dev auth init) ---
-  fastify.get('/cities', async (_req, reply) => {
-    const cities = await db.city.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, slug: true },
-      orderBy: { name: 'asc' },
-    });
-    return cities;
-  });
-
-  // --- SUPER-ADMIN: Platforma bo'yicha umumiy statistika (barcha shaharlar) ---
-  fastify.get('/admin/platform-stats', async (req: any, reply) => {
-    const { user, error } = await authenticateRequest(req);
-    if (error) return reply.status(error.status).send(error.body);
-    if (user.role !== 'SUPER_ADMIN') {
-      return reply.status(403).send({ error: "Bu ma'lumot faqat Super-Admin uchun 🔒" });
-    }
-
-    const [totalCities, totalListings, totalUsers, totalQueries, unresolvedQueries, cities] = await Promise.all([
-      db.city.count({ where: { isActive: true } }),
-      db.listing.count({ where: { status: 'ACTIVE' } }),
-      db.user.count({ where: { role: 'USER' } }),
-      db.queryLog.count(),
-      db.queryLog.count({ where: { isResolved: false } }),
-      db.city.findMany({
-        where: { isActive: true },
-        select: {
-          id: true,
-          name: true,
-          planType: true,
-          subscriptionEnd: true,
-          _count: { select: { listings: true, users: true, queryLogs: true } },
-        },
-        orderBy: { name: 'asc' },
-      }),
-    ]);
-
-    return {
-      totalCities,
-      totalListings,
-      totalUsers,
-      totalQueries,
-      unresolvedQueries,
-      cities: cities.map((c) => ({
-        id: c.id,
-        name: c.name,
-        planType: c.planType,
-        subscriptionEnd: c.subscriptionEnd,
-        listingsCount: c._count.listings,
-        usersCount: c._count.users,
-        queriesCount: c._count.queryLogs,
-      })),
     };
   });
 

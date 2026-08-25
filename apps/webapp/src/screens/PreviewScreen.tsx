@@ -17,9 +17,9 @@ export const PreviewScreen: React.FC = () => {
 
   // Preview Controls State
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [simulatedRole, setSimulatedRole] = useState<'SUPER_ADMIN' | 'CITY_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER'>('SUPER_ADMIN');
+  const [simulatedRole, setSimulatedRole] = useState<'SUPER_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER'>('SUPER_ADMIN');
   const [activeScreenTab, setActiveScreenTab] = useState<
-    'home' | 'add' | 'requests' | 'database' | 'moderators' | 'superadmin' | 'onboarding' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary'
+    'home' | 'add' | 'requests' | 'database' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary'
   >('home');
   const [deviceFrame, setDeviceFrame] = useState<'iphone15' | 'iphonese' | 'ipad'>('iphone15');
   const [logs, setLogs] = useState<ConsoleLog[]>([]);
@@ -197,8 +197,7 @@ export const PreviewScreen: React.FC = () => {
             </label>
             <div className="space-y-1.5">
               {[
-                { id: 'SUPER_ADMIN', label: '👑 Super-Admin', desc: 'Barcha huquqlar' },
-                { id: 'CITY_ADMIN', label: '🏢 Shahar Admini', desc: 'Shahar ma\'lumotlari' },
+                { id: 'SUPER_ADMIN', label: '👑 Admin', desc: 'Barcha huquqlar' },
                 { id: 'MODERATOR_EDITOR', label: '✏️ Moderator (To\'ldiruvchi)', desc: 'Qo\'shish + Tasdiqlash' },
                 { id: 'MODERATOR_VIEWER', label: '👁️ Moderator (Kuzatuvchi)', desc: 'Faqat ko\'rish' },
               ].map(roleItem => (
@@ -240,7 +239,6 @@ export const PreviewScreen: React.FC = () => {
                 { id: 'bot_messages', label: '🤖 Bot Matnlari' },
                 { id: 'dictionary', label: '📖 Lug\'at' },
                 { id: 'moderators', label: '👥 Moderatorlar' },
-                { id: 'superadmin', label: '👑 Boshqaruv' },
               ].map(screen => (
                 <button
                   key={screen.id}

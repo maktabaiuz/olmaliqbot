@@ -9,8 +9,6 @@ import { UsersScreen } from './screens/UsersScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
-import { SuperAdminControlScreen } from './screens/SuperAdminControlScreen';
-import { OnboardingWizardScreen } from './screens/OnboardingWizardScreen';
 import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
 
 import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
@@ -29,13 +27,12 @@ import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
 import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
-import { setCityOverride } from './config';
 
 export interface AppProps {
   previewConfig?: {
     theme: 'dark' | 'light';
-    role: 'SUPER_ADMIN' | 'CITY_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER';
-    initialTab: 'home' | 'add' | 'requests' | 'database' | 'moderators' | 'superadmin' | 'onboarding' | 'detail' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary';
+    role: 'SUPER_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER';
+    initialTab: 'home' | 'add' | 'requests' | 'database' | 'moderators' | 'detail' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary';
   };
 }
 
@@ -48,23 +45,19 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'superadmin' | 'onboarding' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
-  >(user?.role === 'SUPER_ADMIN' ? 'superadmin' : 'normal');
-  const [selectedCityName, setSelectedCityName] = useState(user?.cityName || 'Olmaliq');
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
-  const [cityList, setCityList] = useState<Array<{ id: string; name: string }>>([]);
+    'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
+  >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
   const [activeLandmarkName, setActiveLandmarkName] = useState<string>('');
-  
+
   // Direct Chat states
   const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
   const [activeChatUserFullName, setActiveChatUserFullName] = useState<string>('');
   const [activeChatUserUsername, setActiveChatUserUsername] = useState<string | undefined>();
-  const [showCityDropdown, setShowCityDropdown] = useState(false);
-  
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
   const [prefilledCategory, setPrefilledCategory] = useState<string | undefined>();
@@ -73,9 +66,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   useEffect(() => {
     if (previewConfig) {
       const { initialTab } = previewConfig;
-      if (initialTab === 'superadmin') setViewMode('superadmin');
-      else if (initialTab === 'moderators') setViewMode('moderators');
-      else if (initialTab === 'onboarding') setViewMode('onboarding');
+      if (initialTab === 'moderators') setViewMode('moderators');
       else if (initialTab === 'settings') setViewMode('settings');
       else if (initialTab === 'statistics') setViewMode('statistics');
       else if (initialTab === 'bot_messages') setViewMode('bot_messages');
@@ -88,33 +79,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
     }
   }, [previewConfig]);
 
-  // Auto-set viewMode when user role is resolved after async auth
+  // RBAC Security Guard: moderatorlar admin-only bo'limlarga kira olmaydi
   useEffect(() => {
-    if (user?.role === 'SUPER_ADMIN') {
-      setViewMode('superadmin');
-    }
-  }, [user?.role]);
-
-  // Super-Admin uchun haqiqiy shaharlar ro'yxatini yuklash (shahar almashtirish dropdowni uchun)
-  useEffect(() => {
-    if (isSuperAdmin) {
-      fetch('/api/cities')
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => setCityList(Array.isArray(data) ? data : []))
-        .catch(() => {});
-    }
-  }, [isSuperAdmin]);
-
-  const handleSelectCity = (city: { id: string; name: string }) => {
-    setSelectedCityName(city.name);
-    setSelectedCityId(city.id);
-    setCityOverride(city.id);
-    setShowCityDropdown(false);
-  };
-
-  // RBAC Security Guard: non-super-admins cannot access super-admin-only views
-  useEffect(() => {
-    const superAdminOnlyModes = ['superadmin', 'moderators', 'bot_messages', 'dictionary'];
+    const superAdminOnlyModes = ['moderators', 'bot_messages', 'dictionary'];
     if (superAdminOnlyModes.includes(viewMode) && !isSuperAdmin) {
       setViewMode('normal');
     }
@@ -139,7 +106,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
     return (
       <LoginScreen
         adminName={user?.name || 'Admin'}
-        onLogin={async (_loginCode, pass) => {
+        onLogin={async (pass) => {
           return await loginWithPassword(pass);
         }}
       />
@@ -177,84 +144,11 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
               K
             </div>
 
-            {/* SUPER-ADMIN CITY SWITCHER DROPDOWN */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  if (isSuperAdmin) setShowCityDropdown(!showCityDropdown);
-                }}
-                className="flex items-center gap-1.5 hover:bg-surface-container-low dark:hover:bg-slate-800 px-2 py-1 rounded-lg transition-colors text-left"
-              >
-                <div>
-                  <div className="flex items-center gap-1">
-                    <h1 className="font-bold text-base text-on-surface dark:text-slate-100">{selectedCityName}</h1>
-                    {isSuperAdmin && (
-                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant dark:text-slate-400">
-                        expand_more
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
-                    {user?.name || 'Bobur (Admin)'}
-                  </p>
-                </div>
-              </button>
-
-              {/* DROPDOWN LIST */}
-              {showCityDropdown && isSuperAdmin && (
-                <div className="absolute top-12 left-0 bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl shadow-xl z-50 w-52 py-1 animate-fadeIn">
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-outline uppercase tracking-wider">
-                    Shaharlar
-                  </div>
-                  {cityList.map((city) => (
-                    <button
-                      key={city.id}
-                      onClick={() => handleSelectCity(city)}
-                      className="w-full text-left px-4 py-2 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
-                    >
-                      {city.name}
-                      {selectedCityName === city.name && (
-                        <span className="material-symbols-outlined text-[16px] text-primary">check</span>
-                      )}
-                    </button>
-                  ))}
-
-                  <div className="border-t border-outline-variant/30 dark:border-slate-800 my-1" />
-
-                  {/* 👑 BOSHQARUV (SUPER-ADMIN CONTROL PANEL) */}
-                  <button
-                    onClick={() => {
-                      setShowCityDropdown(false);
-                      setViewMode('superadmin');
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center gap-2"
-                  >
-                    <span>👑</span> Boshqaruv
-                  </button>
-
-                  {/* 👥 MODERATORLAR */}
-                  <button
-                    onClick={() => {
-                      setShowCityDropdown(false);
-                      setViewMode('moderators');
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 transition-colors flex items-center gap-2"
-                  >
-                    <span>👥</span> Moderatorlar
-                  </button>
-
-                  {/* ＋ YANGI SHAHAR */}
-                  <button
-                    onClick={() => {
-                      setShowCityDropdown(false);
-                      setViewMode('onboarding');
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-primary dark:text-sky-400 hover:bg-primary-container/10 transition-colors flex items-center gap-2"
-                  >
-                    <span>＋</span> Yangi shahar
-                  </button>
-                </div>
-              )}
+            <div>
+              <h1 className="font-bold text-base text-on-surface dark:text-slate-100">Olmaliq</h1>
+              <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
+                {user?.name || 'Bobur (Admin)'}
+              </p>
             </div>
           </div>
 
@@ -284,13 +178,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
       {/* MAIN VIEW SWITCHER */}
       <main className="flex-1 p-4 space-y-4">
-        {viewMode === 'superadmin' && isSuperAdmin && (
-          <SuperAdminControlScreen
-            onBackToDashboard={() => setViewMode('normal')}
-            onOpenDictionary={() => setViewMode('dictionary')}
-          />
-        )}
-
         {viewMode === 'moderators' && isSuperAdmin && (
           <ModeratorManagementScreen
             initData={window.Telegram?.WebApp?.initData || ''}
@@ -300,7 +187,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
         {viewMode === 'settings' && (
           <CitySettingsScreen
-            cityName={selectedCityName}
+            cityName="Olmaliq"
             onNavigateScreen={(scr) => setViewMode(scr as any)}
             onBack={() => setViewMode('normal')}
           />
@@ -308,7 +195,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
         {viewMode === 'statistics' && (
           <CityStatisticsScreen
-            cityName={selectedCityName}
+            cityName="Olmaliq"
             onNavigateToAddListingWithCategory={(cat) => {
               setPrefilledCategory(cat);
               setViewMode('normal');
@@ -324,7 +211,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
         {viewMode === 'emergency' && (
           <EmergencyNumbersScreen
-            cityName={selectedCityName}
+            cityName="Olmaliq"
             onBack={() => setViewMode('normal')}
           />
         )}
@@ -333,22 +220,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
           <GlobalDictionaryScreen onBack={() => setViewMode('normal')} />
         )}
 
-        {viewMode === 'onboarding' && isSuperAdmin && (
-          <OnboardingWizardScreen
-            onSubmitApplication={async (appData) => {
-              await fetch('/api/auth/submit-application', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(appData),
-              });
-              setViewMode('normal');
-            }}
-          />
-        )}
-
         {viewMode === 'expired' && (
           <SubscriptionLockScreen
-            cityName={selectedCityName}
+            cityName="Olmaliq"
             onRenewPayment={() => setViewMode('normal')}
           />
         )}
@@ -387,7 +261,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         )}
 
         {viewMode === 'normal' && (
-          <React.Fragment key={selectedCityId || 'own-city'}>
+          <React.Fragment>
             {selectedListingId ? (
               <ListingDetailScreen
                 listingId={selectedListingId}

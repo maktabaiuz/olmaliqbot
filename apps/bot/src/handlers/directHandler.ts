@@ -5,7 +5,7 @@ import { db } from '@kimbor/db';
 
 // User session state map for multi-step wizards in private chat
 const userSessions: Record<number, {
-  step?: 'CITY_SELECT' | 'CANDIDATE_NAME' | 'CANDIDATE_CAT' | 'CANDIDATE_PHONE' | 'CANDIDATE_LANDMARK' | 'FRANCHISE_NAME' | 'FRANCHISE_PHONE' | 'FRANCHISE_CITY' | 'FRANCHISE_LINK';
+  step?: 'CANDIDATE_NAME' | 'CANDIDATE_CAT' | 'CANDIDATE_PHONE' | 'CANDIDATE_LANDMARK' | 'FRANCHISE_NAME' | 'FRANCHISE_PHONE' | 'FRANCHISE_CITY' | 'FRANCHISE_LINK';
   cityId?: string;
   cityName?: string;
   candidateData?: { name?: string; category?: string; phone?: string; landmark?: string };
@@ -28,66 +28,19 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     userSessions[userId] = session;
   }
 
-  // Handle City Selection Reply Buttons
-  if (messageText === '🏙 Olmaliq' || messageText === '🏙️ Olmaliq') {
-    let city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
-    session.cityId = city ? city.id : defaultCityId;
-    session.cityName = 'Olmaliq';
-    session.step = undefined;
-
-    await sendMainMenu(ctx, 'Olmaliq', isSuperAdmin);
-    return;
-  }
-
-  if (messageText === '🏙 Chirchiq' || messageText === '🏙️ Chirchiq') {
-    let city = await db.city.findFirst({ where: { slug: 'chirchiq' } });
-    if (!city) {
-      city = await db.city.create({ data: { name: 'Chirchiq', slug: 'chirchiq', isActive: true } });
-    }
-    session.cityId = city.id;
-    session.cityName = 'Chirchiq';
-    session.step = undefined;
-
-    await sendMainMenu(ctx, 'Chirchiq', isSuperAdmin);
-    return;
-  }
-
-  if (messageText === '🏙 Angren' || messageText === '🏙️ Angren') {
-    let city = await db.city.findFirst({ where: { slug: 'angren' } });
-    if (!city) {
-      city = await db.city.create({ data: { name: 'Angren', slug: 'angren', isActive: true } });
-    }
-    session.cityId = city.id;
-    session.cityName = 'Angren';
-    session.step = undefined;
-
-    await sendMainMenu(ctx, 'Angren', isSuperAdmin);
-    return;
-  }
-
-  if (messageText === '🌐 Boshqa') {
-    await ctx.reply('Bu shaharda bot hali yo\'q.');
-    return;
-  }
-
   // 1. COMMAND: /start
   if (messageText === '/start') {
-    session.step = 'CITY_SELECT';
+    session.step = undefined;
 
-    // 2x2 Grid Reply Keyboard for City Selection (is_persistent: true, resize_keyboard: true)
-    const cityKeyboard = new Keyboard()
-      .text('🏙 Olmaliq').text('🏙 Chirchiq')
-      .row()
-      .text('🏙 Angren').text('🌐 Boshqa')
-      .resized()
-      .persistent();
+    const webappUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+    const openAppKeyboard = new InlineKeyboard().webApp('🌐 Web ilovani ochish', webappUrl);
 
-    const startMessage = `**Assalomu alaykum!**\n\nQaysi shahardansiz? Tanlang:`;
+    await ctx.reply(
+      `**Assalomu alaykum!**\n\nMen "Kim bor?" — Olmaliq shahri bo'yicha yordamchi botman. 🚀\n\nGuruhda savollaringizni bemalol berishingiz mumkin, yoki pastdagi tugma orqali admin panelini oching:`,
+      { parse_mode: 'Markdown', reply_markup: openAppKeyboard }
+    );
 
-    await ctx.reply(startMessage, {
-      parse_mode: 'Markdown',
-      reply_markup: cityKeyboard,
-    });
+    await sendMainMenu(ctx, isSuperAdmin);
     return;
   }
 
@@ -325,20 +278,19 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 }
 
 // Helper to send persistent 2x2 reply keyboard matching exact user specification
-async function sendMainMenu(ctx: Context, cityName: string, isAdmin: boolean) {
+async function sendMainMenu(ctx: Context, isAdmin: boolean) {
   // 2x2 Grid Reply Keyboard (is_persistent: true, resize_keyboard: true)
   const replyMenu = new Keyboard()
     .text('🔍 Qidirish').text('🤝 Hamkor')
     .row();
 
   if (isAdmin) {
-    replyMenu.text('🌐 Admin Paneli').text('➕ Ma\'lumot qo\'shish').row();
+    replyMenu.text('➕ Ma\'lumot qo\'shish').row();
   }
 
   replyMenu.resized().persistent();
 
-  const messageText = `**${cityName}** tanlandi\n\n` +
-    `Nima kerak? Yozing — shu shahar ichidan topib beraman.\n\n` +
+  const messageText = `Nima kerak? Yozing — Olmaliq ichidan topib beraman.\n\n` +
     `_Masalan: gazavik kerak · karzinka oldida dorixona_`;
 
   await ctx.reply(messageText, {

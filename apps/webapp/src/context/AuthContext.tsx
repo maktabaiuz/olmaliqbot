@@ -41,32 +41,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (isLocalDev) {
           console.info('[DEV MODE] Super Admin sifatida kirish...');
-          // Real city ma'lumotini production API dan olamiz (proxy orqali)
-          try {
-            const cityRes = await fetch('/api/cities');
-            const cities = cityRes.ok ? await cityRes.json() : [];
-            const firstCity = Array.isArray(cities) && cities.length > 0 ? cities[0] : null;
-            setUser({
-              id: 'local-dev-superadmin',
-              telegramId: '6355516451',
-              name: 'Bobur (Dev)',
-              role: 'SUPER_ADMIN',
-              cityId: firstCity?.id || 'olmaliq',
-              cityName: firstCity?.name || 'Olmaliq',
-            });
-            setAuthState('AUTHENTICATED');
-          } catch {
-            // City fetch muvaffaqiyatsiz bo'lsa ham kiraveramiz
-            setUser({
-              id: 'local-dev-superadmin',
-              telegramId: '6355516451',
-              name: 'Bobur (Dev)',
-              role: 'SUPER_ADMIN',
-              cityId: 'olmaliq',
-              cityName: 'Olmaliq',
-            });
-            setAuthState('AUTHENTICATED');
-          }
+          setUser({
+            id: 'local-dev-superadmin',
+            telegramId: '6355516451',
+            name: 'Bobur (Dev)',
+            role: 'SUPER_ADMIN',
+            cityId: 'olmaliq',
+            cityName: 'Olmaliq',
+          });
+          setAuthState('AUTHENTICATED');
           setIsLoading(false);
           return;
         }
@@ -91,13 +74,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.user) {
-            setUser(data.user);
-            setAuthState('AUTHENTICATED');
+          // Parol talab qilinishi har doim ustuvor tekshiriladi — aks holda
+          // "success:true + user" mavjudligi parolni chetlab o'tib, foydalanuvchini
+          // parol kiritmasdan turib "kirgan" deb hisoblab qo'yishi mumkin edi.
+          if (data.requiresSetup) {
+            setAuthState('REQUIRES_SETUP');
           } else if (data.requiresPassword) {
             setAuthState('REQUIRES_PASSWORD');
-          } else if (data.requiresSetup) {
-            setAuthState('REQUIRES_SETUP');
+          } else if (data.success && data.user) {
+            setUser(data.user);
+            setAuthState('AUTHENTICATED');
           } else {
             setUser(null);
             setAuthState('ACCESS_DENIED');

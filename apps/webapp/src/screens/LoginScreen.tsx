@@ -2,29 +2,28 @@ import React, { useState } from 'react';
 
 export interface LoginScreenProps {
   adminName?: string;
-  onLogin: (loginCode: string, password: string) => Promise<boolean>;
+  onLogin: (password: string) => Promise<boolean>;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   adminName = 'Admin',
   onLogin,
 }) => {
-  const [loginCode, setLoginCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginCode.trim() || !password.trim()) return;
+    if (!password.trim()) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const success = await onLogin(loginCode, password);
+      const success = await onLogin(password);
       if (!success) {
-        setError("Login kodi yoki parol noto'g'ri. Qayta urinib ko'ring.");
+        setError("Parol noto'g'ri. Qayta urinib ko'ring.");
       }
     } catch (err: any) {
       setError("Autentifikatsiya xatoligi yuz berdi.");
@@ -44,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           Xush kelibsiz, {adminName}
         </h1>
         <p className="text-slate-400 text-xs mb-5 text-center">
-          3 Qavatli Xavfsiz Autentifikatsiya Paneliga Kirish
+          Davom etish uchun parolni kiriting
         </p>
 
         {error && (
@@ -56,36 +55,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Login kodi (6-xonali raqam)
-            </label>
-            <input
-              type="text"
-              maxLength={6}
-              value={loginCode}
-              onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, ''))}
-              placeholder="Masalan: 483920"
-              required
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors font-mono tracking-wider"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Parol (6-harf yoki shaxsiy parol)
+              Parol
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Masalan: kavtre"
+              placeholder="Admin parolini kiriting"
               required
+              autoFocus
               className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
             />
           </div>
 
           <button
             type="submit"
-            disabled={isSubmitting || !loginCode.trim() || !password.trim()}
+            disabled={isSubmitting || !password.trim()}
             className="w-full bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Tekshirilmoqda...' : '🔐 Panelga kirish'}
