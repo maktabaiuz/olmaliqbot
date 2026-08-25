@@ -64,16 +64,16 @@ export function zeroLayerFilter(text: string): boolean {
   // 4. Kasb / Obyekt lug'atidan biror so'z bormi?
   const hasTradeKeyword = TRADE_KEYWORDS.some((kw) => kw.length > 2 && normalized.includes(kw));
 
-  // O'tkazish qoidasi: So'roq belgisi '?' VA (Savol so'zi YOKI Kasb lug'ati so'zi)
-  // YOKI (Savol so'zi VA Kasb lug'ati so'zi)
-  if (hasQuestionMark && (hasQuestionWord || hasTradeKeyword)) {
+  // O'tkazish qoidasi:
+  // 1. Kasb/xizmat nomi aniq mavjud bo'lsa (masalan: "karzinka oldida santexnik", "gazavik bormi")
+  if (hasTradeKeyword) {
     return true;
   }
 
-  if (hasQuestionWord && hasTradeKeyword) {
+  // 2. So'roq belgisi va savol so'zlari bormi
+  if (hasQuestionMark && hasQuestionWord) {
     return true;
   }
 
-  // Agar faqat '?' bo'lib hech qanday ma'noli so'z bo'lmasa ("assalomu alaykum?") -> false
   return false;
 }

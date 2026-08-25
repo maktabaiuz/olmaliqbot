@@ -1,105 +1,79 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 
-export const LoginScreen: React.FC = () => {
-  const { login } = useAuth();
-  const [password, setPassword] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>('');
+export interface LoginScreenProps {
+  adminName?: string;
+  onLogin: (password: string) => Promise<{ success: boolean; message?: string }>;
+}
 
-  const handleLogin = async (e: React.FormEvent) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({
+  adminName = 'Admin',
+  onLogin,
+}) => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password.trim()) return;
 
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await login(password);
-      if (!res.success) {
-        setErrorMsg(res.message || 'Parol noto\'g\'ri');
-      }
-    } catch (err) {
-      setErrorMsg('Tarmoq xatoligi yuz berdi');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setIsSubmitting(true);
+    setError(null);
 
-  const handleQuickDemoLogin = (role: 'SUPER_ADMIN' | 'CITY_ADMIN') => {
-    if (window.Telegram?.WebApp?.ready) {
-      window.Telegram.WebApp.ready();
+    try {
+      const result = await onLogin(password);
+      if (!result.success) {
+        setError(result.message || "Parol noto'g'ri. Qayta urinib ko'ring.");
+      }
+    } catch (err: any) {
+      setError("Autentifikatsiya xatoligi yuz berdi.");
+    } finally {
+      setIsSubmitting(false);
     }
-    // Set test auth directly
-    window.location.href = role === 'SUPER_ADMIN' ? '?role=SUPER_ADMIN' : '?role=CITY_ADMIN';
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-ios-bg dark:bg-[#0E141B]">
-      <div className="bg-white dark:bg-[#16212F] p-6 rounded-card border border-ios-sep dark:border-[#2C2C2E] shadow-2xl w-full max-w-sm flex flex-col items-center gap-4 text-center">
-        {/* Super-Admin Gold / Telegram Icon */}
-        <div className="w-16 h-16 rounded-full bg-gold-grad text-white flex items-center justify-center shadow-fab">
-          <span className="material-symbols-outlined text-[36px]">workspace_premium</span>
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
+      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-7 max-w-sm w-full shadow-2xl backdrop-blur-md">
+        <div className="w-14 h-14 bg-brand-500/10 border border-brand-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-brand-400 text-2xl shadow-inner">
+          🔐
         </div>
 
-        <div>
-          <h2 className="font-extrabold text-[20px] text-[#1C1C1E] dark:text-white">
-            Boshqaruv Markazi Kirish 👑
-          </h2>
-          <p className="text-[12px] text-ios-gray mt-1">
-            "Kim bor?" shahar va super-admin paneliga xush kelibsiz! Sinash uchun pastdagi tugmani bosing:
-          </p>
-        </div>
+        <h1 className="text-xl font-bold mb-1 text-slate-100 text-center">
+          Xush kelibsiz, {adminName}
+        </h1>
+        <p className="text-slate-400 text-xs mb-5 text-center">
+          Davom etish uchun parolni kiriting
+        </p>
 
-        {/* Zudlik bilan bir bosishda kirish tugmalari */}
-        <div className="w-full space-y-2 pt-1">
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('SUPER_ADMIN')}
-            className="w-full py-3 rounded-btn bg-gold-grad text-white font-bold text-[14px] shadow-fab active-scale flex items-center justify-center gap-2"
-          >
-            <span>👑 Super-Admin Sifatida Kirish</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleQuickDemoLogin('CITY_ADMIN')}
-            className="w-full py-2.5 rounded-btn bg-tg-grad text-white font-bold text-[13px] active-scale flex items-center justify-center gap-2"
-          >
-            <span>🏙 Shahar Admini (Olmaliq)</span>
-          </button>
-        </div>
-
-        <div className="relative w-full flex items-center justify-center my-1">
-          <div className="border-t border-ios-sep w-full"></div>
-          <span className="bg-white dark:bg-[#16212F] px-3 text-[11px] text-ios-gray absolute font-semibold">yoki parol bilan</span>
-        </div>
-
-        {errorMsg && (
-          <div className="w-full p-2.5 bg-ios-red/15 text-ios-red text-[12px] font-bold rounded-btn border border-ios-red/30">
-            {errorMsg}
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs text-center">
+            {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="w-full space-y-3">
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3.5 top-3 text-ios-gray text-[20px]">
-              key
-            </span>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              Parol
+            </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin paroli (admin/superadmin)..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px] text-[#1C1C1E] dark:text-white focus:outline-none focus:border-tg"
+              placeholder="Admin parolini kiriting"
+              required
+              autoFocus
+              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
             />
           </div>
 
           <button
             type="submit"
-            disabled={!password.trim() || loading}
-            className="w-full py-2.5 rounded-btn bg-ios-sep dark:bg-slate-800 text-[#1C1C1E] dark:text-white font-bold text-[13px] active-scale disabled:opacity-50"
+            disabled={isSubmitting || !password.trim()}
+            className="w-full bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Tekshirilmoqda...' : 'Parol Bilan Kirish →'}
+            {isSubmitting ? 'Tekshirilmoqda...' : '🔐 Panelga kirish'}
           </button>
         </form>
       </div>

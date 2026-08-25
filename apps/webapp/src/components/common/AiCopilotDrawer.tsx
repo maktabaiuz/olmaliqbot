@@ -53,9 +53,9 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({ isOpen, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-[#16212F] rounded-t-card max-w-container-max mx-auto w-full h-[80vh] flex flex-col shadow-2xl border-t border-ios-purple/30">
+      <div className="bg-white dark:bg-[#16212F] rounded-t-card max-w-container-max mx-auto w-full h-[75vh] flex flex-col shadow-2xl border-t border-ios-purple/30">
         {/* Drawer Header */}
-        <div className="p-4 border-b border-ios-separator dark:border-ios-darkSeparator flex items-center justify-between bg-ios-purple/10">
+        <div className="shrink-0 p-4 border-b border-ios-separator dark:border-ios-darkSeparator flex items-center justify-between bg-ios-purple/10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-icon bg-ios-purple text-white flex items-center justify-center shadow-sm">
               <span className="material-symbols-outlined text-[20px]">smart_toy</span>
@@ -104,7 +104,7 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({ isOpen, onClos
         </div>
 
         {/* Prompt Input */}
-        <form onSubmit={handleSend} className="p-3 border-t border-ios-separator dark:border-ios-darkSeparator bg-white dark:bg-[#16212F] flex gap-2">
+        <form onSubmit={handleSend} className="shrink-0 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-ios-separator dark:border-ios-darkSeparator bg-white dark:bg-[#16212F] flex gap-2">
           <input
             type="text"
             value={prompt}

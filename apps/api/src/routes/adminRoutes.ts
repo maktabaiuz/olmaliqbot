@@ -1,28 +1,34 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries } from '@kimbor/core';
+import { db, ListingType, VerificationStatus } from '@kimbor/db';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName } from '@kimbor/core';
 import crypto from 'crypto';
+import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
+
+// Login bloklanish muddatini o'qishga qulay shaklga o'tkazadi (masalan "2 kun 5 soat")
+function formatRemainingTime(until: Date): string {
+  const ms = until.getTime() - Date.now();
+  if (ms <= 0) return 'bir necha soniya';
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  if (days > 0) return `${days} kun ${hours} soat`;
+  if (hours > 0) return `${hours} soat`;
+  const minutes = Math.max(1, Math.floor(ms / (60 * 1000)));
+  return `${minutes} daqiqa`;
+}
 
 export async function adminRoutes(fastify: FastifyInstance) {
-  // Universal Telegram Webhook endpoint
-  fastify.post('/telegram/webhook', async (req: any, reply) => {
-    return { ok: true };
-  });
+  const SUPER_ADMIN_IDS = [BigInt(6355516451), BigInt(8323651390), BigInt(5369180248)];
+  const isSuperAdminId = (id?: bigint | null) => (id ? SUPER_ADMIN_IDS.some((a) => a === id) : false);
 
-  fastify.get('/system/deploy-now', async (req: any, reply) => {
-    const { exec } = require('child_process');
-    exec('cd /root/kimbor || cd kimbor && git pull origin main && pnpm build', (err: any, stdout: any, stderr: any) => {
-      console.log('Force System Deploy output:', stdout, stderr);
-    });
-    return { ok: true, message: 'Server force deploy boshlandi! 1 daqiqada yangilanadi.' };
-  });
-
-  fastify.post('/webhook', async (req: any, reply) => {
-    return { ok: true };
-  });
   // Utility for resolving cityId safely
+  // - Haqiqiy autentifikatsiya orqali o'ziga tegishli cityId ishlatadi
+  // - Sessiya topilmasa (masalan initData yo'q), Olmaliqqa tushadi (yagona shahar)
   const getCityId = async (req: any): Promise<string> => {
-    if (req.user?.cityId) return req.user.cityId;
+    const { user } = await authenticateRequest(req);
+    if (user) {
+      req.user = user;
+      if (user.cityId) return user.cityId;
+    }
     const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
     return defaultCity ? defaultCity.id : 'default_city';
   };
@@ -30,7 +36,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // --- 1. AUTHENTICATION ---
   fastify.post('/auth/telegram', async (req: any, reply) => {
     const { initData } = req.body;
-    const botToken = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) return reply.status(500).send({ success: false, message: 'BOT_TOKEN env variable is not configured' });
 
     if (!initData) {
       return reply.status(401).send({ success: false, accessDenied: true, message: 'initData required' });
@@ -50,7 +57,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
       const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-      const isValid = calculatedHash === hash || process.env.NODE_ENV === 'development';
+      const isValid = calculatedHash === hash;
 
       if (!isValid) {
         return reply.status(401).send({ success: false, accessDenied: true, message: 'Invalid Telegram HMAC signature' });
@@ -63,58 +70,49 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
       const tgUser = JSON.parse(userParam);
       const telegramUserId = BigInt(tgUser.id);
-      const tgUsername = (tgUser.username || '').toLowerCase().replace('@', '');
-      const SUPER_ADMIN_USERNAMES = ['superman_uzb', 'ai_loyihachi', 'bobur_owner', 'bobur_admin'];
-      const SUPER_ADMIN_IDS = [BigInt(358795989), BigInt(6355516451), BigInt(8603273053)];
-      const isSuperAdmin = SUPER_ADMIN_IDS.includes(telegramUserId) || SUPER_ADMIN_USERNAMES.includes(tgUsername);
 
-      // Lookup user in User table
-      let dbUser = await db.user.findUnique({
+      // Lookup user in User table (agar mavjud bo'lmasa yoki oddiy USER bo'lsa ham
+      // bloklanmaydi — parolning o'zi haqiqiy himoya, kirish urinishi shu yerda rad
+      // etilmaydi, faqat /auth/login bosqichida parol tekshiriladi)
+      const dbUser = await db.user.findUnique({
         where: { telegramId: telegramUserId },
         include: { city: true },
       });
 
-      if (!dbUser && isSuperAdmin) {
-        const defaultCity = await db.city.findFirst({ where: { slug: 'olmaliq' } });
-        dbUser = await db.user.create({
-          data: {
-            telegramId: telegramUserId,
-            firstName: tgUser.first_name || 'Admin',
-            lastName: tgUser.last_name || '',
-            username: tgUser.username || null,
-            role: 'SUPER_ADMIN',
-            cityId: defaultCity?.id,
-            isPasswordSet: true,
-            passwordHash: 'kimbor2026',
-          },
-          include: { city: true },
-        });
-      } else if (dbUser && isSuperAdmin && dbUser.role !== 'SUPER_ADMIN') {
-        dbUser = await db.user.update({
-          where: { id: dbUser.id },
-          data: { role: 'SUPER_ADMIN', username: tgUser.username || undefined },
-          include: { city: true },
-        });
+      const userInfo = dbUser
+        ? {
+            id: dbUser.id,
+            telegramId: dbUser.telegramId.toString(),
+            name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+            role: dbUser.role,
+            cityId: dbUser.cityId || 'default_city',
+            cityName: dbUser.city?.name || 'Olmaliq',
+          }
+        : {
+            id: '',
+            telegramId: telegramUserId.toString(),
+            name: `${tgUser.first_name || ''} ${tgUser.last_name || ''}`.trim() || 'Admin',
+            role: 'USER',
+            cityId: 'default_city',
+            cityName: 'Olmaliq',
+          };
+
+      // Ko'p marta xato parol kiritilgan bo'lsa — parol ekranini ko'rsatishdan
+      // oldin ham bloklanganini bildiramiz (foydalanuvchi behuda urinmasin)
+      const loginAttempt = await db.loginAttempt.findUnique({ where: { telegramId: telegramUserId } });
+      if (loginAttempt?.bannedUntil && loginAttempt.bannedUntil > new Date()) {
+        return {
+          success: true,
+          banned: true,
+          bannedMessage: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(loginAttempt.bannedUntil)} keyin qayta urining.`,
+          user: userInfo,
+        };
       }
 
-      if (!dbUser || dbUser.role === 'USER') {
-        return reply.status(403).send({
-          success: false,
-          accessDenied: true,
-          message: 'Bu panel faqat shahar adminlari uchun 🔒',
-        });
-      }
-
-      const userInfo = {
-        id: dbUser.id,
-        telegramId: dbUser.telegramId.toString(),
-        name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
-        role: dbUser.role,
-        cityId: dbUser.cityId || 'default_city',
-        cityName: dbUser.city?.name || 'Olmaliq',
-      };
-
-      if (!dbUser.isPasswordSet) {
+      // Faqat oldindan taklif qilingan (moderator) va hali parol qo'ymagan
+      // foydalanuvchi "parol o'rnatish" ekraniga yo'naltiriladi. Qolgan barcha
+      // holatda — oddiy parol kirish ekrani ko'rsatiladi.
+      if (dbUser && dbUser.role !== 'USER' && !dbUser.isPasswordSet) {
         return {
           success: true,
           requiresSetup: true,
@@ -135,36 +133,121 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/auth/login', async (req: any, reply) => {
     const { initData, password } = req.body;
 
-    // Verify user and password against DB record
-    const urlParams = new URLSearchParams(initData || '');
-    const userParam = urlParams.get('user');
-    const tgUser = userParam ? JSON.parse(userParam) : null;
-    const telegramUserId = tgUser?.id ? BigInt(tgUser.id) : BigInt(8603273053); // Default Super Admin ID
-
-    const dbUser = await db.user.findUnique({
-      where: { telegramId: telegramUserId },
-      include: { city: true },
-    });
-
-    if (!dbUser || dbUser.role === 'USER') {
-      return reply.status(403).send({ success: false, accessDenied: true, message: 'Ruxsat berilmadi!' });
+    if (!initData || !password) {
+      return reply.status(400).send({ success: false, message: 'initData va parol talab qilinadi' });
     }
 
-    if (dbUser.passwordHash === password || password === 'kimbor2026') {
+    const { isValid, telegramId, userRaw } = verifyTelegramInitData(initData);
+    if (!isValid || !telegramId) {
+      return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram imzo (HMAC) xatosi 🔒' });
+    }
+
+    // 0. Brute-force himoyasi: 2 marta xato parol kiritilsa, 3 kunga bloklanadi.
+    const existingAttempt = await db.loginAttempt.findUnique({ where: { telegramId } });
+    if (existingAttempt?.bannedUntil && existingAttempt.bannedUntil > new Date()) {
+      return reply.status(403).send({
+        success: false,
+        banned: true,
+        message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(existingAttempt.bannedUntil)} keyin qayta urining.`,
+      });
+    }
+
+    // 1. Yagona admin paroli (.env: ADMIN_PASSWORD) — to'g'ri kiritilsa, shu Telegram
+    // foydalanuvchisi to'liq admin huquqi bilan yoziladi/yangilanadi.
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    let resultUser: any = null;
+
+    if (adminPassword && password === adminPassword) {
+      const olmaliq = await db.city.findFirst({ where: { slug: 'olmaliq' } });
+      const dbUser = await db.user.upsert({
+        where: { telegramId },
+        update: { role: 'SUPER_ADMIN', isSuspended: false },
+        create: {
+          telegramId,
+          firstName: userRaw?.first_name || 'Admin',
+          lastName: userRaw?.last_name || '',
+          username: userRaw?.username || null,
+          role: 'SUPER_ADMIN',
+          cityId: olmaliq?.id,
+          isPasswordSet: true,
+        },
+        include: { city: true },
+      });
+      resultUser = dbUser;
+    } else {
+      // 2. Oldindan tayinlangan (masalan moderator) shaxsiy paroli
+      const dbUser = await db.user.findUnique({ where: { telegramId }, include: { city: true } });
+      if (dbUser && dbUser.role !== 'USER' && !dbUser.isSuspended && dbUser.passwordHash && verifyPassword(password, dbUser.passwordHash)) {
+        resultUser = dbUser;
+      }
+    }
+
+    if (resultUser) {
+      // To'g'ri parol — oldingi xato urinishlar hisobi tozalanadi
+      if (existingAttempt) {
+        await db.loginAttempt.delete({ where: { telegramId } }).catch(() => {});
+      }
       return {
         success: true,
         user: {
-          id: dbUser.id,
-          telegramId: dbUser.telegramId.toString(),
-          name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
-          role: dbUser.role,
-          cityId: dbUser.cityId || 'default_city',
-          cityName: dbUser.city?.name || 'Olmaliq',
+          id: resultUser.id,
+          telegramId: resultUser.telegramId.toString(),
+          name: `${resultUser.firstName || ''} ${resultUser.lastName || ''}`.trim() || 'Admin',
+          role: resultUser.role,
+          cityId: resultUser.cityId || 'default_city',
+          cityName: resultUser.city?.name || 'Olmaliq',
         },
       };
     }
 
+    // Xato parol — urinishlar sonini oshiramiz, 2 taga yetsa 3 kunga bloklaymiz
+    const newFailedCount = (existingAttempt?.failedCount || 0) + 1;
+    const shouldBan = newFailedCount >= 2;
+    const bannedUntil = shouldBan ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
+
+    await db.loginAttempt.upsert({
+      where: { telegramId },
+      update: { failedCount: shouldBan ? 0 : newFailedCount, bannedUntil, lastAttemptAt: new Date() },
+      create: { telegramId, failedCount: shouldBan ? 0 : newFailedCount, bannedUntil },
+    });
+
+    if (shouldBan) {
+      return reply.status(403).send({
+        success: false,
+        banned: true,
+        message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(bannedUntil!)} keyin qayta urining.`,
+      });
+    }
+
     return reply.status(401).send({ success: false, message: "Parol noto'g'ri!" });
+  });
+
+  fastify.post('/auth/setup-password', async (req: any, reply) => {
+    const { initData, password } = req.body;
+    if (!initData || !password || password.length < 6) {
+      return reply.status(400).send({ success: false, message: "Parol kamida 6 belgidan iborat bo'lishi kerak" });
+    }
+
+    const { isValid, telegramId } = verifyTelegramInitData(initData);
+    if (!isValid || !telegramId) {
+      return reply.status(401).send({ success: false, accessDenied: true, message: 'Telegram imzo (HMAC) xatosi 🔒' });
+    }
+
+    const dbUser = await db.user.findUnique({ where: { telegramId } });
+    if (!dbUser || dbUser.role === 'USER' || dbUser.isSuspended) {
+      return reply.status(403).send({ success: false, accessDenied: true, message: 'Ruxsat berilmadi! 🔒' });
+    }
+
+    const passwordHash = hashPassword(password);
+    await db.user.update({
+      where: { telegramId },
+      data: {
+        passwordHash,
+        isPasswordSet: true,
+      },
+    });
+
+    return { success: true, message: "Parol o'rnatildi!" };
   });
 
   // --- 1.2 TEST CHECKOUT & CREDENTIAL GENERATION (Section 2 & 3) ---
@@ -186,20 +269,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
       update: {
         loginCode,
         tempPassword,
-        role: tgUserId === BigInt(6355516451) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
+        role: isSuperAdminId(tgUserId) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
       },
       create: {
         telegramId: tgUserId,
         firstName: 'Test',
         lastName: 'Admin',
-        role: tgUserId === BigInt(6355516451) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
+        role: isSuperAdminId(tgUserId) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
         loginCode,
         tempPassword,
       },
     });
 
     // Send credentials via Telegram Bot API
-    const botToken = process.env.BOT_TOKEN || '8603273053:AAFazZJBTKPnZZGsvIEpwIAhJSejsUQQSSU';
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) throw new Error('BOT_TOKEN env variable is not configured');
     const appUrl = process.env.WEBAPP_URL || 'https://7d0905ff78ad33.lhr.life';
 
     const credMessage = `✅ **To'lov qabul qilindi**\n\n` +
@@ -231,187 +315,59 @@ export async function adminRoutes(fastify: FastifyInstance) {
     };
   });
 
-  // --- 1.3 SUBMIT ONBOARDING APPLICATION (Section 6, 7 & 9) ---
-  fastify.post('/auth/submit-application', async (req: any, reply) => {
-    const {
-      fullName,
-      phone,
-      cityName,
-      groupLink,
-      groupName,
-      groupMembersCount,
-      channelLink,
-      channelName,
-      channelSubsCount,
-      about,
-      telegramUserId,
-    } = req.body;
-
-    const tgUserId = telegramUserId ? BigInt(telegramUserId) : BigInt(6355516451);
-
-    // Save Application in DB
-    const appRecord = await db.application.create({
-      data: {
-        fullName: fullName || 'Arizachi',
-        phone: phone || '',
-        cityName: cityName || 'Yangi Shahar',
-        groupLink: groupLink || '',
-        groupName: groupName || 'Guruh',
-        groupMembersCount: groupMembersCount || 0,
-        channelLink: channelLink || '',
-        channelName: channelName || 'Kanal',
-        channelSubsCount: channelSubsCount || 0,
-        about: about || '',
-        telegramUserId: tgUserId,
-        status: 'APPROVED', // Test mode auto-approves
-        paymentReceived: true,
-      },
-    });
-
-    // Create City in DB if not exists
-    const citySlug = (cityName || 'shahar').toLowerCase().replace(/\s+/g, '-');
-    let city = await db.city.findFirst({ where: { slug: citySlug } });
-    if (!city) {
-      city = await db.city.create({
-        data: { name: cityName || 'Yangi Shahar', slug: citySlug, isActive: true },
-      });
-    }
-
-    // Assign User to City
-    await db.user.update({
-      where: { telegramId: tgUserId },
-      data: { cityId: city.id, role: tgUserId === BigInt(6355516451) ? 'SUPER_ADMIN' : 'CITY_ADMIN' },
-    });
-
-    // Notify Super-Admin (6355516451) via Telegram Bot API
-    const botToken = process.env.BOT_TOKEN || '8603273053:AAFazZJBTKPnZZGsvIEpwIAhJSejsUQQSSU';
-    const adminAlertText = `🎉 **YANGI SHAHAR ARIZASI (SINOV REJIMI: AUTO-APPROVED)**\n\n` +
-      `• Arizachi: **${fullName}** (${phone})\n` +
-      `• Shahar: **${cityName}**\n` +
-      `• Guruh: **${groupName}** (${groupMembersCount} a'zo)\n` +
-      `• Kanal: **${channelName}** (${channelSubsCount} obunachi)\n` +
-      `• Izoh: _${about}_`;
-
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: '6355516451',
-          text: adminAlertText,
-          parse_mode: 'Markdown',
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to alert super admin:', e);
-    }
-
-    return {
-      success: true,
-      applicationId: appRecord.id,
-      cityId: city.id,
-    };
-  });
-
   // --- 2. STATS & ANALYTICS ---
-  fastify.get('/admin/stats', async (req, reply) => {
+  fastify.get('/admin/stats', async (req: any, reply) => {
     const cityId = await getCityId(req);
+    const { period } = req.query || {};
+
+    let periodStart: Date | undefined;
+    if (period === 'today') {
+      periodStart = new Date();
+      periodStart.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'month') {
+      periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+    const periodFilter = periodStart ? { createdAt: { gte: periodStart } } : {};
 
     const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
-    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false } });
+    const totalQuestions = await db.queryLog.count({ where: { cityId, ...periodFilter } });
+    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
-    const pendingCorrections = await db.correction.count({ where: { cityId, status: 'NEW' } });
-    const complaintsCount = await db.queryLog.count({ where: { cityId, isComplaint: true } });
-    
-    // Stale listings (6 months old without verification)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const staleListings = await db.listing.count({
-      where: { cityId, lastVerifiedAt: { lte: sixMonthsAgo } },
-    });
-
-    // Low rating listings (Rating < 2.5)
-    const lowRatingListings = await db.listing.count({
-      where: { cityId, bayesianRating: { lt: 2.5 } },
-    });
-
     const totalCategories = await db.category.count();
+    const totalUsers = await db.user.count({ where: { cityId } });
+
+    // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
+    const resolvedPercent = totalQuestions > 0
+      ? Math.round(((totalQuestions - unresolvedRequests) / totalQuestions) * 1000) / 10
+      : 100;
 
     return {
-      activeListings,
+      // DashboardScreen.tsx kutgan nomlar:
+      totalQuestions,
       unresolvedRequests,
+      resolvedPercent,
+      totalListings: activeListings,
+      totalUsers,
+      // Qo'shimcha (boshqa ekranlar uchun):
+      activeListings,
       pendingCandidates,
-      pendingCorrections,
-      complaintsCount,
-      staleListings,
-      lowRatingListings,
       totalCategories,
-      accuracyRate: 98.5,
-    };
-  });
-
-  // AI Insight briefing for Dashboard
-  fastify.get('/admin/ai-insight', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-
-    // Find recent unresolved queries
-    const unresolvedLogs = await db.queryLog.findMany({
-      where: { cityId, isResolved: false },
-      select: { categoryName: true, rawMessage: true },
-      take: 50,
-    });
-
-    if (unresolvedLogs.length === 0) {
-      return null;
-    }
-
-    // Count categories
-    const catMap = new Map<string, number>();
-    for (const log of unresolvedLogs) {
-      const cat = log.categoryName || log.rawMessage;
-      catMap.set(cat, (catMap.get(cat) || 0) + 1);
-    }
-
-    let topCat = '';
-    let maxCount = 0;
-    for (const [cat, count] of catMap.entries()) {
-      if (count > maxCount) {
-        maxCount = count;
-        topCat = cat;
-      }
-    }
-
-    const formattedCat = topCat ? topCat.charAt(0).toUpperCase() + topCat.slice(1) : 'Kafelchi';
-
-    return {
-      message: `Bugun ${unresolvedLogs.length} ta savolga javob berolmadim. Ko'pchiligi ${formattedCat.toLowerCase()} haqida edi.`,
-      suggestedCategory: formattedCat,
+      accuracyRate: resolvedPercent,
     };
   });
 
   // --- 3. LISTINGS (USTALAR VA XIZMATLAR) ---
-  fastify.get('/admin/listings', async (req: any, reply) => {
+  fastify.get('/admin/listings', async (req, reply) => {
     const cityId = await getCityId(req);
-    const { type, categoryName, search } = req.query || {};
-
-    const where: any = { cityId };
-    if (type) where.type = type;
-    if (categoryName) {
-      where.category = { name: { equals: categoryName, mode: 'insensitive' } };
-    }
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        { category: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
 
     const listings = await db.listing.findMany({
-      where,
+      where: { cityId },
       include: {
         category: true,
         primaryLandmark: true,
+        serviceAreaLandmarks: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -419,46 +375,22 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return listings;
   });
 
-  fastify.post('/admin/listings', async (req: any, reply) => {
+  // GET /admin/listings/check-duplicate
+  fastify.get('/admin/listings/check-duplicate', async (req: any, reply) => {
     const cityId = await getCityId(req);
-    const { name, categoryName, phone, landmarkName, badges, verified, workFrom, workTo } = req.body || {};
+    const { phone, name } = req.query as { phone?: string; name?: string };
 
-    if (!name || !categoryName || !phone) {
-      return reply.status(400).send({ error: "Ism, Kategoriya va Telefon majburiy!" });
+    if (!phone && !name) {
+      return { isDuplicate: false };
     }
 
-    // Find or create category
-    let category = await db.category.findFirst({
-      where: { name: { equals: categoryName, mode: 'insensitive' } },
-    });
-
-    if (!category) {
-      category = await db.category.create({
-        data: { name: categoryName, synonyms: [categoryName.toLowerCase()] },
-      });
-    }
-
-    // Find or create landmark for this city
-    const targetLandmarkName = landmarkName || 'Markaz';
-    let landmark = await db.landmark.findFirst({ where: { cityId, name: targetLandmarkName } });
-    if (!landmark) {
-      landmark = await db.landmark.create({
-        data: { cityId, name: targetLandmarkName, synonyms: [targetLandmarkName.toLowerCase()] },
-      });
-    }
-
-    const listing = await db.listing.create({
-      data: {
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : '';
+    
+    // Find matching listing by phone or name in this city
+    const existingListings = await db.listing.findMany({
+      where: {
         cityId,
-        categoryId: category.id,
-        primaryLandmarkId: landmark.id,
-        type: 'USTA' as any,
-        name,
-        phone,
-        badges: badges && badges.length > 0 ? badges : ['uyga_boradi'],
-        verification: (verified ? 'VERIFIED' : 'COMMUNITY_UNVERIFIED') as any,
-        workFrom: workFrom || '08:00',
-        workTo: workTo || '20:00',
+        status: 'ACTIVE',
       },
       include: {
         category: true,
@@ -466,31 +398,226 @@ export async function adminRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Audit Log
-    try {
-      await db.auditLog.create({
-        data: {
-          cityId,
-          userId: req.user?.id || undefined,
-          action: 'CREATE_LISTING',
-          details: { listingId: listing.id, name, categoryName, phone, landmarkName },
-        },
-      });
-    } catch (e) {}
-
-    // Auto-Notification Loop: Notify users who requested this category
-    await notifyUsersOnNewListingAdded({
-      cityId,
-      listingId: listing.id,
-      categoryName: category.name,
+    const match = existingListings.find((item) => {
+      const itemCleanPhone = item.phone ? item.phone.replace(/\D/g, '') : '';
+      if (cleanPhone && cleanPhone.length >= 7 && itemCleanPhone.endsWith(cleanPhone.slice(-7))) {
+        return true;
+      }
+      if (name && name.length >= 3 && item.name.toLowerCase().trim() === name.toLowerCase().trim()) {
+        return true;
+      }
+      return false;
     });
 
-    return listing;
+    if (match) {
+      return {
+        isDuplicate: true,
+        existing: {
+          id: match.id,
+          name: match.name,
+          categoryName: match.category.name,
+          landmarkName: match.primaryLandmark.name,
+          phone: match.phone,
+        },
+      };
+    }
+
+    return { isDuplicate: false };
+  });
+
+  fastify.post('/admin/listings', async (req: any, reply) => {
+    try {
+      const cityId = await getCityId(req);
+      const {
+        type,
+        name,
+        categoryName,
+        phone,
+        landmarkName,
+        badges,
+        verified,
+        workFrom,
+        workTo,
+        addedByUserId,
+        consentGiven,
+        consentDevice,
+        latitude,
+        longitude,
+        jargonSynonyms,
+        isConfirmedDifferent,
+      } = req.body;
+
+      if (!name || !categoryName || !phone) {
+        return reply.status(400).send({ error: "Ism, Kategoriya va Telefon majburiy!" });
+      }
+
+      const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT];
+      const listingType = VALID_LISTING_TYPES.includes(type) ? type : ListingType.USTA;
+
+      // Find or create category. Avval kiritilgan nomni lug'atdagi KANONIK
+      // nomga moslashtiramiz (masalan "taxi", "Taxi" -> "Taksi") — shu orqali
+      // yozilish farqi sabab dublikat kategoriya yaralishining oldi olinadi.
+      const canonicalCategoryName = resolveCanonicalCategoryName(categoryName);
+      let category = await db.category.findFirst({
+        where: { name: { equals: canonicalCategoryName, mode: 'insensitive' } },
+      });
+
+      if (!category) {
+        category = await db.category.create({
+          data: { name: canonicalCategoryName, synonyms: [canonicalCategoryName.toLowerCase()] },
+        });
+      }
+
+      // Find or create landmark
+      const targetLandmarkName = landmarkName || 'Markaz';
+      let landmark = await db.landmark.findFirst({ where: { cityId, name: targetLandmarkName } });
+      if (!landmark) {
+        landmark = await db.landmark.create({
+          data: { cityId, name: targetLandmarkName, synonyms: [targetLandmarkName.toLowerCase()] },
+        });
+      }
+
+      const ip = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim();
+
+      const listing = await db.listing.create({
+        data: {
+          cityId,
+          categoryId: category.id,
+          primaryLandmarkId: landmark.id,
+          type: listingType,
+          name,
+          phone,
+          badges: badges || ['uyga_boradi'],
+          verification: verified ? VerificationStatus.VERIFIED : VerificationStatus.COMMUNITY_UNVERIFIED,
+          workFrom: workFrom || '08:00',
+          workTo: workTo || '20:00',
+          addedByUserId: req.user?.id || addedByUserId || null,
+          consentGiven: Boolean(consentGiven),
+          consentAt: consentGiven ? new Date() : null,
+          consentDevice: consentDevice || req.headers['user-agent'] || null,
+          consentIp: ip || null,
+          latitude: latitude ? parseFloat(latitude) : null,
+          longitude: longitude ? parseFloat(longitude) : null,
+          jargonSynonyms: Array.isArray(jargonSynonyms) ? jargonSynonyms : [],
+        },
+      });
+
+      // Write Audit Log for requirement #8 JURNAL
+      try {
+        await db.auditLog.create({
+          data: {
+            userId: req.user?.id || addedByUserId || null,
+            cityId,
+            action: 'CREATE_LISTING',
+            details: { listingId: listing.id, name, phone, consentGiven: Boolean(consentGiven), isConfirmedDifferent: Boolean(isConfirmedDifferent) },
+            deviceInfo: (consentDevice || req.headers['user-agent'] || '').slice(0, 255),
+            ipAddress: ip.slice(0, 64),
+          },
+        });
+      } catch {}
+
+      // Auto-Notification Loop: Notify users who requested this category
+      await notifyUsersOnNewListingAdded({
+        cityId,
+        listingId: listing.id,
+        categoryName: category.name,
+      });
+
+      return listing;
+    } catch (err: any) {
+      req.log.error(err);
+      return reply.status(400).send({
+        error: "Yozuvni saqlashda xatolik yuz berdi. Iltimos qayta urinib ko'ring.",
+      });
+    }
+  });
+
+  // GET /admin/listings/:id — Full detail with category, landmark, reviews, corrections, history
+  fastify.get('/admin/listings/:id', async (req: any, reply) => {
+    const { id } = req.params;
+    const listing = await db.listing.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        primaryLandmark: true,
+        serviceAreaLandmarks: true,
+        reviews: { orderBy: { createdAt: 'desc' } },
+        corrections: { orderBy: { createdAt: 'desc' } },
+        history: { orderBy: { createdAt: 'desc' }, take: 20 },
+        addedByUser: { select: { firstName: true, lastName: true, role: true } },
+      },
+    });
+
+    if (!listing) return reply.status(404).send({ success: false, message: 'Yozuv topilmadi' });
+
+    // Format bot preview message
+    const botPreviewText = [
+      `🔧 ${listing.category?.name || 'Xizmat'}`,
+      '',
+      `${listing.name} ${listing.verification === 'VERIFIED' ? '✅' : '⚠️'} ⭐${listing.bayesianRating.toFixed(1)}`,
+      `📍 ${listing.primaryLandmark?.name || 'Olmaliq'}`,
+      `🏷 ${(listing.badges || []).join(' · ')}`,
+      `📞 ${listing.phone}`,
+      '',
+      `[Yana 2 tasini ko'rish]`,
+      '',
+      `🕐 Bu xabar 15 daqiqada o'chadi`,
+    ].join('\n');
+
+    return {
+      success: true,
+      listing,
+      botPreviewText,
+    };
   });
 
   fastify.put('/admin/listings/:id', async (req: any, reply) => {
     const { id } = req.params;
-    const { name, phone, badges, verification, status } = req.body;
+    const {
+      name,
+      phone,
+      badges,
+      verification,
+      status,
+      categoryName,
+      landmarkName,
+      workFrom,
+      workTo,
+      specificServices,
+      approxPrice,
+      description,
+      jargonSynonyms,
+    } = req.body;
+
+    const existing = await db.listing.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Yozuv topilmadi' });
+
+    // Record snapshot before updating
+    try {
+      await db.listingHistory.create({
+        data: {
+          listingId: id,
+          changedBy: req.user?.id || 'Admin',
+          snapshot: existing as any,
+        },
+      });
+    } catch {}
+
+    // Category / Landmark updates
+    let categoryId = existing.categoryId;
+    if (categoryName) {
+      const canonicalName = resolveCanonicalCategoryName(categoryName);
+      let cat = await db.category.findFirst({ where: { name: { equals: canonicalName, mode: 'insensitive' } } });
+      if (!cat) cat = await db.category.create({ data: { name: canonicalName, synonyms: [canonicalName.toLowerCase()] } });
+      categoryId = cat.id;
+    }
+
+    let primaryLandmarkId = existing.primaryLandmarkId;
+    if (landmarkName) {
+      let lm = await db.landmark.findFirst({ where: { cityId: existing.cityId, name: landmarkName } });
+      if (!lm) lm = await db.landmark.create({ data: { cityId: existing.cityId, name: landmarkName, synonyms: [landmarkName.toLowerCase()] } });
+      primaryLandmarkId = lm.id;
+    }
 
     const updated = await db.listing.update({
       where: { id },
@@ -500,10 +627,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(badges && { badges }),
         ...(verification && { verification }),
         ...(status && { status }),
+        ...(workFrom && { workFrom }),
+        ...(workTo && { workTo }),
+        ...(specificServices !== undefined && { specificServices }),
+        ...(approxPrice !== undefined && { approxPrice }),
+        ...(description !== undefined && { description }),
+        ...(Array.isArray(jargonSynonyms) && { jargonSynonyms }),
+        categoryId,
+        primaryLandmarkId,
+        lastVerifiedAt: new Date(),
+      },
+      include: {
+        category: true,
+        primaryLandmark: true,
       },
     });
 
-    return updated;
+    return { success: true, listing: updated };
   });
 
   fastify.delete('/admin/listings/:id', async (req: any, reply) => {
@@ -546,33 +686,109 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // --- 5. CATEGORIES & LANDMARKS ---
   fastify.get('/admin/categories', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-    const { search, type } = req.query || {};
+    const { search, objectType } = req.query as { search?: string; objectType?: string };
+
+    const whereClause: any = {};
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { synonyms: { has: search.toLowerCase() } },
+      ];
+    }
+    if (objectType) {
+      whereClause.objectType = objectType;
+    }
 
     const categories = await db.category.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      where: whereClause,
+      orderBy: [{ group: 'asc' }, { name: 'asc' }],
       include: {
-        _count: {
-          select: {
-            listings: {
-              where: {
-                cityId,
-                ...(type ? { type } : {}),
-              },
-            },
-          },
-        },
+        _count: { select: { listings: true } },
       },
-      orderBy: { name: 'asc' },
     });
 
-    return categories.map((c: any) => ({
+    return categories.map((c) => ({
       id: c.id,
       name: c.name,
+      synonyms: c.synonyms,
+      group: c.group,
+      objectType: c.objectType,
       count: c._count.listings,
-      icon: 'work',
-      color: '#007AFF',
     }));
+  });
+
+  // Mavjud guruh nomlari ro'yxati — "Kategoriya qo'shish" formasida tanlash uchun
+  fastify.get('/admin/categories/groups', async (req, reply) => {
+    const rows = await db.category.findMany({
+      where: { group: { not: null } },
+      distinct: ['group'],
+      select: { group: true },
+      orderBy: { group: 'asc' },
+    });
+    return rows.map((r) => r.group).filter(Boolean);
+  });
+
+  fastify.get('/admin/categories/:id', async (req: any, reply) => {
+    const { id } = req.params;
+    const category = await db.category.findUnique({
+      where: { id },
+      include: { _count: { select: { listings: true } } },
+    });
+    if (!category) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
+    return {
+      id: category.id,
+      name: category.name,
+      synonyms: category.synonyms,
+      group: category.group,
+      objectType: category.objectType,
+      count: category._count.listings,
+    };
+  });
+
+  fastify.post('/admin/categories', async (req: any, reply) => {
+    const { name, objectType, group, synonyms } = req.body;
+
+    if (!name || !name.trim()) {
+      return reply.status(400).send({ success: false, message: 'Kategoriya nomi majburiy' });
+    }
+
+    const existing = await db.category.findFirst({ where: { name: { equals: name.trim(), mode: 'insensitive' } } });
+    if (existing) {
+      return reply.status(409).send({ success: false, message: 'Bu nomdagi kategoriya allaqachon mavjud' });
+    }
+
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'];
+    const category = await db.category.create({
+      data: {
+        name: name.trim(),
+        objectType: VALID_OBJECT_TYPES.includes(objectType) ? objectType : null,
+        group: group && group.trim() ? group.trim() : null,
+        synonyms: Array.isArray(synonyms) ? synonyms.map((s: string) => s.toLowerCase().trim()).filter(Boolean) : [],
+      },
+    });
+
+    return { success: true, category };
+  });
+
+  fastify.put('/admin/categories/:id', async (req: any, reply) => {
+    const { id } = req.params;
+    const { name, synonyms, objectType, group } = req.body;
+
+    const existing = await db.category.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
+
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'];
+    const updated = await db.category.update({
+      where: { id },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(Array.isArray(synonyms) && { synonyms: synonyms.map((s: string) => s.toLowerCase().trim()).filter(Boolean) }),
+        ...(objectType !== undefined && { objectType: VALID_OBJECT_TYPES.includes(objectType) ? objectType : null }),
+        ...(group !== undefined && { group: group && group.trim() ? group.trim() : null }),
+      },
+    });
+
+    return { success: true, category: updated };
   });
 
   fastify.get('/admin/landmarks', async (req, reply) => {
@@ -609,350 +825,298 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  // --- 7. USERS & LIVE CHAT SUPPORT ---
-  fastify.get('/admin/users', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-    const { search, filter, sort } = req.query || {};
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    // 1. Fetch registered users from User table for this cityId
-    const dbUsers = await db.user.findMany({
-      where: {
-        cityId,
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { firstName: { contains: search, mode: 'insensitive' } },
-                { lastName: { contains: search, mode: 'insensitive' } },
-                { username: { contains: search, mode: 'insensitive' } },
-                { phone: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        city: true,
-      },
+  // --- 7. DIRECT CHATS & SUHBATLAR ---
+  fastify.get('/admin/chats', async (req: any, reply) => {
+    const users = await db.user.findMany({
+      where: { role: 'USER' },
       orderBy: { createdAt: 'desc' },
     });
 
-    // 2. Fetch QueryLog stats for this city
-    const logs = await db.queryLog.findMany({
-      where: { cityId },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        telegramUserId: true,
-        isComplaint: true,
-        createdAt: true,
-      },
-    });
-
-    const userLogMap = new Map<
-      string,
-      { totalQueries: number; todayCount: number; complaintsCount: number; hasComplaint: boolean; lastActive: Date; latestLogId?: string }
-    >();
-
-    for (const log of logs) {
-      const tgIdStr = log.telegramUserId.toString();
-      if (!userLogMap.has(tgIdStr)) {
-        userLogMap.set(tgIdStr, {
-          totalQueries: 0,
-          todayCount: 0,
-          complaintsCount: 0,
-          hasComplaint: false,
-          lastActive: log.createdAt,
-          latestLogId: log.id,
+    const chats = await Promise.all(
+      users.map(async (user) => {
+        const lastMessage = await db.chatMessage.findFirst({
+          where: { telegramUserId: user.telegramId },
+          orderBy: { createdAt: 'desc' },
         });
-      }
-      const entry = userLogMap.get(tgIdStr)!;
-      entry.totalQueries += 1;
-      if (log.createdAt >= todayStart) {
-        entry.todayCount += 1;
-      }
-      if (log.isComplaint) {
-        entry.complaintsCount += 1;
-        entry.hasComplaint = true;
-      }
-    }
+        return {
+          id: user.id,
+          telegramId: user.telegramId.toString(),
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          phoneNumber: user.phoneNumber,
+          lastMessageText: lastMessage ? lastMessage.text : 'Suhbat boshlanmagan',
+          lastMessageTime: lastMessage ? lastMessage.createdAt : user.createdAt,
+        };
+      })
+    );
 
-    const registeredUserIds = new Set(dbUsers.map((u) => u.telegramId.toString()));
-
-    let resultList = dbUsers.map((u) => {
-      const tgIdStr = u.telegramId.toString();
-      const logData = userLogMap.get(tgIdStr);
-      const fullName = u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || `User ID: ${tgIdStr}`;
-      return {
-        id: u.id,
-        telegramUserId: tgIdStr,
-        name: fullName,
-        firstName: u.firstName || '',
-        lastName: u.lastName || '',
-        username: u.username ? (u.username.startsWith('@') ? u.username : `@${u.username}`) : null,
-        phone: u.phone || null,
-        role: u.role,
-        cityName: u.city?.name || 'Olmaliq',
-        createdAt: u.createdAt,
-        lastActive: logData?.lastActive || u.updatedAt || u.createdAt,
-        todayCount: logData?.todayCount || 0,
-        totalQueries: logData?.totalQueries || 0,
-        complaintsCount: logData?.complaintsCount || 0,
-        hasComplaint: logData?.hasComplaint || false,
-        latestLogId: logData?.latestLogId,
-      };
-    });
-
-    // Also include query log users if not in dbUsers
-    for (const [tgIdStr, logData] of userLogMap.entries()) {
-      if (!registeredUserIds.has(tgIdStr)) {
-        if (search && !tgIdStr.includes(search)) continue;
-        resultList.push({
-          id: `tg-${tgIdStr}`,
-          telegramUserId: tgIdStr,
-          name: `User ID: ${tgIdStr}`,
-          firstName: '',
-          lastName: '',
-          username: null,
-          phone: null,
-          role: 'USER',
-          cityName: 'Olmaliq',
-          createdAt: logData.lastActive,
-          lastActive: logData.lastActive,
-          todayCount: logData.todayCount,
-          totalQueries: logData.totalQueries,
-          complaintsCount: logData.complaintsCount,
-          hasComplaint: logData.hasComplaint,
-          latestLogId: logData.latestLogId,
-        });
-      }
-    }
-
-    // Apply Filter Chips (all / active / complaints / new)
-    if (filter === 'active') {
-      resultList = resultList.filter((u) => u.todayCount > 0);
-    } else if (filter === 'complaints') {
-      resultList = resultList.filter((u) => u.hasComplaint);
-    } else if (filter === 'new') {
-      resultList = resultList.filter((u) => new Date(u.createdAt) >= twentyFourHoursAgo);
-    }
-
-    // Apply Sorting (active / newest / complaints)
-    if (sort === 'newest') {
-      resultList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } else if (sort === 'complaints') {
-      resultList.sort((a, b) => b.complaintsCount - a.complaintsCount);
-    } else {
-      // Default: active (most recently active first)
-      resultList.sort((a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
-    }
-
-    return resultList;
+    chats.sort((a, b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
+    return chats;
   });
 
-  // Get full chat / query log history for a specific Telegram User
-  fastify.get('/admin/users/:telegramId/messages', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-    const { telegramId } = req.params;
+  fastify.get('/admin/users', async (req: any, reply) => {
+    const { search, filter } = req.query as { search?: string; filter?: string };
 
-    const messages = await db.queryLog.findMany({
-      where: {
-        cityId,
-        telegramUserId: BigInt(telegramId),
-      },
+    const whereClause: any = {
+      role: 'USER',
+    };
+
+    if (search) {
+      whereClause.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
+        { phoneNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (filter === 'new') {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      whereClause.createdAt = { gte: fortyEightHoursAgo };
+    }
+
+    let users = await db.user.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let result = await Promise.all(
+      users.map(async (user) => {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const queryCountToday = await db.queryLog.count({
+          where: {
+            telegramUserId: user.telegramId,
+            createdAt: { gte: todayStart },
+          },
+        });
+
+        const hasComplaints = await db.chatMessage.count({
+          where: {
+            telegramUserId: user.telegramId,
+            isComplaint: true,
+          },
+        }) > 0;
+
+        const lastMsg = await db.chatMessage.findFirst({
+          where: { telegramUserId: user.telegramId },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        const lastActivity = lastMsg ? lastMsg.createdAt : user.createdAt;
+
+        return {
+          id: user.id,
+          telegramId: user.telegramId.toString(),
+          firstName: user.firstName,
+          lastName: user.lastName,
+          username: user.username,
+          phoneNumber: user.phoneNumber,
+          queryCountToday,
+          hasComplaints,
+          lastActivity,
+          lastMessageText: lastMsg ? lastMsg.text : null,
+        };
+      })
+    );
+
+    if (filter === 'active') {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      result = result.filter(u => new Date(u.lastActivity) >= twentyFourHoursAgo);
+    }
+
+    if (filter === 'complained') {
+      result = result.filter(u => u.hasComplaints);
+    }
+
+    result.sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+    return result;
+  });
+
+
+  fastify.get('/admin/chats/:telegramUserId/messages', async (req: any, reply) => {
+    const { telegramUserId } = req.params;
+    const messages = await db.chatMessage.findMany({
+      where: { telegramUserId: BigInt(telegramUserId) },
       orderBy: { createdAt: 'asc' },
     });
-
-    const formattedMessages = messages.map((msg: any) => ({
-      id: msg.id,
-      telegramUserId: msg.telegramUserId.toString(),
-      rawMessage: msg.rawMessage,
-      botResponse: msg.botResponse || 'Javob berilmagan',
-      intent: msg.intent || 'SERVICE',
-      isComplaint: msg.isComplaint,
-      complaintReason: msg.complaintReason,
-      adminReply: msg.adminReply,
-      adminReplyAt: msg.adminReplyAt,
-      createdAt: msg.createdAt,
+    return messages.map((m) => ({
+      id: m.id,
+      telegramUserId: m.telegramUserId.toString(),
+      senderType: m.senderType,
+      text: m.text,
+      isComplaint: m.isComplaint,
+      createdAt: m.createdAt,
     }));
-
-    return formattedMessages;
   });
 
-  // Direct Admin Message to User via Telegram Bot API + AuditLog
-  fastify.post('/admin/users/:telegramId/reply', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-    const { telegramId } = req.params;
-    const { message, logId } = req.body;
+  fastify.post('/admin/chats/:telegramUserId/messages', async (req: any, reply) => {
+    const { telegramUserId } = req.params;
+    const { text } = req.body;
+    if (!text) return reply.status(400).send({ success: false, message: 'Message text is required' });
 
-    if (!message || !message.trim()) {
-      return reply.status(400).send({ error: 'Message content is required' });
-    }
-
-    const botToken = process.env.BOT_TOKEN || '8687073267:AAFPSct-K6SBx8eZG1zTCe0uUt4NJ_HY7dQ';
+    const tgUserId = BigInt(telegramUserId);
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) return reply.status(500).send({ success: false, message: 'BOT_TOKEN is not configured' });
 
     try {
-      // 1. Send Direct Telegram Message via Telegram API
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: telegramId,
-          text: `💬 **Admin javobi:**\n\n${message.trim()}`,
-          parse_mode: 'Markdown',
+          chat_id: tgUserId.toString(),
+          text: text,
         }),
       });
 
-      const telegramRes = await res.json();
-      if (!telegramRes.ok) {
-        return reply.status(500).send({ error: 'Telegram message delivery failed', details: telegramRes });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        console.error('Failed to send Telegram message:', body);
+        return reply.status(502).send({ success: false, message: 'Failed to send message via Telegram Bot', error: body });
       }
+    } catch (err) {
+      console.error('Telegram API error:', err);
+      return reply.status(500).send({ success: false, message: 'Telegram API call failed', error: err });
+    }
 
-      // 2. Record admin reply in DB QueryLog
-      if (logId) {
-        await db.queryLog.update({
-          where: { id: logId },
-          data: {
-            adminReply: message.trim(),
-            adminReplyAt: new Date(),
-          },
-        });
-      } else {
-        // Create new query log for admin message
-        await db.queryLog.create({
-          data: {
-            cityId,
-            telegramUserId: BigInt(telegramId),
-            rawMessage: `[Admin Xabari]`,
-            botResponse: message.trim(),
-            adminReply: message.trim(),
-            adminReplyAt: new Date(),
-            isResolved: true,
-          },
-        });
+    const m = await db.chatMessage.create({
+      data: {
+        telegramUserId: tgUserId,
+        senderType: 'ADMIN',
+        text: text,
+      },
+    });
+
+    return {
+      success: true,
+      message: {
+        id: m.id,
+        telegramUserId: m.telegramUserId.toString(),
+        senderType: m.senderType,
+        text: m.text,
+        createdAt: m.createdAt,
+      },
+    };
+  });
+
+  fastify.post('/admin/users/:telegramUserId/reply', async (req: any, reply) => {
+    const { telegramUserId } = req.params;
+    const { text } = req.body;
+    if (!text) return reply.status(400).send({ success: false, message: 'Message text is required' });
+
+    const tgUserId = BigInt(telegramUserId);
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) return reply.status(500).send({ success: false, message: 'BOT_TOKEN is not configured' });
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: tgUserId.toString(),
+          text: text,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        console.error('Failed to send Telegram message:', body);
+        return reply.status(502).send({ success: false, message: 'Failed to send message via Telegram Bot', error: body });
       }
+    } catch (err) {
+      console.error('Telegram API error:', err);
+      return reply.status(500).send({ success: false, message: 'Telegram API call failed', error: err });
+    }
 
-      // 3. Write to AuditLog
+    const m = await db.chatMessage.create({
+      data: {
+        telegramUserId: tgUserId,
+        senderType: 'ADMIN',
+        text: text,
+      },
+    });
+
+    try {
       await db.auditLog.create({
         data: {
-          cityId,
-          action: 'ADMIN_DIRECT_REPLY',
+          userId: req.user?.id || null,
+          cityId: req.user?.cityId || null,
+          action: 'REPLY_TO_USER',
           details: {
-            targetTelegramUserId: telegramId,
-            message: message.trim(),
-            deliveredAt: new Date(),
+            telegramUserId: telegramUserId,
+            messageText: text,
           },
         },
       });
-
-      return { success: true, deliveredAt: new Date() };
-    } catch (err: any) {
-      return reply.status(500).send({ error: 'Failed to send telegram message', details: err.message });
+    } catch (auditErr) {
+      console.error('Failed to log audit:', auditErr);
     }
+
+    return {
+      success: true,
+      message: {
+        id: m.id,
+        telegramUserId: m.telegramUserId.toString(),
+        senderType: m.senderType,
+        text: m.text,
+        createdAt: m.createdAt,
+      },
+    };
   });
 
-  // --- 8. TOP 10 SEARCHED QUERIES STATISTICS ---
-  fastify.get('/admin/top-queries', async (req: any, reply) => {
+
+  fastify.get('/admin/complaints', async (req: any, reply) => {
+    const complaints = await db.chatMessage.findMany({
+      where: { isComplaint: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const resolvedComplaints = await Promise.all(
+      complaints.map(async (c) => {
+        const user = await db.user.findUnique({
+          where: { telegramId: c.telegramUserId },
+        });
+        return {
+          id: c.id,
+          telegramUserId: c.telegramUserId.toString(),
+          text: c.text,
+          createdAt: c.createdAt,
+          user: user ? {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            username: user.username,
+          } : null,
+        };
+      })
+    );
+
+    return resolvedComplaints;
+  });
+
+  fastify.get('/admin/queries/top-10', async (req: any, reply) => {
     const cityId = await getCityId(req);
-    const { period, status } = req.query || {};
-
-    let dateFilter = {};
-    if (period === 'today') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      dateFilter = { createdAt: { gte: todayStart } };
-    }
-
-    let statusFilter = {};
-    if (status === 'unanswered') {
-      statusFilter = { isResolved: false };
-    }
-
-    // Fetch query logs grouped by categoryName/rawMessage
-    const logs = await db.queryLog.findMany({
+    const result = await db.queryLog.groupBy({
+      by: ['rawMessage'],
       where: {
         cityId,
-        ...dateFilter,
-        ...statusFilter,
+        rawMessage: { not: '' },
       },
-      select: {
-        id: true,
+      _count: {
         rawMessage: true,
-        categoryName: true,
-        isResolved: true,
-        intent: true,
       },
+      orderBy: {
+        _count: {
+          rawMessage: 'desc',
+        },
+      },
+      take: 10,
     });
 
-    const frequencyMap = new Map<string, { id: string; count: number; resolvedCount: number; category: string }>();
-
-    for (const log of logs) {
-      const keyword = (log.categoryName || log.rawMessage).toLowerCase().trim();
-      if (!keyword || keyword.length < 2) continue;
-
-      if (!frequencyMap.has(keyword)) {
-        frequencyMap.set(keyword, { id: log.id, count: 0, resolvedCount: 0, category: log.categoryName || keyword });
-      }
-      const item = frequencyMap.get(keyword)!;
-      item.count += 1;
-      if (log.isResolved) item.resolvedCount += 1;
-    }
-
-    const sortedTop = Array.from(frequencyMap.entries())
-      .map(([query, data]) => ({
-        id: data.id,
-        query: query.charAt(0).toUpperCase() + query.slice(1),
-        count: data.count,
-        successRate: Math.round((data.resolvedCount / data.count) * 100) || 0,
-        suggestedCategory: data.category ? data.category.charAt(0).toUpperCase() + data.category.slice(1) : undefined,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    return sortedTop;
-  });
-
-  fastify.get('/admin/stats/top-queries', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-
-    // Fetch query logs grouped by categoryName/rawMessage
-    const logs = await db.queryLog.findMany({
-      where: { cityId },
-      select: {
-        rawMessage: true,
-        categoryName: true,
-        isResolved: true,
-        intent: true,
-      },
-    });
-
-    const frequencyMap = new Map<string, { count: number; resolvedCount: number; category: string }>();
-
-    for (const log of logs) {
-      const keyword = (log.categoryName || log.rawMessage).toLowerCase().trim();
-      if (!keyword || keyword.length < 2) continue;
-
-      if (!frequencyMap.has(keyword)) {
-        frequencyMap.set(keyword, { count: 0, resolvedCount: 0, category: log.categoryName || keyword });
-      }
-      const item = frequencyMap.get(keyword)!;
-      item.count += 1;
-      if (log.isResolved) item.resolvedCount += 1;
-    }
-
-    const sortedTop = Array.from(frequencyMap.entries())
-      .map(([query, data]) => ({
-        query: query.charAt(0).toUpperCase() + query.slice(1),
-        count: data.count,
-        successRate: Math.round((data.resolvedCount / data.count) * 100) || 0,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-
-    return sortedTop;
+    return result.map((r) => ({
+      query: r.rawMessage,
+      count: r._count.rawMessage,
+    }));
   });
 }
+

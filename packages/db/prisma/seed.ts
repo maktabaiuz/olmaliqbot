@@ -23,15 +23,21 @@ async function main() {
 
   // 2. Seed Categories (40+ trade categories & synonyms)
   let catCount = 0;
-  for (const cat of INITIAL_DICTIONARY.categories) {
+  for (const cat of INITIAL_DICTIONARY.categories as Array<{ name: string; synonyms: string[]; object_type?: string; group?: string; emoji?: string }>) {
     await db.category.upsert({
       where: { name: cat.name },
       update: {
         synonyms: cat.synonyms,
+        objectType: (cat.object_type as any) || null,
+        group: cat.group || null,
+        emoji: cat.emoji || null,
       },
       create: {
         name: cat.name,
         synonyms: cat.synonyms,
+        objectType: (cat.object_type as any) || null,
+        group: cat.group || null,
+        emoji: cat.emoji || null,
       },
     });
     catCount++;
@@ -73,6 +79,7 @@ async function main() {
     },
   });
 
+<<<<<<< HEAD
   // 5. Seed Admin Users (Super Admin 6355516451, Super Admin 8603273053, City Admin, Moderator)
   await db.user.upsert({
     where: { telegramId: BigInt(6355516451) },
@@ -357,7 +364,7 @@ async function main() {
     seededCount++;
   }
 
-  console.log(`✅ Seeded ${seededCount} real verified listings into Listing table!`);
+  console.log(`✅ Seeded ${seededCount} real verified listings with GPS locations into Listing table!`);
   console.log('🎉 Seeding completed successfully!');
 }
 

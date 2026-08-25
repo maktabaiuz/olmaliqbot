@@ -1,25 +1,17 @@
-FROM node:20-alpine
+FROM node:22-alpine AS base
+RUN apk add --no-cache openssl libc6-compat
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
-COPY packages/db/package.json ./packages/db/
-COPY packages/types/package.json ./packages/types/
-COPY packages/core/package.json ./packages/core/
-COPY apps/api/package.json ./apps/api/
-
-RUN pnpm install --frozen-lockfile --ignore-scripts || pnpm install
-
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages/ ./packages/
-COPY apps/api/ ./apps/api/
+COPY apps/ ./apps/
 
-RUN pnpm --filter @kimbor/db build || true
-RUN pnpm --filter @kimbor/types build || true
-RUN pnpm --filter @kimbor/core build || true
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @kimbor/db db:generate
+RUN pnpm --filter @kimbor/types build && pnpm --filter @kimbor/db build && pnpm --filter @kimbor/core build
 RUN pnpm --filter @kimbor/api build
 
 EXPOSE 4000
-
 CMD ["node", "apps/api/dist/index.js"]

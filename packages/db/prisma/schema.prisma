@@ -109,14 +109,25 @@ model CityGroup {
   @@map("city_groups")
 }
 
+// Admin panel login urinishlarini kuzatish — 2 marta xato parol kiritilsa,
+// 3 kunga bloklanadi (brute-force himoyasi). telegramId bo'yicha kuzatiladi,
+// shuning uchun hali User jadvalida yo'q shaxslarning urinishlari ham hisobga olinadi.
+model LoginAttempt {
+  telegramId    BigInt    @id
+  failedCount   Int       @default(0)
+  bannedUntil   DateTime?
+  lastAttemptAt DateTime  @default(now())
+
+  @@map("login_attempts")
+}
+
 model User {
   id            String   @id @default(uuid())
   telegramId    BigInt   @unique
-  name          String?
   firstName     String?
   lastName      String?
   username      String?
-  phone         String?
+  phoneNumber   String?            // Moderator uchun telefon raqami
   role          Role     @default(USER)
   cityId        String?
   city          City?    @relation(fields: [cityId], references: [id])
@@ -126,23 +137,31 @@ model User {
   loginCode     String?
   tempPassword  String?
   knownDevices  String[]
+  isSuspended   Boolean  @default(false)   // Hisobni vaqtincha to'xtatish
+  suspendedAt   DateTime?
+  addedBy       String?                     // Kim yaratdi (User.id)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  reviews       Review[]
-  auditLogs     AuditLog[]
+  reviews         Review[]
+  auditLogs       AuditLog[]
+  addedListings   Listing[]    @relation("AddedByUser")
+  dailyChecks     DailyCheck[]
 
   @@map("users")
 }
 
 model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique // Masalan: "gazavik"
+  id          String       @id @default(uuid())
+  name        String       @unique // Masalan: "gazavik"
   nameRu      String?
   nameCyrl    String?
   synonyms    String[] // ["газовщик", "газовик", "gaz ustasi"]
   description String?
-  createdAt   DateTime @default(now())
+  objectType  ListingType? // Usta/Do'kon/Muassasa/Transport bo'yicha filtrlash uchun
+  group       String?      // Masalan: "Qurilish va ta'mirlash" — kasblarni mantiqiy guruhlash uchun
+  emoji       String?      // Bot javobida kategoriyaga mos ikonka (masalan santexnik -> 🚿)
+  createdAt   DateTime     @default(now())
 
   listings    Listing[]
   candidates  Candidate[]
@@ -164,6 +183,7 @@ model Landmark {
   serviceAreaListings Listing[] @relation("ServiceAreas")
   candidates        Candidate[]
 
+  @@index([cityId, name])
   @@map("landmarks")
 }
 
@@ -192,6 +212,9 @@ model Listing {
   approxPrice         String?            // Taxminiy narx
   photoFileId         String?            // Telegram file_id (mo'ljal/ish namunasi)
   description         String?
+  latitude            Float?             // Jonli GPS Kenglik (Xarita nuqtasi)
+  longitude           Float?             // Jonli GPS Uzunlik (Xarita nuqtasi)
+  jargonSynonyms      String[]           // Mahalliy jargon / xalq atamalari ["karzinka orqasi", "карзинка", "eski bozor"]
 
   // Tizim maydonlari
   status              ListingStatus      @default(ACTIVE)
@@ -206,6 +229,16 @@ model Listing {
   thumbsDownCount     Int                @default(0)
   bayesianRating      Float              @default(3.0) // 1.0 - 5.0 scale
 
+  // Kim qo'shdi
+  addedByUserId       String?            // Moderator User.id
+  addedByUser         User?              @relation("AddedByUser", fields: [addedByUserId], references: [id])
+
+  // Rozilik belgisi — usta/do'kondor ruxsat bergan
+  consentGiven        Boolean            @default(false)
+  consentAt           DateTime?
+  consentDevice       String?            // "iPhone 13, iOS 17"
+  consentIp           String?
+
   lastVerifiedAt      DateTime           @default(now())
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -213,10 +246,14 @@ model Listing {
   reviews             Review[]
   history             ListingHistory[]
   corrections         Correction[]
+  dailyChecks         DailyCheck[]
 
-  @@unique([cityId, phone])             // Bitta shaharda bir raqam ikki marta kiritilmasin
+  @@index([cityId, phone])
   @@index([cityId, categoryId])
   @@index([cityId, status])
+  @@index([primaryLandmarkId])
+  @@index([cityId, bayesianRating(sort: Desc)])
+  @@index([addedByUserId])
   @@map("listings")
 }
 
@@ -338,23 +375,16 @@ model QueryLog {
   city              City        @relation(fields: [cityId], references: [id], onDelete: Cascade)
   telegramUserId    BigInt
   rawMessage        String
-  botResponse       String?     // AI yoki tizim bergan javob
   intent            IntentType  @default(SERVICE)
   categoryName      String?
   landmarkName      String?
   resolvedListingId String?
   isResolved        Boolean     @default(false)
-  isComplaint       Boolean     @default(false) // 👎 bosilgan yoki shikoyat yuborilgan
-  complaintReason   String?     // Shikoyat sababi (masalan: noto'g'ri nomer, javob bermadi)
-  adminReply        String?     // Admin chat orqali yozgan javob matni
-  adminReplyAt      DateTime?
   notifiedAt        DateTime?   // User faqat 1 marta xabardor qilinadi
   clusterKey        String?     // O'xshash so'rovlarni birlashtirish klyuchi
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])
-  @@index([cityId, isComplaint])
-  @@index([telegramUserId])
   @@map("query_logs")
 }
 
@@ -391,9 +421,43 @@ model AuditLog {
   userId      String?
   user        User?    @relation(fields: [userId], references: [id])
   cityId      String?
-  action      String   // "CREATE_LISTING", "DELETE_LANDMARK", "AI_COPILOT_ACTION"
+  action      String   // "CREATE_LISTING", "SUSPEND_MODERATOR", "VERIFY_LISTING"
   details     Json
+  deviceInfo  String?  // "iPhone 13, iOS 17, Safari"
+  ipAddress   String?
   createdAt   DateTime @default(now())
 
+  @@index([userId])
+  @@index([cityId, createdAt])
   @@map("audit_logs")
 }
+
+model DailyCheck {
+  id          String    @id @default(uuid())
+  cityId      String
+  listingId   String
+  listing     Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  checkedBy   String?   // User.id — kim tekshirdi
+  checker     User?     @relation(fields: [checkedBy], references: [id])
+  isVerified  Boolean   @default(false)
+  verifiedAt  DateTime?
+  checkDate   String    // "2026-08-13" — bir kunda qayta yaratilmasin
+  createdAt   DateTime  @default(now())
+
+  @@unique([listingId, checkDate])
+  @@index([cityId, checkDate])
+  @@map("daily_checks")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  telegramUserId BigInt
+  senderType     String   // "USER" | "BOT_AI" | "BOT_SEARCH" | "ADMIN"
+  text           String
+  isComplaint    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([telegramUserId, createdAt])
+  @@map("chat_messages")
+}
+

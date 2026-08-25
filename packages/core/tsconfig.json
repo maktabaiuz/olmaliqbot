@@ -2,9 +2,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "noImplicitAny": false
+    "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/run*Tests.ts", "src/security/**/*", "src/copilot/test*"]
+  "exclude": ["src/**/*.test.ts", "src/**/run*Tests.ts"]
 }

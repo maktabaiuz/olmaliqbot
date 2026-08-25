@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import dotenv from 'dotenv';
 import { adminRoutes } from './routes/adminRoutes';
+import { moderatorRoutes } from './routes/moderatorRoutes';
 
 dotenv.config({ path: '../../.env' });
 
@@ -10,8 +11,13 @@ const fastify = Fastify({ logger: true });
 async function main() {
   await fastify.register(cors, { origin: true });
   await fastify.register(adminRoutes, { prefix: '/api' });
+  await fastify.register(moderatorRoutes, { prefix: '/api' });
 
   fastify.get('/health', async () => {
+    return { status: 'ok', service: 'kimbor-api', timestamp: new Date().toISOString() };
+  });
+
+  fastify.get('/api/health', async () => {
     return { status: 'ok', service: 'kimbor-api', timestamp: new Date().toISOString() };
   });
 

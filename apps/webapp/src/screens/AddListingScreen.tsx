@@ -1,289 +1,631 @@
 import React, { useState, useEffect } from 'react';
-import { TopHeader } from '../components/common/TopHeader';
-import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
 
 export interface AddListingScreenProps {
-  onNavigateTab?: (tab: string) => void;
-  initialCategoryName?: string;
+  initialCategory?: string;
+  onNavigateTab: (tab: 'home' | 'database' | 'add' | 'users' | 'more') => void;
 }
 
+// Turi tanlanganda yonidagi maydon shu turga mos nom bilan ochiladi
+const CATEGORY_FIELD_LABEL: Record<string, string> = {
+  USTA: 'Usta turi',
+  DOKON_OBYEKT: "Do'kon turi",
+  MUASSASA: 'Muassasa turi',
+};
+const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
+  USTA: 'Masalan, Santexnik',
+  DOKON_OBYEKT: 'Masalan, Dorixona',
+  MUASSASA: 'Masalan, Notarius',
+};
+
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
+  initialCategory,
   onNavigateTab,
-  initialCategoryName = '',
 }) => {
+  const { user } = useAuth();
+
+  // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [formData, setFormData] = useState({
-    name: '',
-    categoryName: initialCategoryName,
-    phone: '',
-    landmarkName: '',
-    workFrom: '08:00',
-    workTo: '20:00',
-    badges: [] as string[],
-    approxPrice: '',
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA'>('USTA');
+
+  // Form Fields State (Prefilled or restored from LocalStorage)
+  const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');
+  const [category, setCategory] = useState(() => initialCategory || localStorage.getItem('draft_category') || '');
+  const [phone, setPhone] = useState(() => localStorage.getItem('draft_phone') || '+998 ');
+  const [primaryLandmark, setPrimaryLandmark] = useState(() => localStorage.getItem('draft_landmark') || '');
+  const [jargonWords, setJargonWords] = useState<string[]>(() => {
+    const saved = localStorage.getItem('draft_jargonWords');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newJargonWord, setNewJargonWord] = useState('');
+
+  const [workFrom, setWorkFrom] = useState(() => localStorage.getItem('draft_workFrom') || '08:00');
+  const [workTo, setWorkTo] = useState(() => localStorage.getItem('draft_workTo') || '20:00');
+  const [badges, setBadges] = useState<string[]>(() => {
+    const saved = localStorage.getItem('draft_badges');
+    return saved ? JSON.parse(saved) : ['Uyga boradi', 'Kafolat'];
+  });
+  const [serviceAreas] = useState<string[]>(() => {
+    const saved = localStorage.getItem('draft_serviceAreas');
+    return saved ? JSON.parse(saved) : ['3-mavze', '4-mavze'];
   });
 
-  const [saving, setSaving] = useState<boolean>(false);
-  const [successBanner, setSuccessBanner] = useState<string>('');
+  const [specificServices] = useState(() => localStorage.getItem('draft_specificServices') || '');
+  const [approxPrice, setApproxPrice] = useState(() => localStorage.getItem('draft_approxPrice') || '');
+  const [description, setDescription] = useState(() => localStorage.getItem('draft_description') || '');
+  const [verification] = useState<'VERIFIED' | 'COMMUNITY_UNVERIFIED'>('COMMUNITY_UNVERIFIED');
+  const [consentGiven, setConsentGiven] = useState(() => localStorage.getItem('draft_consentGiven') === 'true');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string; phone?: string; landmark?: string }>({});
+
+  interface CategoryOption { name: string; objectType: string | null; group: string | null }
+  const [categoryList, setCategoryList] = useState<CategoryOption[]>([
+    { name: 'Gazavik', objectType: 'USTA', group: null },
+    { name: 'Santexnik', objectType: 'USTA', group: null },
+    { name: 'Elektrik', objectType: 'USTA', group: null },
+    { name: 'Kafelchi', objectType: 'USTA', group: null },
+    { name: 'Notarius', objectType: 'MUASSASA', group: null },
+    { name: 'Duradgor', objectType: 'USTA', group: null },
+    { name: 'Malyar', objectType: 'USTA', group: null },
+    { name: 'Dorixona', objectType: 'DOKON_OBYEKT', group: null },
+    { name: 'Avtoelektrik', objectType: 'USTA', group: null },
+  ]);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   useEffect(() => {
-    if (initialCategoryName) {
-      setFormData((prev) => ({ ...prev, categoryName: initialCategoryName }));
+    fetch('/api/admin/categories')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const opts: CategoryOption[] = data.map((c: any) => ({ name: c.name, objectType: c.objectType || null, group: c.group || null }));
+          setCategoryList(prev => {
+            const merged = new Map(prev.map(c => [c.name, c]));
+            for (const o of opts) merged.set(o.name, o);
+            return Array.from(merged.values());
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Tanlangan Turi (Usta/Do'kon/Muassasa)ga mos kasblarni birinchi ko'rsatish uchun
+  // guruhlab chiqamiz — 76+ kasbning tekis ro'yxati o'rniga tartibli bo'ladi.
+  const filteredCategoryOptions = categoryList.filter(
+    c => c.name.toLowerCase().includes(category.toLowerCase())
+  );
+  const categoryOptionsByRelevance = [
+    ...filteredCategoryOptions.filter(c => !c.objectType || c.objectType === listingType),
+    ...filteredCategoryOptions.filter(c => c.objectType && c.objectType !== listingType),
+  ];
+  const groupedCategoryOptions = categoryOptionsByRelevance.reduce<Record<string, CategoryOption[]>>((acc, c) => {
+    const key = c.group || 'Boshqa';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(c);
+    return acc;
+  }, {});
+
+  // Save draft state
+  useEffect(() => {
+    localStorage.setItem('draft_name', name);
+    localStorage.setItem('draft_category', category);
+    localStorage.setItem('draft_phone', phone);
+    localStorage.setItem('draft_landmark', primaryLandmark);
+    localStorage.setItem('draft_jargonWords', JSON.stringify(jargonWords));
+    localStorage.setItem('draft_workFrom', workFrom);
+    localStorage.setItem('draft_workTo', workTo);
+    localStorage.setItem('draft_badges', JSON.stringify(badges));
+    localStorage.setItem('draft_serviceAreas', JSON.stringify(serviceAreas));
+    localStorage.setItem('draft_specificServices', specificServices);
+    localStorage.setItem('draft_approxPrice', approxPrice);
+    localStorage.setItem('draft_description', description);
+    localStorage.setItem('draft_consentGiven', String(consentGiven));
+  }, [name, category, phone, primaryLandmark, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven]);
+
+  const handleAddJargonWord = () => {
+    const clean = newJargonWord.trim().toLowerCase();
+    if (clean && !jargonWords.includes(clean)) {
+      setJargonWords([...jargonWords, clean]);
+      setNewJargonWord('');
     }
-  }, [initialCategoryName]);
-
-  const updateField = (field: string, value: any) => {
-    const updated = { ...formData, [field]: value };
-    setFormData(updated);
-    localStorage.setItem('kimbor_add_listing_draft', JSON.stringify(updated));
   };
 
-  const toggleBadge = (badge: string) => {
-    const exists = formData.badges.includes(badge);
-    const updatedBadges = exists
-      ? formData.badges.filter((b) => b !== badge)
-      : [...formData.badges, badge];
-    updateField('badges', updatedBadges);
+  // Duplicate checks
+  useEffect(() => {
+    let active = true;
+    const cleanP = phone.replace(/\D/g, '');
+    if (cleanP.length >= 7 || name.trim().length >= 3) {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const timer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/admin/listings/check-duplicate?phone=${encodeURIComponent(cleanP)}&name=${encodeURIComponent(name.trim())}`, {
+            headers: { 'x-init-data': initData },
+          });
+          const data = await res.json();
+          if (active && data.isDuplicate && data.existing) {
+            setDuplicateWarning(
+              `Bazada o'xshash yozuv bor — ${data.existing.name}, ${data.existing.categoryName}, ${data.existing.landmarkName}.`
+            );
+          } else if (active) {
+            setDuplicateWarning(null);
+          }
+        } catch {
+          if (active) setDuplicateWarning(null);
+        }
+      }, 400);
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    } else {
+      setDuplicateWarning(null);
+    }
+  }, [name, phone]);
+
+  const calculateCompleteness = () => {
+    let filled = 0;
+    if (name.trim()) filled++;
+    if (category.trim()) filled++;
+    if (phone.trim() && phone.length > 5) filled++;
+    if (primaryLandmark.trim()) filled++;
+    if (workFrom) filled++;
+    if (workTo) filled++;
+    if (badges.length > 0) filled++;
+    if (serviceAreas.length > 0) filled++;
+    if (specificServices.trim()) filled++;
+    if (approxPrice.trim()) filled++;
+    if (description.trim()) filled++;
+    return filled;
   };
 
-  const handleSave = async () => {
-    if (!formData.name || !formData.categoryName || !formData.phone) {
-      alert('Iltimos, barcha majburiy (*) maydonlarni to meyorltiring');
+  const filledCount = calculateCompleteness();
+
+  const handleNextStep = () => {
+    const errors: { name?: string; category?: string; phone?: string; landmark?: string } = {};
+    if (step === 1) {
+      if (!name.trim()) errors.name = 'Ism majburiy';
+      if (!category.trim()) errors.category = 'Kasb/soha majburiy';
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
+      if (!primaryLandmark.trim()) errors.landmark = 'Mo\'ljal majburiy';
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        return;
+      }
+      setFieldErrors({});
+      setStep(2);
+    } else if (step === 2) {
+      setStep(3);
+    }
+  };
+
+  const handleBackStep = () => {
+    if (step === 2) setStep(1);
+    else if (step === 3) setStep(2);
+  };
+
+  const handleSubmit = async () => {
+    if (!consentGiven) {
+      alert("⚠️ Iltimos, mijoz roziligini tasdiqlang!");
       return;
     }
 
-    setSaving(true);
+    setIsSubmitting(true);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
-      const res = await fetch(`${API_BASE_URL}/admin/listings`, {
+      const res = await fetch('/api/admin/listings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
+          'x-init-data': initData,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          type: listingType,
+          name,
+          categoryName: category,
+          phone,
+          landmarkName: primaryLandmark,
+          workFrom,
+          workTo,
+          badges,
+          verified: verification === 'VERIFIED',
+          cityId: user?.cityId,
+          addedByUserId: user?.id,
+          consentGiven: true,
+          consentDevice: navigator.userAgent || 'Unknown Mobile Device',
+          jargonSynonyms: Array.from(new Set([...jargonWords, primaryLandmark.toLowerCase()])),
+          approxPrice,
+          specificServices,
+          description,
+        }),
       });
 
       if (res.ok) {
-        localStorage.removeItem('kimbor_add_listing_draft');
-        setSuccessBanner("Yangi yozuv muvaffaqiyatli saqlandi va bazaga qo'shildi! ✅");
+        // Clear drafts
+        localStorage.removeItem('draft_name');
+        localStorage.removeItem('draft_category');
+        localStorage.removeItem('draft_phone');
+        localStorage.removeItem('draft_landmark');
+        localStorage.removeItem('draft_jargonWords');
+        localStorage.removeItem('draft_workFrom');
+        localStorage.removeItem('draft_workTo');
+        localStorage.removeItem('draft_badges');
+        localStorage.removeItem('draft_serviceAreas');
+        localStorage.removeItem('draft_specificServices');
+        localStorage.removeItem('draft_approxPrice');
+        localStorage.removeItem('draft_description');
+        localStorage.removeItem('draft_consentGiven');
 
-        // Clear form
-        setFormData({
-          name: '',
-          categoryName: '',
-          phone: '',
-          landmarkName: '',
-          workFrom: '08:00',
-          workTo: '20:00',
-          badges: [],
-          approxPrice: '',
-        });
-        setStep(1);
-
-        setTimeout(() => {
-          if (onNavigateTab) onNavigateTab('database');
-        }, 800);
+        onNavigateTab('database');
       } else {
-        alert('Saqlashda xatolik yuz berdi');
+        const errData = await res.json().catch(() => ({}));
+        alert(`⚠️ Xatolik: ${errData.message || 'Saqlashda xatolik yuz berdi'}`);
       }
     } catch (err) {
-      alert('Tarmoq xatoligi');
+      console.error(err);
+      alert('Aloqa xatoligi. Qoralama qurilmangizda saqlab qolindi.');
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-24 animate-fade-in max-w-container-max mx-auto">
-      <TopHeader title="Yangi yozuv qo'shish" />
+    <div className="flex flex-col gap-5 animate-fade-in pb-16">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Yozuv qo'shish</h1>
+        <span className="text-xs text-primary dark:text-sky-400 font-bold bg-primary/10 dark:bg-sky-500/10 px-2.5 py-1 rounded-full">
+          Completeness: {filledCount}/11
+        </span>
+      </div>
 
-      {successBanner && (
-        <div className="mx-4 p-3 bg-ios-green/15 text-ios-green border border-ios-green/30 text-[13px] font-bold rounded-btn text-center">
-          {successBanner}
+      {/* Progress Wizard Steps (Visual apple style steps) */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+        {[
+          { num: 1, label: 'Asosiy' },
+          { num: 2, label: 'Belgilar' },
+          { num: 3, label: 'Tasdiq' },
+        ].map((s) => (
+          <div key={s.num} className="flex items-center gap-1.5">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                step === s.num
+                  ? 'bg-primary dark:bg-sky-500 text-white'
+                  : step > s.num
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-300 dark:bg-slate-700 text-slate-500'
+              }`}
+            >
+              {step > s.num ? '✓' : s.num}
+            </span>
+            <span className={`text-[11px] font-bold ${step === s.num ? 'text-on-surface dark:text-slate-100' : 'text-slate-500'}`}>
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Duplicate Warning banner */}
+      {duplicateWarning && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400 text-xs font-medium flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">warning</span>
+          <span>{duplicateWarning}</span>
         </div>
       )}
 
-      {/* 3 Step Wizard Numbers Bar */}
-      <div className="px-4 flex items-center justify-between">
-        {[
-          { num: 1, title: '1 Asosiy' },
-          { num: 2, title: '2 Belgilar' },
-          { num: 3, title: '3 Tasdiq' },
-        ].map((s) => {
-          const isDone = step > s.num;
-          const isCurrent = step === s.num;
-          return (
-            <div
-              key={s.num}
-              onClick={() => setStep(s.num as any)}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <div
-                className={`w-7 h-7 rounded-full text-[12px] font-bold flex items-center justify-center transition-all ${
-                  isDone
-                    ? 'bg-ios-green text-white'
-                    : isCurrent
-                    ? 'bg-tg text-white shadow-fab'
-                    : 'bg-ios-sep dark:bg-slate-800 text-ios-gray'
-                }`}
-              >
-                {isDone ? '✓' : s.num}
+      {/* STEP 1 FORM */}
+      {step === 1 && (
+        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Turi *</label>
+              <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex flex-col items-stretch gap-0.5 shadow-inner">
+                {[
+                  { id: 'USTA', label: 'Usta' },
+                  { id: 'DOKON_OBYEKT', label: "Do'kon" },
+                  { id: 'MUASSASA', label: 'Muassasa' },
+                ].map((seg) => (
+                  <button
+                    key={seg.id}
+                    type="button"
+                    onClick={() => {
+                      setListingType(seg.id as any);
+                      setCategory('');
+                    }}
+                    className={`text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      listingType === seg.id
+                        ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {seg.label}
+                  </button>
+                ))}
               </div>
-              <span className={`text-[12px] font-semibold ${isCurrent ? 'text-tg font-bold' : 'text-ios-gray'}`}>
-                {s.title}
-              </span>
             </div>
-          );
-        })}
+
+            {/* Turi tanlanganda yonida ochiladigan bo'lim: aynan qanaqa usta/do'kon/muassasa ekanligi */}
+            <div className="flex flex-col gap-1 relative">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">{CATEGORY_FIELD_LABEL[listingType]} *</label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setFieldErrors(prev => ({ ...prev, category: undefined }));
+                  setShowCategoryDropdown(true);
+                }}
+                onFocus={() => setShowCategoryDropdown(true)}
+                placeholder={CATEGORY_FIELD_PLACEHOLDER[listingType]}
+                className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                  fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+                }`}
+              />
+              {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
+              {showCategoryDropdown && (
+                <div className="absolute top-full mt-1 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-52 overflow-y-auto z-50 py-1 shadow-lg">
+                  {Object.keys(groupedCategoryOptions).length === 0 && (
+                    <p className="px-3 py-2 text-xs text-slate-500">Mos kasb topilmadi</p>
+                  )}
+                  {Object.entries(groupedCategoryOptions).map(([groupName, items]) => (
+                    <div key={groupName}>
+                      <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {groupName}
+                      </p>
+                      {items.map((item) => (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => {
+                            setCategory(item.name);
+                            setShowCategoryDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Ismi-familiyasi *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors(prev => ({ ...prev, name: undefined }));
+              }}
+              placeholder="Masalan, Anvar Usta"
+              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                fieldErrors.name ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              }`}
+            />
+            {fieldErrors.name && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.name}</p>}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Jargon / xalq atamalari</label>
+            <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar bu usta/do'konni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
+            {jargonWords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {jargonWords.map(word => (
+                  <span key={word} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                    {word}
+                    <button
+                      type="button"
+                      onClick={() => setJargonWords(jargonWords.filter(w => w !== word))}
+                      className="hover:text-red-500 text-[14px] leading-none"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newJargonWord}
+                onChange={(e) => setNewJargonWord(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddJargonWord();
+                  }
+                }}
+                placeholder="Masalan, trubkachi"
+                className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleAddJargonWord}
+                className="bg-primary dark:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
+              >
+                Qo'shish
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Telefon raqami *</label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                setFieldErrors(prev => ({ ...prev, phone: undefined }));
+              }}
+              placeholder="+998 90 123 45 67"
+              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                fieldErrors.phone ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              }`}
+            />
+            {fieldErrors.phone && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.phone}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Mo'ljal manzili *</label>
+            <input
+              type="text"
+              value={primaryLandmark}
+              onChange={(e) => {
+                setPrimaryLandmark(e.target.value);
+                setFieldErrors(prev => ({ ...prev, landmark: undefined }));
+              }}
+              placeholder="Masalan, Korzinka orqasida"
+              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                fieldErrors.landmark ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              }`}
+            />
+            {fieldErrors.landmark && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.landmark}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2 FORM */}
+      {step === 2 && (
+        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Ish boshlanishi</label>
+              <input
+                type="time"
+                value={workFrom}
+                onChange={(e) => setWorkFrom(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Ish tugashi</label>
+              <input
+                type="time"
+                value={workTo}
+                onChange={(e) => setWorkTo(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Badges Chips */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Xizmat xususiyatlari (Belgilar)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {['Uyga boradi', 'Kafolat', '24/7', 'Karta', 'Zudlik', 'Ruscha'].map((badge) => {
+                const hasBadge = badges.includes(badge);
+                return (
+                  <button
+                    key={badge}
+                    type="button"
+                    onClick={() => {
+                      if (hasBadge) setBadges(badges.filter(b => b !== badge));
+                      else setBadges([...badges, badge]);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      hasBadge
+                        ? 'bg-primary dark:bg-sky-500 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {badge}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Narxi (Taxminiy)</label>
+            <input
+              type="text"
+              value={approxPrice}
+              onChange={(e) => setApproxPrice(e.target.value)}
+              placeholder="Masalan, 50,000 so'mdan boshlab"
+              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Tavsif / Izoh</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Xizmat haqida qo'shimcha ma'lumot kiriting..."
+              className="w-full h-20 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3 REVIEW & CONFIRM */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
+            <h3 className="font-bold text-xs text-slate-500 uppercase border-b pb-1">Kiritilgan Ma'lumotlarni Tekshirish</h3>
+            
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between"><span className="text-slate-500">Ism:</span> <span className="font-bold text-on-surface dark:text-slate-100">{name}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Kasb:</span> <span className="font-bold text-on-surface dark:text-slate-100">{category}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Telefon:</span> <span className="font-bold text-on-surface dark:text-slate-100">{phone}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Mo'ljal:</span> <span className="font-bold text-on-surface dark:text-slate-100">{primaryLandmark}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Ish vaqti:</span> <span className="font-bold text-on-surface dark:text-slate-100">{workFrom} - {workTo}</span></div>
+              {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
+              {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}
+              {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{w}</span>)}</div>}
+            </div>
+          </div>
+
+          {/* Consent Checkbox */}
+          <label className="flex items-start gap-2.5 p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-2xl cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(e) => setConsentGiven(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded text-primary focus:ring-primary dark:bg-slate-800"
+            />
+            <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+              Ushbu usta yoki do'kon ma'lumotlarini bazada e'lon qilish bo'yicha ularning roziligi olindi. *
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* FOOTER WIZARD ACTIONS */}
+      <div className="flex items-center gap-3">
+        {step > 1 && (
+          <button
+            onClick={handleBackStep}
+            className="flex-1 py-3 bg-slate-200 dark:bg-slate-800 text-on-surface dark:text-slate-100 font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1"
+          >
+            Orqaga
+          </button>
+        )}
+        
+        {step < 3 ? (
+          <button
+            onClick={handleNextStep}
+            className="flex-1 py-3 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1 shadow-md shadow-blue-500/20"
+          >
+            Keyingi →
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !consentGiven}
+            className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1 disabled:opacity-50 shadow-md shadow-emerald-500/20"
+          >
+            {isSubmitting ? 'Saqlanmoqda...' : 'Tasdiqlash & Saqlash'}
+          </button>
+        )}
       </div>
 
-      {/* Form Content Card */}
-      <div className="px-4">
-        <div className="bg-white dark:bg-[#16212F] p-4 rounded-card border border-ios-sep dark:border-ios-darkSeparator shadow-card flex flex-col gap-3">
-          {step === 1 && (
-            <>
-              <h3 className="font-bold text-[16px]">1-Qadam: Asosiy Ma'lumotlar</h3>
-              <div>
-                <label className="text-[12px] font-semibold text-ios-gray">Ism va Sharifi *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => updateField('name', e.target.value)}
-                  placeholder="Masalan: Usta Alisher"
-                  className="w-full mt-1 p-3 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] font-semibold text-ios-gray">Kasbi / Xizmati *</label>
-                <input
-                  type="text"
-                  value={formData.categoryName}
-                  onChange={(e) => updateField('categoryName', e.target.value)}
-                  placeholder="Masalan: Gazavik, Kafelchi..."
-                  className="w-full mt-1 p-3 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] font-semibold text-ios-gray">Telefon raqami *</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => updateField('phone', e.target.value)}
-                  placeholder="+998 90 123 45 67"
-                  className="w-full mt-1 p-3 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px] font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[12px] font-semibold text-ios-gray">Mo'ljal *</label>
-                <input
-                  type="text"
-                  value={formData.landmarkName}
-                  onChange={(e) => updateField('landmarkName', e.target.value)}
-                  placeholder="Masalan: Korzinka atrofi"
-                  className="w-full mt-1 p-3 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
-                />
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <h3 className="font-bold text-[16px]">2-Qadam: Belgilar va Ish Vaqti</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[12px] font-semibold text-ios-gray">Ish boshlanishi</label>
-                  <input
-                    type="time"
-                    value={formData.workFrom}
-                    onChange={(e) => updateField('workFrom', e.target.value)}
-                    className="w-full mt-1 p-2.5 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[12px] font-semibold text-ios-gray">Ish tugashi</label>
-                  <input
-                    type="time"
-                    value={formData.workTo}
-                    onChange={(e) => updateField('workTo', e.target.value)}
-                    className="w-full mt-1 p-2.5 rounded-btn bg-ios-bg dark:bg-[#0E141B] border border-ios-sep text-[14px]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[12px] font-semibold text-ios-gray mb-1.5 block">Xususiyat belgilari:</label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'uyga_boradi', label: '🏡 Uyga boradi' },
-                    { id: 'kafolat', label: '🛡 Kafolat' },
-                    { id: '24_7', label: '🌙 24/7' },
-                    { id: 'karta_qabul_qiladi', label: '💳 Karta' },
-                    { id: 'zudlik_bilan', label: '⚡ Zudlik' },
-                    { id: 'ruscha', label: '🗣 Ruscha' },
-                  ].map((chip) => {
-                    const isSelected = formData.badges.includes(chip.id);
-                    return (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => toggleBadge(chip.id)}
-                        className={`px-3 py-1.5 rounded-pill text-[12px] font-semibold ${
-                          isSelected ? 'bg-tg text-white' : 'bg-ios-bg dark:bg-[#0E141B] text-ios-gray'
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <h3 className="font-bold text-[16px]">3-Qadam: Tasdiqlash</h3>
-              <div className="bg-ios-bg dark:bg-[#0E141B] p-3 rounded-btn text-[13px] space-y-1">
-                <div>Ism: <strong>{formData.name}</strong></div>
-                <div>Kasb: <strong>{formData.categoryName}</strong></div>
-                <div>Telefon: <strong className="text-tg font-mono">{formData.phone}</strong></div>
-                <div>Mo'ljal: <strong>{formData.landmarkName}</strong></div>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 mt-4">
-          {step > 1 && (
-            <button
-              onClick={() => setStep((step - 1) as any)}
-              className="flex-1 py-3 rounded-btn bg-ios-sep text-tg-textLight font-bold"
-            >
-              ← Orqaga
-            </button>
-          )}
-          {step < 3 ? (
-            <button
-              onClick={() => setStep((step + 1) as any)}
-              className="flex-1 py-3 rounded-btn bg-tg text-white font-bold shadow-fab"
-            >
-              Keyingi →
-            </button>
-          ) : (
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 py-3 rounded-btn bg-ios-green text-white font-bold shadow-fab"
-            >
-              {saving ? 'Saqlanmoqda...' : '✔ Saqlash'}
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 };

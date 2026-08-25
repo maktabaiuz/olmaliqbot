@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export interface TopHeaderProps {
   title: string;
@@ -18,12 +17,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   onBackClick,
   rightAction,
 }) => {
-  const navigate = useNavigate();
-
   const handleBack = () => {
     if (onBack) onBack();
     else if (onBackClick) onBackClick();
-    else navigate(-1);
   };
 
   return (
@@ -33,10 +29,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             type="button"
             onClick={handleBack}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-ios-blue active:bg-ios-blue/10 transition-colors -ml-1.5 shrink-0"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-ios-blue hover:bg-ios-blue/10 active:bg-ios-blue/15 transition-colors -ml-2.5 shrink-0"
             title="Orqaga"
+            aria-label="Orqaga"
           >
-            <span className="material-symbols-outlined text-[24px]">chevron_left</span>
+            <span className="material-symbols-outlined text-[26px]">chevron_left</span>
           </button>
         )}
         <div className="min-w-0">

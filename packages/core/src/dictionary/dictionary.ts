@@ -1,4 +1,5 @@
 import initialDictionaryData from './initialDictionary.json';
+import { normalizeText } from '../transliteration';
 
 export interface CategorySeed {
   id: string;
@@ -37,10 +38,84 @@ export function stripLandmarkSuffixes(text: string): string {
  */
 export function normalizeDistrictLandmark(text: string): string {
   const lower = text.toLowerCase().trim();
-  
+
   if (/(3\s*-?\s*mavze|uchinchi\s*mavze|третий\s*микрорайон)/i.test(lower)) {
     return '3-mavze';
   }
 
   return lower;
+}
+
+// Lazily-built normalized lookup: har bir nom/sinonim -> lug'atdagi kanonik nom.
+// Masalan "taxi" ham, "такси" ham -> "Taksi" ga ishora qiladi.
+let canonicalCategoryLookup: Map<string, string> | null = null;
+
+function getCanonicalCategoryLookup(): Map<string, string> {
+  if (canonicalCategoryLookup) return canonicalCategoryLookup;
+
+  const lookup = new Map<string, string>();
+  for (const cat of initialDictionaryData.categories as CategorySeed[]) {
+    lookup.set(normalizeText(cat.name), cat.name);
+    for (const syn of cat.synonyms) {
+      lookup.set(normalizeText(syn), cat.name);
+    }
+  }
+  canonicalCategoryLookup = lookup;
+  return lookup;
+}
+
+/**
+ * Foydalanuvchi/AI kiritgan kategoriya nomini lug'atdagi KANONIK nomga
+ * moslashtiradi (masalan "taxi", "Taxi", "такси" -> "Taksi"). Shu orqali
+ * yozuv qo'shishda yozilish farqi sabab bazada dublikat kategoriya
+ * ("Taxi" va "Taksi" alohida-alohida) yaralishining oldini oladi.
+ * Lug'atda mos kelmasa — o'zgarishsiz qaytariladi (haqiqiy yangi kategoriya).
+ */
+export function resolveCanonicalCategoryName(inputName: string): string {
+  if (!inputName) return inputName;
+  const normalized = normalizeText(inputName);
+  const lookup = getCanonicalCategoryLookup();
+  return lookup.get(normalized) || inputName;
+}
+
+export interface CategoryTextMatch {
+  canonicalName: string;
+  objectType: string;
+}
+
+// Uzun (aniqroq) sinonimlar avval tekshirilishi uchun uzunlik bo'yicha kamayish
+// tartibida saralangan ro'yxat — masalan "kafel yotqizadigan" "kafel"dan oldin tekshiriladi.
+let sortedCategoryPatterns: { pattern: string; canonicalName: string; objectType: string }[] | null = null;
+
+function getSortedCategoryPatterns() {
+  if (sortedCategoryPatterns) return sortedCategoryPatterns;
+
+  const patterns: { pattern: string; canonicalName: string; objectType: string }[] = [];
+  for (const cat of initialDictionaryData.categories as CategorySeed[]) {
+    patterns.push({ pattern: normalizeText(cat.name), canonicalName: cat.name, objectType: cat.object_type });
+    for (const syn of cat.synonyms) {
+      patterns.push({ pattern: normalizeText(syn), canonicalName: cat.name, objectType: cat.object_type });
+    }
+  }
+  patterns.sort((a, b) => b.pattern.length - a.pattern.length);
+  sortedCategoryPatterns = patterns;
+  return patterns;
+}
+
+/**
+ * Xabar matni ichidan lug'atdagi (76+ kasb/soha) tanish kategoriya nomini
+ * qidiradi — Gemini AI ishlamay qolganda (tarmoq xatosi/timeout) mahalliy
+ * fallback klassifikator shundan foydalanadi, shu orqali faqat bir nechta
+ * qattiq kodlangan so'z emas, balki BUTUN lug'at bo'yicha "ko'ra oladi".
+ */
+export function matchCategoryFromText(normalizedText: string): CategoryTextMatch | null {
+  if (!normalizedText) return null;
+  const patterns = getSortedCategoryPatterns();
+  for (const { pattern, canonicalName, objectType } of patterns) {
+    if (pattern.length < 3) continue; // juda qisqa so'zlar noto'g'ri mos kelib qolmasligi uchun
+    if (normalizedText.includes(pattern)) {
+      return { canonicalName, objectType };
+    }
+  }
+  return null;
 }

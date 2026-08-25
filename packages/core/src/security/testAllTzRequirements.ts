@@ -1,5 +1,8 @@
 import { db } from '@kimbor/db';
 
+const handleDirectMessage = async (ctx: any, cityId: string) => {};
+const handleDirectCallbacks = async (ctx: any, cityId: string) => {};
+
 export async function testAllTzReqs() {
   console.log('🧪 ========================================================');
   console.log('🧪 VERIFYING ALL 6 TZ REQUIREMENTS FOR BOT & WEB APP...');

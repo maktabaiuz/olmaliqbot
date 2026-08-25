@@ -2,12 +2,16 @@ import { db } from '@kimbor/db';
 import { normalizeText } from '../transliteration';
 
 export interface ClusterGroup {
+  id: string;
   clusterKey: string;
   canonicalName: string;
   count: number;
   isExistingCategory: boolean; // true = "bazada bor, bot tanimadi", false = "bazada yo'q"
+  matchedCategoryName?: string;
   matchedCategoryId?: string;
+  rawExamples: string[];
   queryLogIds: string[];
+  timeAgo?: string;
 }
 
 /**
@@ -69,6 +73,7 @@ export async function clusterUnresolvedQueries(cityId: string): Promise<ClusterG
 
   for (const [clusterKey, group] of clustersMap.entries()) {
     const ids = group.logs.map((l) => l.id);
+    const rawExamples = group.logs.map((l) => l.rawMessage || l.categoryName || group.canonicalName).filter(Boolean);
 
     // Update QueryLog clusterKey in DB
     await db.queryLog.updateMany({
@@ -76,13 +81,26 @@ export async function clusterUnresolvedQueries(cityId: string): Promise<ClusterG
       data: { clusterKey },
     });
 
+    const latestLogTime = group.logs[0]?.createdAt;
+    let timeAgo = 'Yaqinda';
+    if (latestLogTime) {
+      const diffMins = Math.floor((Date.now() - new Date(latestLogTime).getTime()) / (1000 * 60));
+      if (diffMins < 60) timeAgo = `${Math.max(1, diffMins)} min oldin`;
+      else if (diffMins < 1440) timeAgo = `${Math.floor(diffMins / 60)} soat oldin`;
+      else timeAgo = `${Math.floor(diffMins / 1440)} kun oldin`;
+    }
+
     resultClusters.push({
+      id: clusterKey,
       clusterKey,
       canonicalName: group.canonicalName,
       count: ids.length,
       isExistingCategory: !!group.matchedCat,
+      matchedCategoryName: group.matchedCat?.name,
       matchedCategoryId: group.matchedCat?.id,
+      rawExamples: rawExamples.length > 0 ? rawExamples : [group.canonicalName],
       queryLogIds: ids,
+      timeAgo,
     });
   }
 

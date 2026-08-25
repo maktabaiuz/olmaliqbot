@@ -1,92 +1,77 @@
-# 🚀 "Kim bor?" — Shahar Ma'lumotnomasi Boti & Admin Paneli
+# 🚀 Kim bor? — Shahar giper-mahalliy katalog platformasi
 
-Olmaliq va O'zbekiston shaharlari uchun mo'ljallangan ko'p shaharli (Multi-Tenant) Telegram boti, Fastify REST API backend, Gemini AI Copilot va Vite+React Web App boshqaruv paneli.
-
----
-
-## 💻 VPS Serverya Qo'yiladigan Texnik Talablar (Hardware Sizing)
-
-Loyihangizdagi barcha xizmatlar (**PostgreSQL, Redis, Fastify API, Telegram Bot, WebApp, Caddy TLS**) konteynerlarda parallel ishlashi uchun zaruriy resurslar hisob-kitobi:
-
-| Xizmat / Servis | Operativ Xotira (RAM) | CPU yuklamasi |
-|---|---|---|
-| **PostgreSQL 16** | ~150 MB | Past |
-| **Redis 7** | ~50 MB | Minimal |
-| **Fastify API Server** | ~120 MB | O'rtacha |
-| **grammY Telegram Bot** | ~100 MB | O'rtacha |
-| **Caddy TLS Proxy** | ~40 MB | Minimal |
-| **Tizim va Operatsion Tizim (Linux)** | ~250 MB | Minimal |
-| **JAMI ENTIK HARAKAT** | **~710 MB RAM** | **1-2 Cores** |
-
-### 🛠️ Tavsiya Etiladigan VPS Server Konfiguratsiyasi:
-- **CPU**: 2 vCPU Cores
-- **RAM (Xotira)**: **2 GB RAM** (yoki 4 GB ko'p shaharlarga kengaytirish uchun)
-- **Disk (Xotira)**: **25 GB - 40 GB NVMe SSD**
-- **OS**: Ubuntu 22.04 LTS yoki 24.04 LTS
-- **Mo'ljallangan VPS narxi**: ~$5 — $10 / oyiga (DigitalOcean, Hetzner, Vultr)
+Ushbu loyiha **"Kim bor?"** shaharlararo katalog Telegram boti va Shahar Admin Paneli (Telegram Mini App) infratuzilmasidan iborat.
 
 ---
 
-## 🛠️ Serverya Birinchi Marta O'rnatish (Deployment)
+## 🛠 TIZIM VE SERVER MA'LUMOTLARI
 
-1. **Repozitoriyani serverga klonlash**:
-```bash
-git clone https://github.com/maktabaiuz/kimbor.git
-cd kimbor
-```
+- **Server IP:** `62.72.20.22`
+- **Foydalanuvchi:** `root`
+- **Domen:** `https://olmaliq.online`
+- **Sinov va Preview Link:** `https://olmaliq.online/preview?key=kimbor_preview_sec_8f93a2`
 
-2. **Konfiguratsiya faylini tayyorlash**:
-```bash
-cp .env.production.example .env
-nano .env
-```
-`.env` fayliga domeningiz (`DOMAIN=kimbor.uz`), `BOT_TOKEN` va `GEMINI_API_KEY` ni kiriting.
+---
 
-3. **Docker konteynerlarini ishga tushirish**:
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
+## 💻 SERVERGA ULANISH (SSH)
 
-4. **Ma'lumotlar bazasi migratsiyasi va Seed kiritish**:
 ```bash
-docker exec -it kimbor_api npx prisma migrate deploy
-docker exec -it kimbor_api npx tsx packages/db/prisma/seed.ts
+ssh root@62.72.20.22
 ```
 
 ---
 
-## 🔄 Yangilash (Update Command)
+## 🔄 BIR BUYRUQ BILAN YANGILASH (ONE-COMMAND DEPLOY)
 
-Kodingizga yangi o'zgarishlar qo'shilganda serverni yangilash:
+Loyiha kodlari yangilanganda serverda quyidagi skriptni yuritish kifoya:
 
 ```bash
-git pull origin main
-docker compose -f docker-compose.prod.yml up -d --build
+/root/kimbor/scripts/deploy.sh
+```
+
+> **Avtomatik Rollback:** Agar yangi kodda kompilatsiya yoki HTTP xatosi chiqsa, skript avtomatik ravishda avvalgi barqaror versiyaga (git commit) qaytaradi.
+
+---
+
+## 📦 KUNLIK ZAXIRA (BACKUP & RESTORE)
+
+### 1. Zaxira skripti
+Zaxiralar `/root/kimbor/backups/` papkasida soat **03:00 da** avtomatik saqlanadi (oxirgi 30 kun saqlanadi):
+
+```bash
+# Qo'lda zaxira olish:
+/root/kimbor/scripts/kimbor-backup.sh
+```
+
+### 2. Zaxiradan tiklash (Database Restore)
+```bash
+# Zaxiradagi .sql.gz faylidan PostgreSQL bazasini tiklash:
+zcat /root/kimbor/backups/kimbor_2026-08-13_16-39-29.sql.gz | docker exec -i kimbor_postgres psql -U kimbor -d kimbor_prod_db
 ```
 
 ---
 
-## 📦 Kunlik Zaxira Nusxa (Backup)
+## 📊 KUZATUV VA MONITORING (HEALTH & LOGS)
 
-Baza zaxirasini kunlik avtomatik olish uchun `crontab`ga qo'shing:
-
+### 1. Servislar holatini ko'rish
 ```bash
-crontab -e
+cd /root/kimbor && docker compose -f docker-compose.prod.yml ps
 ```
 
-Quyidagi qatorni kiriting (har kuni tunda soat 03:00 da zaxira oladi):
-```text
-0 3 * * * /bin/bash /root/kimbor/scripts/backup.sh >> /root/kimbor/backups/backup.log 2>&1
+### 2. Loglarni tekshirish
+```bash
+# API loglari:
+docker logs --tail 100 -f kimbor_api
+
+# Telegram Bot loglari:
+docker logs --tail 100 -f kimbor_bot
+
+# WebApp loglari:
+docker logs --tail 100 -f kimbor_webapp
 ```
 
----
-
-## 🔍 Loglarni Kuzatish va Diagnostika
-
+### 3. Monitoring skripti
+Har 5 daqiqada disk to'lishi va servislar holatini tekshiradi, muammo bo'lsa Telegram orqali Super-Adminga xabar yuboradi:
 ```bash
-# Barcha xizmatlar holati
-docker compose -f docker-compose.prod.yml ps
-
-# Real vaqtdagi loglar
-docker compose -f docker-compose.prod.yml logs -f --tail=100
+/root/kimbor/scripts/kimbor-monitor.sh
 ```

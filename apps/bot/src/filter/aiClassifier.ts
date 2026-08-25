@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
@@ -32,9 +32,14 @@ export async function classifyQuery(
 
   // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa)
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
+    // Gemini sekin/osilib qolsa botni cheksiz kutdirmaslik uchun 8 soniyalik cheklov —
+    // vaqt tugasa qoidalarga asoslangan fallback classifierga o'tiladi
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), 8000);
+
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -42,6 +47,7 @@ export async function classifyQuery(
             contents: [{ parts: [{ text: `${classifierPrompt}\n\nINPUT: "${cleanText}"` }] }],
             generationConfig: { responseMimeType: 'application/json' },
           }),
+          signal: abortController.signal,
         }
       );
 
@@ -67,6 +73,8 @@ export async function classifyQuery(
     } catch (e) {
       console.warn('⚠️ Gemini AI classification failed, using rule fallback:', e);
       result = fallbackRuleClassification(normalized, cleanText);
+    } finally {
+      clearTimeout(timeout);
     }
   } else {
     // API key bo'lmasa qoidalarga asoslangan lokal klassifikatsiya
@@ -82,23 +90,19 @@ export async function classifyQuery(
   memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   // 4. Har bir tahlil qilingan so'rovni QueryLog jadvaliga yozish
-  try {
-    if (cityId) {
-      await db.queryLog.create({
-        data: {
-          cityId,
-          telegramUserId: telegramUserId || BigInt(0),
-          rawMessage: cleanText,
-          intent: result.intent,
-          categoryName: result.category,
-          landmarkName: result.landmark,
-          isResolved: false,
-        },
-      });
-    }
-  } catch (err) {
-    // Log exception without breaking classifier flow
-    console.error('Failed to log QueryLog to DB:', err);
+  // Javobni sekinlashtirmasligi uchun kutilmaydi (fire-and-forget)
+  if (cityId) {
+    db.queryLog.create({
+      data: {
+        cityId,
+        telegramUserId: telegramUserId || BigInt(0),
+        rawMessage: cleanText,
+        intent: result.intent,
+        categoryName: result.category,
+        landmarkName: result.landmark,
+        isResolved: false,
+      },
+    }).catch((err) => console.error('Failed to log QueryLog to DB:', err));
   }
 
   return result;
@@ -132,35 +136,15 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
   let name: string | null = null;
   let confidence = 0.88;
 
-  // Category matching
-  if (/gazavik|gazovik|gaz ustasi|kolonka ustasi|plita ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'gazavik';
-  } else if (/santexnik|suv ustasi|quvur ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'santexnik';
-  } else if (/kafelchi|plitkachi|kafel ustasi|plitka ustasi|kafel yotqizadigan/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'kafelchi';
-  } else if (/elektrik|elektr ustasi|svet ustasi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.USTA;
-    category = 'elektrik';
-  } else if (/notarius/.test(normalized)) {
-    intent = IntentType.LOCATION;
-    objectType = ListingObjectType.MUASSASA;
-    category = 'notarius';
-  } else if (/dorixona|apteka/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.DOKON_OBYEKT;
-    category = 'dorixona';
-  } else if (/taksi/.test(normalized)) {
-    intent = IntentType.SERVICE;
-    objectType = ListingObjectType.TRANSPORT;
-    category = 'taksi';
+  // Category matching — 7 ta qattiq kodlangan so'z emas, balki BUTUN lug'at
+  // (76+ kasb/soha va ularning sinonimlari) bo'yicha qidiradi. Shu orqali
+  // Gemini ishlamay qolganda ham (tarmoq xatosi/timeout) bot "ko'r" bo'lib
+  // qolmaydi — barcha ma'lum kasblarni tanib oladi.
+  const dictMatch = matchCategoryFromText(normalized);
+  if (dictMatch) {
+    intent = dictMatch.canonicalName.toLowerCase() === 'notarius' ? IntentType.LOCATION : IntentType.SERVICE;
+    objectType = (dictMatch.objectType as ListingObjectType) || ListingObjectType.USTA;
+    category = dictMatch.canonicalName.toLowerCase();
   }
 
   // Name detection
@@ -192,9 +176,18 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
     landmark = '3-mavze';
   }
 
-  // Low confidence for generic non-actionable chatter
+  // Low confidence for generic non-actionable chatter unless a keyword remains
   if (intent === IntentType.NOT_RELEVANT && !category && !name && !landmark) {
-    confidence = 0.35;
+    const cleanQuery = normalized
+      .replace(/\b(salom|privet|xayr|rahmat|assalomu|alaykum|kerak|bormi|yoki|nomeri|nomer|raqami|telefoni|telefon|bormikan|qayerda|bor|toshkent|olmaliq|yangi|usta|ustasi)\b/g, '')
+      .trim();
+    if (cleanQuery.length >= 2) {
+      category = cleanQuery;
+      intent = IntentType.SERVICE;
+      confidence = 0.85;
+    } else {
+      confidence = 0.35;
+    }
   }
 
   return {

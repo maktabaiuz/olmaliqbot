@@ -37,6 +37,11 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: kimbor_api
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -44,6 +49,7 @@ services:
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,14 +62,18 @@ services:
       dockerfile: apps/bot/Dockerfile
     container_name: kimbor_bot
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-kimbor}:${POSTGRES_PASSWORD:-kimbor_sec_pass_2026}@postgres:5432/${POSTGRES_DB:-kimbor_db}?schema=public
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      WEBAPP_URL: https://${DOMAIN:-olmaliq.online}
-      WEBHOOK_URL: https://${DOMAIN:-olmaliq.online}/api/telegram/webhook
+      WEBHOOK_URL: https://${DOMAIN:-olmaliq.online}/webhook
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,11 +86,23 @@ services:
       dockerfile: apps/webapp/Dockerfile
     container_name: kimbor_webapp
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   caddy:
     image: caddy:2-alpine
     container_name: kimbor_caddy
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      DOMAIN: ${DOMAIN:-olmaliq.online}
     ports:
       - "80:80"
       - "443:443"
