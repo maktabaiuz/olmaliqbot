@@ -140,13 +140,15 @@ model User {
 }
 
 model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique // Masalan: "gazavik"
+  id          String       @id @default(uuid())
+  name        String       @unique // Masalan: "gazavik"
   nameRu      String?
   nameCyrl    String?
   synonyms    String[] // ["газовщик", "газовик", "gaz ustasi"]
   description String?
-  createdAt   DateTime @default(now())
+  objectType  ListingType? // Usta/Do'kon/Muassasa/Transport bo'yicha filtrlash uchun
+  group       String?      // Masalan: "Qurilish va ta'mirlash" — kasblarni mantiqiy guruhlash uchun
+  createdAt   DateTime     @default(now())
 
   listings    Listing[]
   candidates  Candidate[]

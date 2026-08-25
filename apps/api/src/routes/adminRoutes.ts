@@ -641,11 +641,36 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 5. CATEGORIES & LANDMARKS ---
-  fastify.get('/admin/categories', async (req, reply) => {
+  fastify.get('/admin/categories', async (req: any, reply) => {
+    const { search, objectType } = req.query as { search?: string; objectType?: string };
+
+    const whereClause: any = {};
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { synonyms: { has: search.toLowerCase() } },
+      ];
+    }
+    if (objectType) {
+      whereClause.objectType = objectType;
+    }
+
     const categories = await db.category.findMany({
-      orderBy: { name: 'asc' },
+      where: whereClause,
+      orderBy: [{ group: 'asc' }, { name: 'asc' }],
+      include: {
+        _count: { select: { listings: true } },
+      },
     });
-    return categories;
+
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      synonyms: c.synonyms,
+      group: c.group,
+      objectType: c.objectType,
+      count: c._count.listings,
+    }));
   });
 
   fastify.get('/admin/landmarks', async (req, reply) => {

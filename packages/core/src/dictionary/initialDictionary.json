@@ -3,501 +3,1037 @@
     {
       "id": "gazavik",
       "name": "Gazavik",
-      "synonyms": ["gazovik", "gaz ustasi", "gaz mastir", "kolonka ustasi", "gaz kolonka ustasi", "plita ustasi", "газавик", "газовщик", "газ устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "gazovik",
+        "gaz ustasi",
+        "gaz mastir",
+        "kolonka ustasi",
+        "gaz kolonka ustasi",
+        "plita ustasi",
+        "газавик",
+        "газовщик",
+        "газ устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "santexnik",
       "name": "Santexnik",
-      "synonyms": ["suv ustasi", "quvur ustasi", "santexnika ustasi", "сантехник", "сув устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "suv ustasi",
+        "quvur ustasi",
+        "santexnika ustasi",
+        "сантехник",
+        "сув устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "elektrik",
       "name": "Elektrik",
-      "synonyms": ["elektr ustasi", "elektromontyor", "svet ustasi", "электрик", "электр устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "elektr ustasi",
+        "elektromontyor",
+        "svet ustasi",
+        "электрик",
+        "электр устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "svarshik",
       "name": "Svarshik",
-      "synonyms": ["payvandchi", "svarka ustasi", "svarshchik", "сварщик", "пайвандчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "payvandchi",
+        "svarka ustasi",
+        "svarshchik",
+        "сварщик",
+        "пайвандчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "kafelchi",
       "name": "Kafelchi",
-      "synonyms": ["plitkachi", "kafel ustasi", "kafel yotqizuvchi", "plitka ustasi", "плиточник", "кафельчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "plitkachi",
+        "kafel ustasi",
+        "kafel yotqizuvchi",
+        "plitka ustasi",
+        "плиточник",
+        "кафельчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "shtukaturchi",
       "name": "Shtukaturchi",
-      "synonyms": ["suvoqchi", "shtukatur", "штукатур", "сувоқчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "suvoqchi",
+        "shtukatur",
+        "штукатур",
+        "сувоқчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "malyar",
       "name": "Malyar",
-      "synonyms": ["bo'yoqchi", "bo'yash ustasi", "маляр", "бўёқчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "bo'yoqchi",
+        "bo'yash ustasi",
+        "маляр",
+        "бўёқчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "natyajnoy",
       "name": "Natyajnoy",
-      "synonyms": ["natyajnoy potolok", "cho'ziluvchi shift", "натяжной потолок"],
-      "object_type": "USTA"
+      "synonyms": [
+        "natyajnoy potolok",
+        "cho'ziluvchi shift",
+        "натяжной потолок"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "gipsokarton",
       "name": "Gipsokarton",
-      "synonyms": ["gipsokarton ustasi", "shift ustasi", "гипсокартон"],
-      "object_type": "USTA"
+      "synonyms": [
+        "gipsokarton ustasi",
+        "shift ustasi",
+        "гипсокартон"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "eshik-deraza",
       "name": "Eshik-deraza",
-      "synonyms": ["plastik deraza", "stekloplaket", "okna", "deraza ustasi", "пластик дераза", "окна", "стеклопакет"],
-      "object_type": "USTA"
+      "synonyms": [
+        "plastik deraza",
+        "stekloplaket",
+        "okna",
+        "deraza ustasi",
+        "пластик дераза",
+        "окна",
+        "стеклопакет"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "qulf-ustasi",
       "name": "Qulf ustasi",
-      "synonyms": ["eshik qulfi", "zamok ustasi", "замочник", "қулф устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "eshik qulfi",
+        "zamok ustasi",
+        "замочник",
+        "қулф устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "tom-ustasi",
       "name": "Tom ustasi",
-      "synonyms": ["shifer ustasi", "tom yopish", "krovelshik", "кровельщик", "том устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "shifer ustasi",
+        "tom yopish",
+        "krovelshik",
+        "кровельщик",
+        "том устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "betonchi",
       "name": "Betonchi",
-      "synonyms": ["beton quyish", "бетонщик"],
-      "object_type": "USTA"
+      "synonyms": [
+        "beton quyish",
+        "бетонщик"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "gisht-teruvchi",
       "name": "G'isht teruvchi",
-      "synonyms": ["quruvchi", "kamenshik", "каменщик", "ғишт теровчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "quruvchi",
+        "kamenshik",
+        "каменщик",
+        "ғишт теровчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "temirchi",
       "name": "Temirchi",
-      "synonyms": ["kuznets", "metall ustasi", "кузнец", "темирчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "kuznets",
+        "metall ustasi",
+        "кузнец",
+        "темирчи"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "burgulash",
       "name": "Burg'ulash",
-      "synonyms": ["perforator", "teshik teshish", "бурение", "перфоратор"],
-      "object_type": "USTA"
+      "synonyms": [
+        "perforator",
+        "teshik teshish",
+        "бурение",
+        "перфоратор"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "konditsioner-ustasi",
       "name": "Konditsioner ustasi",
-      "synonyms": ["split ustasi", "konditsioner o'rnatuvchi", "konditsioner ta'mirlash", "кондиционерщик", "сплит устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "split ustasi",
+        "konditsioner o'rnatuvchi",
+        "konditsioner ta'mirlash",
+        "кондиционерщик",
+        "сплит устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "muzlatgich-ustasi",
       "name": "Muzlatgich ustasi",
-      "synonyms": ["xolodilnik ustasi", "muzlatkich", "холодильщик", "холодильник устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "xolodilnik ustasi",
+        "muzlatkich",
+        "холодильщик",
+        "холодильник устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "kir-yuvish-mashinasi-ustasi",
       "name": "Kir yuvish mashinasi ustasi",
-      "synonyms": ["stiralka ustasi", "mashinka ustasi", "стиральная машина устаси", "стиралка"],
-      "object_type": "USTA"
+      "synonyms": [
+        "stiralka ustasi",
+        "mashinka ustasi",
+        "стиральная машина устаси",
+        "стиралка"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "televizor-ustasi",
       "name": "Televizor ustasi",
-      "synonyms": ["telemaster", "TV ustasi", "телемастер", "телевизор устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "telemaster",
+        "TV ustasi",
+        "телемастер",
+        "телевизор устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "kompyuter-ustasi",
       "name": "Kompyuter ustasi",
-      "synonyms": ["noutbuk ustasi", "komp ustasi", "компьютерный мастер", "ноутбук устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "noutbuk ustasi",
+        "komp ustasi",
+        "компьютерный мастер",
+        "ноутбук устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "telefon-ustasi",
       "name": "Telefon ustasi",
-      "synonyms": ["telefon ta'mirlash", "ekran almashtirish", "телефон устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "telefon ta'mirlash",
+        "ekran almashtirish",
+        "телефон устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "isitish-ustasi",
       "name": "Isitish ustasi",
-      "synonyms": ["kotyol ustasi", "batareya ustasi", "отопление устаси", "котёл"],
-      "object_type": "USTA"
+      "synonyms": [
+        "kotyol ustasi",
+        "batareya ustasi",
+        "отопление устаси",
+        "котёл"
+      ],
+      "object_type": "USTA",
+      "group": "Maishiy texnika ustalari"
     },
     {
       "id": "avtoelektrik",
       "name": "Avtoelektrik",
-      "synonyms": ["mashina elektrigi", "автоэлектрик"],
-      "object_type": "USTA"
+      "synonyms": [
+        "mashina elektrigi",
+        "автоэлектрик"
+      ],
+      "object_type": "USTA",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "avtomexanik",
       "name": "Avtomexanik",
-      "synonyms": ["mashina ustasi", "motorist", "автомеханик", "машина устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "mashina ustasi",
+        "motorist",
+        "автомеханик",
+        "машина устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "shinamontaj",
       "name": "Shinamontaj",
-      "synonyms": ["shina ustasi", "balansirovka", "rezina almashtirish", "шиномонтаж"],
-      "object_type": "USTA"
+      "synonyms": [
+        "shina ustasi",
+        "balansirovka",
+        "rezina almashtirish",
+        "шиномонтаж"
+      ],
+      "object_type": "USTA",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "avtomoyka",
       "name": "Avtomoyka",
-      "synonyms": ["mashina yuvish", "moyka", "автомойка"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "mashina yuvish",
+        "moyka",
+        "автомойка"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "evakuator",
       "name": "Evakuator",
-      "synonyms": ["tortuvchi mashina", "эвакуатор"],
-      "object_type": "TRANSPORT"
+      "synonyms": [
+        "tortuvchi mashina",
+        "эвакуатор"
+      ],
+      "object_type": "TRANSPORT",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "taksi",
       "name": "Taksi",
-      "synonyms": ["taxi", "mashina", "yo'lovchi tashish", "такси"],
-      "object_type": "TRANSPORT"
+      "synonyms": [
+        "taxi",
+        "mashina",
+        "yo'lovchi tashish",
+        "такси"
+      ],
+      "object_type": "TRANSPORT",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "yuk-mashinasi",
       "name": "Yuk mashinasi",
-      "synonyms": ["gruzovoy", "yuk tashish", "gruzovik", "грузовая", "юк ташиш"],
-      "object_type": "TRANSPORT"
+      "synonyms": [
+        "gruzovoy",
+        "yuk tashish",
+        "gruzovik",
+        "грузовая",
+        "юк ташиш"
+      ],
+      "object_type": "TRANSPORT",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "gruzchik",
       "name": "Gruzchik",
-      "synonyms": ["yuk ko'taruvchi", "ko'chirish", "грузчик", "юк кўтарувчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "yuk ko'taruvchi",
+        "ko'chirish",
+        "грузчик",
+        "юк кўтарувчи"
+      ],
+      "object_type": "USTA",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "dorixona",
       "name": "Dorixona",
-      "synonyms": ["apteka", "аптека", "дорихона"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "apteka",
+        "аптека",
+        "дорихона"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Tibbiyot"
     },
     {
       "id": "non-dokoni",
       "name": "Non do'koni",
-      "synonyms": ["nonvoyxona", "tandir", "pekarnya", "пекарня", "нон дўкони"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "nonvoyxona",
+        "tandir",
+        "pekarnya",
+        "пекарня",
+        "нон дўкони"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "oziq-ovqat",
       "name": "Oziq-ovqat",
-      "synonyms": ["produkt", "magazin", "продукты", "магазин"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "produkt",
+        "magazin",
+        "продукты",
+        "магазин"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "qurilish-dokoni",
       "name": "Qurilish do'koni",
-      "synonyms": ["stroymateriali", "qurilish mollari", "стройматериалы"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "stroymateriali",
+        "qurilish mollari",
+        "стройматериалы"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "shifoxona",
       "name": "Shifoxona",
-      "synonyms": ["kasalxona", "poliklinika", "больница", "поликлиника", "шифохона"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "kasalxona",
+        "poliklinika",
+        "больница",
+        "поликлиника",
+        "шифохона"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Tibbiyot"
     },
     {
       "id": "notarius",
       "name": "Notarius",
-      "synonyms": ["нотариус"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "нотариус"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "bank",
       "name": "Bank",
-      "synonyms": ["банк"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "банк"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "duradgor",
       "name": "Duradgor",
-      "synonyms": ["stolyar", "yog'och ustasi", "mebel duradgori", "столяр", "дурадгор"],
-      "object_type": "USTA"
+      "synonyms": [
+        "stolyar",
+        "yog'och ustasi",
+        "mebel duradgori",
+        "столяр",
+        "дурадгор"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "pardaboz",
       "name": "Pardaboz",
-      "synonyms": ["parda ustasi", "jalyuzi ustasi", "shtora ustasi", "гардина устаси", "пардабоз"],
-      "object_type": "USTA"
+      "synonyms": [
+        "parda ustasi",
+        "jalyuzi ustasi",
+        "shtora ustasi",
+        "гардина устаси",
+        "пардабоз"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "mebel-ustasi",
       "name": "Mebel ustasi",
-      "synonyms": ["mebel yig'uvchi", "mebel ta'mirlash", "сборщик мебели", "мебель устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "mebel yig'uvchi",
+        "mebel ta'mirlash",
+        "сборщик мебели",
+        "мебель устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "domofon-ustasi",
       "name": "Domofon ustasi",
-      "synonyms": ["domofon o'rnatish", "домофон устаси", "домофончик"],
-      "object_type": "USTA"
+      "synonyms": [
+        "domofon o'rnatish",
+        "домофон устаси",
+        "домофончик"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "internet-ustasi",
       "name": "Internet ustasi",
-      "synonyms": ["wifi ustasi", "vayfay ustasi", "router ustasi", "provayder", "интернет устаси", "вайфай"],
-      "object_type": "USTA"
+      "synonyms": [
+        "wifi ustasi",
+        "vayfay ustasi",
+        "router ustasi",
+        "provayder",
+        "интернет устаси",
+        "вайфай"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "signalizatsiya-ustasi",
       "name": "Signalizatsiya ustasi",
-      "synonyms": ["videokuzatuv", "kamera o'rnatish", "signalizatsiya o'rnatish", "сигнализация устаси", "видеонаблюдение"],
-      "object_type": "USTA"
+      "synonyms": [
+        "videokuzatuv",
+        "kamera o'rnatish",
+        "signalizatsiya o'rnatish",
+        "сигнализация устаси",
+        "видеонаблюдение"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "antenna-ustasi",
       "name": "Antenna ustasi",
-      "synonyms": ["sputnik antenna", "resiver ustasi", "антенна устаси", "спутник антенна"],
-      "object_type": "USTA"
+      "synonyms": [
+        "sputnik antenna",
+        "resiver ustasi",
+        "антенна устаси",
+        "спутник антенна"
+      ],
+      "object_type": "USTA",
+      "group": "Qurilish va ta'mirlash"
     },
     {
       "id": "tozalash-xizmati",
       "name": "Tozalash xizmati",
-      "synonyms": ["uy tozalash", "klining", "клининг", "уй тозалаш хизмати"],
-      "object_type": "USTA"
+      "synonyms": [
+        "uy tozalash",
+        "klining",
+        "клининг",
+        "уй тозалаш хизмати"
+      ],
+      "object_type": "USTA",
+      "group": "Uy xizmatlari va xavfsizlik"
     },
     {
       "id": "dezinfeksiya-xizmati",
       "name": "Dezinfeksiya xizmati",
-      "synonyms": ["hasharot yo'qotish", "tarakan yo'qotish", "dezinfektsiya", "дезинфекция", "тараканлар"],
-      "object_type": "USTA"
+      "synonyms": [
+        "hasharot yo'qotish",
+        "tarakan yo'qotish",
+        "dezinfektsiya",
+        "дезинфекция",
+        "тараканлар"
+      ],
+      "object_type": "USTA",
+      "group": "Uy xizmatlari va xavfsizlik"
     },
     {
       "id": "sartarosh",
       "name": "Sartarosh",
-      "synonyms": ["barber", "soch olish ustasi", "parikmaxer", "парикмахер", "сартарош"],
-      "object_type": "USTA"
+      "synonyms": [
+        "barber",
+        "soch olish ustasi",
+        "parikmaxer",
+        "парикмахер",
+        "сартарош"
+      ],
+      "object_type": "USTA",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "gozallik-saloni",
       "name": "Go'zallik saloni",
-      "synonyms": ["kosmetolog", "salon krasoti", "манikyur", "салон красоты", "гўзаллик салони"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "kosmetolog",
+        "salon krasoti",
+        "манikyur",
+        "салон красоты",
+        "гўзаллик салони"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "massajist",
       "name": "Massajist",
-      "synonyms": ["massaj ustasi", "massajchi", "массажист"],
-      "object_type": "USTA"
+      "synonyms": [
+        "massaj ustasi",
+        "massajchi",
+        "массажист"
+      ],
+      "object_type": "USTA",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "stomatolog",
       "name": "Stomatolog",
-      "synonyms": ["tish shifokori", "tish davolash", "стоматолог", "стоматология"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "tish shifokori",
+        "tish davolash",
+        "стоматолог",
+        "стоматология"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Tibbiyot"
     },
     {
       "id": "shifokor",
       "name": "Shifokor",
-      "synonyms": ["uy shifokori", "shaxsiy shifokor", "vrach", "врач", "шифокор"],
-      "object_type": "USTA"
+      "synonyms": [
+        "uy shifokori",
+        "shaxsiy shifokor",
+        "vrach",
+        "врач",
+        "шифокор"
+      ],
+      "object_type": "USTA",
+      "group": "Tibbiyot"
     },
     {
       "id": "veterinar",
       "name": "Veterinar",
-      "synonyms": ["hayvon shifokori", "vetvrach", "ветеринар"],
-      "object_type": "USTA"
+      "synonyms": [
+        "hayvon shifokori",
+        "vetvrach",
+        "ветеринар"
+      ],
+      "object_type": "USTA",
+      "group": "Tibbiyot"
     },
     {
       "id": "tikuvchi",
       "name": "Tikuvchi",
-      "synonyms": ["kiyim tikish", "atele", "portnoy", "ателье", "тикувчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "kiyim tikish",
+        "atele",
+        "portnoy",
+        "ателье",
+        "тикувчи"
+      ],
+      "object_type": "USTA",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "kimyoviy-tozalash",
       "name": "Kimyoviy tozalash",
-      "synonyms": ["himchistka", "kir yuvish xizmati", "prachechnaya", "химчистка", "прачечная"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "himchistka",
+        "kir yuvish xizmati",
+        "prachechnaya",
+        "химчистка",
+        "прачечная"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "poyabzal-ustasi",
       "name": "Poyabzal ustasi",
-      "synonyms": ["botinka ta'mirlash", "sapojnik", "сапожник", "пойабзал устаси"],
-      "object_type": "USTA"
+      "synonyms": [
+        "botinka ta'mirlash",
+        "sapojnik",
+        "сапожник",
+        "пойабзал устаси"
+      ],
+      "object_type": "USTA",
+      "group": "Go'zallik va parvarish"
     },
     {
       "id": "repetitor",
       "name": "Repetitor",
-      "synonyms": ["o'qituvchi", "darsxona", "repetitorlik", "репетитор"],
-      "object_type": "USTA"
+      "synonyms": [
+        "o'qituvchi",
+        "darsxona",
+        "repetitorlik",
+        "репетитор"
+      ],
+      "object_type": "USTA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "advokat",
       "name": "Advokat",
-      "synonyms": ["yurist", "huquqshunos", "advokatlik xizmati", "адвокат", "юрист"],
-      "object_type": "USTA"
+      "synonyms": [
+        "yurist",
+        "huquqshunos",
+        "advokatlik xizmati",
+        "адвокат",
+        "юрист"
+      ],
+      "object_type": "USTA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "buxgalter",
       "name": "Buxgalter",
-      "synonyms": ["hisobchi", "buxgalteriya xizmati", "бухгалтер"],
-      "object_type": "USTA"
+      "synonyms": [
+        "hisobchi",
+        "buxgalteriya xizmati",
+        "бухгалтер"
+      ],
+      "object_type": "USTA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "tarjimon",
       "name": "Tarjimon",
-      "synonyms": ["tarjima xizmati", "perevodchik", "переводчик"],
-      "object_type": "USTA"
+      "synonyms": [
+        "tarjima xizmati",
+        "perevodchik",
+        "переводчик"
+      ],
+      "object_type": "USTA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "haydovchilik-maktabi",
       "name": "Haydovchilik maktabi",
-      "synonyms": ["avtomaktab", "prava olish", "автошкола", "ҳайдовчилик мактаби"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "avtomaktab",
+        "prava olish",
+        "автошкола",
+        "ҳайдовчилик мактаби"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "shaxsiy-haydovchi",
       "name": "Shaxsiy haydovchi",
-      "synonyms": ["haydovchi kerak", "voditel", "водитель", "шахсий ҳайдовчи"],
-      "object_type": "USTA"
+      "synonyms": [
+        "haydovchi kerak",
+        "voditel",
+        "водитель",
+        "шахсий ҳайдовчи"
+      ],
+      "object_type": "USTA",
+      "group": "Avtomobil va transport"
     },
     {
       "id": "fotograf",
       "name": "Fotograf",
-      "synonyms": ["fotosuratchi", "foto tasvirchi", "фотограф"],
-      "object_type": "USTA"
+      "synonyms": [
+        "fotosuratchi",
+        "foto tasvirchi",
+        "фотограф"
+      ],
+      "object_type": "USTA",
+      "group": "Tadbir va ijodiy xizmatlar"
     },
     {
       "id": "videograf",
       "name": "Videograf",
-      "synonyms": ["video suratga olish", "video operator", "видеограф", "видеооператор"],
-      "object_type": "USTA"
+      "synonyms": [
+        "video suratga olish",
+        "video operator",
+        "видеограф",
+        "видеооператор"
+      ],
+      "object_type": "USTA",
+      "group": "Tadbir va ijodiy xizmatlar"
     },
     {
       "id": "tamada",
       "name": "Tamada",
-      "synonyms": ["boshlovchi", "tadbir boshlovchisi", "vediting", "тамада", "ведущий"],
-      "object_type": "USTA"
+      "synonyms": [
+        "boshlovchi",
+        "tadbir boshlovchisi",
+        "vediting",
+        "тамада",
+        "ведущий"
+      ],
+      "object_type": "USTA",
+      "group": "Tadbir va ijodiy xizmatlar"
     },
     {
       "id": "gulchi",
       "name": "Gulchi",
-      "synonyms": ["gul do'koni", "gullar do'koni", "цветочный магазин", "гулчи"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "gul do'koni",
+        "gullar do'koni",
+        "цветочный магазин",
+        "гулчи"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "bogbon",
       "name": "Bog'bon",
-      "synonyms": ["landshaft dizayner", "hovli tozalash", "садовник", "боғбон"],
-      "object_type": "USTA"
+      "synonyms": [
+        "landshaft dizayner",
+        "hovli tozalash",
+        "садовник",
+        "боғбон"
+      ],
+      "object_type": "USTA",
+      "group": "Uy xizmatlari va xavfsizlik"
     },
     {
       "id": "qorovul",
       "name": "Qorovul",
-      "synonyms": ["xavfsizlik xizmati", "soqchi", "охранник", "қоровул"],
-      "object_type": "USTA"
+      "synonyms": [
+        "xavfsizlik xizmati",
+        "soqchi",
+        "охранник",
+        "қоровул"
+      ],
+      "object_type": "USTA",
+      "group": "Uy xizmatlari va xavfsizlik"
     },
     {
       "id": "mebel-dokoni",
       "name": "Mebel do'koni",
-      "synonyms": ["mebel magazini", "мебельный магазин", "мебел дўкони"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "mebel magazini",
+        "мебельный магазин",
+        "мебел дўкони"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "elektr-jihozlar-dokoni",
       "name": "Elektr jihozlar do'koni",
-      "synonyms": ["maishiy texnika do'koni", "elektronika magazini", "магазин техники", "электроника"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "maishiy texnika do'koni",
+        "elektronika magazini",
+        "магазин техники",
+        "электроника"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "kiyim-dokoni",
       "name": "Kiyim do'koni",
-      "synonyms": ["kiyim-kechak", "boutik", "магазин одежды", "кийим дўкони"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "kiyim-kechak",
+        "boutik",
+        "магазин одежды",
+        "кийим дўкони"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "optika",
       "name": "Optika",
-      "synonyms": ["ko'zoynak do'koni", "optika salon", "оптика"],
-      "object_type": "DOKON_OBYEKT"
+      "synonyms": [
+        "ko'zoynak do'koni",
+        "optika salon",
+        "оптика"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Savdo do'konlari"
     },
     {
       "id": "bolalar-boghchasi",
       "name": "Bolalar bog'chasi",
-      "synonyms": ["detsad", "bog'cha", "детсад", "болалар боғчаси"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "detsad",
+        "bog'cha",
+        "детсад",
+        "болалар боғчаси"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "maktab",
       "name": "Maktab",
-      "synonyms": ["umumta'lim maktabi", "школа", "мактаб"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "umumta'lim maktabi",
+        "школа",
+        "мактаб"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "fitnes-klub",
       "name": "Fitnes klub",
-      "synonyms": ["sport zali", "trenajor zali", "фитнес клуб", "тренажёрный зал"],
-      "object_type": "MUASSASA"
+      "synonyms": [
+        "sport zali",
+        "trenajor zali",
+        "фитнес клуб",
+        "тренажёрный зал"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Ta'lim, huquq va moliya"
     },
     {
       "id": "sugurta-agenti",
       "name": "Sug'urta agenti",
-      "synonyms": ["sug'urta xizmati", "strahovka", "страховка", "страховой агент"],
-      "object_type": "USTA"
+      "synonyms": [
+        "sug'urta xizmati",
+        "strahovka",
+        "страховка",
+        "страховой агент"
+      ],
+      "object_type": "USTA",
+      "group": "Ta'lim, huquq va moliya"
     }
   ],
   "olmaliq_landmarks": [
     {
       "official_name": "Korzinka",
-      "folk_names": ["karzinka", "korzinka", "карзинка", "корзинка"]
+      "folk_names": [
+        "karzinka",
+        "korzinka",
+        "карзинка",
+        "корзинка"
+      ]
     },
     {
       "official_name": "Markaziy Bozor",
-      "folk_names": ["bozor", "markaziy bozor", "бозор", "марказий бозор"]
+      "folk_names": [
+        "bozor",
+        "markaziy bozor",
+        "бозор",
+        "марказий бозор"
+      ]
     },
     {
       "official_name": "3-mavze",
-      "folk_names": ["3-mavze", "3 mavze", "uchinchi mavze", "3-мавзе", "3 мавзе", "третий микрорайон"]
+      "folk_names": [
+        "3-mavze",
+        "3 mavze",
+        "uchinchi mavze",
+        "3-мавзе",
+        "3 мавзе",
+        "третий микрорайон"
+      ]
     },
     {
       "official_name": "Eski Bozor",
-      "folk_names": ["eski bozor", "эски бозор"]
+      "folk_names": [
+        "eski bozor",
+        "эски бозор"
+      ]
     },
     {
       "official_name": "Avtostansiya",
-      "folk_names": ["avtovokzal", "avtostansiya", "автостанция", "автовокзал"]
+      "folk_names": [
+        "avtovokzal",
+        "avtostansiya",
+        "автостанция",
+        "автовокзал"
+      ]
     },
     {
       "official_name": "Poliklinika",
-      "folk_names": ["shahar poliklinikasi", "markaziy poliklinika", "поликлиника"]
+      "folk_names": [
+        "shahar poliklinikasi",
+        "markaziy poliklinika",
+        "поликлиника"
+      ]
     }
   ],
   "suffixes": [
-    "oldi", "oldida", "orqasi", "orqasida", "yoni", "yonida",
-    "atrofi", "atrofida", "yaqinida", "yaqin", "ro'parasi", "qarshisida",
-    "tepasi", "pastida", "ichida", "tomonda",
-    "рядом", "около", "возле", "напротив", "за", "перед"
+    "oldi",
+    "oldida",
+    "orqasi",
+    "orqasida",
+    "yoni",
+    "yonida",
+    "atrofi",
+    "atrofida",
+    "yaqinida",
+    "yaqin",
+    "ro'parasi",
+    "qarshisida",
+    "tepasi",
+    "pastida",
+    "ichida",
+    "tomonda",
+    "рядом",
+    "около",
+    "возле",
+    "напротив",
+    "за",
+    "перед"
   ],
   "question_words": [
-    "kim bor", "kim biladi", "kim bilsa", "bilasizmi", "bilasizlarmi",
-    "aytinglar", "aytib yuboringlar", "kerak edi", "kerak", "zarur",
-    "tavsiya qilinglar", "maslahat beringlar",
-    "nomeri", "nomer", "raqami", "raqam", "telefoni", "telefon",
-    "nechigacha", "ochiqmi", "ishlaydimi",
-    "qayerda", "qayerdan topaman", "manzili",
-    "qancha", "qanchaga", "narxi",
-    "кто знает", "подскажите", "кто-нибудь", "нужен", "нужна", "надо",
-    "номер", "телефон", "контакт", "где", "сколько"
+    "kim bor",
+    "kim biladi",
+    "kim bilsa",
+    "bilasizmi",
+    "bilasizlarmi",
+    "aytinglar",
+    "aytib yuboringlar",
+    "kerak edi",
+    "kerak",
+    "zarur",
+    "tavsiya qilinglar",
+    "maslahat beringlar",
+    "nomeri",
+    "nomer",
+    "raqami",
+    "raqam",
+    "telefoni",
+    "telefon",
+    "nechigacha",
+    "ochiqmi",
+    "ishlaydimi",
+    "qayerda",
+    "qayerdan topaman",
+    "manzili",
+    "qancha",
+    "qanchaga",
+    "narxi",
+    "кто знает",
+    "подскажите",
+    "кто-нибудь",
+    "нужен",
+    "нужна",
+    "надо",
+    "номер",
+    "телефон",
+    "контакт",
+    "где",
+    "сколько"
   ]
 }

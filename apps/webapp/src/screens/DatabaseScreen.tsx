@@ -9,6 +9,7 @@ export interface CategorySummary {
   name: string;
   count: number;
   synonyms: string[];
+  group: string;
 }
 
 export interface ListingItem {
@@ -87,6 +88,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
             name: cat.name,
             count: count,
             synonyms: cat.synonyms || [cat.name.toLowerCase()],
+            group: cat.group || 'Boshqa',
           };
         });
         setCategories(catSummaries.filter((c: any) => c.count > 0 || searchQuery));
@@ -131,6 +133,21 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   };
 
   const filteredListings = getFilteredListings();
+
+  // Kategoriyalarni guruh bo'yicha to'playmiz (masalan "Qurilish va ta'mirlash",
+  // "Avtomobil va transport" ...) — 76+ kasbni bitta tekis to'rda ko'rsatish
+  // o'rniga, mantiqiy bo'limlarga ajratib, topishni osonlashtiradi.
+  const groupedCategories = categories.reduce<Record<string, CategorySummary[]>>((acc, cat) => {
+    const key = cat.group || 'Boshqa';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(cat);
+    return acc;
+  }, {});
+  const groupOrder = Object.keys(groupedCategories).sort((a, b) => {
+    if (a === 'Boshqa') return 1;
+    if (b === 'Boshqa') return -1;
+    return groupedCategories[b].length - groupedCategories[a].length;
+  });
 
   // Color mappings for Category Icons
   const categoryGradients = [
@@ -246,32 +263,41 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         ))}
       </div>
 
-      {/* 5. VIEW 1: CATEGORY GRID (Visible when no category is selected and no search) */}
+      {/* 5. VIEW 1: CATEGORY GRID grouped by profession family (Visible when no category is selected and no search) */}
       {!selectedCategory && !searchQuery ? (
-        <div className="grid grid-cols-2 gap-3 mt-1">
-          {categories.map((cat, idx) => {
-            const grad = categoryGradients[idx % categoryGradients.length];
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat)}
-                className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm flex flex-col items-start gap-2 text-left hover:scale-[1.02] active:scale-95 transition-all"
-              >
-                {/* Colored Icon Square */}
-                <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-sm shadow-sm`}>
-                  {cat.name[0].toUpperCase()}
-                </div>
-                <div>
-                  <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate w-full">
-                    {cat.name}
-                  </h4>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                    {cat.count} ta yozuv
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-5 mt-1">
+          {groupOrder.map((groupName) => (
+            <div key={groupName} className="flex flex-col gap-2.5">
+              <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-0.5">
+                {groupName} · {groupedCategories[groupName].length}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {groupedCategories[groupName].map((cat, idx) => {
+                  const grad = categoryGradients[idx % categoryGradients.length];
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat)}
+                      className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm flex flex-col items-start gap-2 text-left hover:scale-[1.02] active:scale-95 transition-all"
+                    >
+                      {/* Colored Icon Square */}
+                      <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-sm shadow-sm`}>
+                        {cat.name[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate w-full">
+                          {cat.name}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                          {cat.count} ta yozuv
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         /* VIEW 2: LISTINGS ROWS */

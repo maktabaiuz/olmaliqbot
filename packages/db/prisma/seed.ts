@@ -23,15 +23,19 @@ async function main() {
 
   // 2. Seed Categories (40+ trade categories & synonyms)
   let catCount = 0;
-  for (const cat of INITIAL_DICTIONARY.categories) {
+  for (const cat of INITIAL_DICTIONARY.categories as Array<{ name: string; synonyms: string[]; object_type?: string; group?: string }>) {
     await db.category.upsert({
       where: { name: cat.name },
       update: {
         synonyms: cat.synonyms,
+        objectType: (cat.object_type as any) || null,
+        group: cat.group || null,
       },
       create: {
         name: cat.name,
         synonyms: cat.synonyms,
+        objectType: (cat.object_type as any) || null,
+        group: cat.group || null,
       },
     });
     catCount++;

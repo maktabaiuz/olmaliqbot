@@ -47,8 +47,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; category?: string; phone?: string; landmark?: string }>({});
 
-  const [categoryList, setCategoryList] = useState<string[]>([
-    'gazavik', 'santexnik', 'elektrik', 'kafelchi', 'notarius', 'duradgor', 'malyar', 'dorixona', 'avtoelektrik'
+  interface CategoryOption { name: string; objectType: string | null; group: string | null }
+  const [categoryList, setCategoryList] = useState<CategoryOption[]>([
+    { name: 'Gazavik', objectType: 'USTA', group: null },
+    { name: 'Santexnik', objectType: 'USTA', group: null },
+    { name: 'Elektrik', objectType: 'USTA', group: null },
+    { name: 'Kafelchi', objectType: 'USTA', group: null },
+    { name: 'Notarius', objectType: 'MUASSASA', group: null },
+    { name: 'Duradgor', objectType: 'USTA', group: null },
+    { name: 'Malyar', objectType: 'USTA', group: null },
+    { name: 'Dorixona', objectType: 'DOKON_OBYEKT', group: null },
+    { name: 'Avtoelektrik', objectType: 'USTA', group: null },
   ]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
@@ -57,12 +66,32 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          const names = data.map((c: any) => c.name);
-          setCategoryList(prev => Array.from(new Set([...prev, ...names])));
+          const opts: CategoryOption[] = data.map((c: any) => ({ name: c.name, objectType: c.objectType || null, group: c.group || null }));
+          setCategoryList(prev => {
+            const merged = new Map(prev.map(c => [c.name, c]));
+            for (const o of opts) merged.set(o.name, o);
+            return Array.from(merged.values());
+          });
         }
       })
       .catch(() => {});
   }, []);
+
+  // Tanlangan Turi (Usta/Do'kon/Muassasa)ga mos kasblarni birinchi ko'rsatish uchun
+  // guruhlab chiqamiz — 76+ kasbning tekis ro'yxati o'rniga tartibli bo'ladi.
+  const filteredCategoryOptions = categoryList.filter(
+    c => c.name.toLowerCase().includes(category.toLowerCase())
+  );
+  const categoryOptionsByRelevance = [
+    ...filteredCategoryOptions.filter(c => !c.objectType || c.objectType === listingType),
+    ...filteredCategoryOptions.filter(c => c.objectType && c.objectType !== listingType),
+  ];
+  const groupedCategoryOptions = categoryOptionsByRelevance.reduce<Record<string, CategoryOption[]>>((acc, c) => {
+    const key = c.group || 'Boshqa';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(c);
+    return acc;
+  }, {});
 
   // Save draft state
   useEffect(() => {
@@ -336,22 +365,30 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
             />
             {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
             {showCategoryDropdown && (
-              <div className="absolute top-16 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-40 overflow-y-auto z-50 py-1 shadow-lg">
-                {categoryList
-                  .filter(c => c.toLowerCase().includes(category.toLowerCase()))
-                  .map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        setCategory(item);
-                        setShowCategoryDropdown(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
-                    >
-                      {item}
-                    </button>
-                  ))}
+              <div className="absolute top-16 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-52 overflow-y-auto z-50 py-1 shadow-lg">
+                {Object.keys(groupedCategoryOptions).length === 0 && (
+                  <p className="px-3 py-2 text-xs text-slate-500">Mos kasb topilmadi</p>
+                )}
+                {Object.entries(groupedCategoryOptions).map(([groupName, items]) => (
+                  <div key={groupName}>
+                    <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      {groupName}
+                    </p>
+                    {items.map((item) => (
+                      <button
+                        key={item.name}
+                        type="button"
+                        onClick={() => {
+                          setCategory(item.name);
+                          setShowCategoryDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
           </div>
