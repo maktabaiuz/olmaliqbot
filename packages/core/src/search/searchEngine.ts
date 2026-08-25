@@ -91,6 +91,44 @@ async function fuzzyFindCategory(searchText: string): Promise<{ id: string; name
   return best ? [{ id: best.id, name: best.name }] : [];
 }
 
+/**
+ * Mo'ljal (landmark) uchun ham xuddi kategoriya kabi yozilish xatosiga
+ * chidamli qidiruv — masalan admin "Vayonqamat" deb yozgan bo'lsa-yu,
+ * foydalanuvchi "Vayonkamat" deb so'rasa ham, ikkalasi ham topilishi kerak.
+ */
+async function fuzzyFindLandmark(cityId: string, searchText: string): Promise<string[]> {
+  const candidates = extractFuzzyCandidates(searchText);
+  if (candidates.length === 0) return [];
+
+  const allLandmarks = await db.landmark.findMany({
+    where: { cityId },
+    select: { id: true, name: true, synonyms: true },
+  });
+
+  let best: { id: string; distance: number; candLength: number } | null = null;
+  for (const lm of allLandmarks) {
+    const targets = [lm.name, ...lm.synonyms]
+      .map((s) => normalizeText(s).replace(/[\s'-]+/g, ''))
+      .filter((t) => t.length >= 4);
+
+    for (const target of targets) {
+      for (const cand of candidates) {
+        if (Math.abs(target.length - cand.length) > 3) continue;
+        const dist = levenshteinDistance(cand, target);
+        const threshold = Math.max(1, Math.floor(target.length / 6));
+        if (dist > threshold) continue;
+        const isBetter =
+          !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
+        if (isBetter) {
+          best = { id: lm.id, distance: dist, candLength: cand.length };
+        }
+      }
+    }
+  }
+
+  return best ? [best.id] : [];
+}
+
 export interface FormattedListingResult {
   listingId: string;
   formattedText: string;
@@ -222,6 +260,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     });
 
     matchedLandmarkIds = landmarks.map((l) => l.id);
+
+    // Aniq moslik topilmasa — yozilish xatosiga chidamli qidiruvga o'tamiz
+    // (masalan "Vayonkamat" -> "Vayonqamat"). Xabar matni ham qo'shiladi.
+    if (matchedLandmarkIds.length === 0) {
+      matchedLandmarkIds = await fuzzyFindLandmark(cityId, `${cleanLandmarkName} ${rawMessage || ''}`);
+    }
   }
 
   // Landmark, Service Area & Jargon Synonyms Matching
