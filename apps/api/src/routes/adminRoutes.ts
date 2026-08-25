@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName } from '@kimbor/core';
 import crypto from 'crypto';
 import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
 
@@ -410,14 +410,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT];
       const listingType = VALID_LISTING_TYPES.includes(type) ? type : ListingType.USTA;
 
-      // Find or create category
+      // Find or create category. Avval kiritilgan nomni lug'atdagi KANONIK
+      // nomga moslashtiramiz (masalan "taxi", "Taxi" -> "Taksi") — shu orqali
+      // yozilish farqi sabab dublikat kategoriya yaralishining oldi olinadi.
+      const canonicalCategoryName = resolveCanonicalCategoryName(categoryName);
       let category = await db.category.findFirst({
-        where: { name: { equals: categoryName, mode: 'insensitive' } },
+        where: { name: { equals: canonicalCategoryName, mode: 'insensitive' } },
       });
 
       if (!category) {
         category = await db.category.create({
-          data: { name: categoryName, synonyms: [categoryName.toLowerCase()] },
+          data: { name: canonicalCategoryName, synonyms: [canonicalCategoryName.toLowerCase()] },
         });
       }
 
@@ -558,8 +561,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // Category / Landmark updates
     let categoryId = existing.categoryId;
     if (categoryName) {
-      let cat = await db.category.findFirst({ where: { name: { equals: categoryName, mode: 'insensitive' } } });
-      if (!cat) cat = await db.category.create({ data: { name: categoryName, synonyms: [categoryName.toLowerCase()] } });
+      const canonicalName = resolveCanonicalCategoryName(categoryName);
+      let cat = await db.category.findFirst({ where: { name: { equals: canonicalName, mode: 'insensitive' } } });
+      if (!cat) cat = await db.category.create({ data: { name: canonicalName, synonyms: [canonicalName.toLowerCase()] } });
       categoryId = cat.id;
     }
 
