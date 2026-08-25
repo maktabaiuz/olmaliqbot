@@ -508,25 +508,142 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   );
 };
 
+const OBJECT_TYPE_LABEL: Record<string, string> = {
+  USTA: 'Usta',
+  DOKON_OBYEKT: "Do'kon",
+  MUASSASA: 'Muassasa',
+  TRANSPORT: 'Transport',
+};
+
 const MoreCategoriesSubView: React.FC<{
   onBack: () => void;
   onSelectCategory: (id: string, name: string) => void;
 }> = ({ onBack, onSelectCategory }) => {
   const [cats, setCats] = useState<any[]>([]);
+  const [groups, setGroups] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  useEffect(() => {
-    fetch('/api/admin/categories')
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  // Yangi kategoriya forma maydonlari
+  const [newName, setNewName] = useState('');
+  const [newObjectType, setNewObjectType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT'>('USTA');
+  const [newGroup, setNewGroup] = useState('');
+  const [isAddingNewGroup, setIsAddingNewGroup] = useState(false);
+  const [customGroupInput, setCustomGroupInput] = useState('');
+  const [newSynonyms, setNewSynonyms] = useState<string[]>([]);
+  const [newSynonymInput, setNewSynonymInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const loadCategories = () => {
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/categories', { headers: { 'x-init-data': initData } })
       .then(r => r.json())
       .then(data => setCats(data || []));
+  };
+
+  const loadGroups = () => {
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/categories/groups', { headers: { 'x-init-data': initData } })
+      .then(r => r.json())
+      .then(data => {
+        setGroups(data || []);
+        if (data && data.length > 0) setNewGroup(data[0]);
+      });
+  };
+
+  useEffect(() => {
+    loadCategories();
+    loadGroups();
   }, []);
+
+  const resetForm = () => {
+    setNewName('');
+    setNewObjectType('USTA');
+    setNewGroup(groups[0] || '');
+    setIsAddingNewGroup(false);
+    setCustomGroupInput('');
+    setNewSynonyms([]);
+    setNewSynonymInput('');
+    setFormError(null);
+  };
+
+  const handleAddSynonym = () => {
+    const clean = newSynonymInput.trim().toLowerCase();
+    if (clean && !newSynonyms.includes(clean)) {
+      setNewSynonyms([...newSynonyms, clean]);
+      setNewSynonymInput('');
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const finalGroup = isAddingNewGroup ? customGroupInput.trim() : newGroup;
+    if (!newName.trim()) {
+      setFormError('Kategoriya nomini kiriting');
+      return;
+    }
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({
+          name: newName.trim(),
+          objectType: newObjectType,
+          group: finalGroup || null,
+          synonyms: newSynonyms,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShowAddForm(false);
+        resetForm();
+        loadCategories();
+        loadGroups();
+      } else {
+        setFormError(data.message || 'Saqlashda xatolik yuz berdi');
+      }
+    } catch {
+      setFormError('Aloqa xatoligi');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const filteredCats = cats.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  const groupedCats = filteredCats.reduce<Record<string, any[]>>((acc, c) => {
+    const key = c.group || 'Boshqa';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(c);
+    return acc;
+  }, {});
+  const groupOrder = Object.keys(groupedCats).sort((a, b) => {
+    if (a === 'Boshqa') return 1;
+    if (b === 'Boshqa') return -1;
+    return groupedCats[b].length - groupedCats[a].length;
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+            <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+          </button>
+          <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kategoriyalar</h3>
+        </div>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowAddForm(true);
+          }}
+          className="bg-primary dark:bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined text-[16px]">add</span>
+          Qo'shish
         </button>
-        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kategoriyalar</h3>
       </div>
       <input
         type="text"
@@ -535,20 +652,158 @@ const MoreCategoriesSubView: React.FC<{
         onChange={(e) => setSearch(e.target.value)}
         className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
       />
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[300px] overflow-y-auto">
-        {cats
-          .filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
-          .map(c => (
-            <button
-              key={c.id}
-              onClick={() => onSelectCategory(c.id, c.name)}
-              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
-            >
-              <span>{c.name}</span>
-              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-            </button>
-          ))}
+
+      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+        {groupOrder.map((groupName) => (
+          <div key={groupName} className="space-y-1.5">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1">
+              {groupName} · {groupedCats[groupName].length}
+            </p>
+            <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
+              {groupedCats[groupName].map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => onSelectCategory(c.id, c.name)}
+                  className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
+                >
+                  <span className="flex items-center gap-2">
+                    {c.name}
+                    {c.objectType && (
+                      <span className="text-[9px] font-bold text-primary dark:text-sky-400 bg-primary/10 dark:bg-sky-500/10 px-1.5 py-0.5 rounded-full">
+                        {OBJECT_TYPE_LABEL[c.objectType] || c.objectType}
+                      </span>
+                    )}
+                  </span>
+                  <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* MODAL: YANGI KATEGORIYA QO'SHISH */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <h3 className="font-bold text-base text-on-surface dark:text-slate-100">Yangi kategoriya</h3>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nomi *</label>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="masalan: Payvandchi"
+                className="w-full bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Turi *</label>
+              <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
+                {(['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewObjectType(t)}
+                    className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                      newObjectType === t
+                        ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {OBJECT_TYPE_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Guruh (bo'lim)</label>
+              {!isAddingNewGroup ? (
+                <div className="flex gap-2">
+                  <select
+                    value={newGroup}
+                    onChange={(e) => setNewGroup(e.target.value)}
+                    className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  >
+                    {groups.map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddingNewGroup(true); setCustomGroupInput(''); }}
+                    className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap"
+                  >
+                    + Yangi
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customGroupInput}
+                    onChange={(e) => setCustomGroupInput(e.target.value)}
+                    placeholder="Yangi bo'lim nomi..."
+                    className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-primary rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNewGroup(false)}
+                    className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold"
+                  >
+                    Ro'yxatdan
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sinonimlar</label>
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {newSynonyms.map((s) => (
+                  <span key={s} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1">
+                    {s}
+                    <button type="button" onClick={() => setNewSynonyms(newSynonyms.filter(x => x !== s))} className="hover:text-red-500">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newSynonymInput}
+                  onChange={(e) => setNewSynonymInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSynonym(); } }}
+                  placeholder="masalan: payvandkor"
+                  className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-on-surface dark:text-slate-100 outline-none"
+                />
+                <button type="button" onClick={handleAddSynonym} className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold">+</button>
+              </div>
+            </div>
+
+            {formError && <p className="text-red-500 text-[11px] font-semibold">{formError}</p>}
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Bekor qilish
+              </button>
+              <button
+                onClick={handleCreateCategory}
+                disabled={isSaving}
+                className="flex-1 py-2.5 bg-primary dark:bg-sky-500 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+              >
+                {isSaving ? 'Saqlanmoqda...' : "Qo'shish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

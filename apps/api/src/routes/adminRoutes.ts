@@ -673,6 +673,80 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }));
   });
 
+  // Mavjud guruh nomlari ro'yxati — "Kategoriya qo'shish" formasida tanlash uchun
+  fastify.get('/admin/categories/groups', async (req, reply) => {
+    const rows = await db.category.findMany({
+      where: { group: { not: null } },
+      distinct: ['group'],
+      select: { group: true },
+      orderBy: { group: 'asc' },
+    });
+    return rows.map((r) => r.group).filter(Boolean);
+  });
+
+  fastify.get('/admin/categories/:id', async (req: any, reply) => {
+    const { id } = req.params;
+    const category = await db.category.findUnique({
+      where: { id },
+      include: { _count: { select: { listings: true } } },
+    });
+    if (!category) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
+    return {
+      id: category.id,
+      name: category.name,
+      synonyms: category.synonyms,
+      group: category.group,
+      objectType: category.objectType,
+      count: category._count.listings,
+    };
+  });
+
+  fastify.post('/admin/categories', async (req: any, reply) => {
+    const { name, objectType, group, synonyms } = req.body;
+
+    if (!name || !name.trim()) {
+      return reply.status(400).send({ success: false, message: 'Kategoriya nomi majburiy' });
+    }
+
+    const existing = await db.category.findFirst({ where: { name: { equals: name.trim(), mode: 'insensitive' } } });
+    if (existing) {
+      return reply.status(409).send({ success: false, message: 'Bu nomdagi kategoriya allaqachon mavjud' });
+    }
+
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'];
+    const category = await db.category.create({
+      data: {
+        name: name.trim(),
+        objectType: VALID_OBJECT_TYPES.includes(objectType) ? objectType : null,
+        group: group && group.trim() ? group.trim() : null,
+        synonyms: Array.isArray(synonyms) ? synonyms.map((s: string) => s.toLowerCase().trim()).filter(Boolean) : [],
+      },
+    });
+
+    return { success: true, category };
+  });
+
+  fastify.put('/admin/categories/:id', async (req: any, reply) => {
+    const { id } = req.params;
+    const { name, synonyms, objectType, group } = req.body;
+
+    const existing = await db.category.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
+
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'];
+    const updated = await db.category.update({
+      where: { id },
+      data: {
+        ...(name && { name: name.trim() }),
+        ...(Array.isArray(synonyms) && { synonyms: synonyms.map((s: string) => s.toLowerCase().trim()).filter(Boolean) }),
+        ...(objectType !== undefined && { objectType: VALID_OBJECT_TYPES.includes(objectType) ? objectType : null }),
+        ...(group !== undefined && { group: group && group.trim() ? group.trim() : null }),
+      },
+    });
+
+    return { success: true, category: updated };
+  });
+
   fastify.get('/admin/landmarks', async (req, reply) => {
     const cityId = await getCityId(req);
     const landmarks = await db.landmark.findMany({

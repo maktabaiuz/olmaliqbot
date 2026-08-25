@@ -6,6 +6,18 @@ export interface AddListingScreenProps {
   onNavigateTab: (tab: 'home' | 'database' | 'add' | 'users' | 'more') => void;
 }
 
+// Turi tanlanganda yonidagi maydon shu turga mos nom bilan ochiladi
+const CATEGORY_FIELD_LABEL: Record<string, string> = {
+  USTA: 'Usta turi',
+  DOKON_OBYEKT: "Do'kon turi",
+  MUASSASA: 'Muassasa turi',
+};
+const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
+  USTA: 'Masalan, Santexnik',
+  DOKON_OBYEKT: 'Masalan, Dorixona',
+  MUASSASA: 'Masalan, Notarius',
+};
+
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   initialCategory,
   onNavigateTab,
@@ -306,27 +318,79 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       {/* STEP 1 FORM */}
       {step === 1 && (
         <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Turi *</label>
-            <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
-              {[
-                { id: 'USTA', label: 'Usta' },
-                { id: 'DOKON_OBYEKT', label: "Do'kon" },
-                { id: 'MUASSASA', label: 'Muassasa' },
-              ].map((seg) => (
-                <button
-                  key={seg.id}
-                  type="button"
-                  onClick={() => setListingType(seg.id as any)}
-                  className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
-                    listingType === seg.id
-                      ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {seg.label}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Turi *</label>
+              <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex flex-col items-stretch gap-0.5 shadow-inner">
+                {[
+                  { id: 'USTA', label: 'Usta' },
+                  { id: 'DOKON_OBYEKT', label: "Do'kon" },
+                  { id: 'MUASSASA', label: 'Muassasa' },
+                ].map((seg) => (
+                  <button
+                    key={seg.id}
+                    type="button"
+                    onClick={() => {
+                      setListingType(seg.id as any);
+                      setCategory('');
+                    }}
+                    className={`text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      listingType === seg.id
+                        ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {seg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Turi tanlanganda yonida ochiladigan bo'lim: aynan qanaqa usta/do'kon/muassasa ekanligi */}
+            <div className="flex flex-col gap-1 relative">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">{CATEGORY_FIELD_LABEL[listingType]} *</label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setFieldErrors(prev => ({ ...prev, category: undefined }));
+                  setShowCategoryDropdown(true);
+                }}
+                onFocus={() => setShowCategoryDropdown(true)}
+                placeholder={CATEGORY_FIELD_PLACEHOLDER[listingType]}
+                className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                  fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+                }`}
+              />
+              {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
+              {showCategoryDropdown && (
+                <div className="absolute top-full mt-1 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-52 overflow-y-auto z-50 py-1 shadow-lg">
+                  {Object.keys(groupedCategoryOptions).length === 0 && (
+                    <p className="px-3 py-2 text-xs text-slate-500">Mos kasb topilmadi</p>
+                  )}
+                  {Object.entries(groupedCategoryOptions).map(([groupName, items]) => (
+                    <div key={groupName}>
+                      <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {groupName}
+                      </p>
+                      {items.map((item) => (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => {
+                            setCategory(item.name);
+                            setShowCategoryDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -345,52 +409,6 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               }`}
             />
             {fieldErrors.name && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.name}</p>}
-          </div>
-
-          <div className="flex flex-col gap-1 relative">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Kasb/Soha *</label>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setFieldErrors(prev => ({ ...prev, category: undefined }));
-                setShowCategoryDropdown(true);
-              }}
-              onFocus={() => setShowCategoryDropdown(true)}
-              placeholder="Masalan, Santexnik"
-              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
-                fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
-              }`}
-            />
-            {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
-            {showCategoryDropdown && (
-              <div className="absolute top-16 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-52 overflow-y-auto z-50 py-1 shadow-lg">
-                {Object.keys(groupedCategoryOptions).length === 0 && (
-                  <p className="px-3 py-2 text-xs text-slate-500">Mos kasb topilmadi</p>
-                )}
-                {Object.entries(groupedCategoryOptions).map(([groupName, items]) => (
-                  <div key={groupName}>
-                    <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      {groupName}
-                    </p>
-                    {items.map((item) => (
-                      <button
-                        key={item.name}
-                        type="button"
-                        onClick={() => {
-                          setCategory(item.name);
-                          setShowCategoryDropdown(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
-                      >
-                        {item.name}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="flex flex-col gap-2">
