@@ -94,7 +94,12 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
             group: cat.group || 'Boshqa',
           };
         });
-        setCategories(catSummaries.filter((c: any) => c.count > 0 || searchQuery));
+        // Avval faqat kamida 1 ta yozuvi bor kategoriyalar ko'rsatilardi —
+        // shu sabab yangi qo'shilgan bo'lim (masalan "Arenda") birinchi
+        // yozuv qo'shilmaguncha Bazada UMUMAN ko'rinmas edi, xuddi mavjud
+        // emasdek. Endi HAMMA kategoriya doim ko'rinadi (0 ta yozuv bo'lsa
+        // ham) — bo'lim tuzilishi har doim aniq va to'liq bo'lishi uchun.
+        setCategories(catSummaries);
       }
     } catch (err) {
       console.error('Failed to load database data:', err);
