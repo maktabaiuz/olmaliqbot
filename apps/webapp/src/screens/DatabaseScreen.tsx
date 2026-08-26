@@ -54,6 +54,15 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
     TRANSPORT: 'VEHICLES',
     ARENDA: 'RENTALS',
   };
+  // Teskari moslik (frontend segment -> backend objectType) — kategoriya
+  // grid'ini joriy tabga mos kategoriyalar bilan cheklash uchun.
+  const SEGMENT_TO_DB_TYPE: Record<string, string> = {
+    MASTERS: 'USTA',
+    SHOPS: 'DOKON_OBYEKT',
+    ORGANIZATIONS: 'MUASSASA',
+    VEHICLES: 'TRANSPORT',
+    RENTALS: 'ARENDA',
+  };
 
   // Fetch categories & listings from API
   const fetchData = async () => {
@@ -83,7 +92,16 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
 
       if (catRes.ok) {
         const rawCats = await catRes.json();
-        const catSummaries: CategorySummary[] = rawCats.map((cat: any) => {
+        // Faqat joriy tabga (Ustalar/Do'konlar/Muassasalar/Avtomobillar/
+        // Arenda) mos kategoriyalarni ko'rsatamiz. Avval bu filtr yo'q edi —
+        // buni "count > 0" filtri tasodifan yashirib turardi (boshqa turdagi
+        // kategoriyalarning shu tabda hisobi doim 0 bo'lgani uchun), lekin
+        // 0-hisobli kategoriyalar ham ko'rinadigan qilingandan keyin bu
+        // yashirin xato ochilib qoldi — barcha turlar bir-biriga aralashib
+        // ko'rinib qoldi.
+        const currentDbType = SEGMENT_TO_DB_TYPE[listingType];
+        const rawCatsForType = rawCats.filter((cat: any) => !cat.objectType || cat.objectType === currentDbType);
+        const catSummaries: CategorySummary[] = rawCatsForType.map((cat: any) => {
           const count = fetchedListings.filter(
             (l) => l.categoryName.toLowerCase() === cat.name.toLowerCase() && l.type === listingType
           ).length;
