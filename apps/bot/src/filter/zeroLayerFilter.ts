@@ -10,9 +10,14 @@ const QUESTION_KEYWORDS = [
   'tavsiya qilinglar', 'maslahat beringlar', 'nomeri', 'nomer', 'raqami', 'raqam',
   'telefoni', 'telefon', 'nechigacha', 'nechida', 'ochiqmi', 'yopiqmi', 'ishlaydimi',
   'qayerda', 'qayerdan', 'manzili', 'qancha', 'qanchaga', 'narxi',
+  // "bormi" ("usta bormi?") va "kimda" ("kimda raqami bor?") — juda keng
+  // tarqalgan so'roq shakllari, avval ro'yxatda yo'q edi (haqiqiy xabar
+  // "kimda ma'lumot bor" filtrdan sezilmasdan o'tib ketgan holatda topildi)
+  'bormi', 'kimda',
   'ким бор', 'ким билади', 'ким билса', 'билаsizми', 'айтинглар', 'айтиб юборинглар',
   'керак', 'зарур', 'номери', 'номер', 'рақами', 'рақам', 'телефони', 'телефон',
   'нечигача', 'нечида', 'очиқми', 'ёпиқми', 'ишлайдими', 'қаерда', 'манзили', 'қанча', 'нархи',
+  'борми', 'кимда',
   'кто знает', 'подскажите', 'кто-нибудь', 'нужен', 'нужна', 'надо', 'номер',
   'телефон', 'контакт', 'где', 'до скольки', 'работает', 'цена', 'сколько'
 ];
