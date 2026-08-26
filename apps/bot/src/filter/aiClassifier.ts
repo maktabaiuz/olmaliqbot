@@ -199,18 +199,16 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
     landmark = '3-mavze';
   }
 
-  // Low confidence for generic non-actionable chatter unless a keyword remains
+  // Lug'atda mos kasb topilmasa (dictMatch bo'sh) — past ishonchlilik bilan
+  // NOT_RELEVANT qoldiriladi. Avval bu yerda qolgan har qanday matn
+  // (umumiy so'zlar olib tashlangandan keyingi qoldiq) o'zboshimchalik bilan
+  // "category" sifatida ishlatilib, SERVICE intent va 0.85 ishonchlilik
+  // bilan majburan qaytarilardi — bu Gemini ishlamay qolganda (tarmoq xatosi)
+  // har qanday aloqasiz gapga (masalan "Raduga tomonlar tinchmi?") xato
+  // javob berish xavfini oshirar edi. Endi faqat LUG'ATDA HAQIQATDA mavjud
+  // kasb/soha aniqlangandagina (dictMatch) SERVICE deb hisoblanadi.
   if (intent === IntentType.NOT_RELEVANT && !category && !name && !landmark) {
-    const cleanQuery = normalized
-      .replace(/\b(salom|privet|xayr|rahmat|assalomu|alaykum|kerak|bormi|yoki|nomeri|nomer|raqami|telefoni|telefon|bormikan|qayerda|bor|toshkent|olmaliq|yangi|usta|ustasi)\b/g, '')
-      .trim();
-    if (cleanQuery.length >= 2) {
-      category = cleanQuery;
-      intent = IntentType.SERVICE;
-      confidence = 0.85;
-    } else {
-      confidence = 0.35;
-    }
+    confidence = 0.35;
   }
 
   return {

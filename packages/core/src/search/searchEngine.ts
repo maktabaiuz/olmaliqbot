@@ -198,6 +198,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     }
   }
 
+  // Mo'ljal (landmark) BOR-U, kategoriya yoki jargon signali YO'Q holat —
+  // bu YETARLI EMAS. Landmark faqat "QAYERDA" ekanini bildiradi, "NIMA
+  // kerak"ligini emas. Bu tekshiruv bo'lmasa, tuman/mavze nomi tilga
+  // olingan har qanday xabar (masalan "Raduga tomonlar tinchmi?" kabi
+  // xavfsizlik savoli) o'sha hududdagi eng yaxshi baholi, umuman aloqasiz
+  // yozuv bilan noto'g'ri "javoblanib" qolar edi — AI klassifikator xato
+  // qilib landmark ajratib olgan taqdirda ham, bu yerda qat'iy to'xtatiladi.
+  if (!categoryName && jargonMatchedIds.size === 0) {
+    return null;
+  }
+
   // Query ACTIVE listings strictly scoped by cityId
   const whereCondition: any = {
     cityId,

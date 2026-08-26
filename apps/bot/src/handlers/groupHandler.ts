@@ -69,7 +69,11 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // 5. Build group response buttons
+  // 5. Build group response buttons — faqat haqiqiy qiymat qo'shadigan
+  // tugmalar: "Yana ko'rish" (agar ko'proq mos yozuv bo'lsa) va "Xarita"
+  // (agar koordinata bor bo'lsa). "Baholash"/"Shikoyat" tugmalari har bir
+  // javobda doim ko'rinib, ortiqcha shovqin va chalkashlik keltirib
+  // chiqargani uchun olib tashlangan — sodda va aniq javob ustuvor.
   const keyboard = new InlineKeyboard();
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.rankedListText);
@@ -81,17 +85,13 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     keyboard.url('📍 Xarita', mapUrl);
   }
 
-  keyboard
-    .text('⭐ Baholash', `rate_${searchResult.listingId}`)
-    .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
-
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
 
   // Javob savolga reply qilib yuboriladi
   const sentMsg = await ctx.reply(fullResponse, {
     parse_mode: 'HTML',
     reply_parameters: { message_id: ctx.message.message_id },
-    reply_markup: keyboard,
+    reply_markup: keyboard.inline_keyboard.length > 0 ? keyboard : undefined,
   });
 
   // 15 minutdan keyin avtomatik o'chirish — BullMQ (Redis-based, restart-safe)

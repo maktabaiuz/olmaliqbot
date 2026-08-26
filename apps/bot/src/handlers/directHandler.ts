@@ -191,10 +191,6 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
   }
 
-  resultKeyboard
-    .text('⭐ Baholash', `rate_${searchResult.listingId}`)
-    .text('⚠️ Shikoyat', `report_${searchResult.listingId}`);
-
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
 }
 
@@ -229,12 +225,7 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
     await ctx.answerCallbackQuery();
     try {
-      await ctx.editMessageText(rankedText, {
-        parse_mode: 'HTML',
-        reply_markup: new InlineKeyboard()
-          .text('⭐ Baholash', `rate_${listingId}`)
-          .text('⚠️ Shikoyat', `report_${listingId}`),
-      });
+      await ctx.editMessageText(rankedText, { parse_mode: 'HTML' });
     } catch (err) {
       console.error('Failed to expand ranked list:', err);
     }

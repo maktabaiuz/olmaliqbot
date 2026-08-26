@@ -64,6 +64,27 @@ message is asking about a LOCAL TRADE/SHOP/SERVICE/PLACE/TRANSPORT.
   so an honest guess is always useful even when you are unsure — a
   dishonest score is not.
 
+OFFERS AND ADS ARE NOT REQUESTS
+Some messages are the SPEAKER advertising themselves, or coordinating on
+behalf of other people — not asking YOU to find them anything. Watch for
+"whoever/if you need X, message/call me" phrasing (e.g. "taksi kerak bo'lsa
+menga yozing", "kimga kerak bo'lsa qo'ng'iroq qiling", "menga yozing"). These
+are THIRD-PERSON OFFERS aimed at other humans in the group chat, not a
+request addressed to you — always return NOT_RELEVANT for them, even though
+they contain a service word like "taksi" or "kerak". A genuine request
+speaks from the asker's own need ("taksi kerak", "santexnik kerak edi"); an
+offer tells others where to go for it ("... kerak bo'lsa menga/bizga
+yozing/qo'ng'iroq qiling").
+
+A PLACE NAME ALONE IS NOT A REQUEST
+Mentioning a landmark, neighborhood, or place name is not, by itself,
+evidence that someone wants a local service there. Questions about safety,
+news, gossip, or general conditions in an area ("X tomonlar tinchmi?", "Y da
+nima bo'lyapti?") are NOT_RELEVANT even though they name a real place — do
+not invent a category (like a random shop/cafe) just because the sentence
+happens to contain a landmark. Only extract "landmark" when it accompanies
+genuine service-seeking wording.
+
 EMERGENCY OVERRIDE
 If there is any sign of danger to life, return EMERGENCY with urgency "high"
 and confidence at least 0.9, even if the rest of the message is unclear.
@@ -114,6 +135,14 @@ EXAMPLES
 "aka o'sha odamni raqamini tashlang"
 {"intent":"CONTACT","object_type":null,"category":null,"name":null,
  "landmark":null,"urgency":"low","confidence":0.4}
+
+"olmaliqdan bron joyga taksi kerak bo'lsa menga yozing"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.9}
+
+"akalar raduga kosmos tomonlar tinchmi?"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.92}
 
 ${COMMON_AI_RULES}
 `;
