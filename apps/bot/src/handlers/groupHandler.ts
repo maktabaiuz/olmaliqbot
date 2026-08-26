@@ -18,7 +18,6 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // 2. 1-qavat: AI Classifier
   const classification = await classifyQuery(messageText, cityId, telegramUserId);
-  const isConfident = classification.confidence >= 0.7 && classification.intent !== 'NOT_RELEVANT';
 
   // 3. Handle 🚨 EMERGENCY Intent (Favqulodda xavfsizlik matni) — ishonchlilik
   // darajasidan qat'i nazar tekshiriladi, chunki xavfsizlik ustuvor
@@ -51,7 +50,11 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   });
 
   if (!searchResult) {
-    // QueryLog'ga isResolved=false yoziladi (javobni sekinlashtirmasligi uchun kutilmaydi)
+    // Topilmasa: Guruhda JIM. Biz bazaga kiritmagan mavzu bo'yicha "ma'lumot
+    // yo'q" deb javob berish keraksiz shovqin va chalkashlik keltirib
+    // chiqargani uchun ATAYIN olib tashlangan — bot faqat HAQIQATDA bazada
+    // bor narsaga javob beradi (to'g'ridan-to'g'ri yoki jargon/o'xshashlik
+    // orqali), aks holda sukut saqlaydi.
     db.queryLog.create({
       data: {
         cityId,
@@ -63,23 +66,6 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         isResolved: false,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
-
-    // Bazada hech narsa topilmadi. AI ham ishonchli aniq so'rov deb bilmagan
-    // bo'lsa (masalan chalkash chatter) — jim qolamiz, spam bo'lmasin.
-    if (!isConfident) return;
-
-    // Aks holda — bu aniq, ishonchli so'rov edi, faqat bazada hali mos yozuv
-    // yo'q. Qisqa, o'zini-o'zi tozalaydigan javob beriladi.
-    const notFoundMsg = await ctx.reply("🔍 Bu bo'yicha hozircha ma'lumotimiz yo'q. Tez orada qo'shishga harakat qilamiz 🙌", {
-      reply_parameters: { message_id: ctx.message.message_id },
-    }).catch((err) => {
-      console.error('Failed to send not-found reply:', err);
-      return null;
-    });
-
-    if (notFoundMsg && ctx.chat?.id) {
-      await scheduleMessageDeletion(ctx.chat.id, notFoundMsg.message_id, 3 * 60 * 1000);
-    }
     return;
   }
 
