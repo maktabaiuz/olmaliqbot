@@ -758,19 +758,26 @@ const MoreCategoriesSubView: React.FC<{
 
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Turi *</label>
-              <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
-                {(['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT'] as const).map((t) => (
+              <p className="text-[10px] text-slate-500 mb-1.5">Bu qanday narsa — usta, do'kon, muassasa yoki transport xizmatimi?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'USTA', icon: '🔧' },
+                  { id: 'DOKON_OBYEKT', icon: '🏪' },
+                  { id: 'MUASSASA', icon: '🏢' },
+                  { id: 'TRANSPORT', icon: '🚗' },
+                ] as const).map((t) => (
                   <button
-                    key={t}
+                    key={t.id}
                     type="button"
-                    onClick={() => setNewObjectType(t)}
-                    className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg transition-all ${
-                      newObjectType === t
-                        ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
-                        : 'text-slate-500'
+                    onClick={() => setNewObjectType(t.id)}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                      newObjectType === t.id
+                        ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400'
+                        : 'bg-slate-50 dark:bg-[#17212B] border-transparent text-slate-500'
                     }`}
                   >
-                    {OBJECT_TYPE_LABEL[t]}
+                    <span>{t.icon}</span>
+                    {OBJECT_TYPE_LABEL[t.id]}
                   </button>
                 ))}
               </div>
@@ -778,6 +785,7 @@ const MoreCategoriesSubView: React.FC<{
 
             <div>
               <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Guruh (bo'lim)</label>
+              <p className="text-[10px] text-slate-500 mb-1.5">Yuqorida tanlangan turga mos guruhlar ko'rsatilmoqda. Mos keladigani bo'lmasa, "+ Yangi" orqali o'zingiz nom bering.</p>
               {!isAddingNewGroup ? (
                 <div className="flex gap-2">
                   <select

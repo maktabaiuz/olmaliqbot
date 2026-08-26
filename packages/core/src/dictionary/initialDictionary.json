@@ -173,7 +173,8 @@
       "name": "Betonchi",
       "synonyms": [
         "beton quyish",
-        "бетонщик"
+        "бетонщик",
+        "biton quyuvchi"
       ],
       "object_type": "USTA",
       "group": "Qurilish va ta'mirlash",
@@ -317,7 +318,7 @@
         "автоэлектрик"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport",
+      "group": "Avtomobil xizmatlari",
       "emoji": "🔋"
     },
     {
@@ -330,7 +331,7 @@
         "машина устаси"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport",
+      "group": "Avtomobil xizmatlari",
       "emoji": "🔧"
     },
     {
@@ -343,7 +344,7 @@
         "шиномонтаж"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport",
+      "group": "Avtomobil xizmatlari",
       "emoji": "🛞"
     },
     {
@@ -355,7 +356,7 @@
         "автомойка"
       ],
       "object_type": "DOKON_OBYEKT",
-      "group": "Avtomobil va transport",
+      "group": "Avtomobil xizmatlari",
       "emoji": "🚿"
     },
     {
@@ -366,7 +367,7 @@
         "эвакуатор"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport",
+      "group": "Transport va tashish",
       "emoji": "🚛"
     },
     {
@@ -379,7 +380,7 @@
         "такси"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport",
+      "group": "Transport va tashish",
       "emoji": "🚕"
     },
     {
@@ -393,7 +394,7 @@
         "юк ташиш"
       ],
       "object_type": "TRANSPORT",
-      "group": "Avtomobil va transport",
+      "group": "Transport va tashish",
       "emoji": "🚚"
     },
     {
@@ -406,7 +407,7 @@
         "юк кўтарувчи"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport",
+      "group": "Transport va tashish",
       "emoji": "📦"
     },
     {
@@ -810,7 +811,7 @@
         "шахсий ҳайдовчи"
       ],
       "object_type": "USTA",
-      "group": "Avtomobil va transport",
+      "group": "Transport va tashish",
       "emoji": "🚗"
     },
     {
@@ -1053,6 +1054,45 @@
       "object_type": "MUASSASA",
       "group": "Ovqatlanish joylari",
       "emoji": "🍲"
+    },
+    {
+      "id": "texosmotor",
+      "name": "Texosmotor",
+      "synonyms": [
+        "texosmotr",
+        "tehosmotr",
+        "osmotr",
+        "tex osmotr",
+        "техосмотр"
+      ],
+      "object_type": "MUASSASA",
+      "group": "Avtomobil xizmatlari",
+      "emoji": "🔧"
+    },
+    {
+      "id": "labo",
+      "name": "Labo",
+      "synonyms": [
+        "labochi",
+        "labo mashina",
+        "дамас лабо"
+      ],
+      "object_type": "TRANSPORT",
+      "group": "Transport va tashish",
+      "emoji": "🚐"
+    },
+    {
+      "id": "metalom",
+      "name": "Metalom",
+      "synonyms": [
+        "metallom",
+        "metall oladigan",
+        "lom qabul",
+        "металлом"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Uy xizmatlari va xavfsizlik",
+      "emoji": "♻️"
     }
   ],
   "olmaliq_landmarks": [

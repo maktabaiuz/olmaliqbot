@@ -47,7 +47,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   });
 
   if (!searchResult) {
-    // Topilmasa: Guruhda JIM, QueryLog'ga isResolved=false yoziladi (javobni sekinlashtirmasligi uchun kutilmaydi)
+    // QueryLog'ga isResolved=false yoziladi (javobni sekinlashtirmasligi uchun kutilmaydi)
     db.queryLog.create({
       data: {
         cityId,
@@ -59,6 +59,24 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         isResolved: false,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
+
+    // Bu yerga yetib kelgan xabar allaqachon 0-qavat va ishonchlilik (confidence
+    // >= 0.7) filtrlaridan o'tgan — ya'ni bu haqiqiy, aniq so'rov, faqat bazada
+    // hali mos yozuv yo'q. Avval bunday holatda guruhda BUTUNLAY jim qolinar
+    // edi — foydalanuvchiga hech qanday javob ko'rinmasdi, xuddi bot ishlamay
+    // qolgandek tuyular edi (shaxsiy chatda esa "ma'lumot yo'q" deb javob
+    // berilardi). Endi guruhda ham qisqa va o'zini-o'zi tozalab turadigan
+    // javob beriladi — spam bo'lmasligi uchun tez o'chadi.
+    const notFoundMsg = await ctx.reply("🔍 Bu bo'yicha hozircha ma'lumotimiz yo'q. Tez orada qo'shishga harakat qilamiz 🙌", {
+      reply_parameters: { message_id: ctx.message.message_id },
+    }).catch((err) => {
+      console.error('Failed to send not-found reply:', err);
+      return null;
+    });
+
+    if (notFoundMsg && ctx.chat?.id) {
+      await scheduleMessageDeletion(ctx.chat.id, notFoundMsg.message_id, 3 * 60 * 1000);
+    }
     return;
   }
 
