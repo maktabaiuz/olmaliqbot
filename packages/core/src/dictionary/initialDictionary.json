@@ -1093,6 +1093,68 @@
       "object_type": "DOKON_OBYEKT",
       "group": "Uy xizmatlari va xavfsizlik",
       "emoji": "♻️"
+    },
+    {
+      "id": "arenda",
+      "name": "Arenda",
+      "synonyms": [
+        "ijara",
+        "ijaraga beradi",
+        "ijaraga beriladi",
+        "ijaraga olish",
+        "arendaga beradi",
+        "arendaga beriladi",
+        "arendaga olish",
+        "prokat",
+        "аренда",
+        "в аренду",
+        "прокат"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Arenda xizmatlari",
+      "emoji": "🔑"
+    },
+    {
+      "id": "asbob-uskuna-arendasi",
+      "name": "Asbob-uskuna arendasi",
+      "synonyms": [
+        "lesa arenda",
+        "stroy lesa",
+        "leса arenda",
+        "lesa ijara",
+        "qurilish lesasi",
+        "bolgarka arenda",
+        "bolg'arka arenda",
+        "perforator arenda",
+        "instrument arenda",
+        "asbob arenda",
+        "asbob ijara",
+        "qurilish asboblari ijarasi",
+        "аренда инструмента",
+        "аренда лесов",
+        "прокат инструмента"
+      ],
+      "object_type": "DOKON_OBYEKT",
+      "group": "Arenda xizmatlari",
+      "emoji": "🛠️"
+    },
+    {
+      "id": "avtomobil-arendasi",
+      "name": "Avtomobil arendasi",
+      "synonyms": [
+        "mashina arenda",
+        "mashina ijara",
+        "avto arenda",
+        "avtomobil ijarasi",
+        "prokat mashina",
+        "прокат авто",
+        "аренда авто",
+        "машина в аренду",
+        "car rental"
+      ],
+      "object_type": "TRANSPORT",
+      "group": "Arenda xizmatlari",
+      "emoji": "🚗"
     }
   ],
   "olmaliq_landmarks": [

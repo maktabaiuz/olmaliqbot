@@ -124,6 +124,14 @@ EXAMPLES
 {"intent":"PRICE","object_type":"USTA","category":"konditsioner ustasi","name":null,
  "landmark":null,"urgency":"low","confidence":0.88}
 
+"lesa arenda kerak, bolgarka ham"
+{"intent":"SERVICE","object_type":"DOKON","category":"asbob-uskuna arendasi","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.9}
+
+"mashina arendaga kerak edi 2 kunga"
+{"intent":"SERVICE","object_type":"TRANSPORT","category":"avtomobil arendasi","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.9}
+
 "assalomu alaykum hammaga"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
  "landmark":null,"urgency":"low","confidence":0.99}
