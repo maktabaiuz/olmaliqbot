@@ -71,7 +71,8 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     { name: 'Dorixona', objectType: 'DOKON_OBYEKT', group: null },
     { name: 'Avtoelektrik', objectType: 'USTA', group: null },
   ]);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categoryPickerSearch, setCategoryPickerSearch] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/categories')
@@ -89,21 +90,28 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       .catch(() => {});
   }, []);
 
-  // Tanlangan Turi (Usta/Do'kon/Muassasa)ga mos kasblarni birinchi ko'rsatish uchun
-  // guruhlab chiqamiz — 76+ kasbning tekis ro'yxati o'rniga tartibli bo'ladi.
-  const filteredCategoryOptions = categoryList.filter(
-    c => c.name.toLowerCase().includes(category.toLowerCase())
+  // Tanlangan Turi (Usta/Do'kon/Muassasa)ga MOS kasblarnigina ko'rsatamiz —
+  // aralash (mos + nomos) ro'yxat o'rniga aniq va tartibli bo'lishi uchun.
+  // Hech narsa mos kelmasa (masalan hali turi belgilanmagan yangi
+  // kategoriyalar), butun ro'yxat ko'rsatiladi — hech narsa yo'qolib
+  // qolmasligi uchun.
+  const categoryMatchesType = (c: CategoryOption) => !c.objectType || c.objectType === listingType;
+  const relevantCategories = categoryList.filter(categoryMatchesType);
+  const baseCategoryPool = relevantCategories.length > 0 ? relevantCategories : categoryList;
+  const searchedCategories = baseCategoryPool.filter(
+    c => c.name.toLowerCase().includes(categoryPickerSearch.trim().toLowerCase())
   );
-  const categoryOptionsByRelevance = [
-    ...filteredCategoryOptions.filter(c => !c.objectType || c.objectType === listingType),
-    ...filteredCategoryOptions.filter(c => c.objectType && c.objectType !== listingType),
-  ];
-  const groupedCategoryOptions = categoryOptionsByRelevance.reduce<Record<string, CategoryOption[]>>((acc, c) => {
+  const groupedCategoryOptions = searchedCategories.reduce<Record<string, CategoryOption[]>>((acc, c) => {
     const key = c.group || 'Boshqa';
     if (!acc[key]) acc[key] = [];
     acc[key].push(c);
     return acc;
   }, {});
+  const categoryPickerGroupOrder = Object.keys(groupedCategoryOptions).sort((a, b) => {
+    if (a === 'Boshqa') return 1;
+    if (b === 'Boshqa') return -1;
+    return groupedCategoryOptions[b].length - groupedCategoryOptions[a].length;
+  });
 
   // Save draft state
   useEffect(() => {
@@ -346,53 +354,104 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               </div>
             </div>
 
-            {/* Turi tanlanganda yonida ochiladigan bo'lim: aynan qanaqa usta/do'kon/muassasa ekanligi */}
-            <div className="flex flex-col gap-1 relative">
+            {/* Turi tanlanganda yonida ochiladigan bo'lim: aynan qanaqa usta/do'kon/muassasa ekanligi.
+                Bosilganda to'liq, guruhlangan ro'yxat bilan tanlash oynasi ochiladi —
+                oldingi kichik tor ro'yxat o'rniga aniq va oson topiladigan qilib. */}
+            <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-500 uppercase">{CATEGORY_FIELD_LABEL[listingType]} *</label>
-              <input
-                type="text"
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setFieldErrors(prev => ({ ...prev, category: undefined }));
-                  setShowCategoryDropdown(true);
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryPickerSearch('');
+                  setShowCategoryPicker(true);
                 }}
-                onFocus={() => setShowCategoryDropdown(true)}
-                placeholder={CATEGORY_FIELD_PLACEHOLDER[listingType]}
-                className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
+                className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-left flex items-center justify-between gap-2 focus:outline-none ${
                   fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
                 }`}
-              />
+              >
+                <span className={category ? 'text-on-surface dark:text-slate-100 font-semibold truncate' : 'text-slate-500 truncate'}>
+                  {category || CATEGORY_FIELD_PLACEHOLDER[listingType]}
+                </span>
+                <span className="material-symbols-outlined text-[16px] text-slate-500 shrink-0">expand_more</span>
+              </button>
               {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
-              {showCategoryDropdown && (
-                <div className="absolute top-full mt-1 inset-x-0 bg-white dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl max-h-52 overflow-y-auto z-50 py-1 shadow-lg">
-                  {Object.keys(groupedCategoryOptions).length === 0 && (
-                    <p className="px-3 py-2 text-xs text-slate-500">Mos kasb topilmadi</p>
-                  )}
-                  {Object.entries(groupedCategoryOptions).map(([groupName, items]) => (
-                    <div key={groupName}>
-                      <p className="px-3 pt-1.5 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {groupName}
-                      </p>
-                      {items.map((item) => (
-                        <button
-                          key={item.name}
-                          type="button"
-                          onClick={() => {
-                            setCategory(item.name);
-                            setShowCategoryDropdown(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200"
-                        >
-                          {item.name}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
+
+          {/* KASB TANLASH OYNASI (to'liq ekran bosqichi) */}
+          {showCategoryPicker && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center">
+              <div className="bg-surface dark:bg-[#1C2733] w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh]">
+                <div className="p-4 border-b border-outline-variant/20 dark:border-slate-800 space-y-3 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">{CATEGORY_FIELD_LABEL[listingType]}ni tanlang</h3>
+                    <button type="button" onClick={() => setShowCategoryPicker(false)} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                      <span className="material-symbols-outlined text-[20px]">close</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-500">search</span>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={categoryPickerSearch}
+                      onChange={(e) => setCategoryPickerSearch(e.target.value)}
+                      placeholder="Qidirish..."
+                      className="w-full bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="overflow-y-auto flex-1 p-2">
+                  {categoryPickerGroupOrder.length === 0 ? (
+                    <p className="px-3 py-8 text-xs text-slate-500 text-center">Mos kasb topilmadi</p>
+                  ) : (
+                    categoryPickerGroupOrder.map((groupName) => (
+                      <div key={groupName} className="mb-2">
+                        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-primary dark:text-sky-400 uppercase tracking-wider">
+                          {groupName}
+                        </p>
+                        {groupedCategoryOptions[groupName].map((item) => (
+                          <button
+                            key={item.name}
+                            type="button"
+                            onClick={() => {
+                              setCategory(item.name);
+                              setFieldErrors(prev => ({ ...prev, category: undefined }));
+                              setShowCategoryPicker(false);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between ${
+                              category === item.name
+                                ? 'bg-primary/10 dark:bg-sky-500/15 text-primary dark:text-sky-400'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200'
+                            }`}
+                          >
+                            {item.name}
+                            {category === item.name && <span className="material-symbols-outlined text-[16px]">check</span>}
+                          </button>
+                        ))}
+                      </div>
+                    ))
+                  )}
+
+                  {categoryPickerSearch.trim() && !categoryList.some(c => c.name.toLowerCase() === categoryPickerSearch.trim().toLowerCase()) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategory(categoryPickerSearch.trim());
+                        setFieldErrors(prev => ({ ...prev, category: undefined }));
+                        setShowCategoryPicker(false);
+                      }}
+                      className="w-full text-left px-3 py-2.5 mt-1 rounded-xl text-xs font-bold text-primary dark:text-sky-400 border border-dashed border-primary/40 dark:border-sky-500/40 flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                      "{categoryPickerSearch.trim()}" nomi bilan yangi kasb sifatida qo'shish
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Ismi-familiyasi *</label>
