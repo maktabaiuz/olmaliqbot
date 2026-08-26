@@ -18,13 +18,10 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // 2. 1-qavat: AI Classifier
   const classification = await classifyQuery(messageText, cityId, telegramUserId);
+  const isConfident = classification.confidence >= 0.7 && classification.intent !== 'NOT_RELEVANT';
 
-  // Strict Rule: confidence < 0.7 => bot stays silent
-  if (classification.confidence < 0.7 || classification.intent === 'NOT_RELEVANT') {
-    return;
-  }
-
-  // 3. Handle 🚨 EMERGENCY Intent (Favqulodda xavfsizlik matni)
+  // 3. Handle 🚨 EMERGENCY Intent (Favqulodda xavfsizlik matni) — ishonchlilik
+  // darajasidan qat'i nazar tekshiriladi, chunki xavfsizlik ustuvor
   if (classification.intent === 'EMERGENCY') {
     const category = classification.category || 'gas_leak';
     const emergencyMessage = renderEmergencyTemplate(category, 'lotin');
@@ -38,7 +35,14 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // 4. Search directory listings for the specified city
+  // 4. Bazani qidirish — AI klassifikator ishonchsiz/noaniq (masalan
+  // NOT_RELEVANT) deb baholagan bo'lsa ham, ATAYIN OLDIN qidiriladi. Sabab:
+  // admin bazaga qo'shganda "odamlar buni qanday so'rashi mumkin" deb jargon
+  // iboralarni oldindan yozib qo'ygan bo'ladi (masalan "Qaroqtoy choyxona").
+  // AI "aniq savol emas" deb noto'g'ri xulosa qilgan taqdirda ham, agar
+  // bazada TO'G'RIDAN-TO'G'RI mos yozuv topilsa — bu haqiqiy, kuchli signal,
+  // AI xulosasidan ustunroq. Faqat HECH NARSA topilmagandagina AI ning
+  // ishonchlilik bahosiga qarab javob berish-bermaslik hal qilinadi.
   const searchResult = await searchListings({
     cityId,
     categoryName: classification.category,
@@ -60,13 +64,12 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 
-    // Bu yerga yetib kelgan xabar allaqachon 0-qavat va ishonchlilik (confidence
-    // >= 0.7) filtrlaridan o'tgan — ya'ni bu haqiqiy, aniq so'rov, faqat bazada
-    // hali mos yozuv yo'q. Avval bunday holatda guruhda BUTUNLAY jim qolinar
-    // edi — foydalanuvchiga hech qanday javob ko'rinmasdi, xuddi bot ishlamay
-    // qolgandek tuyular edi (shaxsiy chatda esa "ma'lumot yo'q" deb javob
-    // berilardi). Endi guruhda ham qisqa va o'zini-o'zi tozalab turadigan
-    // javob beriladi — spam bo'lmasligi uchun tez o'chadi.
+    // Bazada hech narsa topilmadi. AI ham ishonchli aniq so'rov deb bilmagan
+    // bo'lsa (masalan chalkash chatter) — jim qolamiz, spam bo'lmasin.
+    if (!isConfident) return;
+
+    // Aks holda — bu aniq, ishonchli so'rov edi, faqat bazada hali mos yozuv
+    // yo'q. Qisqa, o'zini-o'zi tozalaydigan javob beriladi.
     const notFoundMsg = await ctx.reply("🔍 Bu bo'yicha hozircha ma'lumotimiz yo'q. Tez orada qo'shishga harakat qilamiz 🙌", {
       reply_parameters: { message_id: ctx.message.message_id },
     }).catch((err) => {
