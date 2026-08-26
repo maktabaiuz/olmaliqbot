@@ -11,12 +11,20 @@ const CATEGORY_FIELD_LABEL: Record<string, string> = {
   USTA: 'Usta turi',
   DOKON_OBYEKT: "Do'kon turi",
   MUASSASA: 'Muassasa turi',
+  TRANSPORT: 'Transport turi',
 };
 const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
   USTA: 'Masalan, Santexnik',
   DOKON_OBYEKT: 'Masalan, Dorixona',
   MUASSASA: 'Masalan, Notarius',
+  TRANSPORT: 'Masalan, Taksi',
 };
+const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT'; label: string; icon: string }[] = [
+  { id: 'USTA', label: 'Usta', icon: 'engineering' },
+  { id: 'DOKON_OBYEKT', label: "Do'kon", icon: 'storefront' },
+  { id: 'MUASSASA', label: 'Muassasa', icon: 'account_balance' },
+  { id: 'TRANSPORT', label: 'Avtomobil', icon: 'directions_car' },
+];
 
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   initialCategory,
@@ -26,7 +34,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA'>('USTA');
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT'>('USTA');
 
   // Form Fields State (Prefilled or restored from LocalStorage)
   const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');
@@ -70,6 +78,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     { name: 'Malyar', objectType: 'USTA', group: null },
     { name: 'Dorixona', objectType: 'DOKON_OBYEKT', group: null },
     { name: 'Avtoelektrik', objectType: 'USTA', group: null },
+    { name: 'Taksi', objectType: 'TRANSPORT', group: null },
   ]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [categoryPickerSearch, setCategoryPickerSearch] = useState('');
@@ -326,56 +335,54 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       {/* STEP 1 FORM */}
       {step === 1 && (
         <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Turi *</label>
-              <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex flex-col items-stretch gap-0.5 shadow-inner">
-                {[
-                  { id: 'USTA', label: 'Usta' },
-                  { id: 'DOKON_OBYEKT', label: "Do'kon" },
-                  { id: 'MUASSASA', label: 'Muassasa' },
-                ].map((seg) => (
-                  <button
-                    key={seg.id}
-                    type="button"
-                    onClick={() => {
-                      setListingType(seg.id as any);
-                      setCategory('');
-                    }}
-                    className={`text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
-                      listingType === seg.id
-                        ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {seg.label}
-                  </button>
-                ))}
-              </div>
+          {/* 1-qadam: Turi — to'rtta aniq, teng o'lchamli karta sifatida, ustma-ust
+              tor ustunga siqilgan tugmalar o'rniga. Har biri ikonka + nom bilan,
+              tanlangani darhol ko'zga tashlanadi. */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">1. Turi *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {LISTING_TYPE_OPTIONS.map((seg) => (
+                <button
+                  key={seg.id}
+                  type="button"
+                  onClick={() => {
+                    setListingType(seg.id);
+                    setCategory('');
+                  }}
+                  className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+                    listingType === seg.id
+                      ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400 shadow-sm'
+                      : 'bg-slate-50 dark:bg-[#1C2733] border-outline-variant/30 dark:border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[20px] shrink-0">{seg.icon}</span>
+                  <span className="text-xs font-bold truncate">{seg.label}</span>
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Turi tanlanganda yonida ochiladigan bo'lim: aynan qanaqa usta/do'kon/muassasa ekanligi.
-                Bosilganda to'liq, guruhlangan ro'yxat bilan tanlash oynasi ochiladi —
-                oldingi kichik tor ro'yxat o'rniga aniq va oson topiladigan qilib. */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">{CATEGORY_FIELD_LABEL[listingType]} *</label>
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryPickerSearch('');
-                  setShowCategoryPicker(true);
-                }}
-                className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-left flex items-center justify-between gap-2 focus:outline-none ${
-                  fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
-                }`}
-              >
-                <span className={category ? 'text-on-surface dark:text-slate-100 font-semibold truncate' : 'text-slate-500 truncate'}>
-                  {category || CATEGORY_FIELD_PLACEHOLDER[listingType]}
-                </span>
-                <span className="material-symbols-outlined text-[16px] text-slate-500 shrink-0">expand_more</span>
-              </button>
-              {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
-            </div>
+          {/* 2-qadam: tanlangan Turiga mos kasb/soha. Bosilganda to'liq,
+              guruhlangan ro'yxat bilan tanlash oynasi ochiladi — oldingi kichik
+              tor ro'yxat o'rniga aniq va oson topiladigan qilib. */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">2. {CATEGORY_FIELD_LABEL[listingType]} *</label>
+            <button
+              type="button"
+              onClick={() => {
+                setCategoryPickerSearch('');
+                setShowCategoryPicker(true);
+              }}
+              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-left flex items-center justify-between gap-2 focus:outline-none ${
+                fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              }`}
+            >
+              <span className={category ? 'text-on-surface dark:text-slate-100 font-semibold truncate' : 'text-slate-500 truncate'}>
+                {category || CATEGORY_FIELD_PLACEHOLDER[listingType]}
+              </span>
+              <span className="material-symbols-outlined text-[16px] text-slate-500 shrink-0">expand_more</span>
+            </button>
+            {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
           </div>
 
           {/* KASB TANLASH OYNASI (to'liq ekran bosqichi) */}
@@ -454,7 +461,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Ismi-familiyasi *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">3. Ismi-familiyasi *</label>
             <input
               type="text"
               value={name}
@@ -471,7 +478,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Jargon / xalq atamalari</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">4. Jargon / xalq atamalari</label>
             <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar bu usta/do'konni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
             {jargonWords.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -514,7 +521,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Telefon raqami *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami *</label>
             <input
               type="text"
               value={phone}
@@ -531,7 +538,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Mo'ljal manzili *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">6. Mo'ljal manzili *</label>
             <input
               type="text"
               value={primaryLandmark}
