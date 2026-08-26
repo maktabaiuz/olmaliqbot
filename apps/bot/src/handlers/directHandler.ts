@@ -34,7 +34,9 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   if (messageText === '/start') {
     session.step = undefined;
 
-    const webappUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+    // "?v=" — Telegram WebView eski (keshlangan) ko'rinishni qayta
+    // ishlatmasligi uchun, har safar /start bosilganda yangi manzil beriladi
+    const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
     const openAppKeyboard = new InlineKeyboard().webApp('🌐 Web ilovani ochish', webappUrl);
 
     await ctx.reply(

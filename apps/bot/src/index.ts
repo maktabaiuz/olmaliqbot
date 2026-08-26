@@ -116,8 +116,12 @@ async function startBot() {
 
   console.log('✅ BullMQ deletion worker started.');
 
-  // Set Chat Menu Button for Telegram Mini App
-  const webappUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  // Set Chat Menu Button for Telegram Mini App.
+  // Manzilga "?v=<ishga tushish vaqti>" qo'shiladi — Telegram WebView har bir
+  // deploydan keyin sahifani yangi (keshlanmagan) manzil sifatida ochadi,
+  // aks holda eski dizayn ko'rsatilib qolishi mumkin edi (URL o'zgarmasa,
+  // Telegram avvalgi keshlangan WebView'ni qayta ishlatishi mumkin).
+  const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
   try {
     await bot.api.setChatMenuButton({
       menu_button: {
