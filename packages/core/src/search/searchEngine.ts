@@ -29,6 +29,7 @@ const DEFAULT_EMOJI_BY_OBJECT_TYPE: Record<string, string> = {
   DOKON_OBYEKT: '🏪',
   MUASSASA: '🏢',
   TRANSPORT: '🚗',
+  ARENDA: '🔑',
 };
 
 // --- Yozilish xatolariga (typo) chidamli kategoriya moslashtirish ---

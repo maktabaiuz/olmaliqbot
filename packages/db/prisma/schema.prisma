@@ -21,6 +21,7 @@ enum ListingType {
   DOKON_OBYEKT
   MUASSASA
   TRANSPORT
+  ARENDA
 }
 
 enum ListingStatus {

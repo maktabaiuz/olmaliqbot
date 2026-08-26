@@ -12,18 +12,21 @@ const CATEGORY_FIELD_LABEL: Record<string, string> = {
   DOKON_OBYEKT: "Do'kon turi",
   MUASSASA: 'Muassasa turi',
   TRANSPORT: 'Transport turi',
+  ARENDA: 'Arenda turi',
 };
 const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
   USTA: 'Masalan, Santexnik',
   DOKON_OBYEKT: 'Masalan, Dorixona',
   MUASSASA: 'Masalan, Notarius',
   TRANSPORT: 'Masalan, Taksi',
+  ARENDA: 'Masalan, Lesa',
 };
-const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT'; label: string; icon: string }[] = [
+const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA'; label: string; icon: string }[] = [
   { id: 'USTA', label: 'Usta', icon: 'engineering' },
   { id: 'DOKON_OBYEKT', label: "Do'kon", icon: 'storefront' },
   { id: 'MUASSASA', label: 'Muassasa', icon: 'account_balance' },
   { id: 'TRANSPORT', label: 'Avtomobil', icon: 'directions_car' },
+  { id: 'ARENDA', label: 'Arenda', icon: 'key' },
 ];
 
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
@@ -34,7 +37,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT'>('USTA');
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA'>('USTA');
 
   // Form Fields State (Prefilled or restored from LocalStorage)
   const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');

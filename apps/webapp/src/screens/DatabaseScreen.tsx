@@ -22,7 +22,7 @@ export interface ListingItem {
   verification: 'VERIFIED' | 'COMMUNITY_UNVERIFIED';
   status: 'ACTIVE' | 'PAUSED' | 'INCOMPLETE';
   updatedAt?: string;
-  type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES';
+  type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES' | 'RENTALS';
 }
 
 export interface DatabaseScreenProps {
@@ -36,7 +36,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   // Navigation & View States
   const [selectedCategory, setSelectedCategory] = useState<CategorySummary | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES'>('MASTERS');
+  const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES' | 'RENTALS'>('MASTERS');
   const [activeFilter, setActiveFilter] = useState<'all' | 'verified' | 'unverified' | 'paused'>('all');
 
   // Data States
@@ -47,11 +47,12 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   // Avval TRANSPORT alohida bo'lim topilmasdi — MASTERS ("Ustalar") ichiga
   // yashirincha qo'shib yuborilar edi, shuning uchun Avtomobil yozuvlari
   // Ustalar orasida "yo'qolib" ketardi. Endi o'ziga xos VEHICLES bo'limi bor.
-  const DB_TYPE_TO_SEGMENT: Record<string, 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES'> = {
+  const DB_TYPE_TO_SEGMENT: Record<string, 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES' | 'RENTALS'> = {
     USTA: 'MASTERS',
     DOKON_OBYEKT: 'SHOPS',
     MUASSASA: 'ORGANIZATIONS',
     TRANSPORT: 'VEHICLES',
+    ARENDA: 'RENTALS',
   };
 
   // Fetch categories & listings from API
@@ -212,6 +213,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
             { id: 'SHOPS', label: "Do'konlar", icon: 'storefront' },
             { id: 'ORGANIZATIONS', label: 'Muassasalar', icon: 'account_balance' },
             { id: 'VEHICLES', label: 'Avtomobillar', icon: 'directions_car' },
+            { id: 'RENTALS', label: 'Arenda', icon: 'key' },
           ].map((seg) => (
             <button
               key={seg.id}

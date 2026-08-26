@@ -1110,7 +1110,7 @@
         "в аренду",
         "прокат"
       ],
-      "object_type": "DOKON_OBYEKT",
+      "object_type": "ARENDA",
       "group": "Arenda xizmatlari",
       "emoji": "🔑"
     },
@@ -1134,7 +1134,7 @@
         "аренда лесов",
         "прокат инструмента"
       ],
-      "object_type": "DOKON_OBYEKT",
+      "object_type": "ARENDA",
       "group": "Arenda xizmatlari",
       "emoji": "🛠️"
     },
@@ -1152,7 +1152,7 @@
         "машина в аренду",
         "car rental"
       ],
-      "object_type": "TRANSPORT",
+      "object_type": "ARENDA",
       "group": "Arenda xizmatlari",
       "emoji": "🚗"
     }
