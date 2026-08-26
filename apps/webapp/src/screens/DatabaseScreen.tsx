@@ -22,7 +22,7 @@ export interface ListingItem {
   verification: 'VERIFIED' | 'COMMUNITY_UNVERIFIED';
   status: 'ACTIVE' | 'PAUSED' | 'INCOMPLETE';
   updatedAt?: string;
-  type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS';
+  type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES';
 }
 
 export interface DatabaseScreenProps {
@@ -36,19 +36,22 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   // Navigation & View States
   const [selectedCategory, setSelectedCategory] = useState<CategorySummary | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS'>('MASTERS');
+  const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES'>('MASTERS');
   const [activeFilter, setActiveFilter] = useState<'all' | 'verified' | 'unverified' | 'paused'>('all');
 
   // Data States
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [listings, setListings] = useState<ListingItem[]>([]);
 
-  // Backend Prisma enum (USTA/DOKON_OBYEKT/MUASSASA/TRANSPORT) -> Frontend segment ids
-  const DB_TYPE_TO_SEGMENT: Record<string, 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS'> = {
+  // Backend Prisma enum (USTA/DOKON_OBYEKT/MUASSASA/TRANSPORT) -> Frontend segment ids.
+  // Avval TRANSPORT alohida bo'lim topilmasdi — MASTERS ("Ustalar") ichiga
+  // yashirincha qo'shib yuborilar edi, shuning uchun Avtomobil yozuvlari
+  // Ustalar orasida "yo'qolib" ketardi. Endi o'ziga xos VEHICLES bo'limi bor.
+  const DB_TYPE_TO_SEGMENT: Record<string, 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES'> = {
     USTA: 'MASTERS',
     DOKON_OBYEKT: 'SHOPS',
     MUASSASA: 'ORGANIZATIONS',
-    TRANSPORT: 'MASTERS',
+    TRANSPORT: 'VEHICLES',
   };
 
   // Fetch categories & listings from API
@@ -194,26 +197,30 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         </button>
       </div>
 
-      {/* 2. SEGMENT CONTROL (Ustalar / Do'konlar / Muassasalar) */}
+      {/* 2. SEGMENT CONTROL (Ustalar / Do'konlar / Muassasalar / Avtomobillar) —
+          AddListingScreen'dagi "Turi" tanlovi bilan bir xil 2x2 ikonkali karta
+          uslubida, butun ilova bo'ylab izchil va tartibli ko'rinish uchun. */}
       {!selectedCategory && (
-        <div className="bg-slate-200/80 dark:bg-slate-800/80 p-0.5 rounded-xl flex items-center justify-between shadow-inner">
+        <div className="grid grid-cols-2 gap-2">
           {[
-            { id: 'MASTERS', label: 'Ustalar' },
-            { id: 'SHOPS', label: "Do'konlar" },
-            { id: 'ORGANIZATIONS', label: 'Muassasalar' },
+            { id: 'MASTERS', label: 'Ustalar', icon: 'engineering' },
+            { id: 'SHOPS', label: "Do'konlar", icon: 'storefront' },
+            { id: 'ORGANIZATIONS', label: 'Muassasalar', icon: 'account_balance' },
+            { id: 'VEHICLES', label: 'Avtomobillar', icon: 'directions_car' },
           ].map((seg) => (
             <button
               key={seg.id}
               onClick={() => {
                 setListingType(seg.id as any);
               }}
-              className={`flex-1 text-center py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
                 listingType === seg.id
-                  ? 'bg-white dark:bg-[#1C2733] text-on-surface dark:text-slate-100 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400 shadow-sm'
+                  : 'bg-slate-50 dark:bg-[#1C2733] border-outline-variant/30 dark:border-slate-800 text-slate-500'
               }`}
             >
-              {seg.label}
+              <span className="material-symbols-outlined text-[20px] shrink-0">{seg.icon}</span>
+              <span className="text-xs font-bold truncate">{seg.label}</span>
             </button>
           ))}
         </div>
@@ -306,7 +313,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         <div className="flex flex-col gap-2.5 mt-1">
           {filteredListings.length === 0 ? (
             <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500 shadow-sm">
-              Hech qanday usta topilmadi.
+              Hech qanday yozuv topilmadi.
             </div>
           ) : (
             filteredListings.map((item) => (
