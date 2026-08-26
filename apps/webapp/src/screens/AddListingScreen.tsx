@@ -251,7 +251,16 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           addedByUserId: user?.id,
           consentGiven: true,
           consentDevice: navigator.userAgent || 'Unknown Mobile Device',
-          jargonSynonyms: Array.from(new Set([...jargonWords, primaryLandmark.toLowerCase()])),
+          // DIQQAT: mo'ljal (primaryLandmark) nomi ATAYIN bu yerga
+          // qo'shilmaydi. Avval "primaryLandmark.toLowerCase()" ham shu
+          // ro'yxatga avtomatik qo'shilardi — natijada landmark nomi tilga
+          // olingan HAR QANDAY xabar (masalan "Raduga tomonlar tinchmi?"
+          // kabi aloqasiz savol ham) "jargon moslik" sifatida eng yuqori
+          // ustuvorlik bilan mos kelib, botni umuman aloqasiz suhbatlarga
+          // xato javob berishga majbur qilardi. Landmark o'zining alohida,
+          // xavfsizroq qidiruv yo'liga (fuzzyFindLandmark) ega — bu yerda
+          // faqat admin ATAYIN kiritgan xalq atamalari (jargonWords) bo'lishi kerak.
+          jargonSynonyms: Array.from(new Set(jargonWords)),
           approxPrice,
           specificServices,
           description,
