@@ -73,6 +73,7 @@ services:
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      WEBAPP_URL: ${WEBAPP_URL:-https://olmaliq.online}
       # VAQTINCHA O'CHIRILGAN (2026-08-28, 2-marta): DNS A-record to'g'ri
       # sozlangan va Google/Cloudflare/Quad9 kabi ommaviy DNS'larda allaqachon
       # to'g'ri (62.72.20.22), LEKIN Telegram'ning o'z ichki DNS keshi hali
