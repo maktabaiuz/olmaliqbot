@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, searchListings } from '@kimbor/core';
+import { renderEmergencyTemplate, searchListings, isSelfOffer } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
@@ -18,6 +18,24 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // 2. 1-qavat: AI Classifier
   const classification = await classifyQuery(messageText, cityId, telegramUserId);
+
+  // 2b. E'lon vs so'rov. "menda labo bor / yo'lga chiqaman" — odam O'ZIDA
+  // bor narsani taklif qiladi, qidirmaydi. Gemini SERVICE deb xato qilsa ham,
+  // bazadan kartochka yuborilmaydi.
+  if (classification.intent !== 'EMERGENCY' && isSelfOffer(messageText)) {
+    db.queryLog.create({
+      data: {
+        cityId,
+        telegramUserId,
+        rawMessage: messageText,
+        intent: 'NOT_RELEVANT',
+        categoryName: classification.category,
+        landmarkName: classification.landmark,
+        isResolved: false,
+      },
+    }).catch((err) => console.error('Failed to log self-offer QueryLog:', err));
+    return;
+  }
 
   // 3. Handle 🚨 EMERGENCY Intent (Favqulodda xavfsizlik matni) — ishonchlilik
   // darajasidan qat'i nazar tekshiriladi, chunki xavfsizlik ustuvor
@@ -42,10 +60,15 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // bazada TO'G'RIDAN-TO'G'RI mos yozuv topilsa — bu haqiqiy, kuchli signal,
   // AI xulosasidan ustunroq. Faqat HECH NARSA topilmagandagina AI ning
   // ishonchlilik bahosiga qarab javob berish-bermaslik hal qilinadi.
+  const isSeeking =
+    classification.intent !== 'NOT_RELEVANT';
   const searchResult = await searchListings({
     cityId,
-    categoryName: classification.category,
-    landmarkName: classification.landmark,
+    // NOT_RELEVANT bo'lsa kategoriya so'zi (labo) bilan qidirilmaydi —
+    // aks holda e'lon ham kartochka ochardi. Jargon ibora esa rawMessage
+    // orqali hali ham topiladi.
+    categoryName: isSeeking ? classification.category : null,
+    landmarkName: isSeeking ? classification.landmark : null,
     rawMessage: messageText,
   });
 
