@@ -1,10 +1,31 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
 // Simple in-memory fallback cache if Redis is not connected
 const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number }>();
+
+// Gemini bepul tarif kaliti daqiqasiga atigi 15 ta so'rovga ruxsat beradi
+// (RESOURCE_EXHAUSTED xatosi productionda tasdiqlandi: "quota exceeded...
+// limit: 15... GenerateRequestsPerMinutePerProjectPerModel-FreeTier"). Guruh
+// tirbandligida bu chegara tez-tez oshib ketib, HAR BIR xabar Gemini'siz
+// qolib, bot butunlay "jim" bo'lib qolayotgan edi. Shu limitdan xavfsiz
+// pastroqda turish uchun, so'nggi 60 soniyada allaqachon xavfsiz chegaraga
+// (12) yetgan bo'lsak, Gemini'ga umuman so'rov yubormasdan to'g'ridan-to'g'ri
+// fallback klassifikatorga o'tamiz — foydalanuvchi behuda bir necha soniya
+// kutib, baribir xato/vaqt tugashi javobini olmasin.
+const GEMINI_RPM_SAFE_LIMIT = 12;
+const recentGeminiCallTimestamps: number[] = [];
+function reserveGeminiCallSlot(): boolean {
+  const now = Date.now();
+  while (recentGeminiCallTimestamps.length > 0 && now - recentGeminiCallTimestamps[0] > 60_000) {
+    recentGeminiCallTimestamps.shift();
+  }
+  if (recentGeminiCallTimestamps.length >= GEMINI_RPM_SAFE_LIMIT) return false;
+  recentGeminiCallTimestamps.push(now);
+  return true;
+}
 
 /**
  * 1-Qavat AI Klassifikator.
@@ -30,16 +51,28 @@ export async function classifyQuery(
   const geminiKey = apiKey || process.env.GEMINI_API_KEY;
   let result: ClassifierResult;
 
-  // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud bo'lsa).
-  // Tarmoq/server tomonidan vaqtinchalik (bir martalik) xatolar odatiy hol —
-  // shuning uchun darhol qo'pol fallbackka o'tish o'rniga, qisqaroq muddat
-  // bilan BIR MARTA qayta urinib ko'riladi. Umumiy eng ko'p kutish vaqti
-  // avvalgidek ~8 soniya, lekin endi ikkita imkoniyat bilan.
+  // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud va RPM
+  // chegarasidan hali oshmagan bo'lsa). Tarmoq/server tomonidan vaqtinchalik
+  // (bir martalik) xatolar odatiy hol — shuning uchun darhol qo'pol
+  // fallbackka o'tish o'rniga, qisqaroq muddat bilan BIR MARTA qayta urinib
+  // ko'riladi. LEKIN: agar birinchi urinish aynan RATE LIMIT (429) sababli
+  // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi — bir xil
+  // toraygan oynada qayta urinish baribir 429 qaytaradi va faqat navbatdagi
+  // xabarlar uchun chegarani yanada tezroq to'ldiradi.
   if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
-    result =
-      (await callGeminiClassifier(cleanText, geminiKey, 4000)) ||
-      (await callGeminiClassifier(cleanText, geminiKey, 4000)) ||
-      fallbackRuleClassification(normalized, cleanText);
+    if (reserveGeminiCallSlot()) {
+      const first = await callGeminiClassifier(cleanText, geminiKey, 4000);
+      if (first.data) {
+        result = first.data;
+      } else if (!first.rateLimited && reserveGeminiCallSlot()) {
+        const second = await callGeminiClassifier(cleanText, geminiKey, 4000);
+        result = second.data || fallbackRuleClassification(normalized, cleanText);
+      } else {
+        result = fallbackRuleClassification(normalized, cleanText);
+      }
+    } else {
+      result = fallbackRuleClassification(normalized, cleanText);
+    }
   } else {
     // API key bo'lmasa qoidalarga asoslangan lokal klassifikatsiya
     result = fallbackRuleClassification(normalized, cleanText);
@@ -72,10 +105,18 @@ export async function classifyQuery(
   return result;
 }
 
+interface GeminiCallOutcome {
+  data: ClassifierResult | null;
+  /** HTTP 429 (RESOURCE_EXHAUSTED) sababli muvaffaqiyatsiz bo'ldimi — shu holatda
+   * darhol qayta urinish foydasiz, chunki bir xil daqiqalik oynada baribir
+   * yana 429 qaytaradi. */
+  rateLimited: boolean;
+}
+
 /**
  * Gemini'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
  * (tarmoq xatosi, vaqt tugashi, HTTP xato, yoki JSON parslanmasa) — sababini
- * LOGGA yozib, `null` qaytaradi (avval HTTP-xato holatida hech narsa
+ * LOGGA yozib, `data: null` qaytaradi (avval HTTP-xato holatida hech narsa
  * loglanmas edi, shu sabab guruhda nima uchun javob kelmayotgani
  * ko'rinmas edi).
  */
@@ -83,7 +124,7 @@ async function callGeminiClassifier(
   cleanText: string,
   geminiKey: string,
   timeoutMs: number
-): Promise<ClassifierResult | null> {
+): Promise<GeminiCallOutcome> {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
@@ -104,31 +145,74 @@ async function callGeminiClassifier(
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
       console.warn(`⚠️ Gemini HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
-      return null;
+      return { data: null, rateLimited: response.status === 429 };
     }
 
     const json = await response.json();
     const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawOutput) {
       console.warn('⚠️ Gemini javobida matn topilmadi:', JSON.stringify(json).slice(0, 200));
-      return null;
+      return { data: null, rateLimited: false };
     }
 
     const parsed = JSON.parse(rawOutput);
     return {
-      intent: parsed.intent as IntentType,
-      object_type: parsed.object_type as ListingObjectType | null,
-      category: parsed.category || null,
-      name: parsed.name || null,
-      landmark: parsed.landmark || null,
-      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.85,
+      data: {
+        intent: parsed.intent as IntentType,
+        object_type: parsed.object_type as ListingObjectType | null,
+        category: parsed.category || null,
+        name: parsed.name || null,
+        landmark: parsed.landmark || null,
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.85,
+      },
+      rateLimited: false,
     };
   } catch (e: any) {
     console.warn(`⚠️ Gemini so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
-    return null;
+    return { data: null, rateLimited: false };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Yozilish xatolariga chidamli (fuzzy) kasb moslashtirish — faqat aniq
+ * ("contains") qidiruv (matchCategoryFromText) hech narsa topmagandagina
+ * ishga tushadi. Gemini RPM chegarasi sababli tez-tez band bo'lganda,
+ * fallback klassifikator yagona himoya bo'lib qoladi — shu sabab u ham
+ * oddiy yozilish xatolariga (masalan "santehnik" -> "Santexnik") chidamli
+ * bo'lishi kerak, aks holda ko'plab haqiqiy so'rovlar sukut saqlab qolar
+ * edi. searchEngine.ts'dagi fuzzyFindCategory bilan bir xil mantiq.
+ */
+function fuzzyMatchCategoryFromText(normalizedText: string): { canonicalName: string; objectType: string | null } | null {
+  const words = normalizedText.replace(/[-']/g, '').split(/\s+/).filter((w) => w.length >= 3);
+  const candidates = new Set<string>();
+  for (let i = 0; i < words.length; i++) {
+    candidates.add(words[i]);
+    if (i + 1 < words.length) candidates.add(words[i] + words[i + 1]);
+  }
+  if (candidates.size === 0) return null;
+
+  let best: { canonicalName: string; objectType: string | null; distance: number; candLength: number } | null = null;
+  for (const cat of INITIAL_DICTIONARY.categories as Array<{ name: string; synonyms: string[]; object_type?: string }>) {
+    const targets = [cat.name, ...cat.synonyms]
+      .map((s: string) => normalizeText(s).replace(/[\s'-]+/g, ''))
+      .filter((t: string) => t.length >= 4);
+
+    for (const target of targets) {
+      for (const cand of candidates) {
+        if (Math.abs(target.length - cand.length) > 3) continue;
+        const dist = levenshteinDistance(cand, target);
+        const threshold = Math.max(1, Math.floor(target.length / 6));
+        if (dist > threshold) continue;
+        const isBetter = !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
+        if (isBetter) {
+          best = { canonicalName: cat.name, objectType: cat.object_type || null, distance: dist, candLength: cand.length };
+        }
+      }
+    }
+  }
+  return best ? { canonicalName: best.canonicalName, objectType: best.objectType } : null;
 }
 
 /**
@@ -163,7 +247,7 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
   // (76+ kasb/soha va ularning sinonimlari) bo'yicha qidiradi. Shu orqali
   // Gemini ishlamay qolganda ham (tarmoq xatosi/timeout) bot "ko'r" bo'lib
   // qolmaydi — barcha ma'lum kasblarni tanib oladi.
-  const dictMatch = matchCategoryFromText(normalized);
+  const dictMatch = matchCategoryFromText(normalized) || fuzzyMatchCategoryFromText(normalized);
   if (dictMatch) {
     intent = dictMatch.canonicalName.toLowerCase() === 'notarius' ? IntentType.LOCATION : IntentType.SERVICE;
     objectType = (dictMatch.objectType as ListingObjectType) || ListingObjectType.USTA;

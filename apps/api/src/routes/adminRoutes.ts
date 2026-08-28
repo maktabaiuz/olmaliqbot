@@ -109,17 +109,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
         };
       }
 
-      // Faqat oldindan taklif qilingan (moderator) va hali parol qo'ymagan
-      // foydalanuvchi "parol o'rnatish" ekraniga yo'naltiriladi. Qolgan barcha
-      // holatda — oddiy parol kirish ekrani ko'rsatiladi.
-      if (dbUser && dbUser.role !== 'USER' && !dbUser.isPasswordSet) {
-        return {
-          success: true,
-          requiresSetup: true,
-          user: userInfo,
-        };
-      }
-
+      // ESKI IZOH (endi noto'g'ri): "parol o'rnatilmagan foydalanuvchi alohida
+      // 'parol o'rnatish' ekraniga yo'naltiriladi" degan mantiq shu yerda edi.
+      // Bu holat frontend'dagi eski, endi qo'llanilmaydigan bir martalik kod
+      // (oneTimePass) shaklidagi "parol o'rnatish" oynasiga olib borar edi —
+      // /auth/setup-password esa allaqachon soddalashtirilgan (faqat yagona
+      // `password` maydonini kutadi, hech qanday bir martalik kodni
+      // tekshirmaydi). Natijada bu yo'lga tushib qolgan HAR QANDAY
+      // foydalanuvchi (masalan parol hali qo'yilmagan SUPER_ADMIN akkaunti)
+      // umuman kira olmaydigan chiqmas ko'chaga kirib qolar edi. Endi bunday
+      // ajratish umuman qilinmaydi — yagona `ADMIN_PASSWORD` orqali kirish
+      // /auth/login'da HAR QANDAY holatda (parol qo'yilgan yoki qo'yilmagan)
+      // ishlaydi, shuning uchun hammaga bir xil oddiy parol ekrani yetarli.
       return {
         success: true,
         requiresPassword: true,
