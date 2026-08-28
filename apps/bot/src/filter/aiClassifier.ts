@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
@@ -233,6 +233,19 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
       name: null,
       landmark: null,
       confidence: 0.98,
+    };
+  }
+
+  // E'lon: "menda labo bor", "yo'lga chiqaman kimda yuk bor" — lug'atdagi
+  // kasb so'zi bo'lsa ham so'rov emas. Gemini yo'qida ham JIM.
+  if (isSelfOffer(rawText) || isSelfOffer(normalized)) {
+    return {
+      intent: IntentType.NOT_RELEVANT,
+      object_type: null,
+      category: null,
+      name: null,
+      landmark: null,
+      confidence: 0.95,
     };
   }
 
