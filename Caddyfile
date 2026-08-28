@@ -1,4 +1,4 @@
-olmaliq.online {
+olmaliq.online, 62-72-20-22.sslip.io {
     # Telegram Webhook
     handle /webhook {
         reverse_proxy bot:3001
