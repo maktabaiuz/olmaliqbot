@@ -73,7 +73,15 @@ services:
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      WEBHOOK_URL: https://${DOMAIN:-olmaliq.online}/webhook
+      # VAQTINCHA O'CHIRILGAN (2026-08-28): olmaliq.online domeni DNS orqali
+      # endi bizning serverga (62.72.20.22) emas, boshqa manzilga (2.57.91.93)
+      # ko'rsatib turibdi — buni Telegram getWebhookInfo orqali tasdiqladik
+      # (161 ta yetkazilmagan xabar, SSL xatosi). Shu sabab webhook orqali
+      # HECH QANDAY xabar botga yetib bormas edi. DNS muammosi tuzatilgunicha
+      # (domen sozlamalarida A-record 62.72.20.22ga qaytarilishi kerak) bot
+      # POLLING rejimida ishlaydi — bu Telegram'ga tashqi ulanish talab
+      # qilmaydi. DNS tuzatilgach, shu qatorni qaytaring va qayta deploy qiling:
+      # WEBHOOK_URL: https://${DOMAIN:-olmaliq.online}/webhook
     depends_on:
       postgres:
         condition: service_healthy
