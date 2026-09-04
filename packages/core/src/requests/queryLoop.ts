@@ -201,7 +201,7 @@ export async function notifyUsersOnNewListingAdded(options: {
   // Format provider notification card
   const verifiedBadge = listing.verification === 'VERIFIED' ? '✅' : '⚠️';
   const landmarkText = listing.primaryLandmark ? `📍 ${listing.primaryLandmark.name}\n` : '';
-  const notificationText = `Siz ${categoryName} so'ragan edingiz — endi bazamizda bor 👇\n\n🔧 ${listing.category?.name || categoryName}\n${listing.name} ${verifiedBadge} ⭐${listing.bayesianRating.toFixed(1)}\n${landmarkText}📞 ${listing.phone}`;
+  const notificationText = `Siz ${categoryName} so'ragan edingiz — endi bazamizda bor 👇\n\n🔧 ${listing.category?.name || categoryName}\n${listing.name} ${verifiedBadge}\n${landmarkText}📞 ${listing.phone}`;
 
   // 4. Send notification and mark QueryLog as notified and resolved
   for (const [userIdStr, logs] of userLogsMap.entries()) {

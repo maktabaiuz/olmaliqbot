@@ -159,8 +159,11 @@ function buildListingCard(item: any, bayesianRating: number, rank: number | null
     ? item.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
     : '';
 
+  // Yulduzcha (Bayesian reyting) endi ko'rsatilmaydi — foydalanuvchi buni
+  // baholash tizimidan qolgan keraksiz element deb topdi. Reyting hisoblash
+  // va saralash (ranking) mantiqi o'zgarmadi — faqat MATNDA chiqarilmaydi.
   const cardLines: string[] = [];
-  cardLines.push(`<b>${escapeHtml(item.name)}</b> ${verifiedIcon} ⭐${bayesianRating.toFixed(1)}`);
+  cardLines.push(`<b>${escapeHtml(item.name)}</b> ${verifiedIcon}`);
 
   if (landmarkText) {
     if (item.primaryLandmark?.latitude && item.primaryLandmark?.longitude) {
