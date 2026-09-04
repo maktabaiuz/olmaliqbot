@@ -47,7 +47,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -399,6 +399,18 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                             <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
                           </button>
 
+                          {/* Kanal/Bot havolasi */}
+                          <button
+                            onClick={() => setMoreSubView('community_link')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">campaign</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Kanal/Bot havolasi</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
                           {/* Bot Matnlari */}
                           <button
                             onClick={() => setViewMode('bot_messages')}
@@ -494,6 +506,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     {/* SUBVIEW: Connected Groups List */}
                     {moreSubView === 'groups' && (
                       <MoreGroupsSubView onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'community_link' && (
+                      <CommunityLinkSubView onBack={() => setMoreSubView('menu')} />
                     )}
                   </div>
                 )}
@@ -970,6 +985,80 @@ const MoreGroupsSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/settings/community_url')
+      .then(r => r.json())
+      .then(data => setUrl(data?.value || ''))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/settings/community_url', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ value: url.trim() }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch {
+      // jim — foydalanuvchi "Saqlash"ni qayta bosib ko'radi
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+        </button>
+        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kanal/Bot havolasi</h3>
+      </div>
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        Bot har bir javobida ko'rsatadigan qizil "📣 Kanal/Guruhga o'tish" tugmasi
+        qayerga olib borishini shu yerdan sozlaysiz — Telegram kanal, guruh yoki
+        boshqa bot havolasi bo'lishi mumkin (masalan https://t.me/olmaliq_kanal).
+        Bo'sh qoldirilsa, tugma umuman ko'rsatilmaydi.
+      </p>
+
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-4 space-y-3">
+        <label className="text-[11px] font-bold text-slate-500 uppercase">Havola (URL)</label>
+        {loading ? (
+          <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+        ) : (
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://t.me/olmaliq_kanal"
+            className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+          />
+        )}
+        <button
+          onClick={handleSave}
+          disabled={loading || saving}
+          className="w-full py-2.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl active:scale-95 transition-all disabled:opacity-50"
+        >
+          {saving ? 'Saqlanmoqda...' : saved ? '✅ Saqlandi!' : 'Saqlash'}
+        </button>
+      </div>
     </div>
   );
 };

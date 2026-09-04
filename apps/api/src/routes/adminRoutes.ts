@@ -838,6 +838,30 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }));
   });
 
+  // --- 5b. UMUMIY SOZLAMALAR (kalit-qiymat) — masalan "Kanal/Guruhga
+  // o'tish" tugmasi havolasi. Bot bu qiymatni to'g'ridan-to'g'ri
+  // bazadan o'qiydi (bir necha soniyalik keshlash bilan) — admin
+  // panelidan o'zgartirilishi bilan SSH/serverga tegmasdan qo'llanadi.
+  fastify.get('/admin/settings/:key', async (req: any, reply) => {
+    const { key } = req.params;
+    const setting = await db.appSetting.findUnique({ where: { key } });
+    return { key, value: setting?.value || '' };
+  });
+
+  fastify.put('/admin/settings/:key', async (req: any, reply) => {
+    const { key } = req.params;
+    const { value } = req.body;
+    if (typeof value !== 'string') {
+      return reply.status(400).send({ success: false, message: "Qiymat matn (string) bo'lishi kerak" });
+    }
+    const setting = await db.appSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    });
+    return { success: true, key: setting.key, value: setting.value };
+  });
+
   // --- 6. BOT EMERGENCY MESSAGES ---
   fastify.get('/admin/bot-messages', async (req, reply) => {
     const messages = await db.botMessage.findMany({

@@ -5,6 +5,7 @@ import { renderEmergencyTemplate, searchListings, isSelfOffer } from '@kimbor/co
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
+import { getCommunityUrl } from '../settings/appSettings';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -94,19 +95,21 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // 5. Guruh javobi tugmalari — atigi 2 tasi: "Yana ko'rish" (yashil/success,
   // bor bo'lsa, bosilganda BITTADAN qo'shib ko'rsatadi) va kanal/guruhga
-  // o'tish havolasi (qizil/danger, COMMUNITY_URL sozlansa). Rang — Telegram
-  // Bot API 9.4 (2026-02)da qo'shilgan haqiqiy `style` maydoni orqali
-  // (grammY .success()/.danger() yordamchilari). Xarita alohida tugma
-  // sifatida olib tashlandi — mo'ljal nomi o'zi (yuqorida, matn ichida)
-  // bosilsa xaritaga ochiladi, shu yetarli, tugmalar soni minimal saqlanadi.
+  // o'tish havolasi (qizil/danger, admin panelidan sozlansa — HAR BIR
+  // javobda ko'rinadi, SSH/serverga tegmasdan o'zgartiriladi). Rang —
+  // Telegram Bot API 9.4 (2026-02)da qo'shilgan haqiqiy `style` maydoni
+  // orqali (grammY .success()/.danger() yordamchilari). Xarita alohida
+  // tugma sifatida olib tashlandi — mo'ljal nomi o'zi (yuqorida, matn
+  // ichida) bosilsa xaritaga ochiladi, shu yetarli.
   const keyboard = new InlineKeyboard();
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
     keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
   }
 
-  if (process.env.COMMUNITY_URL) {
-    keyboard.url('📣 Kanal/Guruhga o\'tish', process.env.COMMUNITY_URL).danger().row();
+  const communityUrl = await getCommunityUrl();
+  if (communityUrl) {
+    keyboard.url('📣 Kanal/Guruhga o\'tish', communityUrl).danger().row();
   }
 
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;

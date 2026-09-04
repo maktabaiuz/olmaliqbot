@@ -4,6 +4,7 @@ import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText } fro
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
+import { getCommunityUrl } from '../settings/appSettings';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -282,7 +283,14 @@ async function runPrivateSearch(
 
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
-    resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
+    resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
+  }
+
+  // Kanal/guruhga o'tish havolasi — admin panelidan sozlansa, guruhdagi
+  // kabi shaxsiy chatda ham har bir javobda ko'rinadi.
+  const communityUrl = await getCommunityUrl();
+  if (communityUrl) {
+    resultKeyboard.url('📣 Kanal/Guruhga o\'tish', communityUrl).danger().row();
   }
 
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
