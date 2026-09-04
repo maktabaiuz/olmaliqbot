@@ -35,3 +35,9 @@ export async function getAppSetting(key: string): Promise<string> {
 export async function getCommunityUrl(): Promise<string> {
   return getAppSetting('community_url');
 }
+
+/** Guruh/kanal havolasi tugmasining ko'rinadigan matni (admin o'zgartira oladi). */
+export async function getCommunityLabel(): Promise<string> {
+  const label = await getAppSetting('community_label');
+  return label || '📣 Kanal/Guruhga o\'tish';
+}

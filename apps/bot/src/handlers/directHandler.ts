@@ -4,7 +4,7 @@ import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText } fro
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
-import { getCommunityUrl } from '../settings/appSettings';
+import { getCommunityUrl, getCommunityLabel } from '../settings/appSettings';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -272,14 +272,15 @@ async function runPrivateSearch(
     return;
   }
 
-  const resultKeyboard = new InlineKeyboard()
-    .text('📋 Raqamni nusxalash', `copy_phone_${searchResult.listing.phone}`);
+  // "Raqamni nusxalash" tugmasi olib tashlandi — telefon raqami allaqachon
+  // <code> formatida (Telegram'da bosilsa o'zi nusxalanadi), alohida
+  // tugma keraksiz ortiqcha edi.
+  const resultKeyboard = new InlineKeyboard();
 
   if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
     const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
-    resultKeyboard.url('📍 Xarita', mapUrl);
+    resultKeyboard.url('📍 Xarita', mapUrl).row();
   }
-  resultKeyboard.row();
 
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
@@ -290,7 +291,8 @@ async function runPrivateSearch(
   // kabi shaxsiy chatda ham har bir javobda ko'rinadi.
   const communityUrl = await getCommunityUrl();
   if (communityUrl) {
-    resultKeyboard.url('📣 Kanal/Guruhga o\'tish', communityUrl).danger().row();
+    const communityLabel = await getCommunityLabel();
+    resultKeyboard.url(communityLabel, communityUrl).danger().row();
   }
 
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });

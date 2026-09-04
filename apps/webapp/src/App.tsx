@@ -989,16 +989,24 @@ const MoreGroupsSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
+const DEFAULT_COMMUNITY_LABEL = "📣 Kanal/Guruhga o'tish";
+
 const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [url, setUrl] = useState('');
+  const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/settings/community_url')
-      .then(r => r.json())
-      .then(data => setUrl(data?.value || ''))
+    Promise.all([
+      fetch('/api/admin/settings/community_url').then(r => r.json()),
+      fetch('/api/admin/settings/community_label').then(r => r.json()),
+    ])
+      .then(([urlData, labelData]) => {
+        setUrl(urlData?.value || '');
+        setLabel(labelData?.value || '');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -1007,12 +1015,16 @@ const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setSaved(false);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
-      const res = await fetch('/api/admin/settings/community_url', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
-        body: JSON.stringify({ value: url.trim() }),
-      });
-      if (res.ok) {
+      const headers = { 'Content-Type': 'application/json', 'x-init-data': initData };
+      const [urlRes, labelRes] = await Promise.all([
+        fetch('/api/admin/settings/community_url', {
+          method: 'PUT', headers, body: JSON.stringify({ value: url.trim() }),
+        }),
+        fetch('/api/admin/settings/community_label', {
+          method: 'PUT', headers, body: JSON.stringify({ value: label.trim() }),
+        }),
+      ]);
+      if (urlRes.ok && labelRes.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2500);
       }
@@ -1032,25 +1044,44 @@ const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kanal/Bot havolasi</h3>
       </div>
       <p className="text-[11px] text-slate-500 leading-relaxed">
-        Bot har bir javobida ko'rsatadigan qizil "📣 Kanal/Guruhga o'tish" tugmasi
-        qayerga olib borishini shu yerdan sozlaysiz — Telegram kanal, guruh yoki
-        boshqa bot havolasi bo'lishi mumkin (masalan https://t.me/olmaliq_kanal).
-        Bo'sh qoldirilsa, tugma umuman ko'rsatilmaydi.
+        Bot har bir javobida ko'rsatadigan qizil tugma qayerga olib borishini
+        va nima deb yozilishini shu yerdan sozlaysiz — Telegram kanal, guruh
+        yoki boshqa bot havolasi bo'lishi mumkin. Havola bo'sh qoldirilsa,
+        tugma umuman ko'rsatilmaydi.
       </p>
 
       <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-4 space-y-3">
-        <label className="text-[11px] font-bold text-slate-500 uppercase">Havola (URL)</label>
-        {loading ? (
-          <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
-        ) : (
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://t.me/olmaliq_kanal"
-            className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
-          />
-        )}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-500 uppercase">Havola (URL)</label>
+          {loading ? (
+            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+          ) : (
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://t.me/olmaliq_kanal"
+              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+            />
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-500 uppercase">Tugma nomi (matni)</label>
+          {loading ? (
+            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+          ) : (
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={DEFAULT_COMMUNITY_LABEL}
+              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+            />
+          )}
+          <p className="text-[10px] text-slate-500">Bo'sh qoldirilsa, standart nom ishlatiladi: "{DEFAULT_COMMUNITY_LABEL}"</p>
+        </div>
+
         <button
           onClick={handleSave}
           disabled={loading || saving}

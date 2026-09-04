@@ -5,7 +5,7 @@ import { renderEmergencyTemplate, searchListings, isSelfOffer } from '@kimbor/co
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
-import { getCommunityUrl } from '../settings/appSettings';
+import { getCommunityUrl, getCommunityLabel } from '../settings/appSettings';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -109,7 +109,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   const communityUrl = await getCommunityUrl();
   if (communityUrl) {
-    keyboard.url('📣 Kanal/Guruhga o\'tish', communityUrl).danger().row();
+    const communityLabel = await getCommunityLabel();
+    keyboard.url(communityLabel, communityUrl).danger().row();
   }
 
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
