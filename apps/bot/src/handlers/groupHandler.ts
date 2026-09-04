@@ -92,20 +92,19 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // 5. Build group response buttons — faqat haqiqiy qiymat qo'shadigan
-  // tugmalar: "Yana ko'rish" (agar ko'proq mos yozuv bo'lsa) va "Xarita"
-  // (agar koordinata bor bo'lsa). "Baholash"/"Shikoyat" tugmalari har bir
-  // javobda doim ko'rinib, ortiqcha shovqin va chalkashlik keltirib
-  // chiqargani uchun olib tashlangan — sodda va aniq javob ustuvor.
+  // 5. Guruh javobi tugmalari — atigi 2 tasi: "Yana ko'rish" (bor bo'lsa,
+  // bosilganda BITTADAN qo'shib ko'rsatadi) va kanal/guruhga o'tish havolasi
+  // (COMMUNITY_URL sozlansa). Xarita alohida tugma sifatida olib tashlandi —
+  // mo'ljal nomi o'zi (yuqorida, matn ichida) bosilsa xaritaga ochiladi,
+  // shu yetarli, tugmalar soni minimal saqlanadi.
   const keyboard = new InlineKeyboard();
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.rankedListText);
+    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
     keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
   }
 
-  if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
-    const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
-    keyboard.url('📍 Xarita', mapUrl);
+  if (process.env.COMMUNITY_URL) {
+    keyboard.url('📣 Kanal/Guruhga o\'tish', process.env.COMMUNITY_URL).row();
   }
 
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;

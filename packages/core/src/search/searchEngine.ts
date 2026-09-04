@@ -133,8 +133,9 @@ async function fuzzyFindLandmark(cityId: string, searchText: string): Promise<st
 export interface FormattedListingResult {
   listingId: string;
   formattedText: string;
-  /** Yulduzcha (Bayesian rating) bo'yicha saralangan, 1-7 ketma-ketlikda kompakt ro'yxat — "Yana ko'rish" tugmasi bosilganda ko'rsatiladi. */
-  rankedListText: string;
+  /** 2-7 o'rinlar uchun kompakt qatorlar — "Yana ko'rish" bosilganda BITTADAN
+   * qo'shib ko'rsatish uchun (1-o'rin allaqachon formattedText'da bor). */
+  compactLines: string[];
   hasMore: boolean;
   totalMatches: number;
   executionTimeMs: number;
@@ -428,47 +429,53 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     ? bestMatch.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
     : '';
 
-  const lines: string[] = [];
-  lines.push(`${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>`);
-  lines.push('');
-  lines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
-  
+  // Telegram HTML endi <blockquote>ni qo'llab-quvvatlaydi — bu haqiqiy,
+  // Telegram'ning o'zi chizadigan chap chiziqli blok, klaviaturaga mos
+  // proportsional shriftda ham HAR DOIM to'g'ri ko'rinadi. Avvalgi g'oya
+  // (qo'lda chizilgan ASCII quti, masalan ┌───┐) proportsional shriftda
+  // qiyalik/tekislanmaslikka olib kelardi — shu sabab professional yechim
+  // sifatida qutini emas, native blockquote'ni ishlatamiz: "karta" hissi
+  // beradi, lekin hech qachon buzilib ko'rinmaydi.
+  const cardLines: string[] = [];
+  cardLines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
+
   if (landmarkText) {
     if (bestMatch.primaryLandmark?.latitude && bestMatch.primaryLandmark?.longitude) {
       const mapUrl = `https://yandex.uz/maps/?pt=${bestMatch.primaryLandmark.longitude},${bestMatch.primaryLandmark.latitude}&z=16&l=map`;
-      lines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a> 🗺`);
+      cardLines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a>`);
     } else {
-      lines.push(`📍 ${escapeHtml(landmarkText)}`);
+      cardLines.push(`📍 ${escapeHtml(landmarkText)}`);
     }
   }
 
   if (bestMatch.workFrom && bestMatch.workTo) {
     if (bestMatch.workFrom === '00:00' && (bestMatch.workTo === '24:00' || bestMatch.workTo === '23:59')) {
-      lines.push(`🕐 24/7 (Tunu-kun)`);
+      cardLines.push(`🕐 24/7 (Tunu-kun)`);
     } else {
-      lines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
+      cardLines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
     }
   }
 
-  if (badgesText) lines.push(`🏷 ${escapeHtml(badgesText)}`);
-  if (bestMatch.specificServices) lines.push(`🛠 ${escapeHtml(bestMatch.specificServices)}`);
-  if (bestMatch.approxPrice) lines.push(`💵 ${escapeHtml(bestMatch.approxPrice)}`);
-  lines.push('');
-  lines.push(`📞 <code>${escapeHtml(bestMatch.phone)}</code>`);
+  if (badgesText) cardLines.push(`🏷 ${escapeHtml(badgesText)}`);
+  if (bestMatch.specificServices) cardLines.push(`🛠 ${escapeHtml(bestMatch.specificServices)}`);
+  if (bestMatch.approxPrice) cardLines.push(`💵 ${escapeHtml(bestMatch.approxPrice)}`);
+  cardLines.push('');
+  cardLines.push(`📞 <code>${escapeHtml(bestMatch.phone)}</code>`);
 
-  const formattedText = lines.join('\n');
+  const formattedText =
+    `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
+    `<blockquote>${cardLines.join('\n')}</blockquote>`;
 
-  // Kompakt 1-7 ranked ro'yxat ("Yana ko'rish" tugmasi bosilganda ko'rsatiladi)
-  const rankedListText =
-    `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b> — top ${rankedTop.length} ta:\n\n` +
-    rankedTop.map((s, i) => formatRankedLine(s.listing, i + 1, s.bayesianRating)).join('\n\n');
+  // 2-7 o'rinlar uchun kompakt qatorlar — "Yana ko'rish" bosilganda
+  // BITTADAN qo'shib ko'rsatish uchun (1-o'rin formattedText'da allaqachon bor)
+  const compactLines = rankedTop.slice(1).map((s, i) => formatRankedLine(s.listing, i + 2, s.bayesianRating));
 
   const executionTimeMs = Date.now() - startTime;
 
   return {
     listingId: bestMatch.id,
     formattedText,
-    rankedListText,
+    compactLines,
     hasMore: scoredListings.length > 1,
     totalMatches: rankedTop.length,
     executionTimeMs,

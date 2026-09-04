@@ -3,7 +3,7 @@ import { classifyQuery } from '../filter/aiClassifier';
 import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
-import { setRankedList, getRankedList } from '../cache/rankedListCache';
+import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -280,14 +280,12 @@ async function runPrivateSearch(
   }
   resultKeyboard.row();
 
-  let body = searchResult.formattedText;
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.rankedListText);
+    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
     resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).row();
-    body = `${searchResult.formattedText}\n\n${searchResult.rankedListText}`;
   }
 
-  await ctx.reply(body, { parse_mode: 'HTML', reply_markup: resultKeyboard });
+  await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
 }
 
 export async function handleDirectCallbacks(ctx: Context, defaultCityId: string) {
@@ -337,18 +335,47 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
   if (data.startsWith('more_')) {
     const listingId = data.replace('more_', '');
-    const rankedText = await getRankedList(listingId);
+    const state = await revealNextRankedItem(listingId);
 
-    if (!rankedText) {
+    if (!state) {
       await ctx.answerCallbackQuery({ text: "Vaqti tugadi, savolni qayta yozing", show_alert: true });
       return;
     }
 
     await ctx.answerCallbackQuery();
+
+    // Har bosishda BITTADAN qo'shib ko'rsatiladi — 1-o'rin (headerCard)
+    // har doim tepada, ostiga hozirgacha "ochilgan" qatorlar qo'shiladi.
+    const revealedText = state.compactLines.slice(0, state.revealed).join('\n\n');
+    const newText = revealedText ? `${state.headerCard}\n\n${revealedText}` : state.headerCard;
+
+    // Mavjud klaviaturadagi boshqa tugmalar (Nusxalash, Xarita, Kanal
+    // havolasi) o'zgarishsiz saqlanadi — faqat "Yana ko'rish" qatori
+    // yangilanadi (qolgan son kamayadi) yoki hammasi ko'rsatilgan bo'lsa
+    // butunlay olib tashlanadi.
+    const existingRows = ((ctx.callbackQuery?.message as any)?.reply_markup?.inline_keyboard || []) as any[][];
+    const otherRows = existingRows.filter((row) => !row.some((btn: any) => btn.callback_data === data));
+
+    const newKeyboard = new InlineKeyboard();
+    const remaining = state.compactLines.length - state.revealed;
+    if (remaining > 0) {
+      newKeyboard.text(`Yana ${remaining} tasini ko'rish`, `more_${listingId}`).row();
+    }
+    for (const row of otherRows) {
+      for (const btn of row) {
+        if (btn.url) newKeyboard.url(btn.text, btn.url);
+        else if (btn.callback_data) newKeyboard.text(btn.text, btn.callback_data);
+      }
+      newKeyboard.row();
+    }
+
     try {
-      await ctx.editMessageText(rankedText, { parse_mode: 'HTML' });
+      await ctx.editMessageText(newText, {
+        parse_mode: 'HTML',
+        reply_markup: newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined,
+      });
     } catch (err) {
-      console.error('Failed to expand ranked list:', err);
+      console.error('Failed to reveal next ranked item:', err);
     }
   }
 }
