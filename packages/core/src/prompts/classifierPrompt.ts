@@ -85,6 +85,18 @@ not invent a category (like a random shop/cafe) just because the sentence
 happens to contain a landmark. Only extract "landmark" when it accompanies
 genuine service-seeking wording.
 
+A STATEMENT ABOUT YOURSELF IS NOT A REQUEST
+Some messages are the SPEAKER describing their OWN situation, possessions,
+or work — not asking for anything. Watch for "men(da/ing) ... bor/yo'q"
+("I have/don't have X") and similar first-person statements (e.g. "menda
+labo bor", "mening santexnik do'stim bor", "men o'zim ustaman"). These
+describe the speaker, not a need — always return NOT_RELEVANT for them,
+even though they contain a real service word like "labo" or "santexnik".
+The giveaway is grammatical person: "menda X bor" (I have X) is a
+statement; "X kerak", "X bormi", "X qayerda" (I need/is there/where is X)
+is a request. Confusing the two means the bot would hand out a stranger's
+phone number to someone who was simply mentioning what they own.
+
 EMERGENCY OVERRIDE
 If there is any sign of danger to life, return EMERGENCY with urgency "high"
 and confidence at least 0.9, even if the rest of the message is unclear.
@@ -151,6 +163,14 @@ EXAMPLES
 "akalar raduga kosmos tomonlar tinchmi?"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
  "landmark":null,"urgency":"low","confidence":0.92}
+
+"menda labo bor kerak bo'lsa"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.9}
+
+"labo kerak edi, yuk tashish uchun"
+{"intent":"SERVICE","object_type":"TRANSPORT","category":"labo","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.93}
 
 ${COMMON_AI_RULES}
 `;

@@ -6,30 +6,27 @@ import crypto from 'crypto';
 // Simple in-memory fallback cache if Redis is not connected
 const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number }>();
 
-// Gemini bepul tarif kaliti daqiqasiga atigi 15 ta so'rovga ruxsat beradi
-// (RESOURCE_EXHAUSTED xatosi productionda tasdiqlandi: "quota exceeded...
-// limit: 15... GenerateRequestsPerMinutePerProjectPerModel-FreeTier"). Guruh
-// tirbandligida bu chegara tez-tez oshib ketib, HAR BIR xabar Gemini'siz
-// qolib, bot butunlay "jim" bo'lib qolayotgan edi. Shu limitdan xavfsiz
-// pastroqda turish uchun, so'nggi 60 soniyada allaqachon xavfsiz chegaraga
-// (12) yetgan bo'lsak, Gemini'ga umuman so'rov yubormasdan to'g'ridan-to'g'ri
-// fallback klassifikatorga o'tamiz — foydalanuvchi behuda bir necha soniya
-// kutib, baribir xato/vaqt tugashi javobini olmasin.
-const GEMINI_RPM_SAFE_LIMIT = 12;
-const recentGeminiCallTimestamps: number[] = [];
-function reserveGeminiCallSlot(): boolean {
+// Claude API'ning standart tariflari ham daqiqalik so'rov chegarasiga ega
+// (Gemini bepul tarifidagi 15/min muammosi productionda tasdiqlangan edi —
+// bot butunlay "jim" bo'lib qolgan). Xuddi shu turdagi tanazzulning oldini
+// olish uchun bu yerda ham xavfsiz mahalliy chegara saqlanadi — Claude
+// tarifi Gemini bepul tarifidan ancha yuqori bo'lgani uchun chegara ham
+// mos ravishda yuqoriroq (45/min), lekin baribir himoya sifatida qoladi.
+const CLAUDE_RPM_SAFE_LIMIT = 45;
+const recentClaudeCallTimestamps: number[] = [];
+function reserveClaudeCallSlot(): boolean {
   const now = Date.now();
-  while (recentGeminiCallTimestamps.length > 0 && now - recentGeminiCallTimestamps[0] > 60_000) {
-    recentGeminiCallTimestamps.shift();
+  while (recentClaudeCallTimestamps.length > 0 && now - recentClaudeCallTimestamps[0] > 60_000) {
+    recentClaudeCallTimestamps.shift();
   }
-  if (recentGeminiCallTimestamps.length >= GEMINI_RPM_SAFE_LIMIT) return false;
-  recentGeminiCallTimestamps.push(now);
+  if (recentClaudeCallTimestamps.length >= CLAUDE_RPM_SAFE_LIMIT) return false;
+  recentClaudeCallTimestamps.push(now);
   return true;
 }
 
 /**
  * 1-Qavat AI Klassifikator.
- * User message intent va ob'ektini Gemini Flash yordamida tahlil qiladi.
+ * User message intent va ob'ektini Claude (Anthropic) yordamida tahlil qiladi.
  * Natija 10 daqiqa keshlanadi. Har bir so'rov QueryLog jadvaliga yoziladi.
  */
 export async function classifyQuery(
@@ -40,7 +37,7 @@ export async function classifyQuery(
 ): Promise<ClassifierResult> {
   const cleanText = userMessage.trim();
   const normalized = normalizeText(cleanText);
-  const cacheKey = `kimbor:classifier:${crypto.createHash('md5').update(normalized).digest('hex')}`;
+  const cacheKey = `kimbor:classifier:v2:${crypto.createHash('md5').update(normalized).digest('hex')}`;
 
   // 1. Keshni tekshirish (10 minutlik)
   const cached = memoryCache.get(cacheKey);
@@ -48,24 +45,22 @@ export async function classifyQuery(
     return cached.data;
   }
 
-  const geminiKey = apiKey || process.env.GEMINI_API_KEY;
+  const claudeKey = apiKey || process.env.ANTHROPIC_API_KEY;
   let result: ClassifierResult;
 
-  // 2. Gemini Flash AI so'rovini bajarish (Agar API key mavjud va RPM
-  // chegarasidan hali oshmagan bo'lsa). Tarmoq/server tomonidan vaqtinchalik
-  // (bir martalik) xatolar odatiy hol — shuning uchun darhol qo'pol
-  // fallbackka o'tish o'rniga, qisqaroq muddat bilan BIR MARTA qayta urinib
-  // ko'riladi. LEKIN: agar birinchi urinish aynan RATE LIMIT (429) sababli
-  // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi — bir xil
-  // toraygan oynada qayta urinish baribir 429 qaytaradi va faqat navbatdagi
-  // xabarlar uchun chegarani yanada tezroq to'ldiradi.
-  if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
-    if (reserveGeminiCallSlot()) {
-      const first = await callGeminiClassifier(cleanText, geminiKey, 4000);
+  // 2. Claude AI so'rovini bajarish (Agar API key mavjud va RPM chegarasidan
+  // hali oshmagan bo'lsa). Tarmoq/server tomonidan vaqtinchalik (bir
+  // martalik) xatolar odatiy hol — shuning uchun darhol qo'pol fallbackka
+  // o'tish o'rniga, qisqaroq muddat bilan BIR MARTA qayta urinib ko'riladi.
+  // LEKIN: agar birinchi urinish aynan RATE LIMIT (429) sababli
+  // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi.
+  if (claudeKey && claudeKey !== 'your_anthropic_api_key_here' && claudeKey !== 'mock_key') {
+    if (reserveClaudeCallSlot()) {
+      const first = await callClaudeClassifier(cleanText, claudeKey, 6000);
       if (first.data) {
         result = first.data;
-      } else if (!first.rateLimited && reserveGeminiCallSlot()) {
-        const second = await callGeminiClassifier(cleanText, geminiKey, 4000);
+      } else if (!first.rateLimited && reserveClaudeCallSlot()) {
+        const second = await callClaudeClassifier(cleanText, claudeKey, 6000);
         result = second.data || fallbackRuleClassification(normalized, cleanText);
       } else {
         result = fallbackRuleClassification(normalized, cleanText);
@@ -105,61 +100,92 @@ export async function classifyQuery(
   return result;
 }
 
-interface GeminiCallOutcome {
+interface ClaudeCallOutcome {
   data: ClassifierResult | null;
-  /** HTTP 429 (RESOURCE_EXHAUSTED) sababli muvaffaqiyatsiz bo'ldimi — shu holatda
-   * darhol qayta urinish foydasiz, chunki bir xil daqiqalik oynada baribir
-   * yana 429 qaytaradi. */
+  /** HTTP 429 (rate limit) sababli muvaffaqiyatsiz bo'ldimi — shu holatda
+   * darhol qayta urinish foydasiz, chunki bir xil oynada baribir yana
+   * 429 qaytaradi. */
   rateLimited: boolean;
 }
 
+// Claude'ga aniq, tuzilgan (structured) JSON javob qaytarishni MAJBUR qilish
+// uchun tool-use (function calling) ishlatiladi — bu erkin matn ichidan JSON
+// "ushlashga" harakat qilishdan (markdown bloklar, qo'shimcha izohlar bilan
+// buzilishi mumkin) ancha ishonchli.
+const CLASSIFY_TOOL = {
+  name: 'classify_message',
+  description: "Classify a message from an Uzbek city group chat for a local directory bot.",
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      intent: {
+        type: 'string',
+        enum: ['CONTACT', 'SERVICE', 'HOURS', 'LOCATION', 'PRICE', 'EMERGENCY', 'NOT_RELEVANT'],
+      },
+      object_type: {
+        type: ['string', 'null'],
+        enum: ['USTA', 'DOKON', 'MUASSASA', 'TRANSPORT', null],
+      },
+      category: { type: ['string', 'null'], description: 'lowercase Latin, normalized' },
+      name: { type: ['string', 'null'], description: 'person or place name' },
+      landmark: { type: ['string', 'null'], description: 'landmark as the person said it' },
+      urgency: { type: 'string', enum: ['low', 'medium', 'high'] },
+      confidence: { type: 'number' },
+    },
+    required: ['intent', 'urgency', 'confidence'],
+  },
+};
+
 /**
- * Gemini'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
- * (tarmoq xatosi, vaqt tugashi, HTTP xato, yoki JSON parslanmasa) — sababini
- * LOGGA yozib, `data: null` qaytaradi (avval HTTP-xato holatida hech narsa
- * loglanmas edi, shu sabab guruhda nima uchun javob kelmayotgani
- * ko'rinmas edi).
+ * Claude'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
+ * (tarmoq xatosi, vaqt tugashi, HTTP xato) — sababini LOGGA yozib, `data:
+ * null` qaytaradi (guruhda nima uchun javob kelmayotgani ko'rinishi uchun).
  */
-async function callGeminiClassifier(
+async function callClaudeClassifier(
   cleanText: string,
-  geminiKey: string,
+  claudeKey: string,
   timeoutMs: number
-): Promise<GeminiCallOutcome> {
+): Promise<ClaudeCallOutcome> {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${classifierPrompt}\n\nINPUT: "${cleanText}"` }] }],
-          generationConfig: { responseMimeType: 'application/json' },
-        }),
-        signal: abortController.signal,
-      }
-    );
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': claudeKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system: classifierPrompt,
+        messages: [{ role: 'user', content: `INPUT: "${cleanText}"` }],
+        tools: [CLASSIFY_TOOL],
+        tool_choice: { type: 'tool', name: 'classify_message' },
+      }),
+      signal: abortController.signal,
+    });
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
-      console.warn(`⚠️ Gemini HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
+      console.warn(`⚠️ Claude HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
       return { data: null, rateLimited: response.status === 429 };
     }
 
     const json = await response.json();
-    const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawOutput) {
-      console.warn('⚠️ Gemini javobida matn topilmadi:', JSON.stringify(json).slice(0, 200));
+    const toolUse = json.content?.find((block: any) => block.type === 'tool_use');
+    if (!toolUse || !toolUse.input) {
+      console.warn('⚠️ Claude javobida tool_use topilmadi:', JSON.stringify(json).slice(0, 200));
       return { data: null, rateLimited: false };
     }
 
-    const parsed = JSON.parse(rawOutput);
+    const parsed = toolUse.input;
     return {
       data: {
         intent: parsed.intent as IntentType,
-        object_type: parsed.object_type as ListingObjectType | null,
+        object_type: (parsed.object_type || null) as ListingObjectType | null,
         category: parsed.category || null,
         name: parsed.name || null,
         landmark: parsed.landmark || null,
@@ -168,7 +194,7 @@ async function callGeminiClassifier(
       rateLimited: false,
     };
   } catch (e: any) {
-    console.warn(`⚠️ Gemini so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
+    console.warn(`⚠️ Claude so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
     return { data: null, rateLimited: false };
   } finally {
     clearTimeout(timeout);
@@ -178,11 +204,11 @@ async function callGeminiClassifier(
 /**
  * Yozilish xatolariga chidamli (fuzzy) kasb moslashtirish — faqat aniq
  * ("contains") qidiruv (matchCategoryFromText) hech narsa topmagandagina
- * ishga tushadi. Gemini RPM chegarasi sababli tez-tez band bo'lganda,
- * fallback klassifikator yagona himoya bo'lib qoladi — shu sabab u ham
- * oddiy yozilish xatolariga (masalan "santehnik" -> "Santexnik") chidamli
- * bo'lishi kerak, aks holda ko'plab haqiqiy so'rovlar sukut saqlab qolar
- * edi. searchEngine.ts'dagi fuzzyFindCategory bilan bir xil mantiq.
+ * ishga tushadi. Claude band/limitlangan bo'lganda, fallback klassifikator
+ * yagona himoya bo'lib qoladi — shu sabab u ham oddiy yozilish xatolariga
+ * (masalan "santehnik" -> "Santexnik") chidamli bo'lishi kerak, aks holda
+ * ko'plab haqiqiy so'rovlar sukut saqlab qolar edi. searchEngine.ts'dagi
+ * fuzzyFindCategory bilan bir xil mantiq.
  */
 function fuzzyMatchCategoryFromText(normalizedText: string): { canonicalName: string; objectType: string | null } | null {
   const words = normalizedText.replace(/[-']/g, '').split(/\s+/).filter((w) => w.length >= 3);
@@ -236,6 +262,23 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
     };
   }
 
+  // "Menda X bor" / "menda bor X" — bu SPEAKERning O'ZI haqidagi bayonot
+  // ("mening X bor-yo'qligim"), so'rov emas. Masalan "menda labo bor" degan
+  // xabarni bot xato ravishda "labo kerak" degandek talqin qilib, haydovchi
+  // raqamini bervorishi mumkin edi — bu xato. Bunday bayonot aniqlansa,
+  // butun xabar darhol NOT_RELEVANT deb belgilanadi.
+  const isFirstPersonPossession = /\bmen(da|ing)\b[^.!?]{0,15}\bbor\b/.test(normalized);
+  if (isFirstPersonPossession) {
+    return {
+      intent: IntentType.NOT_RELEVANT,
+      object_type: null,
+      category: null,
+      name: null,
+      landmark: null,
+      confidence: 0.9,
+    };
+  }
+
   let intent: IntentType = IntentType.NOT_RELEVANT;
   let objectType: ListingObjectType | null = null;
   let category: string | null = null;
@@ -245,7 +288,7 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
 
   // Category matching — 7 ta qattiq kodlangan so'z emas, balki BUTUN lug'at
   // (76+ kasb/soha va ularning sinonimlari) bo'yicha qidiradi. Shu orqali
-  // Gemini ishlamay qolganda ham (tarmoq xatosi/timeout) bot "ko'r" bo'lib
+  // Claude ishlamay qolganda ham (tarmoq xatosi/timeout) bot "ko'r" bo'lib
   // qolmaydi — barcha ma'lum kasblarni tanib oladi.
   const dictMatch = matchCategoryFromText(normalized) || fuzzyMatchCategoryFromText(normalized);
   if (dictMatch) {
@@ -287,10 +330,10 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
   // NOT_RELEVANT qoldiriladi. Avval bu yerda qolgan har qanday matn
   // (umumiy so'zlar olib tashlangandan keyingi qoldiq) o'zboshimchalik bilan
   // "category" sifatida ishlatilib, SERVICE intent va 0.85 ishonchlilik
-  // bilan majburan qaytarilardi — bu Gemini ishlamay qolganda (tarmoq xatosi)
-  // har qanday aloqasiz gapga (masalan "Raduga tomonlar tinchmi?") xato
-  // javob berish xavfini oshirar edi. Endi faqat LUG'ATDA HAQIQATDA mavjud
-  // kasb/soha aniqlangandagina (dictMatch) SERVICE deb hisoblanadi.
+  // bilan majburan qaytarilardi — bu Claude ishlamay qolganda (tarmoq xatosi)
+  // har qanday aloqasiz gapga xato javob berish xavfini oshirar edi. Endi
+  // faqat LUG'ATDA HAQIQATDA mavjud kasb/soha aniqlangandagina (dictMatch)
+  // SERVICE deb hisoblanadi.
   if (intent === IntentType.NOT_RELEVANT && !category && !name && !landmark) {
     confidence = 0.35;
   }
