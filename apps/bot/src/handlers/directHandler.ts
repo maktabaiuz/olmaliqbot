@@ -359,12 +359,15 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     const newKeyboard = new InlineKeyboard();
     const remaining = state.compactLines.length - state.revealed;
     if (remaining > 0) {
-      newKeyboard.text(`Yana ${remaining} tasini ko'rish`, `more_${listingId}`).row();
+      newKeyboard.text(`Yana ${remaining} tasini ko'rish`, `more_${listingId}`).success().row();
     }
     for (const row of otherRows) {
       for (const btn of row) {
+        // Rangni (style) ham saqlab qolamiz — aks holda tahrirlangan
+        // xabarda tugma yashil/qizil rangini yo'qotib qo'yardi.
         if (btn.url) newKeyboard.url(btn.text, btn.url);
         else if (btn.callback_data) newKeyboard.text(btn.text, btn.callback_data);
+        if (btn.style) newKeyboard.style(btn.style);
       }
       newKeyboard.row();
     }

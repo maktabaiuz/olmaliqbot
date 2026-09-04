@@ -145,12 +145,48 @@ export interface FormattedListingResult {
 const MAX_RANKED_RESULTS = 7;
 const RANK_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣'];
 
-function formatRankedLine(item: any, rank: number, bayesianRating: number): string {
+/**
+ * Bitta yozuv uchun to'liq "karta" (native Telegram <blockquote>) matnini
+ * quradi. `rank` berilsa (2-7 o'rinlar uchun), karta oldiga raqam-emoji
+ * qo'yiladi — "Yana ko'rish" orqali qo'shiladigan har bir yozuv ham 1-o'rin
+ * bilan BIR XIL uslubda ko'rinishi uchun (foydalanuvchining aniq so'ragani).
+ */
+function buildListingCard(item: any, bayesianRating: number, rank: number | null): string {
   const verifiedIcon = item.verification === 'VERIFIED' ? '✅' : '⚠️';
   const landmarkText = item.primaryLandmark?.name || '';
-  const rankLabel = RANK_EMOJI[rank - 1] || `${rank}.`;
-  const landmarkPart = landmarkText ? ` · 📍 ${escapeHtml(landmarkText)}` : '';
-  return `${rankLabel} <b>${escapeHtml(item.name)}</b> ${verifiedIcon} ⭐${bayesianRating.toFixed(1)}${landmarkPart}\n     📞 <code>${escapeHtml(item.phone)}</code>`;
+
+  const badgesText = Array.isArray(item.badges) && item.badges.length > 0
+    ? item.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
+    : '';
+
+  const cardLines: string[] = [];
+  cardLines.push(`<b>${escapeHtml(item.name)}</b> ${verifiedIcon} ⭐${bayesianRating.toFixed(1)}`);
+
+  if (landmarkText) {
+    if (item.primaryLandmark?.latitude && item.primaryLandmark?.longitude) {
+      const mapUrl = `https://yandex.uz/maps/?pt=${item.primaryLandmark.longitude},${item.primaryLandmark.latitude}&z=16&l=map`;
+      cardLines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a>`);
+    } else {
+      cardLines.push(`📍 ${escapeHtml(landmarkText)}`);
+    }
+  }
+
+  if (item.workFrom && item.workTo) {
+    if (item.workFrom === '00:00' && (item.workTo === '24:00' || item.workTo === '23:59')) {
+      cardLines.push(`🕐 24/7 (Tunu-kun)`);
+    } else {
+      cardLines.push(`🕐 ${item.workFrom}–${item.workTo}`);
+    }
+  }
+
+  if (badgesText) cardLines.push(`🏷 ${escapeHtml(badgesText)}`);
+  if (item.specificServices) cardLines.push(`🛠 ${escapeHtml(item.specificServices)}`);
+  if (item.approxPrice) cardLines.push(`💵 ${escapeHtml(item.approxPrice)}`);
+  cardLines.push('');
+  cardLines.push(`📞 <code>${escapeHtml(item.phone)}</code>`);
+
+  const rankPrefix = rank ? `${RANK_EMOJI[rank - 1] || `${rank}.`} ` : '';
+  return `${rankPrefix}<blockquote>${cardLines.join('\n')}</blockquote>`;
 }
 
 /**
@@ -429,46 +465,16 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     ? bestMatch.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
     : '';
 
-  // Telegram HTML endi <blockquote>ni qo'llab-quvvatlaydi — bu haqiqiy,
-  // Telegram'ning o'zi chizadigan chap chiziqli blok, klaviaturaga mos
-  // proportsional shriftda ham HAR DOIM to'g'ri ko'rinadi. Avvalgi g'oya
-  // (qo'lda chizilgan ASCII quti, masalan ┌───┐) proportsional shriftda
-  // qiyalik/tekislanmaslikka olib kelardi — shu sabab professional yechim
-  // sifatida qutini emas, native blockquote'ni ishlatamiz: "karta" hissi
-  // beradi, lekin hech qachon buzilib ko'rinmaydi.
-  const cardLines: string[] = [];
-  cardLines.push(`<b>${escapeHtml(bestMatch.name)}</b> ${verifiedIcon} ⭐${bestBayesianRating.toFixed(1)}`);
-
-  if (landmarkText) {
-    if (bestMatch.primaryLandmark?.latitude && bestMatch.primaryLandmark?.longitude) {
-      const mapUrl = `https://yandex.uz/maps/?pt=${bestMatch.primaryLandmark.longitude},${bestMatch.primaryLandmark.latitude}&z=16&l=map`;
-      cardLines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a>`);
-    } else {
-      cardLines.push(`📍 ${escapeHtml(landmarkText)}`);
-    }
-  }
-
-  if (bestMatch.workFrom && bestMatch.workTo) {
-    if (bestMatch.workFrom === '00:00' && (bestMatch.workTo === '24:00' || bestMatch.workTo === '23:59')) {
-      cardLines.push(`🕐 24/7 (Tunu-kun)`);
-    } else {
-      cardLines.push(`🕐 ${bestMatch.workFrom}–${bestMatch.workTo}`);
-    }
-  }
-
-  if (badgesText) cardLines.push(`🏷 ${escapeHtml(badgesText)}`);
-  if (bestMatch.specificServices) cardLines.push(`🛠 ${escapeHtml(bestMatch.specificServices)}`);
-  if (bestMatch.approxPrice) cardLines.push(`💵 ${escapeHtml(bestMatch.approxPrice)}`);
-  cardLines.push('');
-  cardLines.push(`📞 <code>${escapeHtml(bestMatch.phone)}</code>`);
-
   const formattedText =
     `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
-    `<blockquote>${cardLines.join('\n')}</blockquote>`;
+    buildListingCard(bestMatch, bestBayesianRating, null);
 
-  // 2-7 o'rinlar uchun kompakt qatorlar — "Yana ko'rish" bosilganda
-  // BITTADAN qo'shib ko'rsatish uchun (1-o'rin formattedText'da allaqachon bor)
-  const compactLines = rankedTop.slice(1).map((s, i) => formatRankedLine(s.listing, i + 2, s.bayesianRating));
+  // 2-7 o'rinlar uchun ham 1-o'rin bilan BIR XIL "karta" uslubi (blockquote) —
+  // avval faqat qisqa bitta qatorli formatRankedLine ishlatilgan edi, lekin
+  // foydalanuvchi "Yana ko'rish" orqali chiqadigan qolganlar ham birinchi
+  // javobga o'xshash bo'lishini so'radi. "Yana ko'rish" bosilganda BITTADAN
+  // qo'shib ko'rsatish uchun (1-o'rin formattedText'da allaqachon bor).
+  const compactLines = rankedTop.slice(1).map((s, i) => buildListingCard(s.listing, s.bayesianRating, i + 2));
 
   const executionTimeMs = Date.now() - startTime;
 
