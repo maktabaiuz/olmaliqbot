@@ -707,6 +707,22 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, updatedCategory: category.name, addedSynonym: normSyn };
   });
 
+  // Klasterni "yopish" — avval bu faqat brauzerda (client-side) yashirilardi,
+  // sahifani yangilasangiz qaytib chiqardi. Endi haqiqatan QueryLog
+  // yozuvlarini isResolved=true qilib belgilaydi — shu bilan Dashboard'dagi
+  // "Javobsiz" hisobi ham to'g'ri kamayadi.
+  fastify.post('/admin/requests/dismiss', async (req: any, reply) => {
+    const { queryLogIds } = req.body;
+    if (!Array.isArray(queryLogIds) || queryLogIds.length === 0) {
+      return reply.status(400).send({ success: false, message: 'queryLogIds massiv bo\'lishi kerak' });
+    }
+    await db.queryLog.updateMany({
+      where: { id: { in: queryLogIds } },
+      data: { isResolved: true },
+    });
+    return { success: true, dismissedCount: queryLogIds.length };
+  });
+
   // --- 5. CATEGORIES & LANDMARKS ---
   fastify.get('/admin/categories', async (req: any, reply) => {
     const { search, objectType } = req.query as { search?: string; objectType?: string };

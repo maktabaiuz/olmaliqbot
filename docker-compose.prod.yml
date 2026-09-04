@@ -48,7 +48,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-kimbor}:${POSTGRES_PASSWORD:-kimbor_sec_pass_2026}@postgres:5432/${POSTGRES_DB:-kimbor_db}?schema=public
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       postgres:

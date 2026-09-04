@@ -12,6 +12,7 @@ export interface UnresolvedCluster {
   matchedCategoryId?: string;
   isStale?: boolean;
   timeAgo?: string;
+  queryLogIds?: string[];
 }
 
 export interface RequestsScreenProps {
@@ -76,15 +77,35 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
       if (res.ok) {
         alert(`"${cluster.canonicalName}" so'zi "${cluster.matchedCategoryName}" kategoriyasiga sinonim bo'lib bog'landi! ✅`);
         setClusters(clusters.filter((c) => c.id !== cluster.id));
+        if (cluster.queryLogIds) dismissQueryLogIds(cluster.queryLogIds);
       }
     } catch (err) {
       console.error("Bind synonym error:", err);
     }
   };
 
+  // Klasterdagi QueryLog yozuvlarini haqiqatan isResolved=true qilib
+  // belgilaydi — avval bu faqat brauzerda yashirilardi, sahifa
+  // yangilansa qaytib chiqardi.
+  const dismissQueryLogIds = async (queryLogIds: string[]) => {
+    if (queryLogIds.length === 0) return;
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      await fetch('/api/admin/requests/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ queryLogIds }),
+      });
+    } catch (err) {
+      console.error('Failed to dismiss cluster:', err);
+    }
+  };
+
   // Close Single Cluster Card (✕)
   const handleDismissCluster = (id: string) => {
+    const cluster = clusters.find((c) => c.id === id);
     setClusters(clusters.filter((c) => c.id !== id));
+    if (cluster?.queryLogIds) dismissQueryLogIds(cluster.queryLogIds);
   };
 
   // Toggle Selection for Multi-select
@@ -98,9 +119,13 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
 
   // Batch Close Selected Items
   const handleBatchClose = () => {
+    const idsToDismiss = clusters
+      .filter((c) => selectedIds.includes(c.id))
+      .flatMap((c) => c.queryLogIds || []);
     setClusters(clusters.filter((c) => !selectedIds.includes(c.id)));
     setSelectedIds([]);
     setIsMultiSelectMode(false);
+    dismissQueryLogIds(idsToDismiss);
   };
 
   const filteredClusters = clusters.filter((c) => {
