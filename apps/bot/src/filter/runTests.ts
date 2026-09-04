@@ -1,6 +1,6 @@
 import { zeroLayerFilter } from './zeroLayerFilter';
 import { fallbackRuleClassification } from './aiClassifier';
-import { normalizeText } from '@kimbor/core';
+import { normalizeText, isSelfOffer } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 
 let totalTests = 0;
@@ -184,6 +184,42 @@ lowConfCases.forEach((text) => {
     `Confidence: ${res.confidence}`
   );
 });
+
+
+console.log('\n--- 5. E\'lon vs so\'rov (labo) ---');
+
+(
+  [
+    ['menga labo kerak', false],
+    ['lobo bormi', false],
+    ['labo nomeri kerak', false],
+    ['menda labo bor ish bolsa', true],
+    ['ertalab laboda yolga chiqaman kimda yuk bor', true],
+    ['taksi kerak bolsa menga yozing', true],
+    ['menda taksi bor', true],
+  ] as [string, boolean][]
+).forEach(([text, offer]) => {
+  assert(
+    `isSelfOffer("${text}") === ${offer}`,
+    isSelfOffer(text) === offer
+  );
+});
+
+assert(
+  'fallback: menga labo kerak -> SERVICE',
+  fallbackRuleClassification(normalizeText('menga labo kerak'), 'menga labo kerak').intent === IntentType.SERVICE
+);
+assert(
+  'fallback: menda labo bor ish bolsa -> NOT_RELEVANT',
+  fallbackRuleClassification(normalizeText('menda labo bor ish bolsa'), 'menda labo bor ish bolsa').intent === IntentType.NOT_RELEVANT
+);
+assert(
+  'fallback: ertalab laboda yolga chiqaman kimda yuk bor -> NOT_RELEVANT',
+  fallbackRuleClassification(
+    normalizeText('ertalab laboda yolga chiqaman kimda yuk bor'),
+    'ertalab laboda yolga chiqaman kimda yuk bor'
+  ).intent === IntentType.NOT_RELEVANT
+);
 
 console.log('\n======================================================');
 console.log(`📊 TEST YAKUNI: Jami: ${totalTests} | ✅ O'tdi: ${passedTests} | ❌ Xato: ${failedTests}`);

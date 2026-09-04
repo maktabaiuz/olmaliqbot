@@ -1,4 +1,4 @@
-import { INITIAL_DICTIONARY, normalizeText } from '@kimbor/core';
+import { INITIAL_DICTIONARY, normalizeText, containsWholeWord } from '@kimbor/core';
 
 // 0-Qavat Filtr: Kod bo'yicha bepul va tezkor filtr (AI so'rovisiz).
 // 90% keraksiz guruh suhbatlarini AI'ga yubormay tashlab yuboradi (return false).
@@ -46,26 +46,6 @@ INITIAL_DICTIONARY.categories.forEach((cat) => {
     TRADE_KEYWORDS.push(normalizeText(syn));
   });
 });
-
-// Oddiy "includes" substring qidiruvi qisqa so'zlarda tasodifiy mos kelib
-// qolishi mumkin — masalan "дым" (tutun) normalize qilinganda "dim" bo'lib,
-// juda keng tarqalgan o'zbekcha fe'l qo'shimchasi "-dim" ("qildim", "bordim",
-// "keldim") ichida tasodifan topilib qolgan edi. Shu sabab favqulodda va
-// savol so'zlari endi FAQAT MUSTAQIL SO'Z sifatida (chap-o'ng tomonida harf
-// bo'lmaganda) hisoblanadi.
-function containsWholeWord(haystack: string, needle: string): boolean {
-  if (!needle) return false;
-  let fromIndex = 0;
-  const isWordChar = (c: string | undefined) => !!c && /[a-z0-9']/i.test(c);
-  while (true) {
-    const idx = haystack.indexOf(needle, fromIndex);
-    if (idx === -1) return false;
-    const before = idx === 0 ? undefined : haystack[idx - 1];
-    const after = haystack[idx + needle.length];
-    if (!isWordChar(before) && !isWordChar(after)) return true;
-    fromIndex = idx + 1;
-  }
-}
 
 /**
  * 0-Qavat Filtr funksiyasi.

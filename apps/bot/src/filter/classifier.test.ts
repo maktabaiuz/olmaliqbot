@@ -1,5 +1,6 @@
 import { zeroLayerFilter } from './zeroLayerFilter';
 import { fallbackRuleClassification } from './aiClassifier';
+import { isSelfOffer } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 
 describe('0-QAVAT: Kalit so\'z va Pattern filtri (0-Layer Filter)', () => {
@@ -135,5 +136,30 @@ describe('1-QAVAT: 35 ta Real Savol Misolida AI Klassifikator Sinovi', () => {
   it('23. aka o\'sha odamni raqamini tashlang -> confidence < 0.7', () => {
     const res = fallbackRuleClassification('aka o\'sha odamni raqamini tashlang', 'aka o\'sha odamni raqamini tashlang');
     expect(res.confidence).toBeLessThan(0.7);
+  });
+});
+
+describe("E'lon vs so'rov (labo va umuman)", () => {
+  it('menga labo kerak / lobo bormi — so\'rov', () => {
+    expect(isSelfOffer('menga labo kerak')).toBe(false);
+    expect(isSelfOffer('lobo bormi')).toBe(false);
+    expect(isSelfOffer('labo nomeri kerak')).toBe(false);
+    const a = fallbackRuleClassification('menga labo kerak', 'menga labo kerak');
+    expect(a.intent).toBe(IntentType.SERVICE);
+    const b = fallbackRuleClassification('lobo bormi', 'lobo bormi');
+    expect(b.intent).toBe(IntentType.SERVICE);
+  });
+
+  it('menda labo bor / yo\'lga chiqaman — e\'lon', () => {
+    expect(isSelfOffer('menda labo bor ish bolsa')).toBe(true);
+    expect(isSelfOffer('ertalab laboda yolga chiqaman kimda yuk bor')).toBe(true);
+    expect(isSelfOffer('menda taksi bor ish bolsa')).toBe(true);
+    const a = fallbackRuleClassification('menda labo bor ish bolsa', 'menda labo bor ish bolsa');
+    expect(a.intent).toBe(IntentType.NOT_RELEVANT);
+    const b = fallbackRuleClassification(
+      'ertalab laboda yolga chiqaman kimda yuk bor',
+      'ertalab laboda yolga chiqaman kimda yuk bor'
+    );
+    expect(b.intent).toBe(IntentType.NOT_RELEVANT);
   });
 });

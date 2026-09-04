@@ -65,16 +65,24 @@ message is asking about a LOCAL TRADE/SHOP/SERVICE/PLACE/TRANSPORT.
   dishonest score is not.
 
 OFFERS AND ADS ARE NOT REQUESTS
-Some messages are the SPEAKER advertising themselves, or coordinating on
-behalf of other people — not asking YOU to find them anything. Watch for
-"whoever/if you need X, message/call me" phrasing (e.g. "taksi kerak bo'lsa
-menga yozing", "kimga kerak bo'lsa qo'ng'iroq qiling", "menga yozing"). These
-are THIRD-PERSON OFFERS aimed at other humans in the group chat, not a
-request addressed to you — always return NOT_RELEVANT for them, even though
-they contain a service word like "taksi" or "kerak". A genuine request
-speaks from the asker's own need ("taksi kerak", "santexnik kerak edi"); an
-offer tells others where to go for it ("... kerak bo'lsa menga/bizga
-yozing/qo'ng'iroq qiling").
+Some messages contain a trade/vehicle word (labo, taksi, gazavik) but the
+speaker is NOT looking for one — they HAVE one and want work, cargo, or
+customers. Always return NOT_RELEVANT for those, even if a category is
+obvious. The directory bot only answers people who are SEEKING a listing.
+
+SEEKER (SERVICE / CONTACT / HOURS / LOCATION / PRICE):
+- "menga labo kerak", "lobo bormi", "labo nomeri kerak"
+- "taksi kerak", "santexnik kerak edi", "gazavik bormi"
+
+OFFERER (always NOT_RELEVANT — do not extract category as a request):
+- First-person possession: "menda labo bor", "menda labo bor ish bo'lsa"
+- Speaker is going with their own vehicle: "ertalab laboda yo'lga chiqaman"
+- Speaker wants cargo/work, not a vehicle: "kimda yuk bor", "ish bo'lsa"
+- Ads: "taksi kerak bo'lsa menga yozing", "kimga kerak bo'lsa qo'ng'iroq qiling"
+
+A genuine request speaks from the asker's own need. An offer advertises
+the speaker's own capacity. When both a vehicle word and "menda ... bor"
+or "yo'lga chiqaman" appear, it is an OFFER.
 
 A PLACE NAME ALONE IS NOT A REQUEST
 Mentioning a landmark, neighborhood, or place name is not, by itself,
@@ -159,6 +167,22 @@ EXAMPLES
 "olmaliqdan bron joyga taksi kerak bo'lsa menga yozing"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
  "landmark":null,"urgency":"low","confidence":0.9}
+
+"menga labo kerak"
+{"intent":"SERVICE","object_type":"TRANSPORT","category":"labo","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.95}
+
+"lobo bormi"
+{"intent":"SERVICE","object_type":"TRANSPORT","category":"labo","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.93}
+
+"menda labo bor ish bolsa"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.96}
+
+"ertalab laboda yolga chiqaman kimda yuk bor"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.96}
 
 "akalar raduga kosmos tomonlar tinchmi?"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,

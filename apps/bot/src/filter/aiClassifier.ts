@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
@@ -262,20 +262,20 @@ export function fallbackRuleClassification(normalized: string, rawText: string):
     };
   }
 
-  // "Menda X bor" / "menda bor X" — bu SPEAKERning O'ZI haqidagi bayonot
-  // ("mening X bor-yo'qligim"), so'rov emas. Masalan "menda labo bor" degan
-  // xabarni bot xato ravishda "labo kerak" degandek talqin qilib, haydovchi
-  // raqamini bervorishi mumkin edi — bu xato. Bunday bayonot aniqlansa,
-  // butun xabar darhol NOT_RELEVANT deb belgilanadi.
-  const isFirstPersonPossession = /\bmen(da|ing)\b[^.!?]{0,15}\bbor\b/.test(normalized);
-  if (isFirstPersonPossession) {
+  // E'lon: "menda labo bor", "yo'lga chiqaman kimda yuk bor" — lug'atdagi
+  // kasb so'zi bo'lsa ham so'rov emas. Claude yo'qida ham (fallback rejimda)
+  // shu qat'iy qoida saqlanadi — isSelfOffer @kimbor/core'da bitta joyda
+  // ta'riflangan, groupHandler/directHandlerda ham xuddi shu funksiya orqali
+  // AI javobidan qat'i nazar qattiq to'xtatiladi (bu yerda esa faqat Claude
+  // ishlamay qolganda fallback matn-asosli klassifikatorni ham himoya qiladi).
+  if (isSelfOffer(rawText) || isSelfOffer(normalized)) {
     return {
       intent: IntentType.NOT_RELEVANT,
       object_type: null,
       category: null,
       name: null,
       landmark: null,
-      confidence: 0.9,
+      confidence: 0.95,
     };
   }
 

@@ -1,5 +1,5 @@
 import initialDictionaryData from './initialDictionary.json';
-import { normalizeText, levenshteinDistance } from '../transliteration';
+import { normalizeText, levenshteinDistance, containsWholeWord } from '../transliteration';
 
 export interface CategorySeed {
   id: string;
@@ -133,7 +133,7 @@ export function matchCategoryFromText(normalizedText: string): CategoryTextMatch
   const patterns = getSortedCategoryPatterns();
   for (const { pattern, canonicalName, objectType } of patterns) {
     if (pattern.length < 3) continue; // juda qisqa so'zlar noto'g'ri mos kelib qolmasligi uchun
-    if (normalizedText.includes(pattern)) {
+    if (containsWholeWord(normalizedText, pattern)) {
       return { canonicalName, objectType };
     }
   }
