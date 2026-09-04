@@ -14,7 +14,9 @@ export type EmergencyCategory =
   | 'water_pipe'
   | 'power_outage'
   | 'stuck_elevator'
-  | 'heating_issue';
+  | 'heating_issue'
+  | 'hot_water_outage'
+  | 'cold_water_outage';
 
 export interface EmergencyTemplateData {
   category: EmergencyCategory;

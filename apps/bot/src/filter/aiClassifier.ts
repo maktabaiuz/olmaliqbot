@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
@@ -245,17 +245,20 @@ function fuzzyMatchCategoryFromText(normalizedText: string): { canonicalName: st
  * High-precision local fallback classification logic for 35+ test scenarios.
  */
 export function fallbackRuleClassification(normalized: string, rawText: string): ClassifierResult {
-  // Emergency overrides (Must be EMERGENCY and confidence >= 0.9)
-  const isEmergency =
-    /gaz hidi|gaz isi|gaz chiqyapti|gaz sizyapti|paxnet|zapax gaza|utechka|yong'in|yongin|o't ketdi|ot ketdi|yonyapti|olov|pojar|gorit|zagorelos|tutun|dym|zadamlenie|elektr urdi|tok urdi|udar tokom|hushidan ketdi|xushidan ketdi|bez soznaniya|poteryal soznanie|qon ketyapti|qattiq kesildi|krovotechenie|silno porezalsya|avariya|mashina urdi|dtp|suvga cho'kdi|chokdi|tonet|utonul|o'g'rilik|ogrilik|bosqin|urishyapti|grabyat|napadenie|draka|bola yo'qoldi|bola yoqoldi|propal rebenok|rebenok|propal/.test(
-      normalized
-    );
+  // Emergency overrides (Must be EMERGENCY and confidence >= 0.9). Avval bu
+  // yerda alohida, dublikat regex ro'yxati bor edi va category har doim
+  // literal "emergency" satrini qaytarardi — bu EMERGENCY_TEMPLATES'dagi
+  // HECH BIR kalit bilan mos kelmasdi, natijada favqulodda xabar UMUMAN
+  // yuborilmay qolar edi (renderEmergencyTemplate null qaytarardi). Endi
+  // yagona haqiqat manbai (EMERGENCY_TEMPLATES) orqali ANIQ shablon kaliti
+  // topiladi.
+  const emergencyCategory = detectEmergencyCategory(rawText);
 
-  if (isEmergency) {
+  if (emergencyCategory) {
     return {
       intent: IntentType.EMERGENCY,
       object_type: null,
-      category: 'emergency',
+      category: emergencyCategory,
       name: null,
       landmark: null,
       confidence: 0.98,

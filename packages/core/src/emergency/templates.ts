@@ -5,7 +5,13 @@ export const EMERGENCY_TEMPLATES: Record<string, EmergencyTemplateData> = {
   gas_leak: {
     category: 'gas_leak',
     level: 1,
-    keywords: ['gaz hidi', 'gaz isi', 'gaz chiqyapti', 'gaz hidi kelyapti', 'газ пахнет', 'запах газа', 'утечка газа', 'gaz sizyapti'],
+    keywords: [
+      'gaz hidi', 'gaz isi', 'gaz chiqyapti', 'gaz hidi kelyapti', 'gaz sizyapti',
+      'газ пахнет', 'запах газа', 'утечка газа',
+      // Lotin harflarida yozilgan rus so'zlari — ko'p odamlar Kirillga
+      // o'tmasdan, rus so'zlarini shunchaki lotin harflarida yozadi
+      'pahnet gaz', 'pahnet gazom', 'zapax gaza', 'utechka gaza',
+    ],
     templates: {
       lotin: `🚨 GAZ HIDI — DARHOL:
 
@@ -62,7 +68,11 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   fire: {
     category: 'fire',
     level: 1,
-    keywords: ["yong'in", "o't ketdi", 'yonyapti', 'olov', 'пожар', 'горит', 'загорелось'],
+    keywords: [
+      "yong'in", 'yongin', "o't ketdi", 'ot ketdi', 'yonyapti', 'olov',
+      'пожар', 'горит', 'загорелось',
+      'pajar', 'gorit', 'zagorelos',
+    ],
     templates: {
       lotin: `🚨 YONG'IN — DARHOL:
 
@@ -110,7 +120,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   smoke: {
     category: 'smoke',
     level: 1,
-    keywords: ['tutun', 'tutun bosdi', 'nafas ololmayapman', 'дым', 'задымление'],
+    keywords: ['tutun', 'tutun bosdi', 'nafas ololmayapman', 'дым', 'задымление', 'dim bosdi', 'zadymlenie'],
     templates: {
       lotin: `🚨 TUTUN — DARHOL:
 
@@ -155,7 +165,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   electric_shock: {
     category: 'electric_shock',
     level: 1,
-    keywords: ['elektr urdi', 'tok urdi', 'elektrdan', 'током ударило', 'удар током'],
+    keywords: ['elektr urdi', 'tok urdi', 'elektrdan', 'током ударило', 'удар током', 'tokom udarilo', 'udar tokom'],
     templates: {
       lotin: `🚨 ELEKTR URDI — DARHOL:
 
@@ -200,7 +210,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   unconscious: {
     category: 'unconscious',
     level: 1,
-    keywords: ['hushidan ketdi', 'yiqilib tushdi', "uyg'onmayapti", 'без сознания', 'потерял сознание', 'упал'],
+    keywords: ['hushidan ketdi', 'yiqilib tushdi', "uyg'onmayapti", 'uygonmayapti', 'без сознания', 'потерял сознание', 'упал', 'bez soznaniya', 'poteryal soznanie'],
     templates: {
       lotin: `🚨 DARHOL 103 GA QO'NG'IROQ QILING
 
@@ -248,7 +258,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   bleeding: {
     category: 'bleeding',
     level: 1,
-    keywords: ['qon ketyapti', 'qattiq kesildi', "qon to'xtamayapti", 'кровь', 'сильно порезался', 'кровотечение'],
+    keywords: ['qon ketyapti', 'qattiq kesildi', "qon to'xtamayapti", 'qon toxtamayapti', 'кровь', 'сильно порезался', 'кровотечение', 'silno porezalsya', 'krovotechenie'],
     templates: {
       lotin: `🚨 DARHOL 103 GA QO'NG'IROQ QILING
 
@@ -293,7 +303,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   accident: {
     category: 'accident',
     level: 1,
-    keywords: ['avariya', 'mashina urdi', "to'qnashdi", 'авария', 'дтп', 'сбила машина'],
+    keywords: ['avariya', 'mashina urdi', "to'qnashdi", 'toqnashdi', 'авария', 'дтп', 'сбила машина', 'dtp', 'sbila mashina'],
     templates: {
       lotin: `🚨 AVARIYA — DARHOL:
 
@@ -338,7 +348,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   drowning: {
     category: 'drowning',
     level: 1,
-    keywords: ['suvga tushdi', "cho'kyapti", 'тонет', 'утонул'],
+    keywords: ['suvga tushdi', "cho'kyapti", 'chokyapti', 'тонет', 'утонул', 'tonet', 'utonul'],
     templates: {
       lotin: `🚨 DARHOL 103 VA 112 GA QO'NG'IROQ QILING
 
@@ -377,7 +387,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   crime: {
     category: 'crime',
     level: 1,
-    keywords: ["o'g'irlik", 'bosqin', 'urishyapti', 'kaltaklashyapti', 'qurol', 'грабят', 'нападение', 'драка'],
+    keywords: ["o'g'irlik", 'ogirlik', 'bosqin', 'urishyapti', 'kaltaklashyapti', 'qurol', 'грабят', 'нападение', 'драка', 'grabyat', 'napadenie', 'draka'],
     templates: {
       lotin: `🚨 DARHOL 102 GA QO'NG'IROQ QILING
 
@@ -419,7 +429,7 @@ Usta emas — avval avariya xizmatini chaqiring.`,
   missing_child: {
     category: 'missing_child',
     level: 1,
-    keywords: ['bola yo\'qoldi', 'bola topilmayapti', 'ребенок потерялся', 'пропал ребенок'],
+    keywords: ['bola yo\'qoldi', 'bola yoqoldi', 'bola topilmayapti', 'ребенок потерялся', 'пропал ребенок', 'propal rebenok'],
     templates: {
       lotin: `🚨 DARHOL 102 GA QO'NG'IROQ QILING
 
@@ -461,7 +471,7 @@ Kutmang. "O'zi kelib qolar" deb o'ylamang — birinchi soatlar eng muhim.
   water_pipe: {
     category: 'water_pipe',
     level: 2,
-    keywords: ['quvur yorildi', 'suv oqyapti', 'suv bosdi', 'труба прорвало', 'затопило'],
+    keywords: ['quvur yorildi', 'suv oqyapti', 'suv bosdi', 'труба прорвало', 'затопило', 'trubu prorvalo', 'zatopilo'],
     templates: {
       lotin: `💧 SUV AVARIYASI
 
@@ -500,7 +510,7 @@ Keyin ta'mirlash uchun:
   power_outage: {
     category: 'power_outage',
     level: 2,
-    keywords: ['svet yo\'q', 'elektr yo\'q', 'tok yo\'q', 'света нет', 'отключили свет'],
+    keywords: ['svet yo\'q', 'svet yoq', 'elektr yo\'q', 'elektr yoq', 'tok yo\'q', 'tok yoq', 'света нет', 'отключили свет', 'sveta net', 'otklyuchili svet'],
     templates: {
       lotin: `⚡ ELEKTR YO'Q
 
@@ -578,7 +588,7 @@ Faqat sizda bo'lsa, elektrik kerak:
   heating_issue: {
     category: 'heating_issue',
     level: 2,
-    keywords: ['isitish yo\'q', 'batareya sovuq', 'отопления нет', 'батареи холодные'],
+    keywords: ['isitish yo\'q', 'isitish yoq', 'batareya sovuq', 'batareyalar sovuq', 'отопления нет', 'батареи холодные', 'otopleniya net', 'batarei holodnie'],
     templates: {
       lotin: `🔥 ISITISH YO'Q
 
@@ -597,6 +607,78 @@ Uy ichidagi muammo bo'lsa, usta kerak:
 {mahalliy_issiqlik}
 
 Если проблема внутри квартиры, нужен сантехник:
+{santexnik_royxati}`,
+    },
+  },
+
+  // 2.5 HOT WATER OUTAGE (LEVEL 2)
+  hot_water_outage: {
+    category: 'hot_water_outage',
+    level: 2,
+    keywords: [
+      "issiq suv yo'q", 'issiq suv yoq', 'issiq suv kelmayapti', 'issiq suv oqmayapti',
+      'горячей воды нет', 'горячую воду отключили', 'goryachey vodi net', 'goryachuyu vodu otklyuchili',
+    ],
+    templates: {
+      lotin: `🚿 ISSIQ SUV YO'Q
+
+✅ Qo'shnilarda ham yo'qmi — so'rang. Hammada yo'q bo'lsa, bu rejalashtirilgan uzilish yoki umumiy avariya bo'lishi mumkin
+
+{mahalliy_suv}
+
+Faqat sizda bo'lsa, usta kerak:
+{santexnik_royxati}`,
+      kirill: `🚿 ИССИҚ СУВ ЁҚ
+
+✅ Қўшниларда ҳам йўқми — сўранг. Ҳаммада йўқ бўлса, бу режалаштирилган узилиш ёки умумий авария бўлиши мумкин
+
+{mahalliy_suv}
+
+Фақат сизда бўлса, уста керак:
+{santexnik_royxati}`,
+      rus: `🚿 НЕТ ГОРЯЧЕЙ ВОДЫ
+
+✅ Спросите соседей. Если нет у всех — возможно плановое отключение или общая авария
+
+{mahalliy_suv}
+
+Если нет только у вас, нужен сантехник:
+{santexnik_royxati}`,
+    },
+  },
+
+  // 2.6 COLD WATER OUTAGE (LEVEL 2)
+  cold_water_outage: {
+    category: 'cold_water_outage',
+    level: 2,
+    keywords: [
+      "sovuq suv yo'q", 'sovuq suv yoq', 'sovuq suv kelmayapti', 'sovuq suv oqmayapti', 'suv umuman yoq',
+      'холодной воды нет', 'воды нет', 'holodnoy vodi net', 'vodi net',
+    ],
+    templates: {
+      lotin: `🚱 SUV YO'Q
+
+✅ Qo'shnilarda ham yo'qmi — so'rang. Hammada yo'q bo'lsa, bu umumiy suv uzilishi
+
+{mahalliy_suv}
+
+Faqat sizning kvartirangizda bo'lsa, usta kerak:
+{santexnik_royxati}`,
+      kirill: `🚱 СУВ ЁҚ
+
+✅ Қўшниларда ҳам йўқми — сўранг. Ҳаммада йўқ бўлса, бу умумий сув узилиши
+
+{mahalliy_suv}
+
+Фақат сизнинг квартирангизда бўлса, уста керак:
+{santexnik_royxati}`,
+      rus: `🚱 НЕТ ВОДЫ
+
+✅ Спросите соседей. Если нет у всех — это общее отключение воды
+
+{mahalliy_suv}
+
+Если нет только у вас в квартире, нужен сантехник:
 {santexnik_royxati}`,
     },
   },

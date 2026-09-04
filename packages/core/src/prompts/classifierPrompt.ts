@@ -110,6 +110,15 @@ If there is any sign of danger to life, return EMERGENCY with urgency "high"
 and confidence at least 0.9, even if the rest of the message is unclear.
 Never classify a possible emergency as anything else. When in doubt, EMERGENCY.
 
+When intent is EMERGENCY, "category" MUST be exactly one of these fixed
+keys — not a free-text guess. The wrong key means the safety instructions
+never get sent at all, so precision here matters:
+  gas_leak, fire, smoke, electric_shock, unconscious, bleeding, accident,
+  drowning, crime, missing_child, water_pipe, power_outage, stuck_elevator,
+  heating_issue, hot_water_outage, cold_water_outage
+If genuinely unsure which of these fits, pick the closest one — never
+invent a key outside this list (e.g. "gaz" or "emergency" are NOT valid).
+
 EXAMPLES
 
 "karzinka oldida gazavik bormi?"
@@ -129,8 +138,16 @@ EXAMPLES
  "landmark":"3-mavze","urgency":"high","confidence":0.93}
 
 "uyda gaz hidi kelyapti nima qilay"
-{"intent":"EMERGENCY","object_type":null,"category":"gaz","name":null,
+{"intent":"EMERGENCY","object_type":null,"category":"gas_leak","name":null,
  "landmark":null,"urgency":"high","confidence":0.97}
+
+"issiq suv necha kundan beri yo'q"
+{"intent":"EMERGENCY","object_type":null,"category":"hot_water_outage","name":null,
+ "landmark":null,"urgency":"low","confidence":0.85}
+
+"suv umuman kelmayapti kvartirada"
+{"intent":"EMERGENCY","object_type":null,"category":"cold_water_outage","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.87}
 
 "kafel yotqizadigan usta kerak edi, bozor orqasida"
 {"intent":"SERVICE","object_type":"USTA","category":"kafelchi","name":null,

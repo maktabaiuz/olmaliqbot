@@ -41,3 +41,34 @@ export async function getCommunityLabel(): Promise<string> {
   const label = await getAppSetting('community_label');
   return label || '📣 Kanal/Guruhga o\'tish';
 }
+
+/**
+ * Favqulodda xabarlarida ko'rsatiladigan MAHALLIY xizmat raqamlari —
+ * admin panelidan (Yana > Favqulodda raqamlar) sozlanadi. Milliy raqamlar
+ * (101, 102, 103, 104, 112) shablon matniga qattiq yozilgan — o'zgarmaydi,
+ * chunki ular butun O'zbekiston bo'yicha bir xil. Bu yerdagilar esa
+ * SHAHARGA XOS (gaz idorasi, suv ta'minoti va h.k.), shu sabab admin
+ * tomonidan kiritilishi kerak.
+ */
+export async function getEmergencyLocalNumbers(): Promise<{
+  mahalliy_gaz?: string;
+  mahalliy_suv?: string;
+  mahalliy_elektr?: string;
+  mahalliy_issiqlik?: string;
+  mahalliy_hokimiyat?: string;
+}> {
+  const [gaz, suv, elektr, issiqlik, hokimiyat] = await Promise.all([
+    getAppSetting('emergency_mahalliy_gaz'),
+    getAppSetting('emergency_mahalliy_suv'),
+    getAppSetting('emergency_mahalliy_elektr'),
+    getAppSetting('emergency_mahalliy_issiqlik'),
+    getAppSetting('emergency_mahalliy_hokimiyat'),
+  ]);
+  return {
+    mahalliy_gaz: gaz,
+    mahalliy_suv: suv,
+    mahalliy_elektr: elektr,
+    mahalliy_issiqlik: issiqlik,
+    mahalliy_hokimiyat: hokimiyat,
+  };
+}

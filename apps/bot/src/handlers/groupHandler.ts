@@ -1,11 +1,11 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, searchListings, isSelfOffer } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
-import { getCommunityUrl, getCommunityLabel } from '../settings/appSettings';
+import { getCommunityUrl, getCommunityLabel, getEmergencyLocalNumbers } from '../settings/appSettings';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -39,17 +39,31 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   }
 
   // 3. Handle 🚨 EMERGENCY Intent (Favqulodda xavfsizlik matni) — ishonchlilik
-  // darajasidan qat'i nazar tekshiriladi, chunki xavfsizlik ustuvor
+  // darajasidan qat'i nazar tekshiriladi, chunki xavfsizlik ustuvor.
+  //
+  // MUHIM (2026-09 tuzatildi): AI klassifikatorning "category" taxmini
+  // (masalan "gaz") ko'pincha shablon kalitiga ("gas_leak") mos kelmas edi
+  // — natijada renderEmergencyTemplate null qaytarib, HAQIQIY favqulodda
+  // xabarga BOT UMUMAN JAVOB BERMAY QOLAR EDI. Endi: (1) AI taxmini avval
+  // haqiqiy shablon kalitlariga solishtiriladi, (2) mos kelmasa xabar
+  // matnining o'zidan ANIQ kalit izlanadi (detectEmergencyCategory), (3)
+  // baribir topilmasa — SUKUT SAQLASH O'RNIGA umumiy xavfsizlik xabari
+  // yuboriladi (hayotga xavf bo'lganda jim turish xato bo'lardi).
   if (classification.intent === 'EMERGENCY') {
-    const category = classification.category || 'gas_leak';
-    const emergencyMessage = renderEmergencyTemplate(category, 'lotin');
+    const guessedCategory = classification.category || '';
+    const category = isValidEmergencyCategory(guessedCategory)
+      ? guessedCategory
+      : detectEmergencyCategory(messageText) || 'gas_leak';
 
-    if (emergencyMessage) {
-      // 1-darajali xabar: usta berilmaydi va O'CHMAYDI
-      await ctx.reply(emergencyMessage, {
-        reply_parameters: { message_id: ctx.message.message_id },
-      });
-    }
+    const localNumbers = await getEmergencyLocalNumbers();
+    const emergencyMessage =
+      renderEmergencyTemplate(category, 'lotin', localNumbers) ||
+      `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;
+
+    // 1-darajali xabar: usta berilmaydi va O'CHMAYDI
+    await ctx.reply(emergencyMessage, {
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
     return;
   }
 

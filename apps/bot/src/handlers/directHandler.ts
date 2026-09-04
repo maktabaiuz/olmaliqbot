@@ -1,10 +1,10 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
-import { getCommunityUrl, getCommunityLabel } from '../settings/appSettings';
+import { getCommunityUrl, getCommunityLabel, getEmergencyLocalNumbers } from '../settings/appSettings';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -196,7 +196,25 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   const dictMatch = matchCategoryFromText(normalizeText(messageText));
   const categoryGuess = classification.category || dictMatch?.canonicalName || null;
 
-  if (classification.intent !== 'EMERGENCY' && isSelfOffer(messageText)) {
+  // Favqulodda holat — shaxsiy chatda ham xuddi guruhdagidek darhol
+  // javob beriladi (avval bu yerda umuman ishlanmas edi, oddiy qidiruvga
+  // tushib "bazada yo'q" deb javob berardi — xavfsizlik nuqtai nazaridan
+  // xato edi).
+  if (classification.intent === 'EMERGENCY') {
+    const category = isValidEmergencyCategory(classification.category)
+      ? (classification.category as string)
+      : detectEmergencyCategory(messageText) || 'gas_leak';
+    const localNumbers = await getEmergencyLocalNumbers();
+    const emergencyMessage =
+      renderEmergencyTemplate(category, 'lotin', localNumbers) ||
+      `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;
+    await ctx.reply(emergencyMessage, { parse_mode: 'HTML' });
+    return;
+  }
+
+  // EMERGENCY yuqorida allaqachon qaytib ketgan (return), shu sabab bu
+  // yerga faqat EMERGENCY BO'LMAGAN xabarlar yetib keladi.
+  if (isSelfOffer(messageText)) {
     session.step = 'OFFER_CONFIRM';
     session.offerCategory = categoryGuess || undefined;
     const catLabel = categoryGuess || 'xizmat';

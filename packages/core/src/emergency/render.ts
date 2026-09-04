@@ -1,5 +1,34 @@
 import { EMERGENCY_TEMPLATES } from './templates';
 import { Language } from './types';
+import { normalizeText, containsWholeWord } from '../transliteration';
+
+/**
+ * Xabar matnini EMERGENCY_TEMPLATES'dagi HAQIQIY kalit so'zlar ro'yxati
+ * bilan solishtirib, ANIQ shablon kalitini (masalan "gas_leak") topadi.
+ *
+ * Bu funksiya ikki joyda muhim: (1) AI klassifikator ishlamay qolganda
+ * fallback rejimida to'g'ri shablonni tanlash uchun, (2) AI'ning o'zi
+ * chiqargan "category" qiymati shablon kalitlariga mos kelmasa (masalan
+ * "gaz" — "gas_leak" o'rniga) buni TUZATISH uchun, chunki bunday nomuvofiqlik
+ * bo'lsa avval favqulodda javob UMUMAN yuborilmay qolar edi.
+ */
+/** `key` EMERGENCY_TEMPLATES'dagi haqiqiy shablon kaliti ekanini tekshiradi. */
+export function isValidEmergencyCategory(key: string | null | undefined): boolean {
+  return !!key && key in EMERGENCY_TEMPLATES;
+}
+
+export function detectEmergencyCategory(text: string): string | null {
+  const normalized = normalizeText(text);
+  for (const key of Object.keys(EMERGENCY_TEMPLATES)) {
+    const data = EMERGENCY_TEMPLATES[key];
+    for (const kw of data.keywords) {
+      if (containsWholeWord(normalized, normalizeText(kw))) {
+        return key;
+      }
+    }
+  }
+  return null;
+}
 
 export interface LocalNumbers {
   mahalliy_gaz?: string;
