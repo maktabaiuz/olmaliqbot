@@ -14,10 +14,27 @@ export interface MediaGroupPhotoItem {
   media: string;
 }
 
-export function buildMediaGroupItems(photoUrls: string[] | null | undefined): MediaGroupPhotoItem[] {
+/**
+ * `photoUrls` bazada NISBIY yo'l sifatida saqlanadi (masalan
+ * "/api/uploads/listings/xxx.jpg") — admin panelidagi <img> teglar uchun shu
+ * yetarli (brauzer joriy origin'ga nisbatan hal qiladi). LEKIN Telegram'ning
+ * sendMediaGroup/sendPhoto'siga faqat TO'LIQ (https://...) URL yoki file_id
+ * berish mumkin — nisbiy yo'l berilsa Telegram uni yuklab ololmaydi. Shuning
+ * uchun bot tomonida `baseUrl` (masalan https://olmaliq.online) beriladi va
+ * shu yerda nisbiy yo'llarga qo'shib qo'yiladi. Allaqachon to'liq (http/https
+ * bilan boshlanadigan) URL bo'lsa, o'zgarishsiz qoldiriladi.
+ */
+export function buildMediaGroupItems(
+  photoUrls: string[] | null | undefined,
+  baseUrl?: string
+): MediaGroupPhotoItem[] {
   if (!Array.isArray(photoUrls) || photoUrls.length === 0) return [];
+  const trimmedBase = (baseUrl || '').replace(/\/$/, '');
   return photoUrls
     .filter((url): url is string => typeof url === 'string' && url.length > 0)
     .slice(0, MAX_MEDIA_GROUP_ITEMS)
-    .map((url) => ({ type: 'photo' as const, media: url }));
+    .map((url) => ({
+      type: 'photo' as const,
+      media: /^https?:\/\//i.test(url) ? url : `${trimmedBase}${url}`,
+    }));
 }

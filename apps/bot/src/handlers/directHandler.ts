@@ -321,7 +321,8 @@ async function runPrivateSearch(
   // tugmalarni qo'llab-quvvatlamaydi, shuning uchun ular alohida xabarda
   // qoladi. 1 ta rasm bo'lsa media-group o'rniga oddiy replyWithPhoto
   // ishlatiladi (Telegram media-group uchun kamida 2 ta element talab qiladi).
-  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls);
+  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
   if (photoItems.length === 1) {
     await ctx.replyWithPhoto(photoItems[0].media);
   } else if (photoItems.length > 1) {
