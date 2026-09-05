@@ -93,6 +93,7 @@ export async function classifyQuery(
         categoryName: result.category,
         landmarkName: result.landmark,
         isResolved: false,
+        confidence: result.confidence,
       },
     }).catch((err) => console.error('Failed to log QueryLog to DB:', err));
   }
