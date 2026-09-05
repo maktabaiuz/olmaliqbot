@@ -394,6 +394,7 @@ model QueryLog {
   isResolved        Boolean     @default(false)
   notifiedAt        DateTime?   // User faqat 1 marta xabardor qilinadi
   clusterKey        String?     // O'xshash so'rovlarni birlashtirish klyuchi
+  confidence        Float?      // AI klassifikator ishonchlilik darajasi — chegaradosh (0.5-0.75) holatlarni kuzatish uchun
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])

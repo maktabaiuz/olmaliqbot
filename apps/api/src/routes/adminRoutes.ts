@@ -676,10 +676,60 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 4. UNRESOLVED QUERY CLUSTERS & SYNONYM BINDING ---
-  fastify.get('/admin/requests/clusters', async (req, reply) => {
+  //
+  // clusterUnresolvedQueries() Claude API'ni chaqiradi va DB yozadi — har
+  // Dashboard so'nggi (20s'da bir) yangilanishida qayta ishga tushirish
+  // qimmat va keraksiz bo'lardi. Shu sabab natija shahar bo'yicha qisqa
+  // muddat (5 daqiqa) keshlanadi — Requests ekrani ham, Dashboard'dagi
+  // "Yangi ehtiyojlar" bo'limi ham SHU BIR XIL keshdan foydalanadi.
+  const clusterCache = new Map<string, { data: Awaited<ReturnType<typeof clusterUnresolvedQueries>>; expiresAt: number }>();
+  const CLUSTER_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  async function getCachedClusters(cityId: string, forceFresh = false) {
+    const cached = clusterCache.get(cityId);
+    if (!forceFresh && cached && cached.expiresAt > Date.now()) return cached.data;
+    const fresh = await clusterUnresolvedQueries(cityId);
+    clusterCache.set(cityId, { data: fresh, expiresAt: Date.now() + CLUSTER_CACHE_TTL_MS });
+    return fresh;
+  }
+
+  fastify.get('/admin/requests/clusters', async (req: any, reply) => {
     const cityId = await getCityId(req);
-    const clusters = await clusterUnresolvedQueries(cityId);
-    return clusters;
+    const forceFresh = req.query?.fresh === 'true';
+    return getCachedClusters(cityId, forceFresh);
+  });
+
+  // Dashboard uchun ixcham: bazada UMUMAN yo'q, lekin tez-tez so'ralayotgan
+  // ehtiyojlarning eng tepasi — admin Requests ekraniga kirmasdan ham
+  // darhol ko'radi.
+  fastify.get('/admin/requests/top-missing', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const limit = Math.min(Number(req.query?.limit) || 5, 20);
+    const clusters = await getCachedClusters(cityId);
+    return clusters.filter((c) => !c.isExistingCategory).slice(0, limit);
+  });
+
+  // AI klassifikatorning ISHONCHSIZ (chegaradosh, 0.5-0.75) baholagan
+  // so'rovlari — bot javob bermadi ("silence"), lekin AI o'zi ham "aniq
+  // bilmayman" degan holatlar. Bularni muntazam ko'rib turish AI aynan
+  // qayerda (qaysi mahalliy ibora/dialektda) adashayotganini ko'rsatadi.
+  fastify.get('/admin/requests/uncertain', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const limit = Math.min(Number(req.query?.limit) || 30, 100);
+    const logs = await db.queryLog.findMany({
+      where: { cityId, confidence: { gte: 0.5, lte: 0.75 } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return logs.map((l) => ({
+      id: l.id,
+      rawMessage: l.rawMessage,
+      intent: l.intent,
+      categoryName: l.categoryName,
+      landmarkName: l.landmarkName,
+      confidence: l.confidence,
+      createdAt: l.createdAt,
+    }));
   });
 
   fastify.post('/admin/requests/bind-synonym', async (req: any, reply) => {

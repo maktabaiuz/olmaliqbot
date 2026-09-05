@@ -33,6 +33,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         categoryName: classification.category,
         landmarkName: classification.landmark,
         isResolved: false,
+        confidence: classification.confidence,
       },
     }).catch((err) => console.error('Failed to log self-offer QueryLog:', err));
     return;
@@ -102,6 +103,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         categoryName: classification.category,
         landmarkName: classification.landmark,
         isResolved: false,
+        confidence: classification.confidence,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
     return;

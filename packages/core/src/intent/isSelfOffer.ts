@@ -27,6 +27,15 @@ export function isSelfOffer(text: string): boolean {
   if (/\b(menga|bizga)\s+qo'?ng'?iroq\b/.test(n)) return true;
   if (/\b(xizmat ko'?rsataman|ishlayman murojaat|murojaat qiling)\b/.test(n)) return true;
 
+  // Birinchi shaxsda o'z xizmatini reklama qilish: "elektrika ishlarini
+  // qilamiz", "santexnika xizmatlarini ko'rsatamiz", "eshikni tuzataman" +
+  // odatda telefon raqami bilan. Bu haqiqiy so'rov ("elektrik kerak") bilan
+  // deyarli bir xil so'zlardan iborat, faqat fe'l shaxsi farq qiladi —
+  // "qilamiz/bajaramiz" (biz/men qilamiz) doim taklif, "kerak/bormi" doim so'rov.
+  if (/\b(qilamiz|bajaramiz|ko'?rsatamiz|tuzatamiz|o'?rnatamiz|qilaman|bajaraman|tuzataman|o'?rnataman)\b/.test(n)) {
+    return true;
+  }
+
   return false;
 }
 

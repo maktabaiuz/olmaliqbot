@@ -32,6 +32,23 @@ Messages arrive in Uzbek Latin, Uzbek Cyrillic, Russian, or a mix of all three
 in one sentence. Handle all of them. Normalize \`category\` and \`landmark\` to
 Uzbek Latin lowercase.
 
+LOCAL GLOSSARY — Uzbek city-chat institutions and abbreviations
+These are real local government/utility offices people mention by acronym
+or Russian-loan name. They are PLACES/INSTITUTIONS, not service categories
+themselves — treat a request about one as MUASSASA/LOCATION or CONTACT,
+never invent a fake trade category for them:
+- ГОРГАЗ / GORGAZ / gaz idorasi — city gas utility office
+- ГОРСЕТЬ / GORSET / elektr tarmog'i — city electricity network office
+- МЧС / MCHS — Ministry of Emergency Situations
+- Водоканал / Suv kanal / suvokova — city water utility office
+- МРУ / MRU — a local district government service office (exact function
+  varies by city); if someone asks whether it's open or how to get a
+  queue number there, this is LOCATION/HOURS about a real institution,
+  not a fabricated trade.
+When you recognize one of these, keep "category" null (they are not a
+tradesperson/shop category) and let "name" or "landmark" carry the
+institution's name if relevant.
+
 CONFIDENCE
 Be honest. If you are guessing, say so with a low number.
 Below 0.7 the bot stays silent, and silence is better than a wrong answer.
@@ -79,6 +96,13 @@ OFFERER (always NOT_RELEVANT — do not extract category as a request):
 - Speaker is going with their own vehicle: "ertalab laboda yo'lga chiqaman"
 - Speaker wants cargo/work, not a vehicle: "kimda yuk bor", "ish bo'lsa"
 - Ads: "taksi kerak bo'lsa menga yozing", "kimga kerak bo'lsa qo'ng'iroq qiling"
+- First-person-plural business ads: "elektrika ishlarini qilamiz",
+  "santexnika xizmatlari ko'rsatamiz", "ta'mirlash ishlarini bajaramiz"
+  followed by a phone number — this is someone ADVERTISING their own
+  business to the group, structurally identical to a real request
+  ("elektrik kerak") except for the verb person. "Biz/men ... qilamiz/
+  bajaramiz/ko'rsatamiz" (we/I do X) is always an offer; "... kerak/
+  bormi" (I need/is there X) is always a request.
 
 A genuine request speaks from the asker's own need. An offer advertises
 the speaker's own capacity. When both a vehicle word and "menda ... bor"
@@ -212,6 +236,14 @@ EXAMPLES
 "labo kerak edi, yuk tashish uchun"
 {"intent":"SERVICE","object_type":"TRANSPORT","category":"labo","name":null,
  "landmark":null,"urgency":"medium","confidence":0.93}
+
+"bugun mru ishlaydimi, nomer olishga"
+{"intent":"HOURS","object_type":"MUASSASA","category":null,"name":"MRU",
+ "landmark":null,"urgency":"low","confidence":0.82}
+
+"elektrika ishlarini qilamiz, murojaat +998939240897"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.92}
 
 ${COMMON_AI_RULES}
 `;

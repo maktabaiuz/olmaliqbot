@@ -252,6 +252,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     landmarkName: isSeeking ? classification.landmark : null,
     rawMessage: messageText,
     intent: classification.intent,
+    confidence: classification.confidence,
   });
 }
 
@@ -264,6 +265,7 @@ async function runPrivateSearch(
     landmarkName: string | null;
     rawMessage: string;
     intent?: IntentType;
+    confidence?: number;
   }
 ) {
   const searchResult = await searchListings({
@@ -283,6 +285,7 @@ async function runPrivateSearch(
         categoryName: opts.categoryName,
         landmarkName: opts.landmarkName,
         isResolved: false,
+        confidence: opts.confidence,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 

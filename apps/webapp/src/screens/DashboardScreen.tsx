@@ -24,6 +24,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   });
 
   const [topSearches, setTopSearches] = useState<Array<{ query: string; count: number }>>([]);
+  const [topMissing, setTopMissing] = useState<Array<{ id: string; canonicalName: string; count: number }>>([]);
   const [complaints, setComplaints] = useState<Array<{
     id: string;
     telegramUserId: string;
@@ -71,6 +72,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       if (complaintsRes.ok) {
         const compData = await complaintsRes.json();
         setComplaints(compData || []);
+      }
+
+      // 4. Fetch Top Missing Categories (AI klasterlash — bazada yo'q, lekin
+      // eng ko'p so'ralayotgan ehtiyojlar) — admin Requests ekraniga
+      // kirmasdan ham darhol ko'rishi uchun
+      const missingRes = await apiFetch('/api/admin/requests/top-missing?limit=5');
+      if (missingRes.ok) {
+        const missingData = await missingRes.json();
+        setTopMissing(missingData || []);
       }
 
     } catch (e) {
@@ -254,6 +264,30 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                   {s.count}
                 </span>
               </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 6b. YANGI EHTIYOJLAR — AI klasterlash bazada yo'q, lekin tez-tez
+          so'ralayotgan narsalarni topganda shu yerda darhol ko'rinadi */}
+      {topMissing.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[11px] font-bold text-amber-500 uppercase tracking-wider px-1">🆕 Yangi ehtiyojlar (bazada yo'q)</h3>
+          <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-amber-500/20 dark:border-amber-500/15 overflow-hidden shadow-sm divide-y divide-amber-500/10">
+            {topMissing.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => onNavigateTab('requests')}
+                className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+              >
+                <span className="text-xs font-bold text-on-surface dark:text-slate-100 capitalize truncate pr-2">
+                  {m.canonicalName}
+                </span>
+                <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                  {m.count} ta so'ralgan
+                </span>
+              </button>
             ))}
           </div>
         </section>

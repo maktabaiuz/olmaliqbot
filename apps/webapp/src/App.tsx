@@ -47,7 +47,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'uncertain'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -411,6 +411,18 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                             <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
                           </button>
 
+                          {/* AI Ishonchsiz So'rovlar */}
+                          <button
+                            onClick={() => setMoreSubView('uncertain')}
+                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">psychology_alt</span></span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">AI ishonchsiz so'rovlar</span>
+                            </span>
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                          </button>
+
                           {/* Bot Matnlari */}
                           <button
                             onClick={() => setViewMode('bot_messages')}
@@ -509,6 +521,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     )}
                     {moreSubView === 'community_link' && (
                       <CommunityLinkSubView onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'uncertain' && (
+                      <UncertainQueriesSubView onBack={() => setMoreSubView('menu')} />
                     )}
                   </div>
                 )}
@@ -1090,6 +1105,75 @@ const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {saving ? 'Saqlanmoqda...' : saved ? '✅ Saqlandi!' : 'Saqlash'}
         </button>
       </div>
+    </div>
+  );
+};
+
+interface UncertainQuery {
+  id: string;
+  rawMessage: string;
+  intent: string;
+  categoryName: string | null;
+  landmarkName: string | null;
+  confidence: number | null;
+  createdAt: string;
+}
+
+const UncertainQueriesSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const [queries, setQueries] = useState<UncertainQuery[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin/requests/uncertain')
+      .then(r => r.json())
+      .then(data => setQueries(data || []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+        </button>
+        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">AI ishonchsiz so'rovlar</h3>
+      </div>
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        AI o'zi ham "aniq bilmayman" degan (0.5-0.75 oralig'idagi ishonchlilik
+        darajasi) so'rovlar — bot bularga javob bermadi. Muntazam ko'rib
+        turish AI aynan qaysi mahalliy ibora/dialektda adashayotganini
+        ko'rsatadi va promptni yaxshilash uchun material beradi.
+      </p>
+
+      {loading ? (
+        <div className="space-y-3">
+          <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
+          <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
+        </div>
+      ) : queries.length === 0 ? (
+        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500">
+          Hozircha ishonchsiz baholangan so'rov yo'q
+        </div>
+      ) : (
+        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
+          {queries.map((q) => (
+            <div key={q.id} className="p-3.5 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-orange-500">
+                  {q.confidence != null ? `${Math.round(q.confidence * 100)}%` : '—'} ishonch
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {new Date(q.createdAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p className="text-xs text-on-surface dark:text-slate-200 italic">"{q.rawMessage}"</p>
+              <p className="text-[10px] text-slate-500">
+                {q.intent}{q.categoryName ? ` · ${q.categoryName}` : ''}{q.landmarkName ? ` · 📍 ${q.landmarkName}` : ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
