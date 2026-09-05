@@ -1,10 +1,10 @@
-import { Bot, webhookCallback } from 'grammy';
+import { Bot } from 'grammy';
 import http from 'http';
 import dotenv from 'dotenv';
 import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHandler';
-import { startDeletionWorker } from './queue/deleteQueue';
+import { startDeletionWorker, redisConnection } from './queue/deleteQueue';
 
 dotenv.config({ path: '../../.env' });
 
@@ -235,10 +235,50 @@ async function startBot() {
     await bot.api.setWebhook(webhookUrl);
     console.log(`✅ Webhook set to: ${webhookUrl}`);
 
-    const handleUpdate = webhookCallback(bot, 'http');
+    // MUHIM (2026-09 topilgan xato): standart webhookCallback() Telegram'ga
+    // JAVOBNI faqat butun xabar qayta ishlanib bo'lgach (Claude API chaqiruvi,
+    // qidiruv, DB yozuvlari — bir necha soniya) yuborar edi. Agar bu vaqt
+    // Telegram'ning ichki kutish chegarasidan oshsa, Telegram "javob kelmadi"
+    // deb XUDDI SHU xabarni QAYTA yuboradi — natijada har bir xabar deyarli
+    // IKKI MARTA qayta ishlanardi (production QueryLog'da amalda deyarli
+    // barcha yozuvlar juft-juft, bir-biridan ~20-40 msda paydo bo'lganini
+    // tasdiqladik). Bu ikki barobar AI xarajati va ba'zan foydalanuvchiga
+    // BIR XIL javobni ikki marta ko'rsatish xavfini keltirib chiqarardi.
+    //
+    // Tuzatish: Telegram'ga DARHOL ("OK") javob beriladi, xabarning o'zi
+    // FONDA (async) qayta ishlanadi — Telegram hech qachon "javob kelmadi"
+    // deb qayta yubormaydi.
     const server = http.createServer((req, res) => {
       if (req.method === 'POST') {
-        handleUpdate(req, res);
+        let body = '';
+        req.on('data', (chunk) => { body += chunk; });
+        req.on('end', async () => {
+          res.statusCode = 200;
+          res.end('OK');
+          try {
+            const update = JSON.parse(body);
+
+            // Qo'shimcha himoya qatlami: Telegram'ning o'z update_id'si
+            // orqali takroriy yetkazishni butunlay to'sib qo'yamiz — hatto
+            // yuqoridagi "darhol javob berish" tuzatishidan keyin ham,
+            // tarmoq darajasidagi (Telegram infratuzilmasi) takroriy
+            // yuborish nazariy jihatdan mumkin. Redis'da 5 daqiqaga
+            // "ko'rilgan" deb belgilanadi (SET NX — faqat hali yo'q bo'lsa
+            // yoziladi), qayta ishga tushirishlarga ham chidamli.
+            const updateId = update?.update_id;
+            if (updateId !== undefined) {
+              const wasNew = await redisConnection.set(`kimbor:webhook:seen:${updateId}`, '1', 'EX', 300, 'NX');
+              if (!wasNew) {
+                console.warn(`⚠️ Takroriy update_id (${updateId}) — o'tkazib yuborildi`);
+                return;
+              }
+            }
+
+            bot.handleUpdate(update).catch((err) => console.error('❌ Update qayta ishlashda xato:', err));
+          } catch (err) {
+            console.error('❌ Webhook body JSON parslanmadi:', err);
+          }
+        });
       } else {
         res.statusCode = 200;
         res.end('OK');
