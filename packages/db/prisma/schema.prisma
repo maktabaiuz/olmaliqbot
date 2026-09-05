@@ -223,6 +223,7 @@ model Listing {
   specificServices    String?            // "kolonka ta'miri, plita o'rnatish"
   approxPrice         String?            // Taxminiy narx
   photoFileId         String?            // Telegram file_id (mo'ljal/ish namunasi)
+  photoUrls           String[]           @default([]) // Ko'p-rasmli e'lonlar uchun (masalan uy arendaga) — admin panelidan yuklangan rasm URL'lari
   description         String?
   latitude            Float?             // Jonli GPS Kenglik (Xarita nuqtasi)
   longitude           Float?             // Jonli GPS Uzunlik (Xarita nuqtasi)

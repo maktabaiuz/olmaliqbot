@@ -64,6 +64,13 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [specificServices] = useState(() => localStorage.getItem('draft_specificServices') || '');
   const [approxPrice, setApproxPrice] = useState(() => localStorage.getItem('draft_approxPrice') || '');
   const [description, setDescription] = useState(() => localStorage.getItem('draft_description') || '');
+  const [photoUrls, setPhotoUrls] = useState<string[]>(() => {
+    const saved = localStorage.getItem('draft_photoUrls');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const MAX_PHOTOS = 8;
   const [verification] = useState<'VERIFIED' | 'COMMUNITY_UNVERIFIED'>('COMMUNITY_UNVERIFIED');
   const [consentGiven, setConsentGiven] = useState(() => localStorage.getItem('draft_consentGiven') === 'true');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,7 +147,40 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_approxPrice', approxPrice);
     localStorage.setItem('draft_description', description);
     localStorage.setItem('draft_consentGiven', String(consentGiven));
-  }, [name, category, phone, primaryLandmark, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven]);
+    localStorage.setItem('draft_photoUrls', JSON.stringify(photoUrls));
+  }, [name, category, phone, primaryLandmark, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls]);
+
+  const handlePhotoFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPhotoUploadError(null);
+    const initData = window.Telegram?.WebApp?.initData || '';
+    setIsUploadingPhoto(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (photoUrls.length >= MAX_PHOTOS) {
+          setPhotoUploadError(`Eng ko'pi bilan ${MAX_PHOTOS} ta rasm yuklash mumkin`);
+          break;
+        }
+        const formData = new FormData();
+        formData.append('photo', file);
+        const res = await fetch('/api/admin/listings/upload-photo', {
+          method: 'POST',
+          headers: { 'x-init-data': initData },
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) {
+          setPhotoUrls((prev) => [...prev, data.url]);
+        } else {
+          setPhotoUploadError(data.error || 'Rasmni yuklashda xatolik yuz berdi');
+        }
+      }
+    } catch {
+      setPhotoUploadError('Aloqa xatoligi — rasm yuklanmadi');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const handleAddJargonWord = () => {
     const clean = newJargonWord.trim().toLowerCase();
@@ -267,6 +307,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           approxPrice,
           specificServices,
           description,
+          photoUrls,
         }),
       });
 
@@ -285,6 +326,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         localStorage.removeItem('draft_approxPrice');
         localStorage.removeItem('draft_description');
         localStorage.removeItem('draft_consentGiven');
+        localStorage.removeItem('draft_photoUrls');
 
         onNavigateTab('database');
       } else {
@@ -639,6 +681,54 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               className="w-full h-20 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
             />
           </div>
+
+          {/* Rasmlar — masalan "uy arendaga" e'lonlari uchun bir nechta
+              foto. Mos so'rov kelganda bot buni suriladigan albom qilib
+              yuboradi. */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">
+              Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
+            </label>
+            <p className="text-[10px] text-slate-500 -mt-1">
+              Masalan uy/kvartira arendaga bo'lsa, rasmlarini shu yerga yuklang — mos so'rov kelganda bot ularni suriladigan albom qilib yuboradi.
+            </p>
+
+            {photoUrls.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {photoUrls.map((url) => (
+                  <div key={url} className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-outline-variant/30 dark:border-slate-800">
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {photoUrls.length < MAX_PHOTOS && (
+              <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold cursor-pointer">
+                <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
+                {isUploadingPhoto ? 'Yuklanmoqda...' : 'Rasm qo\'shish'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  disabled={isUploadingPhoto}
+                  onChange={(e) => {
+                    handlePhotoFilesSelected(e.target.files);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+              </label>
+            )}
+            {photoUploadError && <p className="text-red-500 text-[10px] font-semibold">{photoUploadError}</p>}
+          </div>
         </div>
       )}
 
@@ -657,6 +747,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
               {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}
               {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{w}</span>)}</div>}
+              {photoUrls.length > 0 && <div className="flex justify-between"><span className="text-slate-500">Rasmlar:</span> <span className="font-bold text-on-surface dark:text-slate-100">{photoUrls.length} ta</span></div>}
             </div>
           </div>
 

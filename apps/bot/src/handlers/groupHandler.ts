@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, buildMediaGroupItems } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
@@ -127,6 +127,27 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   if (communityUrl) {
     const communityLabel = await getCommunityLabel();
     keyboard.url(communityLabel, communityUrl).danger().row();
+  }
+
+  // Rasmli yozuvlar (masalan "uy arendaga") — avval rasmlar suriladigan
+  // albom sifatida, so'ng odatdagi karta+tugmalar matni ketma-ket yuboriladi.
+  // Telegram sendMediaGroup tugmalarni (reply_markup) qo'llab-quvvatlamaydi,
+  // shuning uchun ular alohida matn xabariga qoladi. 1 ta rasm bo'lsa
+  // media-group o'rniga oddiy replyWithPhoto ishlatiladi (Telegram media-group
+  // uchun kamida 2 ta element talab qiladi).
+  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls);
+  if (photoItems.length === 1) {
+    const sentPhoto = await ctx.replyWithPhoto(photoItems[0].media, {
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
+    if (sentPhoto && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentPhoto.message_id, 15 * 60 * 1000);
+  } else if (photoItems.length > 1) {
+    const sentPhotos = await ctx.replyWithMediaGroup(photoItems, {
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
+    if (ctx.chat?.id) {
+      for (const p of sentPhotos) await scheduleMessageDeletion(ctx.chat.id, p.message_id, 15 * 60 * 1000);
+    }
   }
 
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;

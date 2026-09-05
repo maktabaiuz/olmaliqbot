@@ -193,6 +193,10 @@ EXAMPLES
 {"intent":"SERVICE","object_type":"TRANSPORT","category":"avtomobil arendasi","name":null,
  "landmark":null,"urgency":"medium","confidence":0.9}
 
+"studentlarga uy kerak edi, kimda bor arendaga"
+{"intent":"SERVICE","object_type":"ARENDA","category":"uy arendaga","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.88}
+
 "assalomu alaykum hammaga"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
  "landmark":null,"urgency":"low","confidence":0.99}

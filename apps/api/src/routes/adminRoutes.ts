@@ -2,7 +2,16 @@ import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
 import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes } from '@kimbor/core';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
+import { UPLOADS_DIR } from '../uploadsPath';
+
+const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
 
 // Login bloklanish muddatini o'qishga qulay shaklga o'tkazadi (masalan "2 kun 5 soat")
 function formatRemainingTime(until: Date): string {
@@ -426,6 +435,33 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { isDuplicate: false };
   });
 
+  // Yozuv rasmi yuklash (masalan "uy arendaga" e'lonlari uchun). Bitta faylni
+  // qabul qiladi, diskka saqlaydi va ommaviy URL qaytaradi — bu URL keyin
+  // POST/PUT /admin/listings'ga photoUrls massivi ichida yuboriladi.
+  fastify.post('/admin/listings/upload-photo', async (req: any, reply) => {
+    try {
+      const file = await req.file();
+      if (!file) {
+        return reply.status(400).send({ error: 'Rasm fayli topilmadi' });
+      }
+      const ext = ALLOWED_PHOTO_MIME_TO_EXT[file.mimetype];
+      if (!ext) {
+        return reply.status(400).send({ error: "Faqat JPEG, PNG yoki WebP rasm qabul qilinadi" });
+      }
+      const fileName = `${crypto.randomUUID()}.${ext}`;
+      const destPath = path.join(UPLOADS_DIR, 'listings', fileName);
+      await fs.promises.writeFile(destPath, await file.toBuffer());
+      return { url: `/api/uploads/listings/${fileName}` };
+    } catch (err: any) {
+      req.log.error(err);
+      // @fastify/multipart hajm chegarasidan oshsa shu kodni qaytaradi
+      if (err?.code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.status(400).send({ error: "Rasm hajmi 5MB dan katta bo'lmasligi kerak" });
+      }
+      return reply.status(400).send({ error: 'Rasmni yuklashda xatolik yuz berdi' });
+    }
+  });
+
   fastify.post('/admin/listings', async (req: any, reply) => {
     try {
       const cityId = await getCityId(req);
@@ -446,6 +482,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         longitude,
         jargonSynonyms,
         isConfirmedDifferent,
+        photoUrls,
       } = req.body;
 
       if (!name || !categoryName || !phone) {
@@ -511,6 +548,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           latitude: latitude ? parseFloat(latitude) : null,
           longitude: longitude ? parseFloat(longitude) : null,
           jargonSynonyms: Array.isArray(jargonSynonyms) ? jargonSynonyms : [],
+          photoUrls: Array.isArray(photoUrls) ? photoUrls.slice(0, 8) : [],
         },
       });
 
@@ -599,6 +637,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       approxPrice,
       description,
       jargonSynonyms,
+      photoUrls,
     } = req.body;
 
     const existing = await db.listing.findUnique({ where: { id } });
@@ -656,6 +695,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(approxPrice !== undefined && { approxPrice }),
         ...(description !== undefined && { description }),
         ...(Array.isArray(jargonSynonyms) && { jargonSynonyms }),
+        ...(Array.isArray(photoUrls) && { photoUrls: photoUrls.slice(0, 8) }),
         categoryId,
         primaryLandmarkId,
         lastVerifiedAt: new Date(),

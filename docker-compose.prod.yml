@@ -50,6 +50,8 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -121,3 +123,4 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  uploads_data:

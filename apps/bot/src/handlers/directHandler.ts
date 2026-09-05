@@ -1,6 +1,6 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, buildMediaGroupItems } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -314,6 +314,18 @@ async function runPrivateSearch(
   if (communityUrl) {
     const communityLabel = await getCommunityLabel();
     resultKeyboard.url(communityLabel, communityUrl).danger().row();
+  }
+
+  // Rasmli yozuvlar (masalan "uy arendaga") — avval rasmlar suriladigan
+  // albom sifatida, so'ng odatdagi karta+tugmalar matni. sendMediaGroup
+  // tugmalarni qo'llab-quvvatlamaydi, shuning uchun ular alohida xabarda
+  // qoladi. 1 ta rasm bo'lsa media-group o'rniga oddiy replyWithPhoto
+  // ishlatiladi (Telegram media-group uchun kamida 2 ta element talab qiladi).
+  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls);
+  if (photoItems.length === 1) {
+    await ctx.replyWithPhoto(photoItems[0].media);
+  } else if (photoItems.length > 1) {
+    await ctx.replyWithMediaGroup(photoItems);
   }
 
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
