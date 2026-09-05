@@ -235,6 +235,12 @@ async function startBot() {
     await bot.api.setWebhook(webhookUrl);
     console.log(`✅ Webhook set to: ${webhookUrl}`);
 
+    // MUHIM: avval webhookCallback() bot.init()ni o'zi ichida chaqirardi.
+    // Endi bot.handleUpdate()ni qo'lda chaqirganimiz uchun, buni ANIQ
+    // o'zimiz qilishimiz kerak — aks holda HAR BIR update "Bot not
+    // initialized!" xatosi bilan muvaffaqiyatsiz bo'ladi.
+    await bot.init();
+
     // MUHIM (2026-09 topilgan xato): standart webhookCallback() Telegram'ga
     // JAVOBNI faqat butun xabar qayta ishlanib bo'lgach (Claude API chaqiruvi,
     // qidiruv, DB yozuvlari — bir necha soniya) yuborar edi. Agar bu vaqt
