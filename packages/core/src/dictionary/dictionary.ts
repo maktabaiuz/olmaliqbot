@@ -16,6 +16,32 @@ export interface LandmarkSeed {
 export const INITIAL_DICTIONARY = initialDictionaryData;
 
 /**
+ * MUHIM (2026-09 topilgan xato): `initialDictionary.json`dagi boy
+ * sinonimlar ro'yxati faqat XOTIRADAGI (in-memory) moslashtiruvchilar
+ * (matchCategoryFromText, fuzzyFindCategory) uchun ishlatiladi — bazadagi
+ * haqiqiy `Category` jadvali BUTUNLAY ALOHIDA manba. Admin panelidan yangi
+ * yozuv qo'shilganda, agar kategoriya bazada hali yo'q bo'lsa, u FAQAT
+ * o'zining nomi bilan (bitta, "sinonim" sifatida) yaratilardi — lug'atdagi
+ * o'nlab sinonim allaqachon yozilgan bo'lsa ham ular bazaga umuman
+ * ko'chirilmasdi. Natijada AI klassifikator boshqacha (lekin tabiiy)
+ * so'z birikmasi bilan kategoriyani nomlasa (masalan "kvartira arendasi"
+ * "Uy/kvartira arendaga" o'rniga), bazadagi qashshoq sinonim ro'yxati bilan
+ * hech qanday mos kelmasdi — qidiruv faqat tasodifiy jargon-moslikka
+ * qolib ketardi (ba'zan topardi, ba'zan yo'q — beqaror natija).
+ *
+ * Yangi kategoriya yaratilganda shu funksiya orqali lug'atdagi mos yozuv
+ * topilib, uning TO'LIQ sinonimlar ro'yxati bazaga bir martalik "urug'"
+ * sifatida ko'chiriladi.
+ */
+export function getDictionarySynonymsForCategory(canonicalName: string): string[] {
+  const normalized = normalizeText(canonicalName);
+  const categories = INITIAL_DICTIONARY.categories as CategorySeed[];
+  const found = categories.find((c) => normalizeText(c.name) === normalized);
+  if (!found) return [];
+  return Array.from(new Set([found.name.toLowerCase(), ...found.synonyms.map((s) => s.toLowerCase())]));
+}
+
+/**
  * Strips Uzbek/Russian positional suffixes from landmark phrases
  * (e.g. "karzinka oldi" -> "karzinka", "корзинка возле" -> "корзинка")
  */

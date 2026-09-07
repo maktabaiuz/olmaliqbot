@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -483,6 +483,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
         jargonSynonyms,
         isConfirmedDifferent,
         photoUrls,
+        description,
+        specificServices,
+        approxPrice,
       } = req.body;
 
       if (!name || !categoryName || !phone) {
@@ -501,8 +504,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
 
       if (!category) {
+        // Lug'atda shu nomdagi kategoriya mavjud bo'lsa, uning TO'LIQ
+        // sinonimlar ro'yxati bazaga "urug'" sifatida ko'chiriladi — aks
+        // holda faqat bitta (o'z nomi) sinonim bilan yaratilib, keyinchalik
+        // AI klassifikator boshqacha so'z bilan atasa qidiruv topolmay
+        // qolardi (batafsil: getDictionarySynonymsForCategory izohi).
+        const dictSynonyms = getDictionarySynonymsForCategory(canonicalCategoryName);
         category = await db.category.create({
-          data: { name: canonicalCategoryName, synonyms: [canonicalCategoryName.toLowerCase()] },
+          data: { name: canonicalCategoryName, synonyms: dictSynonyms.length > 0 ? dictSynonyms : [canonicalCategoryName.toLowerCase()] },
         });
       }
 
@@ -549,6 +558,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
           longitude: longitude ? parseFloat(longitude) : null,
           jargonSynonyms: Array.isArray(jargonSynonyms) ? jargonSynonyms : [],
           photoUrls: Array.isArray(photoUrls) ? photoUrls.slice(0, 8) : [],
+          description: description || null,
+          specificServices: specificServices || null,
+          approxPrice: approxPrice || null,
         },
       });
 
@@ -659,7 +671,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (categoryName) {
       const canonicalName = resolveCanonicalCategoryName(categoryName);
       let cat = await db.category.findFirst({ where: { name: { equals: canonicalName, mode: 'insensitive' } } });
-      if (!cat) cat = await db.category.create({ data: { name: canonicalName, synonyms: [canonicalName.toLowerCase()] } });
+      if (!cat) {
+        const dictSynonyms = getDictionarySynonymsForCategory(canonicalName);
+        cat = await db.category.create({ data: { name: canonicalName, synonyms: dictSynonyms.length > 0 ? dictSynonyms : [canonicalName.toLowerCase()] } });
+      }
       categoryId = cat.id;
     }
 
