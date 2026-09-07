@@ -128,6 +128,10 @@ model BroadcastMessage {
   repeatIntervalMinutes Int?                   // null = faqat bir marta; aks holda har N daqiqada
   isEnabled             Boolean                @default(true)
   lastSentAt            DateTime?
+  // Oxirgi yuborishda xato bo'lsa shu yerda saqlanadi (admin panelida
+  // ko'rinadi) — muvaffaqiyatli yuborilganda tozalanadi. Shu bilan admin
+  // "nega yuborilmadi" deb menga murojaat qilmasdan o'zi ko'rib, tuzatadi.
+  lastError             String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   sentMessages          BroadcastSentMessage[]

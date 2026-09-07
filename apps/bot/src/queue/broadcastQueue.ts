@@ -77,6 +77,21 @@ async function processDueBroadcasts(bot: Bot): Promise<void> {
   }
 }
 
+// Telegram butun xabarni (matn + rasm) rad etadi, agar tugma URL'i
+// yaroqsiz bo'lsa — "http://@username" kabi noto'g'ri havola tufayli
+// haqiqiy xabar HAM yetib bormay qolgan edi (2026-09, ishlab chiqarishda
+// tasdiqlangan xato). Shuning uchun URL avvaldan tekshiriladi — yaroqsiz
+// bo'lsa, tugma butunlay QO'SHILMAYDI (xabarning o'zi baribir yetib
+// boradi), sabab lastError'ga yoziladi.
+function isValidButtonUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'tg:') && !!parsed.hostname;
+  } catch {
+    return false;
+  }
+}
+
 async function sendBroadcastToAllTargets(
   bot: Bot,
   broadcast: {
@@ -92,13 +107,18 @@ async function sendBroadcastToAllTargets(
   publicBaseUrl: string
 ): Promise<void> {
   const slideshowHtml = buildSlideshowHtml(broadcast.photoUrls, publicBaseUrl);
+  const errors: string[] = [];
 
   // Reklama/tashqi havola — berilgan bo'lsa, xabar ostida tugma sifatida
   // chiqadi (mavjud "Yana ko'rish"/kanal tugmalari bilan bir xil uslub).
   // Rang — Telegram Bot API'ning haqiqiy, cheklangan 3 ta qiymati:
   // "primary" (ko'k), "success" (yashil), "danger" (qizil).
-  const replyMarkup = broadcast.linkUrl
-    ? {
+  let replyMarkup:
+    | { inline_keyboard: { text: string; url: string; style?: 'primary' | 'success' | 'danger' }[][] }
+    | undefined;
+  if (broadcast.linkUrl) {
+    if (isValidButtonUrl(broadcast.linkUrl)) {
+      replyMarkup = {
         inline_keyboard: [
           [
             {
@@ -108,8 +128,11 @@ async function sendBroadcastToAllTargets(
             },
           ],
         ],
-      }
-    : undefined;
+      };
+    } else {
+      errors.push(`Havola noto'g'ri ("${broadcast.linkUrl}") — tugma qo'shilmadi, faqat matn yuborildi.`);
+    }
+  }
 
   for (const chatIdBig of broadcast.targetChatIds) {
     const chatId = Number(chatIdBig);
@@ -142,10 +165,12 @@ async function sendBroadcastToAllTargets(
         create: { broadcastId: broadcast.id, chatId: chatIdBig, messageId: sentMessageId },
         update: { messageId: sentMessageId, sentAt: new Date() },
       });
-    } catch (err) {
+    } catch (err: any) {
       // Bitta guruhga yuborish xatosi (masalan bot guruhdan chiqarilgan)
       // boshqa guruhlarga yuborishni to'xtatmasligi kerak.
+      const reason = err?.description || err?.message || String(err);
       console.error(`[broadcastQueue] Failed to send broadcast ${broadcast.id} to chat ${chatId}:`, err);
+      errors.push(`Chat ${chatId}: ${reason}`);
     }
   }
 
@@ -159,6 +184,10 @@ async function sendBroadcastToAllTargets(
 
   await db.broadcastMessage.update({
     where: { id: broadcast.id },
-    data: { nextSendAt, lastSentAt: new Date() },
+    data: {
+      nextSendAt,
+      lastSentAt: new Date(),
+      lastError: errors.length > 0 ? errors.join(' | ').slice(0, 500) : null,
+    },
   });
 }

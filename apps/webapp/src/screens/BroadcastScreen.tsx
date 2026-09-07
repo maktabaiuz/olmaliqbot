@@ -23,6 +23,7 @@ interface BroadcastItem {
   linkUrl: string | null;
   linkLabel: string | null;
   linkButtonStyle: string | null;
+  lastError: string | null;
 }
 
 // Telegram Bot API'ning HAQIQIY, cheklangan 3 ta tugma rangi — boshqasi yo'q
@@ -191,9 +192,26 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
       setFormError('Kamida bitta guruh/kanal tanlang');
       return;
     }
-    if (linkUrl.trim() && !/^https?:\/\//i.test(linkUrl.trim())) {
-      setFormError("Havola https:// yoki http:// bilan boshlanishi kerak");
-      return;
+    const trimmedLink = linkUrl.trim();
+    if (trimmedLink) {
+      // "@olmaliq_bot" kabi Telegram username'ni to'g'ridan-to'g'ri
+      // yozish — eng ko'p uchraydigan xato. Telegram bunday havolani
+      // butunlay rad etadi va NATIJADA XABARNING O'ZI HAM yuborilmay
+      // qoladi (2026-09 ishlab chiqarishda tasdiqlangan real xato) —
+      // shuning uchun saqlashdan OLDIN aniq to'xtatiladi.
+      if (/^@|t\.me\/@|^https?:\/\/@/i.test(trimmedLink)) {
+        setFormError(
+          `Bot/kanal username'ini shunday yozing: https://t.me/${trimmedLink.replace(/^https?:\/\/|^t\.me\/|@/gi, '')} (@ belgisisiz, https://t.me/ bilan)`
+        );
+        return;
+      }
+      try {
+        const parsed = new URL(trimmedLink);
+        if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) throw new Error('invalid');
+      } catch {
+        setFormError("Havola to'liq va to'g'ri bo'lishi kerak, masalan: https://t.me/olmaliq_bot");
+        return;
+      }
     }
     setIsSaving(true);
     try {
@@ -534,6 +552,12 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
                 <span>⏰ Keyingi: {formatDateTime(b.nextSendAt)}</span>
                 {b.lastSentAt && <span>✔️ Oxirgi: {formatDateTime(b.lastSentAt)}</span>}
               </div>
+
+              {b.lastError && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-600 dark:text-red-400 text-[10px] font-medium leading-relaxed">
+                  ⚠️ Oxirgi yuborishda xato: {b.lastError}
+                </div>
+              )}
 
               <div className="flex items-center gap-2 pt-1">
                 <button

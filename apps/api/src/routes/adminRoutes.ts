@@ -984,6 +984,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // Telegram Bot API'ning haqiqiy, cheklangan tugma ranglari — boshqa
   // qiymat qabul qilinmaydi (grammY/@grammyjs/types'dan tasdiqlangan).
   const VALID_BUTTON_STYLES = ['primary', 'success', 'danger'];
+  // Yaroqsiz havola (masalan "http://@username") Telegram'ga yuborilganda
+  // BUTUN xabarni (matnini ham) rad ettirib qo'ygan edi — ishlab chiqarishda
+  // tasdiqlangan xato (2026-09). Shuning uchun bu yerda ham (webapp
+  // tekshiruvidan qat'i nazar) tekshiriladi.
+  const isValidButtonUrl = (url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      return /^https?:$/.test(parsed.protocol) && !!parsed.hostname;
+    } catch {
+      return false;
+    }
+  };
 
   fastify.get('/admin/broadcasts', async (req: any, reply) => {
     if (!await requireSuperAdmin(req, reply)) return;
@@ -1015,6 +1027,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
       return reply.status(400).send({ success: false, message: "Tugma rangi noto'g'ri" });
     }
+    if (linkUrl && !isValidButtonUrl(linkUrl)) {
+      return reply.status(400).send({ success: false, message: "Havola noto'g'ri — https://t.me/... shaklida bo'lishi kerak" });
+    }
     const interval = repeatIntervalMinutes != null ? Math.min(Number(repeatIntervalMinutes), REPEAT_MINUTES_MAX) : null;
 
     const broadcast = await db.broadcastMessage.create({
@@ -1045,6 +1060,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
       return reply.status(400).send({ success: false, message: "Tugma rangi noto'g'ri" });
     }
+    if (linkUrl && !isValidButtonUrl(linkUrl)) {
+      return reply.status(400).send({ success: false, message: "Havola noto'g'ri — https://t.me/... shaklida bo'lishi kerak" });
+    }
 
     // Vaqt yoki interval o'zgarsa, nextSendAt qayta hisoblanadi — aks holda
     // (masalan faqat matn tahrirlansa) joriy rejalashtirilgan vaqt saqlanadi.
@@ -1067,6 +1085,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(linkUrl !== undefined && { linkUrl: linkUrl || null }),
         ...(linkLabel !== undefined && { linkLabel: linkLabel || null }),
         ...(linkButtonStyle !== undefined && { linkButtonStyle: linkButtonStyle || null }),
+        // Har qanday tahrirlash eski xato xabarini tozalaydi — keyingi
+        // urinishda hali ham xato bo'lsa, worker uni qayta yozadi.
+        lastError: null,
       },
     });
     return { success: true, broadcast: { ...updated, targetChatIds: updated.targetChatIds.map((c) => c.toString()) } };
