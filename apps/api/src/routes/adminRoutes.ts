@@ -361,7 +361,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
     const totalCategories = await db.category.count();
-    const totalUsers = await db.user.count({ where: { cityId } });
+    // Faqat haqiqiy bot foydalanuvchilari (role: 'USER') — admin/moderator
+    // hisoblarini chiqarib tashlaydi, aks holda son biroz shishib ko'rinardi.
+    const totalUsers = await db.user.count({ where: { cityId, role: 'USER' } });
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const newUsersToday = await db.user.count({ where: { cityId, role: 'USER', createdAt: { gte: todayStart } } });
 
     // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
     const resolvedPercent = totalQuestions > 0
@@ -375,6 +380,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       resolvedPercent,
       totalListings: activeListings,
       totalUsers,
+      newUsersToday,
       // Qo'shimcha (boshqa ekranlar uchun):
       activeListings,
       pendingCandidates,

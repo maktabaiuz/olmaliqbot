@@ -21,6 +21,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     resolvedPercent: 100,
     totalListings: 0,
     totalUsers: 0,
+    newUsersToday: 0,
   });
 
   const [topSearches, setTopSearches] = useState<Array<{ query: string; count: number }>>([]);
@@ -57,6 +58,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           resolvedPercent: statsData.resolvedPercent ?? 100,
           totalListings: statsData.totalListings ?? 0,
           totalUsers: statsData.totalUsers ?? 0,
+          newUsersToday: statsData.newUsersToday ?? 0,
         });
       }
 
@@ -238,11 +240,16 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               </div>
               <div className="text-left">
                 <p className="text-xs font-bold text-on-surface dark:text-slate-100">Userlar</p>
-                <p className="text-[10px] text-slate-500">Botga ulangan mijozlar</p>
+                <p className="text-[10px] text-slate-500">
+                  Botga /start bosgan foydalanuvchilar
+                  {stats.newUsersToday > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold"> · +{stats.newUsersToday} bugun</span>
+                  )}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">{stats.totalUsers} ta</span>
+              <span className="text-xs font-bold text-on-surface dark:text-slate-100">{stats.totalUsers} ta</span>
               <span className="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
             </div>
           </button>
