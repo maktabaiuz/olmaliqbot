@@ -1,6 +1,6 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, buildMediaGroupItems } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, buildSlideshowHtml } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -297,6 +297,8 @@ async function runPrivateSearch(
   // <code> formatida (Telegram'da bosilsa o'zi nusxalanadi), alohida
   // tugma keraksiz ortiqcha edi.
   const resultKeyboard = new InlineKeyboard();
+  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  const slideshowHtml = buildSlideshowHtml(searchResult.listing.photoUrls, publicBaseUrl);
 
   if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
     const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
@@ -304,7 +306,7 @@ async function runPrivateSearch(
   }
 
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
+    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines, slideshowHtml);
     resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
   }
 
@@ -316,31 +318,15 @@ async function runPrivateSearch(
     resultKeyboard.url(communityLabel, communityUrl).danger().row();
   }
 
-  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
-  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
   const finalKeyboard = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
 
-  // Rasmli yozuvlar — faqat BIRINCHI (muqova) rasm karta matni VA barcha
-  // tugmalar bilan BITTA post sifatida yuboriladi (Telegram bitta rasmga
-  // reply_markup'ga to'liq ruxsat beradi). Qolgan rasmlar (2+ bo'lsa) —
-  // Telegram sendMediaGroup'ga tugma biriktirib bo'lmagani uchun (qat'iy,
-  // aylanib o'tib bo'lmaydigan API cheklovi) — alohida "Yana N ta rasm"
-  // tugmasi orqali, foydalanuvchi o'zi bosganda ko'rsatiladi.
-  if (photoItems.length > 0) {
-    if (photoItems.length > 1) {
-      resultKeyboard.text(`🖼 Yana ${photoItems.length - 1} ta rasm`, `photos_${searchResult.listingId}`).row();
-    }
-    const finalKeyboardWithPhotos = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
-    const captionFits = searchResult.formattedText.length <= 900;
-
-    await ctx.replyWithPhoto(photoItems[0].media, {
-      caption: captionFits ? searchResult.formattedText : undefined,
-      parse_mode: captionFits ? 'HTML' : undefined,
-      reply_markup: captionFits ? finalKeyboardWithPhotos : undefined,
-    });
-    if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
-
-    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboardWithPhotos });
+  // Rasmli yozuvlar — Telegram Rich Messages (sendRichMessage) orqali,
+  // suriladigan albom VA to'liq tugmalar bitta postda birlashtiriladi
+  // (batafsil izoh: groupHandler.ts).
+  if (slideshowHtml) {
+    const cardHtmlBr = searchResult.formattedText.replace(/\n/g, '<br>');
+    const richHtml = `${slideshowHtml}<br>${cardHtmlBr}`;
+    await ctx.replyWithRichMessage({ html: richHtml }, { reply_markup: finalKeyboard });
     return;
   }
 
@@ -393,31 +379,6 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     return;
   }
 
-  // "🖼 Yana N ta rasm" tugmasi — bosh (muqova) rasm allaqachon karta matni
-  // va tugmalar bilan bitta postda yuborilgan, bu yerda esa QOLGAN rasmlar
-  // (agar 2+ ta bo'lsa) suriladigan albom sifatida ko'rsatiladi. Telegram
-  // sendMediaGroup'ga tugma biriktirib bo'lmagani uchun bu xabarda tugma
-  // bo'lmaydi — lekin bu foydalanuvchi O'ZI ATAYIN bosgan qo'shimcha
-  // harakat, asosiy javob emas, shuning uchun bu qabul qilinadi.
-  if (data.startsWith('photos_')) {
-    const listingId = data.replace('photos_', '');
-    await ctx.answerCallbackQuery();
-    try {
-      const listing = await db.listing.findUnique({ where: { id: listingId } });
-      const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
-      const allPhotos = buildMediaGroupItems(listing?.photoUrls, publicBaseUrl);
-      const remaining = allPhotos.slice(1); // 1-rasm (muqova) allaqachon ko'rsatilgan
-      if (remaining.length === 1) {
-        await ctx.replyWithPhoto(remaining[0].media);
-      } else if (remaining.length > 1) {
-        await ctx.replyWithMediaGroup(remaining);
-      }
-    } catch (err) {
-      console.error('Failed to send remaining photos:', err);
-    }
-    return;
-  }
-
   if (data.startsWith('more_')) {
     const listingId = data.replace('more_', '');
     const state = await revealNextRankedItem(listingId);
@@ -457,21 +418,19 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
       newKeyboard.row();
     }
 
-    // Rasmli (bitta rasm + caption sifatida yuborilgan) postlarni Telegram
-    // editMessageText bilan emas, faqat editMessageCaption bilan
-    // tahrirlashga ruxsat beradi — aks holda "there is no text in the
-    // message to edit" xatosi bilan muvaffaqiyatsiz bo'lardi.
-    const isPhotoMessage = !!(ctx.callbackQuery?.message as any)?.photo;
-    const editOptions = {
-      parse_mode: 'HTML' as const,
-      reply_markup: newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined,
-    };
+    const newReplyMarkup = newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined;
 
+    // Rasmli (Rich Message — suriladigan albom bilan yuborilgan) postlarni
+    // Telegram faqat editMessageText'ga InputRichMessage obyektini (oddiy
+    // matn emas) berib tahrirlashga ruxsat beradi, VA slideshow blokini
+    // saqlanib qolishi uchun uni QAYTA qo'shish kerak — aks holda "Yana
+    // ko'rish" bosilganda rasmlar yo'qolib qolardi.
     try {
-      if (isPhotoMessage) {
-        await ctx.editMessageCaption({ caption: newText, ...editOptions });
+      if (state.slideshowHtml) {
+        const newHtml = `${state.slideshowHtml}<br>${newText.replace(/\n/g, '<br>')}`;
+        await ctx.editMessageText({ html: newHtml }, { reply_markup: newReplyMarkup });
       } else {
-        await ctx.editMessageText(newText, editOptions);
+        await ctx.editMessageText(newText, { parse_mode: 'HTML', reply_markup: newReplyMarkup });
       }
     } catch (err) {
       console.error('Failed to reveal next ranked item:', err);

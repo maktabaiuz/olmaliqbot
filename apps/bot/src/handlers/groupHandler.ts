@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, buildMediaGroupItems } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, buildSlideshowHtml } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
@@ -117,9 +117,12 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // orqali (grammY .success()/.danger() yordamchilari). Xarita alohida
   // tugma sifatida olib tashlandi — mo'ljal nomi o'zi (yuqorida, matn
   // ichida) bosilsa xaritaga ochiladi, shu yetarli.
+  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  const slideshowHtml = buildSlideshowHtml(searchResult.listing.photoUrls, publicBaseUrl);
+
   const keyboard = new InlineKeyboard();
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines);
+    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines, slideshowHtml);
     keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
   }
 
@@ -132,41 +135,24 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
   const finalKeyboard = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
 
-  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
-  const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
-
-  // Rasmli yozuvlar — faqat BIRINCHI (muqova) rasm karta matni VA barcha
-  // tugmalar (Yana ko'rish/kanal) bilan BITTA post sifatida yuboriladi —
-  // Telegram bitta rasmli xabarga reply_markup'ga to'liq ruxsat beradi,
-  // shuning uchun bu yo'l bilan chinakam bitta, to'liq funksional post
-  // olinadi. Agar yana rasmlar bo'lsa (2+), ular sendMediaGroup'ga tugma
-  // biriktirib bo'lmasligi sababli (Telegram'ning qat'iy, aylanib o'tib
-  // bo'lmaydigan cheklovi — Bot API 10.3'gacha tekshirildi) ALOHIDA, o'zi
-  // xohlagan vaqtda bosib ko'radigan "Yana N ta rasm" tugmasi orqali
-  // ko'rsatiladi — bosilganda qolgan rasmlar o'z albomida (suriladigan
-  // holatda) keladi.
-  if (photoItems.length > 0) {
-    if (photoItems.length > 1) {
-      keyboard.text(`🖼 Yana ${photoItems.length - 1} ta rasm`, `photos_${searchResult.listingId}`).row();
-    }
-    const finalKeyboardWithPhotos = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
-    const captionFits = fullResponse.length <= 900;
-
-    const sentPhoto = await ctx.replyWithPhoto(photoItems[0].media, {
-      caption: captionFits ? fullResponse : undefined,
-      parse_mode: captionFits ? 'HTML' : undefined,
-      reply_markup: captionFits ? finalKeyboardWithPhotos : undefined,
-      reply_parameters: { message_id: ctx.message.message_id },
-    });
-    if (sentPhoto && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentPhoto.message_id, 15 * 60 * 1000);
-    if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
-
-    // Caption sig'magan kamdan-kam holat — eski usul (rasm, keyin alohida to'liq matn)
-    const sentMsg = await ctx.reply(fullResponse, {
-      parse_mode: 'HTML',
-      reply_parameters: { message_id: ctx.message.message_id },
-      reply_markup: finalKeyboardWithPhotos,
-    });
+  // Rasmli yozuvlar — Telegram Rich Messages (Bot API 10.1+, sendRichMessage)
+  // orqali yuboriladi. sendMediaGroup'dan farqli, sendRichMessage'ning o'zi
+  // reply_markup'ni TO'LIQ qo'llab-quvvatlaydi — shuning uchun bir nechta
+  // rasm HAQIQIY suriladigan (swipeable, pastda nuqta-indikatorlar bilan)
+  // albom sifatida, VA barcha tugmalar (Yana ko'rish/kanal) bilan BIRGA,
+  // chinakam BITTA postda keladi. Karta matni HTML'dagi \n qatorlar
+  // Rich HTML'da <br>ga aylantiriladi — u oddiy HTML kabi bo'sh joyni
+  // yig'ishtiradi, faqat \n'ni emas.
+  if (slideshowHtml) {
+    const cardHtmlBr = fullResponse.replace(/\n/g, '<br>');
+    const richHtml = `${slideshowHtml}<br>${cardHtmlBr}`;
+    const sentMsg = await ctx.replyWithRichMessage(
+      { html: richHtml },
+      {
+        reply_markup: finalKeyboard,
+        reply_parameters: { message_id: ctx.message.message_id },
+      }
+    );
     if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
     return;
   }

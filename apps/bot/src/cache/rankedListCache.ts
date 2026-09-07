@@ -20,11 +20,20 @@ export interface RankedListState {
   compactLines: string[];
   /** compactLines'dan nechtasi hozircha ko'rsatilgan. */
   revealed: number;
+  /** 1-o'rin rasmli bo'lsa — Rich Message slideshow HTML fragmenti
+   * (<tg-slideshow>...</tg-slideshow> yoki bitta <img>). "Yana ko'rish"
+   * bosilganda xabar qayta tuzilganda rasmlar yo'qolib qolmasligi uchun. */
+  slideshowHtml?: string;
 }
 
-export async function setRankedList(listingId: string, headerCard: string, compactLines: string[]): Promise<void> {
+export async function setRankedList(
+  listingId: string,
+  headerCard: string,
+  compactLines: string[],
+  slideshowHtml?: string
+): Promise<void> {
   try {
-    const state: RankedListState = { headerCard, compactLines, revealed: 0 };
+    const state: RankedListState = { headerCard, compactLines, revealed: 0, slideshowHtml };
     await redisConnection.set(`${KEY_PREFIX}${listingId}`, JSON.stringify(state), 'EX', TTL_SECONDS);
   } catch (err) {
     console.error('Failed to cache ranked list:', err);

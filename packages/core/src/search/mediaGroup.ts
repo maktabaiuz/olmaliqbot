@@ -38,3 +38,24 @@ export function buildMediaGroupItems(
       media: /^https?:\/\//i.test(url) ? url : `${trimmedBase}${url}`,
     }));
 }
+
+/**
+ * Telegram Rich Messages (Bot API 10.1+, `sendRichMessage`) uchun HTML
+ * fragmenti quradi — bir nechta rasmni HAQIQIY suriladigan (swipeable)
+ * albom sifatida, VA shu bilan bir vaqtda tugmalar (reply_markup) bilan
+ * BITTA postda birlashtirish uchun. Bu `sendMediaGroup`dan farqli — unga
+ * tugma umuman biriktirib bo'lmaydi (Telegram'ning qat'iy cheklovi), lekin
+ * `sendRichMessage`ning o'zi `reply_markup`ni to'liq qo'llab-quvvatlaydi.
+ *
+ * Rasm sintaksisi: `<tg-slideshow><img src="..."/>...</tg-slideshow>` —
+ * maxsus HTML tegi, faqat Rich HTML formatida tan olinadi (oddiy
+ * parse_mode=HTML'da emas). Bitta rasm bo'lsa slideshow o'ramisiz, alohida
+ * `<img>` sifatida qo'shiladi (Telegram'ning kamida 2 element talab
+ * qiladigan eski sendMediaGroup'idan farqli, bu yerda 1 tasi ham xavfsiz).
+ */
+export function buildSlideshowHtml(photoUrls: string[] | null | undefined, baseUrl?: string): string {
+  const items = buildMediaGroupItems(photoUrls, baseUrl);
+  if (items.length === 0) return '';
+  const imgTags = items.map((p) => `<img src="${p.media}"/>`).join('');
+  return items.length === 1 ? imgTags : `<tg-slideshow>${imgTags}</tg-slideshow>`;
+}
