@@ -186,7 +186,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const olmaliq = await db.city.findFirst({ where: { slug: 'olmaliq' } });
       const dbUser = await db.user.upsert({
         where: { telegramId },
-        update: { role: 'SUPER_ADMIN', isSuspended: false },
+        // cityId ham yangilanadi — agar bu hisob avval (masalan botga
+        // /start bosib) cityId=null bilan yaratilgan bo'lsa ham, bu yerda
+        // to'g'irlanadi (2026-09 tuzatildi, batafsil: index.ts).
+        update: { role: 'SUPER_ADMIN', isSuspended: false, cityId: olmaliq?.id },
         create: {
           telegramId,
           firstName: userRaw?.first_name || 'Admin',

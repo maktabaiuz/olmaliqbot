@@ -81,12 +81,21 @@ async function startBot() {
     if (ctx.chat?.type === 'private' && ctx.from) {
       const tgUserId = BigInt(ctx.from.id);
 
+      // MUHIM (2026-09 topilgan jiddiy xato): bu yerda `cityId` HECH QACHON
+      // yozilmagan edi (na create'da, na update'da) — natijada botga
+      // /start bosgan HAQIQIY foydalanuvchilarning katta qismi (production'da
+      // tasdiqlangan: 55 tadan 47 tasi, ~85%) `cityId: null` bilan
+      // saqlanib qolgan edi. Bu esa ularni shahar bo'yicha filtrlaydigan
+      // BARCHA admin so'rovlariga (masalan "Userlar" soni) ko'rinmas
+      // qilib qo'ygan edi. Yagona shahar (Olmaliq) shu jarayonning
+      // boshida allaqachon aniqlangan — shuni yozamiz.
       db.user.upsert({
         where: { telegramId: tgUserId },
         update: {
           firstName: ctx.from.first_name || null,
           lastName: ctx.from.last_name || null,
           username: ctx.from.username || null,
+          cityId,
         },
         create: {
           telegramId: tgUserId,
@@ -94,6 +103,7 @@ async function startBot() {
           lastName: ctx.from.last_name || null,
           username: ctx.from.username || null,
           role: 'USER',
+          cityId,
         },
       }).catch(err => console.error('Failed to upsert user:', err));
 
