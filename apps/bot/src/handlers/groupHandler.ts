@@ -1,11 +1,11 @@
-import { Context, InlineKeyboard } from 'grammy';
+import { Context } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, buildSlideshowHtml } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer } from '@kimbor/core';
 import { db } from '@kimbor/db';
-import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { setRankedList } from '../cache/rankedListCache';
-import { getCommunityUrl, getCommunityLabel, getEmergencyLocalNumbers } from '../settings/appSettings';
+import { getEmergencyLocalNumbers } from '../settings/appSettings';
+import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -109,63 +109,22 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // 5. Guruh javobi tugmalari — atigi 2 tasi: "Yana ko'rish" (yashil/success,
-  // bor bo'lsa, bosilganda BITTADAN qo'shib ko'rsatadi) va kanal/guruhga
-  // o'tish havolasi (qizil/danger, admin panelidan sozlansa — HAR BIR
-  // javobda ko'rinadi, SSH/serverga tegmasdan o'zgartiriladi). Rang —
-  // Telegram Bot API 9.4 (2026-02)da qo'shilgan haqiqiy `style` maydoni
-  // orqali (grammY .success()/.danger() yordamchilari). Xarita alohida
-  // tugma sifatida olib tashlandi — mo'ljal nomi o'zi (yuqorida, matn
-  // ichida) bosilsa xaritaga ochiladi, shu yetarli.
-  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
-  const slideshowHtml = buildSlideshowHtml(searchResult.listing.photoUrls, publicBaseUrl);
-
-  const keyboard = new InlineKeyboard();
+  // 5. Guruh javobi tugmalari — "Yana ko'rish" (yashil/success, bor bo'lsa,
+  // bosilganda NAVBATDAGI moslikni O'ZINING alohida postida yuboradi — bu
+  // 2026-09'da tuzatildi: avval mavjud xabarga matn qo'shib qo'yardi, bu
+  // rasmli yozuvlarda matn/rasmlarni aralashtirib yuborardi) va kanal/
+  // guruhga o'tish havolasi (qizil/danger, admin panelidan sozlansa — HAR
+  // BIR postda ko'rinadi).
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines, slideshowHtml);
-    keyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
+    await setRankedList(searchResult.listingId, searchResult.otherMatches);
   }
+  const keyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId);
 
-  const communityUrl = await getCommunityUrl();
-  const communityLabel = communityUrl ? await getCommunityLabel() : null;
-  if (communityUrl && communityLabel) {
-    keyboard.url(communityLabel, communityUrl).danger().row();
-  }
-
-  const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
-  const finalKeyboard = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
-
-  // Rasmli yozuvlar — Telegram Rich Messages (Bot API 10.1+, sendRichMessage)
-  // orqali yuboriladi. sendMediaGroup'dan farqli, sendRichMessage'ning o'zi
-  // reply_markup'ni TO'LIQ qo'llab-quvvatlaydi — shuning uchun bir nechta
-  // rasm HAQIQIY suriladigan (swipeable, pastda nuqta-indikatorlar bilan)
-  // albom sifatida, VA barcha tugmalar (Yana ko'rish/kanal) bilan BIRGA,
-  // chinakam BITTA postda keladi. Karta matni HTML'dagi \n qatorlar
-  // Rich HTML'da <br>ga aylantiriladi — u oddiy HTML kabi bo'sh joyni
-  // yig'ishtiradi, faqat \n'ni emas.
-  if (slideshowHtml) {
-    const cardHtmlBr = fullResponse.replace(/\n/g, '<br>');
-    const richHtml = `${slideshowHtml}<br>${cardHtmlBr}`;
-    const sentMsg = await ctx.replyWithRichMessage(
-      { html: richHtml },
-      {
-        reply_markup: finalKeyboard,
-        reply_parameters: { message_id: ctx.message.message_id },
-      }
-    );
-    if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
-    return;
-  }
-
-  // Rasm yo'q — odatdagi matn+tugmalar javobi
-  const sentMsg = await ctx.reply(fullResponse, {
-    parse_mode: 'HTML',
-    reply_parameters: { message_id: ctx.message.message_id },
-    reply_markup: finalKeyboard,
+  await sendListingReply(ctx, {
+    formattedText: searchResult.formattedText,
+    photoUrls: searchResult.listing.photoUrls,
+    keyboard,
+    replyToMessageId: ctx.message.message_id,
+    autoDeleteChatId: ctx.chat?.id,
   });
-
-  // 15 minutdan keyin avtomatik o'chirish — BullMQ (Redis-based, restart-safe)
-  if (sentMsg && sentMsg.message_id && ctx.chat?.id) {
-    await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
-  }
 }

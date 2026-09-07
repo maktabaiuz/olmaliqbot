@@ -1,10 +1,11 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, buildSlideshowHtml } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
-import { getCommunityUrl, getCommunityLabel, getEmergencyLocalNumbers } from '../settings/appSettings';
+import { getEmergencyLocalNumbers } from '../settings/appSettings';
+import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -293,45 +294,20 @@ async function runPrivateSearch(
     return;
   }
 
-  // "Raqamni nusxalash" tugmasi olib tashlandi — telefon raqami allaqachon
-  // <code> formatida (Telegram'da bosilsa o'zi nusxalanadi), alohida
-  // tugma keraksiz ortiqcha edi.
-  const resultKeyboard = new InlineKeyboard();
-  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
-  const slideshowHtml = buildSlideshowHtml(searchResult.listing.photoUrls, publicBaseUrl);
-
-  if (searchResult.listing.primaryLandmark?.latitude && searchResult.listing.primaryLandmark?.longitude) {
-    const mapUrl = `https://yandex.uz/maps/?pt=${searchResult.listing.primaryLandmark.longitude},${searchResult.listing.primaryLandmark.latitude}&z=16&l=map`;
-    resultKeyboard.url('📍 Xarita', mapUrl).row();
-  }
-
+  // "Raqamni nusxalash" va alohida "Xarita" tugmalari olib tashlandi —
+  // telefon raqami <code> formatida (bosilsa o'zi nusxalanadi), mo'ljal
+  // nomi esa kartaning o'zida (lat/long bo'lsa) bosiladigan havola —
+  // ikkalasi ham alohida tugma sifatida ortiqcha edi.
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.formattedText, searchResult.compactLines, slideshowHtml);
-    resultKeyboard.text(`Yana ${searchResult.totalMatches - 1} tasini ko'rish`, `more_${searchResult.listingId}`).success().row();
+    await setRankedList(searchResult.listingId, searchResult.otherMatches);
   }
+  const resultKeyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId);
 
-  // Kanal/guruhga o'tish havolasi — admin panelidan sozlansa, guruhdagi
-  // kabi shaxsiy chatda ham har bir javobda ko'rinadi.
-  const communityUrl = await getCommunityUrl();
-  const communityLabel = communityUrl ? await getCommunityLabel() : null;
-  if (communityUrl && communityLabel) {
-    resultKeyboard.url(communityLabel, communityUrl).danger().row();
-  }
-
-  const finalKeyboard = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
-
-  // Rasmli yozuvlar — Telegram Rich Messages (sendRichMessage) orqali,
-  // suriladigan albom VA to'liq tugmalar bitta postda birlashtiriladi
-  // (batafsil izoh: groupHandler.ts).
-  if (slideshowHtml) {
-    const cardHtmlBr = searchResult.formattedText.replace(/\n/g, '<br>');
-    const richHtml = `${slideshowHtml}<br>${cardHtmlBr}`;
-    await ctx.replyWithRichMessage({ html: richHtml }, { reply_markup: finalKeyboard });
-    return;
-  }
-
-  // Rasm yo'q — odatdagi matn+tugmalar javobi
-  await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
+  await sendListingReply(ctx, {
+    formattedText: searchResult.formattedText,
+    photoUrls: searchResult.listing.photoUrls,
+    keyboard: resultKeyboard,
+  });
 }
 
 export async function handleDirectCallbacks(ctx: Context, defaultCityId: string) {
@@ -381,59 +357,32 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
   if (data.startsWith('more_')) {
     const listingId = data.replace('more_', '');
-    const state = await revealNextRankedItem(listingId);
+    const revealed = await revealNextRankedItem(listingId);
 
-    if (!state) {
+    if (!revealed) {
       await ctx.answerCallbackQuery({ text: "Vaqti tugadi, savolni qayta yozing", show_alert: true });
       return;
     }
 
     await ctx.answerCallbackQuery();
 
-    // Har bosishda BITTADAN qo'shib ko'rsatiladi — 1-o'rin (headerCard)
-    // har doim tepada, ostiga hozirgacha "ochilgan" qatorlar qo'shiladi.
-    const revealedText = state.compactLines.slice(0, state.revealed).join('\n\n');
-    const newText = revealedText ? `${state.headerCard}\n\n${revealedText}` : state.headerCard;
+    // Navbatdagi moslik ENDI mavjud xabarga qo'shib qo'yilmaydi — o'zining
+    // alohida, to'liq postida (kerak bo'lsa rasmlari bilan) yuboriladi, shu
+    // bilan turli yozuvlarning matni/rasmlari aralashib ketmaydi (2026-09
+    // tuzatildi). "Yana ko'rish" qolganlar bo'lsa shu yangi postga ham
+    // qo'shiladi, hammasi ko'rsatilgan bo'lsa esa butunlay yo'qoladi.
+    const isGroupChat = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+    const keyboard = await buildResultKeyboard(revealed.remaining, listingId);
 
-    // Mavjud klaviaturadagi boshqa tugmalar (Nusxalash, Xarita, Kanal
-    // havolasi) o'zgarishsiz saqlanadi — faqat "Yana ko'rish" qatori
-    // yangilanadi (qolgan son kamayadi) yoki hammasi ko'rsatilgan bo'lsa
-    // butunlay olib tashlanadi.
-    const existingRows = ((ctx.callbackQuery?.message as any)?.reply_markup?.inline_keyboard || []) as any[][];
-    const otherRows = existingRows.filter((row) => !row.some((btn: any) => btn.callback_data === data));
-
-    const newKeyboard = new InlineKeyboard();
-    const remaining = state.compactLines.length - state.revealed;
-    if (remaining > 0) {
-      newKeyboard.text(`Yana ${remaining} tasini ko'rish`, `more_${listingId}`).success().row();
-    }
-    for (const row of otherRows) {
-      for (const btn of row) {
-        // Rangni (style) ham saqlab qolamiz — aks holda tahrirlangan
-        // xabarda tugma yashil/qizil rangini yo'qotib qo'yardi.
-        if (btn.url) newKeyboard.url(btn.text, btn.url);
-        else if (btn.callback_data) newKeyboard.text(btn.text, btn.callback_data);
-        if (btn.style) newKeyboard.style(btn.style);
-      }
-      newKeyboard.row();
-    }
-
-    const newReplyMarkup = newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined;
-
-    // Rasmli (Rich Message — suriladigan albom bilan yuborilgan) postlarni
-    // Telegram faqat editMessageText'ga InputRichMessage obyektini (oddiy
-    // matn emas) berib tahrirlashga ruxsat beradi, VA slideshow blokini
-    // saqlanib qolishi uchun uni QAYTA qo'shish kerak — aks holda "Yana
-    // ko'rish" bosilganda rasmlar yo'qolib qolardi.
     try {
-      if (state.slideshowHtml) {
-        const newHtml = `${state.slideshowHtml}<br>${newText.replace(/\n/g, '<br>')}`;
-        await ctx.editMessageText({ html: newHtml }, { reply_markup: newReplyMarkup });
-      } else {
-        await ctx.editMessageText(newText, { parse_mode: 'HTML', reply_markup: newReplyMarkup });
-      }
+      await sendListingReply(ctx, {
+        formattedText: revealed.item.formattedText,
+        photoUrls: revealed.item.photoUrls,
+        keyboard,
+        autoDeleteChatId: isGroupChat ? ctx.chat?.id : undefined,
+      });
     } catch (err) {
-      console.error('Failed to reveal next ranked item:', err);
+      console.error('Failed to send next ranked item:', err);
     }
   }
 }

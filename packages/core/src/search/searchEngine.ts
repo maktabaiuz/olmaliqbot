@@ -162,12 +162,22 @@ async function fuzzyFindLandmark(cityId: string, searchText: string): Promise<st
   return best ? [best.id] : [];
 }
 
+/** 2-7 o'rinlardan biri uchun to'liq post ma'lumoti — "Yana ko'rish"
+ * bosilganda ENDI mavjud xabarga matn qo'shib qo'yish o'rniga, HAR BIRI
+ * o'ZINING alohida, to'liq (kerak bo'lsa rasmlari bilan) postida
+ * yuboriladi — shu bilan turli yozuvlarning matni/rasmlari bir-biriga
+ * ARALASHIB ketmaydi. */
+export interface OtherMatch {
+  formattedText: string;
+  photoUrls: string[];
+}
+
 export interface FormattedListingResult {
   listingId: string;
   formattedText: string;
-  /** 2-7 o'rinlar uchun kompakt qatorlar — "Yana ko'rish" bosilganda BITTADAN
-   * qo'shib ko'rsatish uchun (1-o'rin allaqachon formattedText'da bor). */
-  compactLines: string[];
+  /** 2-7 o'rinlar — "Yana ko'rish" bosilganda HAR BIRI alohida to'liq post
+   * sifatida yuboriladi (1-o'rin allaqachon formattedText'da bor). */
+  otherMatches: OtherMatch[];
   hasMore: boolean;
   totalMatches: number;
   executionTimeMs: number;
@@ -508,19 +518,24 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
     buildListingCard(bestMatch, bestBayesianRating, null);
 
-  // 2-7 o'rinlar uchun ham 1-o'rin bilan BIR XIL "karta" uslubi (blockquote) —
-  // avval faqat qisqa bitta qatorli formatRankedLine ishlatilgan edi, lekin
-  // foydalanuvchi "Yana ko'rish" orqali chiqadigan qolganlar ham birinchi
-  // javobga o'xshash bo'lishini so'radi. "Yana ko'rish" bosilganda BITTADAN
-  // qo'shib ko'rsatish uchun (1-o'rin formattedText'da allaqachon bor).
-  const compactLines = rankedTop.slice(1).map((s, i) => buildListingCard(s.listing, s.bayesianRating, i + 2));
+  // 2-7 o'rinlar — 1-o'rin bilan BIR XIL "karta" uslubi (sarlavha + blockquote)
+  // va HAR BIRI o'zining rasmlari (agar bor bo'lsa) bilan. "Yana ko'rish"
+  // bosilganda ENDI mavjud xabarga qo'shib qo'yish O'RNIGA, har biri
+  // O'ZINING alohida, to'liq postida yuboriladi — matn/rasmlar
+  // aralashib ketmasligi uchun (1-o'rin formattedText'da allaqachon bor).
+  const otherMatches: OtherMatch[] = rankedTop.slice(1).map((s, i) => ({
+    formattedText:
+      `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
+      buildListingCard(s.listing, s.bayesianRating, i + 2),
+    photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
+  }));
 
   const executionTimeMs = Date.now() - startTime;
 
   return {
     listingId: bestMatch.id,
     formattedText,
-    compactLines,
+    otherMatches,
     hasMore: scoredListings.length > 1,
     totalMatches: rankedTop.length,
     executionTimeMs,
