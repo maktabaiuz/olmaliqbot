@@ -149,6 +149,38 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
       </div>
 
+      {/* 3b. FOYDALANUVCHILAR — jonli (real vaqtda yangilanadigan) hero kartasi */}
+      <button
+        onClick={() => onNavigateTab('users')}
+        className="relative overflow-hidden w-full text-left bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-4 rounded-2xl shadow-md flex items-center justify-between active:scale-[0.98] transition-transform"
+      >
+        <div className="absolute right-0 top-0 w-28 h-28 bg-white/10 rounded-full blur-2xl -mr-6 -mt-6" />
+        <div className="relative flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-[24px]">group</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">Jonli · Botga /start bosganlar</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-2xl font-black tracking-tight">{stats.totalUsers}</span>
+              {stats.newUsersToday > 0 && (
+                <span className="flex items-center gap-0.5 bg-white/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="material-symbols-outlined text-[12px]">trending_up</span>
+                  +{stats.newUsersToday} bugun
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <span className="material-symbols-outlined text-[20px] text-white/70 relative">chevron_right</span>
+      </button>
+
       {/* 4. VAZIFALAR (iOS Grouped Style) */}
       <section className="flex flex-col gap-2">
         <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Tezkor amallar & Vazifalar</h3>
@@ -204,11 +236,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
       </section>
 
-      {/* 5. BO'LIMLAR (Baza, Userlar) */}
+      {/* 5. BO'LIMLAR (Baza) — Userlar yuqoridagi jonli kartaga ko'chirildi */}
       <section className="flex flex-col gap-2">
         <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Tizim bo'limlari</h3>
         <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-outline-variant/10 dark:divide-slate-800/80">
-          
+
           {/* Baza */}
           <button
             onClick={() => onNavigateTab('database')}
@@ -225,31 +257,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-slate-500">{stats.totalListings} ta</span>
-              <span className="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
-            </div>
-          </button>
-
-          {/* Userlar */}
-          <button
-            onClick={() => onNavigateTab('users')}
-            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-teal-500 text-white flex items-center justify-center">
-                <span className="material-symbols-outlined text-[18px]">group</span>
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-on-surface dark:text-slate-100">Userlar</p>
-                <p className="text-[10px] text-slate-500">
-                  Botga /start bosgan foydalanuvchilar
-                  {stats.newUsersToday > 0 && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold"> · +{stats.newUsersToday} bugun</span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-on-surface dark:text-slate-100">{stats.totalUsers} ta</span>
               <span className="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
             </div>
           </button>

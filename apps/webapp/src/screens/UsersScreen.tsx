@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 interface UserItem {
   id: string;
@@ -11,31 +11,52 @@ interface UserItem {
   hasComplaints: boolean;
   lastActivity: string;
   lastMessageText?: string;
+  isSuspended: boolean;
 }
 
 interface UsersScreenProps {
   onSelectUser: (telegramUserId: string, fullName: string, username?: string) => void;
 }
 
+const POLL_INTERVAL_MS = 15000;
+
+function initData(): string {
+  return window.Telegram?.WebApp?.initData || '';
+}
+
 export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
   const [users, setUsers] = useState<UserItem[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [newUsersToday, setNewUsersToday] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'complained' | 'new'>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   // Swipe State
   const [swipedRowId, setSwipedRowId] = useState<string | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const headers = { 'x-init-data': initData() };
+
+  const fetchUsers = async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
     try {
-      const initData = window.Telegram?.WebApp?.initData || '';
-      const headers = { 'x-init-data': initData };
-      const response = await fetch(`/api/admin/users?search=${encodeURIComponent(searchQuery)}&filter=${activeFilter}`, { headers });
-      if (response.ok) {
-        const data = await response.json();
+      const [usersRes, statsRes] = await Promise.all([
+        fetch(`/api/admin/users?search=${encodeURIComponent(searchQuery)}&filter=${activeFilter}`, { headers }),
+        fetch('/api/admin/stats', { headers }),
+      ]);
+      if (usersRes.ok) {
+        const data = await usersRes.json();
         setUsers(data || []);
       }
+      if (statsRes.ok) {
+        const s = await statsRes.json();
+        setTotalUsers(s.totalUsers ?? 0);
+        setNewUsersToday(s.newUsersToday ?? 0);
+      }
+      setLastUpdatedAt(new Date());
     } catch (err) {
       console.error('Failed to fetch users:', err);
     } finally {
@@ -43,9 +64,44 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
     }
   };
 
+  // Qidiruv/filtr o'zgarganda darhol yuklaydi
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, activeFilter]);
+
+  // Real vaqtda yangilanish — har 15 soniyada fonda (spinner ko'rsatmasdan)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    pollRef.current = setInterval(() => fetchUsers(false), POLL_INTERVAL_MS);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, activeFilter]);
+
+  const handleToggleSuspend = async (u: UserItem) => {
+    setBusyUserId(u.id);
+    setSwipedRowId(null);
+    const nextSuspend = !u.isSuspended;
+    // Darhol UI'da yangilaymiz — real vaqtda tuyulishi uchun (server javobi bilan tasdiqlanadi)
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: nextSuspend } : x)));
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/suspend`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suspend: nextSuspend }),
+      });
+      if (!res.ok) {
+        // Muvaffaqiyatsiz bo'lsa — orqaga qaytaramiz
+        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
+      }
+    } catch {
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
+    } finally {
+      setBusyUserId(null);
+    }
+  };
 
   const handleTouchStart = (e: React.TouchEvent, _id: string) => {
     setTouchStartX(e.touches[0].clientX);
@@ -57,10 +113,8 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
     const diffX = touchStartX - currentX;
 
     if (diffX > 40) {
-      // Swiping left
       setSwipedRowId(id);
     } else if (diffX < -40) {
-      // Swiping right
       if (swipedRowId === id) setSwipedRowId(null);
     }
   };
@@ -84,10 +138,43 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in pb-12">
-      {/* Header & Toolbar */}
+      {/* Header */}
       <div className="flex flex-col gap-3">
         <h1 className="text-2xl font-bold text-on-surface dark:text-slate-100 px-1">Userlar</h1>
-        
+
+        {/* Jonli statistika kartasi */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-4 rounded-2xl shadow-md">
+          <div className="absolute right-0 top-0 w-28 h-28 bg-white/10 rounded-full blur-2xl -mr-6 -mt-6" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                  Jonli · har {POLL_INTERVAL_MS / 1000}s yangilanadi
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-3xl font-black tracking-tight">{totalUsers}</span>
+                <span className="text-xs font-semibold text-white/80">bot foydalanuvchisi</span>
+              </div>
+            </div>
+            {newUsersToday > 0 && (
+              <div className="bg-white/15 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <div className="text-lg font-black leading-none">+{newUsersToday}</div>
+                <div className="text-[9px] font-bold uppercase text-white/80 mt-0.5">bugun</div>
+              </div>
+            )}
+          </div>
+          {lastUpdatedAt && (
+            <p className="relative text-[9px] text-white/60 mt-2">
+              Oxirgi yangilanish: {lastUpdatedAt.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          )}
+        </div>
+
         {/* Search */}
         <div className="relative">
           <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[20px] text-slate-500">
@@ -114,7 +201,6 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
               key={chip.id}
               onClick={() => {
                 setActiveFilter(chip.id as any);
-                setIsLoading(true);
               }}
               className={`flex-shrink-0 min-w-max px-4 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${
                 activeFilter === chip.id
@@ -165,14 +251,16 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       Javob
                     </button>
                     <button
-                      onClick={() => {
-                        alert(`User ${fullName} bloklandi (Moped) 🚫`);
-                        setSwipedRowId(null);
-                      }}
-                      className="h-full w-[64px] bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors"
+                      onClick={() => handleToggleSuspend(u)}
+                      disabled={busyUserId === u.id}
+                      className={`h-full w-[64px] text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
+                        u.isSuspended ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
+                      }`}
                     >
-                      <span className="material-symbols-outlined text-[18px]">block</span>
-                      Blok
+                      <span className="material-symbols-outlined text-[18px]">
+                        {u.isSuspended ? 'lock_open' : 'block'}
+                      </span>
+                      {u.isSuspended ? 'Ochish' : 'Blok'}
                     </button>
                   </div>
 
@@ -190,7 +278,11 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                   >
                     {/* Avatar with red dot complaint indicator */}
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-400 to-blue-500 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                      <div
+                        className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0 ${
+                          u.isSuspended ? 'bg-slate-500' : 'bg-gradient-to-tr from-sky-400 to-blue-500'
+                        }`}
+                      >
                         {u.firstName ? u.firstName[0].toUpperCase() : 'U'}
                       </div>
                       {u.hasComplaints && (
@@ -200,20 +292,25 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
 
                     {/* Details */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate flex items-center gap-1.5">
                           {fullName}
+                          {u.isSuspended && (
+                            <span className="text-[9px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded-full shrink-0">
+                              Bloklangan
+                            </span>
+                          )}
                         </h4>
-                        <span className="text-[9px] text-slate-500">
+                        <span className="text-[9px] text-slate-500 shrink-0">
                           {formatActivityTime(u.lastActivity)}
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center justify-between mt-1">
                         <p className="text-[11px] text-sky-500 dark:text-sky-400 font-medium truncate">
                           {u.username ? `@${u.username}` : `ID: ${u.telegramId}`}
                         </p>
-                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-semibold shrink-0">
                           Limit: {u.queryCountToday}/20
                         </span>
                       </div>

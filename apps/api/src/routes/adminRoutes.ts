@@ -1247,6 +1247,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           hasComplaints,
           lastActivity,
           lastMessageText: lastMsg ? lastMsg.text : null,
+          isSuspended: user.isSuspended,
         };
       })
     );
@@ -1264,6 +1265,26 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return result;
   });
 
+  // Foydalanuvchini bloklash/blokdan chiqarish (moderatorRoutes.ts'dagi
+  // moderator-suspend naqshiga mos, oddiy botga /start bosgan userlar
+  // uchun). Avval UsersScreen'dagi "Blok" tugmasi soxta edi (faqat alert
+  // chiqarardi, hech narsa saqlamasdi) — endi haqiqiy ishlaydi.
+  fastify.put('/admin/users/:id/suspend', async (req: any, reply) => {
+    const { id } = req.params;
+    const { suspend } = req.body as { suspend: boolean };
+
+    const user = await db.user.findUnique({ where: { id } });
+    if (!user || user.role !== 'USER') {
+      return reply.status(404).send({ success: false, message: 'Foydalanuvchi topilmadi' });
+    }
+
+    const updated = await db.user.update({
+      where: { id },
+      data: { isSuspended: Boolean(suspend), suspendedAt: suspend ? new Date() : null },
+    });
+
+    return { success: true, isSuspended: updated.isSuspended };
+  });
 
   fastify.get('/admin/chats/:telegramUserId/messages', async (req: any, reply) => {
     const { telegramUserId } = req.params;
