@@ -217,6 +217,10 @@ function buildListingCard(item: any, bayesianRating: number, rank: number | null
   if (badgesText) cardLines.push(`🏷 ${escapeHtml(badgesText)}`);
   if (item.specificServices) cardLines.push(`🛠 ${escapeHtml(item.specificServices)}`);
   if (item.approxPrice) cardLines.push(`💵 ${escapeHtml(item.approxPrice)}`);
+  // Admin panelida "Tavsif / Izoh" maydoniga yozilgan qo'shimcha ma'lumot —
+  // bazaga saqlanardi, lekin bot javobida HECH QACHON ko'rsatilmasdi (bu
+  // funksiya description'ni umuman o'qimasdi). Endi ko'rinadi.
+  if (item.description) cardLines.push(`📝 ${escapeHtml(item.description)}`);
   cardLines.push('');
   cardLines.push(`📞 <code>${escapeHtml(item.phone)}</code>`);
 
