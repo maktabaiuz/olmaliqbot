@@ -5,6 +5,7 @@ import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHandler';
 import { startDeletionWorker, redisConnection } from './queue/deleteQueue';
+import { scheduleBroadcastTicks, startBroadcastWorker } from './queue/broadcastQueue';
 
 dotenv.config({ path: '../../.env' });
 
@@ -115,6 +116,12 @@ async function startBot() {
   });
 
   console.log('✅ BullMQ deletion worker started.');
+
+  // Rejalashtirilgan ommaviy xabarlar (Habar yuborish) — har 1 daqiqada
+  // "vaqti kelgan" postlarni tekshirib, ulangan guruh/kanallarga yuboradi.
+  await scheduleBroadcastTicks();
+  startBroadcastWorker(bot);
+  console.log('✅ Broadcast worker started.');
 
   // Set Chat Menu Button for Telegram Mini App.
   // Manzilga "?v=<ishga tushish vaqti>" qo'shiladi — Telegram WebView har bir

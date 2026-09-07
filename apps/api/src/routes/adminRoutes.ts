@@ -13,6 +13,21 @@ const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+// moderatorRoutes.ts'dagi bilan bir xil tekshiruv — ommaviy xabar
+// (broadcast) yuborish kuchli, xavfli amal, faqat Super-Admin uchun.
+async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
+  const { user, error } = await authenticateRequest(req);
+  if (error) {
+    reply.status(error.status).send(error.body);
+    return false;
+  }
+  if (user.role !== 'SUPER_ADMIN') {
+    reply.status(403).send({ success: false, message: "Faqat Super-Admin uchun 🔒" });
+    return false;
+  }
+  return true;
+}
+
 // Login bloklanish muddatini o'qishga qulay shaklga o'tkazadi (masalan "2 kun 5 soat")
 function formatRemainingTime(until: Date): string {
   const ms = until.getTime() - Date.now();
@@ -957,6 +972,95 @@ export async function adminRoutes(fastify: FastifyInstance) {
       title: g.title || 'Nomsiz guruh',
       createdAt: g.createdAt,
     }));
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "HABAR YUBORISH" — rejalashtirilgan ommaviy xabarlar (broadcast).
+  // Faqat Super-Admin uchun — kuchli, xavfli amal (ko'plab guruhlarga
+  // birdaniga yozadi), oddiy moderatorlarga yopiq (Moderatorlar boshqaruvi/
+  // Bot matnlari kabi bir xil himoya darajasida).
+  // ──────────────────────────────────────────────────────────────────────────
+  const REPEAT_MINUTES_MAX = 60 * 24 * 30; // 30 kun — xavfsizlik cheklovi
+
+  fastify.get('/admin/broadcasts', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const broadcasts = await db.broadcastMessage.findMany({
+      where: { cityId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return broadcasts.map((b) => ({
+      ...b,
+      targetChatIds: b.targetChatIds.map((c) => c.toString()),
+    }));
+  });
+
+  fastify.post('/admin/broadcasts', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled } = req.body;
+
+    if (!text || !text.trim()) {
+      return reply.status(400).send({ success: false, message: 'Xabar matni majburiy' });
+    }
+    if (!Array.isArray(targetChatIds) || targetChatIds.length === 0) {
+      return reply.status(400).send({ success: false, message: 'Kamida bitta guruh/kanal tanlang' });
+    }
+    if (!firstSendAt) {
+      return reply.status(400).send({ success: false, message: 'Yuborilish vaqti majburiy' });
+    }
+    const interval = repeatIntervalMinutes != null ? Math.min(Number(repeatIntervalMinutes), REPEAT_MINUTES_MAX) : null;
+
+    const broadcast = await db.broadcastMessage.create({
+      data: {
+        cityId,
+        text,
+        photoUrls: Array.isArray(photoUrls) ? photoUrls.slice(0, 8) : [],
+        targetChatIds: targetChatIds.map((c: string) => BigInt(c)),
+        nextSendAt: new Date(firstSendAt),
+        repeatIntervalMinutes: interval,
+        isEnabled: isEnabled !== false,
+      },
+    });
+    return { success: true, broadcast: { ...broadcast, targetChatIds: broadcast.targetChatIds.map((c) => c.toString()) } };
+  });
+
+  fastify.put('/admin/broadcasts/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params;
+    const existing = await db.broadcastMessage.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Post topilmadi' });
+
+    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled } = req.body;
+
+    // Vaqt yoki interval o'zgarsa, nextSendAt qayta hisoblanadi — aks holda
+    // (masalan faqat matn tahrirlansa) joriy rejalashtirilgan vaqt saqlanadi.
+    let nextSendAt = existing.nextSendAt;
+    if (firstSendAt !== undefined) nextSendAt = new Date(firstSendAt);
+
+    const interval = repeatIntervalMinutes !== undefined
+      ? (repeatIntervalMinutes != null ? Math.min(Number(repeatIntervalMinutes), REPEAT_MINUTES_MAX) : null)
+      : existing.repeatIntervalMinutes;
+
+    const updated = await db.broadcastMessage.update({
+      where: { id },
+      data: {
+        ...(text !== undefined && { text }),
+        ...(Array.isArray(photoUrls) && { photoUrls: photoUrls.slice(0, 8) }),
+        ...(Array.isArray(targetChatIds) && { targetChatIds: targetChatIds.map((c: string) => BigInt(c)) }),
+        nextSendAt,
+        repeatIntervalMinutes: interval,
+        ...(isEnabled !== undefined && { isEnabled: Boolean(isEnabled) }),
+      },
+    });
+    return { success: true, broadcast: { ...updated, targetChatIds: updated.targetChatIds.map((c) => c.toString()) } };
+  });
+
+  fastify.delete('/admin/broadcasts/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params;
+    await db.broadcastMessage.delete({ where: { id } }).catch(() => {});
+    return { success: true };
   });
 
   // --- 5b. UMUMIY SOZLAMALAR (kalit-qiymat) — masalan "Kanal/Guruhga

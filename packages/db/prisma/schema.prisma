@@ -95,6 +95,7 @@ model City {
   queryLogs       QueryLog[]
   emergencyNumbers EmergencyNumber[]
   cityGroups      CityGroup[]
+  broadcastMessages BroadcastMessage[]
 
   @@map("cities")
 }
@@ -108,6 +109,42 @@ model CityGroup {
   createdAt   DateTime @default(now())
 
   @@map("city_groups")
+}
+
+// Admin panelidan yaratiladigan, rejalashtirilgan ommaviy xabar (broadcast) —
+// bot ulangan tanlangan guruh/kanallarga o'zi belgilagan vaqtda va
+// takrorlanish oralig'ida yuboriladi (apps/bot/src/queue/broadcastQueue.ts).
+model BroadcastMessage {
+  id                    String                 @id @default(uuid())
+  cityId                String
+  city                  City                   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  text                  String
+  photoUrls             String[]               @default([])
+  targetChatIds         BigInt[]               // admin tanlagan CityGroup.chatId'lar
+  nextSendAt            DateTime?              // keyingi (yoki birinchi) yuborilish vaqti — null bo'lsa qayta yuborilmaydi (faqat bir martalik, allaqachon yuborilgan)
+  repeatIntervalMinutes Int?                   // null = faqat bir marta; aks holda har N daqiqada
+  isEnabled             Boolean                @default(true)
+  lastSentAt            DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  sentMessages          BroadcastSentMessage[]
+
+  @@map("broadcast_messages")
+}
+
+// Har bir (post x guruh) juftligi uchun OXIRGI yuborilgan xabarning
+// message_id'sini saqlaydi — keyingi sikl kelganda O'SHA guruhdagi eski
+// nusxani o'chirish uchun kerak (guruh eski postlar bilan to'lib ketmasin).
+model BroadcastSentMessage {
+  id          String           @id @default(uuid())
+  broadcastId String
+  broadcast   BroadcastMessage @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  chatId      BigInt
+  messageId   Int
+  sentAt      DateTime         @default(now())
+
+  @@unique([broadcastId, chatId])
+  @@map("broadcast_sent_messages")
 }
 
 // Oddiy kalit-qiymat sozlamalar ombori — admin panelidan o'zgartiriladigan,
