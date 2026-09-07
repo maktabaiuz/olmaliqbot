@@ -335,24 +335,21 @@ async function runPrivateSearch(
     return;
   }
 
-  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
-  // reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi).
-  // Foydalanuvchi buni aniq BITTA post sifatida ko'rishni xohlagani uchun
-  // (2026-09): tugmalar bu holatda umuman yuborilmaydi — kanal havolasi
-  // caption ichiga oddiy bosiladigan matn-havola sifatida qo'shiladi,
-  // "Yana ko'rish" esa albomli javoblarda olib tashlanadi.
+  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga tugma
+  // qo'shishga UMUMAN ruxsat bermaydi (rasmiy, o'zgarmas API cheklovi —
+  // Bot API 10.3'gacha, eng so'nggi versiyagacha tekshirildi, aylanib
+  // o'tish yo'li yo'q). "Yana ko'rish" (yashil) va kanal (qizil) tugmalari
+  // shuning uchun albomdan keyingi alohida, qisqa xabarda saqlanadi.
   if (photoItems.length > 1) {
-    const communityLine = communityUrl && communityLabel ? `\n\n📣 <a href="${communityUrl}">${communityLabel}</a>` : '';
-    const albumCaption = `${searchResult.formattedText}${communityLine}`;
-    const captionFits = albumCaption.length <= 900;
+    const captionFits = searchResult.formattedText.length <= 900;
 
     const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: albumCaption, parse_mode: 'HTML' as const } : p))
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: searchResult.formattedText, parse_mode: 'HTML' as const } : p))
       : photoItems;
     await ctx.replyWithMediaGroup(mediaGroupPayload);
-    if (captionFits) return; // Bitta post — boshqa xabar yo'q
 
-    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
+    const followUpText = captionFits ? "👆 Yuqoridagi e'lon" : searchResult.formattedText;
+    await ctx.reply(followUpText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
     return;
   }
 

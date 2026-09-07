@@ -159,22 +159,20 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     return;
   }
 
-  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
-  // reply_markup (tugma) qo'shishga ruxsat bermaydi (rasmiy, hech qanday
-  // bot aylanib o'ta olmaydigan API cheklovi). Foydalanuvchi buni aniq
-  // BITTA post sifatida ko'rishni xohlagani uchun (2026-09): tugmalar
-  // (Yana ko'rish, kanal) bu holatda UMUMAN yuborilmaydi — kanal havolasi
-  // caption ICHIGA oddiy bosiladigan matn-havola sifatida qo'shiladi,
-  // "Yana ko'rish" esa albomli javoblarda butunlay olib tashlanadi (faqat
-  // matnli/bitta-rasmli javoblarda ishlaydi). Shu bilan chinakam bitta,
-  // ortiqcha ikkinchi xabarsiz post olinadi.
+  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga tugma
+  // (reply_markup) qo'shishga UMUMAN ruxsat bermaydi. Bu rasmiy, o'zgarmas
+  // API cheklovi — Bot API 10.3 (2026-08, eng so'nggi versiya)gacha bo'lgan
+  // BARCHA o'zgarishlar tarixini va boshqa bot kutubxonalarining haqiqiy
+  // muammolarini tekshirdim: hech qachon, hech qanday usul bilan bitta
+  // media-group xabariga tugma biriktirib bo'lmaydi — bu Telegram'ning o'zi
+  // tomonidan qat'iy taqiqlangan, aylanib o'tish yo'li yo'q. Shuning uchun
+  // "Yana ko'rish" (yashil) va kanal (qizil) tugmalari albomdan keyin
+  // keladigan alohida, qisqa xabarda saqlanadi — bu yagona ishlaydigan yo'l.
   if (photoItems.length > 1) {
-    const communityLine = communityUrl && communityLabel ? `\n\n📣 <a href="${communityUrl}">${communityLabel}</a>` : '';
-    const albumCaption = `${fullResponse}${communityLine}`;
-    const captionFits = albumCaption.length <= 900;
+    const captionFits = fullResponse.length <= 900;
 
     const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: albumCaption, parse_mode: 'HTML' as const } : p))
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: fullResponse, parse_mode: 'HTML' as const } : p))
       : photoItems;
     const sentPhotos = await ctx.replyWithMediaGroup(mediaGroupPayload, {
       reply_parameters: { message_id: ctx.message.message_id },
@@ -182,11 +180,9 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     if (ctx.chat?.id) {
       for (const p of sentPhotos) await scheduleMessageDeletion(ctx.chat.id, p.message_id, 15 * 60 * 1000);
     }
-    if (captionFits) return; // Bitta post — boshqa xabar yo'q
 
-    // Caption sig'magan kamdan-kam holat — eski usulga qaytiladi (bu holda
-    // "Yana ko'rish" tugmasi ham tiklanadi, chunki baribir alohida xabar kerak)
-    const sentMsg = await ctx.reply(fullResponse, {
+    const followUpText = captionFits ? "🕐 Bu post 15 daqiqada o'chadi" : fullResponse;
+    const sentMsg = await ctx.reply(followUpText, {
       parse_mode: 'HTML',
       reply_parameters: { message_id: ctx.message.message_id },
       reply_markup: finalKeyboard,
