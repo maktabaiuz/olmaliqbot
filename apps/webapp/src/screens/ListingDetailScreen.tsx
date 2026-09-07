@@ -49,6 +49,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [specificServices, setSpecificServices] = useState('');
   const [approxPrice, setApproxPrice] = useState('');
   const [description, setDescription] = useState('');
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const MAX_PHOTOS = 8;
 
   // Quick Action Toggles
   const [verification, setVerification] = useState<'VERIFIED' | 'COMMUNITY_UNVERIFIED'>('COMMUNITY_UNVERIFIED');
@@ -99,6 +103,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setSpecificServices(l.specificServices || '');
         setApproxPrice(l.approxPrice || '');
         setDescription(l.description || '');
+        setPhotoUrls(l.photoUrls || []);
         setVerification(l.verification || 'COMMUNITY_UNVERIFIED');
         setStatus(l.status || 'ACTIVE');
 
@@ -134,7 +139,8 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         approxPrice !== (originalData.approxPrice || '') ||
         description !== (originalData.description || '') ||
         JSON.stringify(badges) !== JSON.stringify(originalData.badges || []) ||
-        JSON.stringify(jargonSynonyms) !== JSON.stringify(originalData.jargonSynonyms || []))
+        JSON.stringify(jargonSynonyms) !== JSON.stringify(originalData.jargonSynonyms || []) ||
+        JSON.stringify(photoUrls) !== JSON.stringify(originalData.photoUrls || []))
   );
 
   // Save changes
@@ -159,6 +165,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           specificServices,
           approxPrice,
           description,
+          photoUrls,
         }),
       });
       const data = await res.json();
@@ -239,6 +246,45 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   const handleRemoveJargon = (wToRemove: string) => {
     setJargonSynonyms(jargonSynonyms.filter(w => w !== wToRemove));
+  };
+
+  // Rasm qo'shish — yuklash darhol serverga saqlanadi (AddListingScreen'dagi
+  // bilan bir xil endpoint), lekin yozuvning o'ziga BIRIKTIRILISHI
+  // "O'zgarishlarni saqlash" tugmasi bosilgandagina yakunlanadi — shu bilan
+  // boshqa maydonlar kabi bir xil, bashorat qilinadigan tartibda ishlaydi.
+  const handlePhotoFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setPhotoUploadError(null);
+    setIsUploadingPhoto(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (photoUrls.length >= MAX_PHOTOS) {
+          setPhotoUploadError(`Eng ko'pi bilan ${MAX_PHOTOS} ta rasm bo'lishi mumkin`);
+          break;
+        }
+        const formData = new FormData();
+        formData.append('photo', file);
+        const res = await fetch('/api/admin/listings/upload-photo', {
+          method: 'POST',
+          headers: { 'x-init-data': initData },
+          body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.url) {
+          setPhotoUrls((prev) => [...prev, data.url]);
+        } else {
+          setPhotoUploadError(data.error || 'Rasmni yuklashda xatolik yuz berdi');
+        }
+      }
+    } catch {
+      setPhotoUploadError('Aloqa xatoligi — rasm yuklanmadi');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = (urlToRemove: string) => {
+    setPhotoUrls(photoUrls.filter((u) => u !== urlToRemove));
   };
 
   if (loading) {
@@ -613,6 +659,52 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 placeholder="Qo'shimcha izoh..."
                 className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none resize-none"
               />
+            </div>
+
+            {/* RASMLAR */}
+            <div>
+              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
+              </label>
+              <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
+                Bir nechta rasm bo'lsa, bot javobida suriladigan albom sifatida ko'rsatiladi.
+              </p>
+
+              {photoUrls.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1 mb-1.5">
+                  {photoUrls.map((url) => (
+                    <div key={url} className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-outline-variant/40 dark:border-slate-700">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(url)}
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {photoUrls.length < MAX_PHOTOS && (
+                <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold cursor-pointer">
+                  <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
+                  {isUploadingPhoto ? 'Yuklanmoqda...' : 'Rasm qo\'shish'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    disabled={isUploadingPhoto}
+                    onChange={(e) => {
+                      handlePhotoFilesSelected(e.target.files);
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              )}
+              {photoUploadError && <p className="text-red-500 text-[10px] font-semibold mt-1">{photoUploadError}</p>}
             </div>
           </div>
         </main>
