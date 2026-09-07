@@ -417,35 +417,31 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
               placeholder="https://t.me/..."
               className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
             />
-            {linkUrl.trim() && (
-              <>
-                <input
-                  type="text"
-                  value={linkLabel}
-                  onChange={(e) => setLinkLabel(e.target.value)}
-                  placeholder="Tugma matni, masalan: Kanalga o'tish"
-                  className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
-                />
-                <div className="flex items-center gap-2 pt-0.5">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Rang:</span>
-                  {BUTTON_STYLES.map((s) => (
-                    <button
-                      key={s.label}
-                      type="button"
-                      onClick={() => setLinkButtonStyle(s.value)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
-                        linkButtonStyle === s.value
-                          ? 'border-primary dark:border-sky-500 bg-primary/10 dark:bg-sky-500/15 text-primary dark:text-sky-400'
-                          : 'border-outline-variant/30 dark:border-slate-800 text-slate-500'
-                      }`}
-                    >
-                      <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            <input
+              type="text"
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              placeholder="Tugma matni, masalan: Kanalga o'tish"
+              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+            />
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Tugma rangi:</span>
+              {BUTTON_STYLES.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => setLinkButtonStyle(s.value)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
+                    linkButtonStyle === s.value
+                      ? 'border-primary dark:border-sky-500 bg-primary/10 dark:bg-sky-500/15 text-primary dark:text-sky-400'
+                      : 'border-outline-variant/30 dark:border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* YOQILGAN/O'CHIRILGAN */}
