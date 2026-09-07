@@ -20,7 +20,20 @@ interface BroadcastItem {
   isEnabled: boolean;
   lastSentAt: string | null;
   createdAt: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  linkButtonStyle: string | null;
 }
+
+// Telegram Bot API'ning HAQIQIY, cheklangan 3 ta tugma rangi — boshqasi yo'q
+// (grammY/@grammyjs/types'dan tasdiqlangan). "style" berilmasa — Telegram
+// o'zi standart (kulrang) ko'rinishda ko'rsatadi.
+const BUTTON_STYLES: { value: string | null; label: string; swatchClass: string }[] = [
+  { value: null, label: 'Standart', swatchClass: 'bg-slate-400' },
+  { value: 'primary', label: "Ko'k", swatchClass: 'bg-sky-500' },
+  { value: 'success', label: 'Yashil', swatchClass: 'bg-emerald-500' },
+  { value: 'danger', label: 'Qizil', swatchClass: 'bg-red-500' },
+];
 
 // Takrorlanish tanlovlari — daqiqaga aylantirilgan qiymatlar bilan.
 const REPEAT_OPTIONS: { label: string; minutes: number | null }[] = [
@@ -64,6 +77,9 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
   const [firstSendAt, setFirstSendAt] = useState(() => toDatetimeLocalValue(new Date(Date.now() + 5 * 60 * 1000)));
   const [repeatMinutes, setRepeatMinutes] = useState<number | null>(1440);
   const [isEnabled, setIsEnabled] = useState(true);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkLabel, setLinkLabel] = useState('');
+  const [linkButtonStyle, setLinkButtonStyle] = useState<string | null>('primary');
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
@@ -98,6 +114,9 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
     setFirstSendAt(toDatetimeLocalValue(new Date(Date.now() + 5 * 60 * 1000)));
     setRepeatMinutes(1440);
     setIsEnabled(true);
+    setLinkUrl('');
+    setLinkLabel('');
+    setLinkButtonStyle('primary');
     setFormError(null);
     setEditingId(null);
   };
@@ -115,8 +134,16 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
     setFirstSendAt(toDatetimeLocalValue(b.nextSendAt ? new Date(b.nextSendAt) : new Date(Date.now() + 5 * 60 * 1000)));
     setRepeatMinutes(b.repeatIntervalMinutes);
     setIsEnabled(b.isEnabled);
+    setLinkUrl(b.linkUrl || '');
+    setLinkLabel(b.linkLabel || '');
+    setLinkButtonStyle(b.linkButtonStyle || 'primary');
     setFormError(null);
     setView('form');
+  };
+
+  // Vaqt bo'limini tezroq va aniqroq tanlash uchun tayyor tugmalar.
+  const applyQuickTime = (minutesFromNow: number) => {
+    setFirstSendAt(toDatetimeLocalValue(new Date(Date.now() + minutesFromNow * 60 * 1000)));
   };
 
   const toggleGroup = (chatId: string) => {
@@ -164,6 +191,10 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
       setFormError('Kamida bitta guruh/kanal tanlang');
       return;
     }
+    if (linkUrl.trim() && !/^https?:\/\//i.test(linkUrl.trim())) {
+      setFormError("Havola https:// yoki http:// bilan boshlanishi kerak");
+      return;
+    }
     setIsSaving(true);
     try {
       const body = {
@@ -173,6 +204,9 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
         firstSendAt: new Date(firstSendAt).toISOString(),
         repeatIntervalMinutes: repeatMinutes,
         isEnabled,
+        linkUrl: linkUrl.trim() || null,
+        linkLabel: linkLabel.trim() || null,
+        linkButtonStyle: linkUrl.trim() ? linkButtonStyle : null,
       };
       const res = editingId
         ? await fetch(`/api/admin/broadcasts/${editingId}`, { method: 'PUT', headers, body: JSON.stringify(body) })
@@ -315,8 +349,24 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
           </div>
 
           {/* BIRINCHI YUBORILISH VAQTI */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Birinchi yuborilish vaqti *</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: 'Hozir', minutes: 1 },
+                { label: '1 soatdan keyin', minutes: 60 },
+                { label: 'Ertaga shu vaqtda', minutes: 1440 },
+              ].map((q) => (
+                <button
+                  key={q.label}
+                  type="button"
+                  onClick={() => applyQuickTime(q.minutes)}
+                  className="px-3 py-1.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
             <input
               type="datetime-local"
               value={firstSendAt}
@@ -344,6 +394,58 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
                 </button>
               ))}
             </div>
+
+            {/* Aniq, tushunarli xulosa — nima sodir bo'lishini oldindan ko'rsatadi */}
+            <p className="text-[11px] text-primary dark:text-sky-400 bg-primary/5 dark:bg-sky-500/10 rounded-xl px-3 py-2 leading-relaxed">
+              📅 Birinchi marta <b>{formatDateTime(new Date(firstSendAt).toISOString())}</b> da yuboriladi
+              {repeatMinutes
+                ? <>, keyin <b>{repeatLabel(repeatMinutes).toLowerCase()}</b> avtomatik qaytariladi (eskisi o'chib, yangisi qo'yiladi).</>
+                : <> va boshqa qaytarilmaydi (faqat bir marta).</>}
+            </p>
+          </div>
+
+          {/* HAVOLA (REKLAMA TUGMASI) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-slate-500 uppercase">Havola tugmasi (ixtiyoriy)</label>
+            <p className="text-[10px] text-slate-500 -mt-1">
+              Berilsa, xabar ostida bosiladigan tugma chiqadi — masalan kanalga o'tish uchun.
+            </p>
+            <input
+              type="text"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://t.me/..."
+              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+            />
+            {linkUrl.trim() && (
+              <>
+                <input
+                  type="text"
+                  value={linkLabel}
+                  onChange={(e) => setLinkLabel(e.target.value)}
+                  placeholder="Tugma matni, masalan: Kanalga o'tish"
+                  className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+                />
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Rang:</span>
+                  {BUTTON_STYLES.map((s) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() => setLinkButtonStyle(s.value)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
+                        linkButtonStyle === s.value
+                          ? 'border-primary dark:border-sky-500 bg-primary/10 dark:bg-sky-500/15 text-primary dark:text-sky-400'
+                          : 'border-outline-variant/30 dark:border-slate-800 text-slate-500'
+                      }`}
+                    >
+                      <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* YOQILGAN/O'CHIRILGAN */}
@@ -430,6 +532,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
                 {b.photoUrls.length > 0 && <span>🖼 {b.photoUrls.length} ta rasm</span>}
+                {b.linkUrl && <span>🔗 Havola tugmasi bor</span>}
                 <span>📢 {b.targetChatIds.length} ta guruh/kanal</span>
                 <span>🔁 {repeatLabel(b.repeatIntervalMinutes)}</span>
                 <span>⏰ Keyingi: {formatDateTime(b.nextSendAt)}</span>

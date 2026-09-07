@@ -981,6 +981,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // Bot matnlari kabi bir xil himoya darajasida).
   // ──────────────────────────────────────────────────────────────────────────
   const REPEAT_MINUTES_MAX = 60 * 24 * 30; // 30 kun — xavfsizlik cheklovi
+  // Telegram Bot API'ning haqiqiy, cheklangan tugma ranglari — boshqa
+  // qiymat qabul qilinmaydi (grammY/@grammyjs/types'dan tasdiqlangan).
+  const VALID_BUTTON_STYLES = ['primary', 'success', 'danger'];
 
   fastify.get('/admin/broadcasts', async (req: any, reply) => {
     if (!await requireSuperAdmin(req, reply)) return;
@@ -998,7 +1001,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/broadcasts', async (req: any, reply) => {
     if (!await requireSuperAdmin(req, reply)) return;
     const cityId = await getCityId(req);
-    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled } = req.body;
+    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled, linkUrl, linkLabel, linkButtonStyle } = req.body;
 
     if (!text || !text.trim()) {
       return reply.status(400).send({ success: false, message: 'Xabar matni majburiy' });
@@ -1008,6 +1011,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
     if (!firstSendAt) {
       return reply.status(400).send({ success: false, message: 'Yuborilish vaqti majburiy' });
+    }
+    if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
+      return reply.status(400).send({ success: false, message: "Tugma rangi noto'g'ri" });
     }
     const interval = repeatIntervalMinutes != null ? Math.min(Number(repeatIntervalMinutes), REPEAT_MINUTES_MAX) : null;
 
@@ -1020,6 +1026,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
         nextSendAt: new Date(firstSendAt),
         repeatIntervalMinutes: interval,
         isEnabled: isEnabled !== false,
+        linkUrl: linkUrl || null,
+        linkLabel: linkLabel || null,
+        linkButtonStyle: linkButtonStyle || null,
       },
     });
     return { success: true, broadcast: { ...broadcast, targetChatIds: broadcast.targetChatIds.map((c) => c.toString()) } };
@@ -1031,7 +1040,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const existing = await db.broadcastMessage.findUnique({ where: { id } });
     if (!existing) return reply.status(404).send({ success: false, message: 'Post topilmadi' });
 
-    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled } = req.body;
+    const { text, photoUrls, targetChatIds, firstSendAt, repeatIntervalMinutes, isEnabled, linkUrl, linkLabel, linkButtonStyle } = req.body;
+
+    if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
+      return reply.status(400).send({ success: false, message: "Tugma rangi noto'g'ri" });
+    }
 
     // Vaqt yoki interval o'zgarsa, nextSendAt qayta hisoblanadi — aks holda
     // (masalan faqat matn tahrirlansa) joriy rejalashtirilgan vaqt saqlanadi.
@@ -1051,6 +1064,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
         nextSendAt,
         repeatIntervalMinutes: interval,
         ...(isEnabled !== undefined && { isEnabled: Boolean(isEnabled) }),
+        ...(linkUrl !== undefined && { linkUrl: linkUrl || null }),
+        ...(linkLabel !== undefined && { linkLabel: linkLabel || null }),
+        ...(linkButtonStyle !== undefined && { linkButtonStyle: linkButtonStyle || null }),
       },
     });
     return { success: true, broadcast: { ...updated, targetChatIds: updated.targetChatIds.map((c) => c.toString()) } };

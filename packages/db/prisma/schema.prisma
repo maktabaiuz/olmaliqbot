@@ -121,6 +121,9 @@ model BroadcastMessage {
   text                  String
   photoUrls             String[]               @default([])
   targetChatIds         BigInt[]               // admin tanlagan CityGroup.chatId'lar
+  linkUrl               String?                // Reklama/tashqi havola — berilsa xabar ostida tugma sifatida chiqadi
+  linkLabel             String?                // Tugma matni (masalan "Kanalga o'tish")
+  linkButtonStyle       String?                // Telegram Bot API'ning haqiqiy 3 ta rangi: "primary" (ko'k), "success" (yashil), "danger" (qizil)
   nextSendAt            DateTime?              // keyingi (yoki birinchi) yuborilish vaqti — null bo'lsa qayta yuborilmaydi (faqat bir martalik, allaqachon yuborilgan)
   repeatIntervalMinutes Int?                   // null = faqat bir marta; aks holda har N daqiqada
   isEnabled             Boolean                @default(true)

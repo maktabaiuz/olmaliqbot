@@ -79,10 +79,37 @@ async function processDueBroadcasts(bot: Bot): Promise<void> {
 
 async function sendBroadcastToAllTargets(
   bot: Bot,
-  broadcast: { id: string; text: string; photoUrls: string[]; targetChatIds: bigint[]; repeatIntervalMinutes: number | null },
+  broadcast: {
+    id: string;
+    text: string;
+    photoUrls: string[];
+    targetChatIds: bigint[];
+    repeatIntervalMinutes: number | null;
+    linkUrl: string | null;
+    linkLabel: string | null;
+    linkButtonStyle: string | null;
+  },
   publicBaseUrl: string
 ): Promise<void> {
   const slideshowHtml = buildSlideshowHtml(broadcast.photoUrls, publicBaseUrl);
+
+  // Reklama/tashqi havola — berilgan bo'lsa, xabar ostida tugma sifatida
+  // chiqadi (mavjud "Yana ko'rish"/kanal tugmalari bilan bir xil uslub).
+  // Rang — Telegram Bot API'ning haqiqiy, cheklangan 3 ta qiymati:
+  // "primary" (ko'k), "success" (yashil), "danger" (qizil).
+  const replyMarkup = broadcast.linkUrl
+    ? {
+        inline_keyboard: [
+          [
+            {
+              text: broadcast.linkLabel || 'Havola',
+              url: broadcast.linkUrl,
+              ...(broadcast.linkButtonStyle ? { style: broadcast.linkButtonStyle as 'primary' | 'success' | 'danger' } : {}),
+            },
+          ],
+        ],
+      }
+    : undefined;
 
   for (const chatIdBig of broadcast.targetChatIds) {
     const chatId = Number(chatIdBig);
@@ -90,10 +117,10 @@ async function sendBroadcastToAllTargets(
       let sentMessageId: number;
       if (slideshowHtml) {
         const richHtml = `${slideshowHtml}<br>${broadcast.text.replace(/\n/g, '<br>')}`;
-        const sent = await bot.api.sendRichMessage(chatId, { html: richHtml });
+        const sent = await bot.api.sendRichMessage(chatId, { html: richHtml }, { reply_markup: replyMarkup });
         sentMessageId = sent.message_id;
       } else {
-        const sent = await bot.api.sendMessage(chatId, broadcast.text, { parse_mode: 'HTML' });
+        const sent = await bot.api.sendMessage(chatId, broadcast.text, { parse_mode: 'HTML', reply_markup: replyMarkup });
         sentMessageId = sent.message_id;
       }
 
