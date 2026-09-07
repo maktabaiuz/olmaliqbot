@@ -23,6 +23,38 @@ export interface SearchOptions {
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
 
+// So'rov ko'rinishidagi xabar signalini tekshiradi. MUHIM (2026-09 topilgan
+// jiddiy xato): pastdagi jargon moslashtiruvchi butun xabarni bo'shliqsiz
+// "yadro" shaklga siqib, ICHIDA jargon so'z bor-yo'qligini tekshiradi — gap
+// tuzilishini UMUMAN hisobga olmaydi. Natijada "labo" so'zini o'z ichiga
+// olgan HAR QANDAY xabar (masalan "kecha labo band bo'lib ketdi" degan oddiy
+// HIKOYA, so'rov emas) biror listing'ning jargonSynonyms'ida "labo" bo'lsa,
+// bot xato ravishda javob berib yuborardi — hatto AI klassifikator to'g'ri
+// "NOT_RELEVANT" desa ham, bu ustunroq deb hisoblanardi. Endi jargon moslik
+// FAQAT xabar chindan ham biror narsa so'rayotganda ("kerak", "bormi",
+// "raqami" kabi so'zlar bilan) YOKI xabarning o'zi qisqa (odam ko'pincha
+// so'ragan narsani yolg'iz yozadi: "labo", "Qaroqtoy choyxona") bo'lgandagina
+// ishonch bilan qabul qilinadi.
+function looksLikeSearchRequest(rawMessage: string): boolean {
+  const words = rawMessage.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  if (words.length <= 3) return true; // qisqa xabar — ko'pincha o'zi so'rov
+  const n = normalizeText(rawMessage);
+  // Faqat CHAP tomondan so'z chegarasi talab qilinadi (o'ng tomondan emas) —
+  // o'zbek tili qo'shimchali til bo'lgani uchun ("qayerda" + "ligini" =
+  // "qayerdaligini" kabi bitta so'zga yopishib ketadi), qat'iy ikki
+  // tomonlama chegara talabi haqiqiy so'rovlarni ("Qaroqtoy choyxona
+  // qayerdaligini bilasizmi?") noto'g'ri rad etib qo'yardi.
+  // MUHIM: "bormi" ("bor-yo'qligini so'rash") uchun qisqartirilgan "borm"
+  // prefiksi ISHLATILMAYDI — "bormadim"/"bormadi" ("bormadim" = "men
+  // bormadim", ya'ni SHU YERGA emas, biror joyga BORMASLIK haqida oddiy
+  // gap) kabi juda keng tarqalgan, umuman aloqasiz fe'l shakli bilan
+  // to'qnashib, xato ijobiy natija berardi (aynan shu turdagi xato tufayli
+  // "labo bilan hech qayerga bormadim" degan HIKOYA botni xato uyg'otgan
+  // edi). "bormi" so'zining o'zi (to'liq) xavfsiz — qo'shimchalanmaydi.
+  return /\b(kerak|bormi|raqam|nomer|telefon|qayerd|kimda|qanaqa|qancha|narx|qanday|ochiqm|nechida|nechigacha|manzil)/.test(n);
+}
+
 // Kategoriyada o'ziga xos emoji topilmasa, turi bo'yicha umumiy belgi ishlatiladi
 const DEFAULT_EMOJI_BY_OBJECT_TYPE: Record<string, string> = {
   USTA: '🔧',
@@ -215,7 +247,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // moslashadi. Yozilish farqiga (masalan "baliq haus"/"baliqhaus") ham
   // chidamli, chunki bo'shliqlar allaqachon olib tashlangan.
   let jargonMatchedIds = new Set<string>();
-  if (rawMessage) {
+  if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     const msgCore = coreMatchText(rawMessage);
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },

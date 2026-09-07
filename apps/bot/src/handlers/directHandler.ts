@@ -316,17 +316,38 @@ async function runPrivateSearch(
     resultKeyboard.url(communityLabel, communityUrl).danger().row();
   }
 
-  // Rasmli yozuvlar (masalan "uy arendaga") — avval rasmlar suriladigan
-  // albom sifatida, so'ng odatdagi karta+tugmalar matni. sendMediaGroup
-  // tugmalarni qo'llab-quvvatlamaydi, shuning uchun ular alohida xabarda
-  // qoladi. 1 ta rasm bo'lsa media-group o'rniga oddiy replyWithPhoto
-  // ishlatiladi (Telegram media-group uchun kamida 2 ta element talab qiladi).
+  // Rasmli yozuvlar (masalan "uy arendaga") — bitta rasm bo'lsa, karta matni
+  // VA tugmalar BITTA rasmli post sifatida (caption + reply_markup)
+  // yuboriladi. Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga
+  // UMUMAN reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi),
+  // shuning uchun matn albomning BIRINCHI rasmiga caption sifatida
+  // biriktiriladi, tugmalar esa albomdan keyingi juda qisqa, alohida
+  // xabarga qoladi. Caption cheklovi 1024 belgi — undan oshsa xavfsizlik
+  // uchun eski (rasm keyin alohida to'liq matn) usulga qaytiladi.
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
+  const captionFits = searchResult.formattedText.length <= 900;
+  const finalKeyboard = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
+
   if (photoItems.length === 1) {
-    await ctx.replyWithPhoto(photoItems[0].media);
+    await ctx.replyWithPhoto(photoItems[0].media, {
+      caption: captionFits ? searchResult.formattedText : undefined,
+      parse_mode: captionFits ? 'HTML' : undefined,
+      reply_markup: captionFits ? finalKeyboard : undefined,
+    });
+    if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
   } else if (photoItems.length > 1) {
-    await ctx.replyWithMediaGroup(photoItems);
+    const mediaGroupPayload = captionFits
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: searchResult.formattedText, parse_mode: 'HTML' as const } : p))
+      : photoItems;
+    await ctx.replyWithMediaGroup(mediaGroupPayload);
+  }
+
+  if (photoItems.length > 0 && captionFits) {
+    // Karta yuqoridagi albomda caption sifatida allaqachon bor — bu yerda
+    // faqat tugmalar uchun qisqa xabar kifoya.
+    await ctx.reply("👆 Yuqoridagi e'lon", { reply_markup: finalKeyboard });
+    return;
   }
 
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
@@ -416,11 +437,22 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
       newKeyboard.row();
     }
 
+    // Rasmli (bitta rasm + caption sifatida yuborilgan) postlarni Telegram
+    // editMessageText bilan emas, faqat editMessageCaption bilan
+    // tahrirlashga ruxsat beradi — aks holda "there is no text in the
+    // message to edit" xatosi bilan muvaffaqiyatsiz bo'lardi.
+    const isPhotoMessage = !!(ctx.callbackQuery?.message as any)?.photo;
+    const editOptions = {
+      parse_mode: 'HTML' as const,
+      reply_markup: newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined,
+    };
+
     try {
-      await ctx.editMessageText(newText, {
-        parse_mode: 'HTML',
-        reply_markup: newKeyboard.inline_keyboard.length > 0 ? newKeyboard : undefined,
-      });
+      if (isPhotoMessage) {
+        await ctx.editMessageCaption({ caption: newText, ...editOptions });
+      } else {
+        await ctx.editMessageText(newText, editOptions);
+      }
     } catch (err) {
       console.error('Failed to reveal next ranked item:', err);
     }

@@ -129,21 +129,38 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     keyboard.url(communityLabel, communityUrl).danger().row();
   }
 
-  // Rasmli yozuvlar (masalan "uy arendaga") — avval rasmlar suriladigan
-  // albom sifatida, so'ng odatdagi karta+tugmalar matni ketma-ket yuboriladi.
-  // Telegram sendMediaGroup tugmalarni (reply_markup) qo'llab-quvvatlamaydi,
-  // shuning uchun ular alohida matn xabariga qoladi. 1 ta rasm bo'lsa
-  // media-group o'rniga oddiy replyWithPhoto ishlatiladi (Telegram media-group
-  // uchun kamida 2 ta element talab qiladi).
+  const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
+  const finalKeyboard = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
+
+  // Rasmli yozuvlar (masalan "uy arendaga") — bitta rasm bo'lsa, karta matni
+  // VA tugmalar (Yana/kanal) BITTA rasmli post sifatida (caption +
+  // reply_markup) yuboriladi — Telegram bunga to'liq ruxsat beradi. Bir
+  // nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
+  // reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi), shuning
+  // uchun matn albomning BIRINCHI rasmiga caption sifatida biriktiriladi
+  // (shu bilan rasm+matn baribir BITTA postday ko'rinadi), tugmalar esa
+  // albomdan keyin keladigan juda qisqa, alohida xabarga qoladi — bundan
+  // boshqa yo'l yo'q. Caption cheklovi 1024 belgi — undan oshsa (kamdan-kam
+  // holat) xavfsizlik uchun eski (rasm keyin alohida to'liq matn) usulga
+  // qaytiladi.
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
+  const captionFits = fullResponse.length <= 900;
+
   if (photoItems.length === 1) {
     const sentPhoto = await ctx.replyWithPhoto(photoItems[0].media, {
+      caption: captionFits ? fullResponse : undefined,
+      parse_mode: captionFits ? 'HTML' : undefined,
+      reply_markup: captionFits ? finalKeyboard : undefined,
       reply_parameters: { message_id: ctx.message.message_id },
     });
     if (sentPhoto && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentPhoto.message_id, 15 * 60 * 1000);
+    if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
   } else if (photoItems.length > 1) {
-    const sentPhotos = await ctx.replyWithMediaGroup(photoItems, {
+    const mediaGroupPayload = captionFits
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: fullResponse, parse_mode: 'HTML' as const } : p))
+      : photoItems;
+    const sentPhotos = await ctx.replyWithMediaGroup(mediaGroupPayload, {
       reply_parameters: { message_id: ctx.message.message_id },
     });
     if (ctx.chat?.id) {
@@ -151,13 +168,17 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     }
   }
 
-  const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
+  // Bu yerga faqat quyidagi holatlarda yetib keladi: rasm yo'q, YOKI albom
+  // (2+ rasm, tugmalar baribir alohida xabar bo'lishi shart), YOKI caption
+  // sig'magani uchun eski usulga qaytilgan holat.
+  const textOnlyBody = photoItems.length > 0 && captionFits
+    ? "🕐 Bu post 15 daqiqada o'chadi" // Karta yuqoridagi albomda caption sifatida allaqachon bor
+    : fullResponse;
 
-  // Javob savolga reply qilib yuboriladi
-  const sentMsg = await ctx.reply(fullResponse, {
+  const sentMsg = await ctx.reply(textOnlyBody, {
     parse_mode: 'HTML',
     reply_parameters: { message_id: ctx.message.message_id },
-    reply_markup: keyboard.inline_keyboard.length > 0 ? keyboard : undefined,
+    reply_markup: finalKeyboard,
   });
 
   // 15 minutdan keyin avtomatik o'chirish — BullMQ (Redis-based, restart-safe)
