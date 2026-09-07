@@ -12,7 +12,14 @@ interface UserItem {
   lastActivity: string;
   lastMessageText?: string;
   isSuspended: boolean;
+  role: string;
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  SUPER_ADMIN: 'Super-Admin',
+  MODERATOR_APPROVER: 'Moderator',
+  MODERATOR_EDITOR: 'Moderator',
+};
 
 interface UsersScreenProps {
   onSelectUser: (telegramUserId: string, fullName: string, username?: string) => void;
@@ -241,7 +248,9 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                   onTouchMove={(e) => handleTouchMove(e, u.id)}
                   onTouchEnd={handleTouchEnd}
                 >
-                  {/* Swipe Actions Behind */}
+                  {/* Swipe Actions Behind — Blok tugmasi faqat oddiy (rol=USER)
+                      foydalanuvchilar uchun (admin/moderatorlarni bu yerdan
+                      bloklab bo'lmaydi — backend ham buni rad etadi). */}
                   <div className="absolute inset-y-0 right-0 flex items-center z-0">
                     <button
                       onClick={() => onSelectUser(u.telegramId, fullName, u.username)}
@@ -250,18 +259,20 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       <span className="material-symbols-outlined text-[18px]">chat</span>
                       Javob
                     </button>
-                    <button
-                      onClick={() => handleToggleSuspend(u)}
-                      disabled={busyUserId === u.id}
-                      className={`h-full w-[64px] text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
-                        u.isSuspended ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {u.isSuspended ? 'lock_open' : 'block'}
-                      </span>
-                      {u.isSuspended ? 'Ochish' : 'Blok'}
-                    </button>
+                    {u.role === 'USER' && (
+                      <button
+                        onClick={() => handleToggleSuspend(u)}
+                        disabled={busyUserId === u.id}
+                        className={`h-full w-[64px] text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
+                          u.isSuspended ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {u.isSuspended ? 'lock_open' : 'block'}
+                        </span>
+                        {u.isSuspended ? 'Ochish' : 'Blok'}
+                      </button>
+                    )}
                   </div>
 
                   {/* Foreground Content Card */}
@@ -274,7 +285,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       }
                     }}
                     className="absolute inset-0 bg-surface dark:bg-[#17212B] p-3 flex items-center gap-3 transition-transform duration-300 z-10 cursor-pointer"
-                    style={{ transform: isSwiped ? 'translateX(-128px)' : 'translateX(0)' }}
+                    style={{ transform: isSwiped ? `translateX(-${u.role === 'USER' ? 128 : 64}px)` : 'translateX(0)' }}
                   >
                     {/* Avatar with red dot complaint indicator */}
                     <div className="relative">
@@ -295,6 +306,11 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       <div className="flex items-center justify-between gap-1.5">
                         <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate flex items-center gap-1.5">
                           {fullName}
+                          {ROLE_LABELS[u.role] && (
+                            <span className="text-[9px] font-bold bg-violet-500/15 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded-full shrink-0">
+                              {ROLE_LABELS[u.role]}
+                            </span>
+                          )}
                           {u.isSuspended && (
                             <span className="text-[9px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded-full shrink-0">
                               Bloklangan

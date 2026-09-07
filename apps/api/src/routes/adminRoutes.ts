@@ -361,12 +361,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
     const totalCategories = await db.category.count();
-    // Faqat haqiqiy bot foydalanuvchilari (role: 'USER') — admin/moderator
-    // hisoblarini chiqarib tashlaydi, aks holda son biroz shishib ko'rinardi.
-    const totalUsers = await db.user.count({ where: { cityId, role: 'USER' } });
+    // MUHIM: bu yerda BARCHA (rolidan qat'i nazar) botga /start bosgan
+    // foydalanuvchilar hisoblanadi — admin/moderator hisoblari ham
+    // shu jumladan. Avval faqat role='USER' hisoblanardi, lekin admin
+    // o'zi test qilganda ("bitta akkauntdan start bosdim") o'z SUPER_ADMIN
+    // hisobi sanoqqa kirmay, "ishlamayapti" deb noto'g'ri tuyulgan edi —
+    // foydalanuvchi aniq "hammasi ko'rinsin" deb so'radi.
+    const totalUsers = await db.user.count({ where: { cityId } });
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const newUsersToday = await db.user.count({ where: { cityId, role: 'USER', createdAt: { gte: todayStart } } });
+    const newUsersToday = await db.user.count({ where: { cityId, createdAt: { gte: todayStart } } });
 
     // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
     const resolvedPercent = totalQuestions > 0
@@ -1188,9 +1192,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/admin/users', async (req: any, reply) => {
     const { search, filter } = req.query as { search?: string; filter?: string };
 
-    const whereClause: any = {
-      role: 'USER',
-    };
+    // Botga /start bosgan HAMMA ko'rsatiladi — admin/moderator hisoblari
+    // ham (role qaysi bo'lishidan qat'i nazar), UI'da rol belgisi bilan
+    // ajratib ko'rsatiladi. Faqat "admin" filtri tanlansa cheklanadi.
+    const whereClause: any = {};
+    if (filter === 'admin') {
+      whereClause.role = { not: 'USER' };
+    }
 
     if (search) {
       whereClause.OR = [
@@ -1248,6 +1256,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           lastActivity,
           lastMessageText: lastMsg ? lastMsg.text : null,
           isSuspended: user.isSuspended,
+          role: user.role,
         };
       })
     );
