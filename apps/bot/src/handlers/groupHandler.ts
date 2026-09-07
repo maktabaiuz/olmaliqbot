@@ -124,30 +124,22 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   }
 
   const communityUrl = await getCommunityUrl();
-  if (communityUrl) {
-    const communityLabel = await getCommunityLabel();
+  const communityLabel = communityUrl ? await getCommunityLabel() : null;
+  if (communityUrl && communityLabel) {
     keyboard.url(communityLabel, communityUrl).danger().row();
   }
 
   const fullResponse = `${searchResult.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`;
   const finalKeyboard = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
 
-  // Rasmli yozuvlar (masalan "uy arendaga") — bitta rasm bo'lsa, karta matni
-  // VA tugmalar (Yana/kanal) BITTA rasmli post sifatida (caption +
-  // reply_markup) yuboriladi — Telegram bunga to'liq ruxsat beradi. Bir
-  // nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
-  // reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi), shuning
-  // uchun matn albomning BIRINCHI rasmiga caption sifatida biriktiriladi
-  // (shu bilan rasm+matn baribir BITTA postday ko'rinadi), tugmalar esa
-  // albomdan keyin keladigan juda qisqa, alohida xabarga qoladi — bundan
-  // boshqa yo'l yo'q. Caption cheklovi 1024 belgi — undan oshsa (kamdan-kam
-  // holat) xavfsizlik uchun eski (rasm keyin alohida to'liq matn) usulga
-  // qaytiladi.
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
-  const captionFits = fullResponse.length <= 900;
 
+  // Bitta rasm bo'lsa — karta matni VA tugmalar (Yana/kanal) BITTA rasmli
+  // post sifatida (caption + reply_markup) yuboriladi, Telegram bunga to'liq
+  // ruxsat beradi.
   if (photoItems.length === 1) {
+    const captionFits = fullResponse.length <= 900;
     const sentPhoto = await ctx.replyWithPhoto(photoItems[0].media, {
       caption: captionFits ? fullResponse : undefined,
       parse_mode: captionFits ? 'HTML' : undefined,
@@ -156,9 +148,33 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     });
     if (sentPhoto && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentPhoto.message_id, 15 * 60 * 1000);
     if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
-  } else if (photoItems.length > 1) {
+
+    // Caption sig'magan kamdan-kam holat — eski usul (rasm, keyin alohida to'liq matn)
+    const sentMsg = await ctx.reply(fullResponse, {
+      parse_mode: 'HTML',
+      reply_parameters: { message_id: ctx.message.message_id },
+      reply_markup: finalKeyboard,
+    });
+    if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
+    return;
+  }
+
+  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
+  // reply_markup (tugma) qo'shishga ruxsat bermaydi (rasmiy, hech qanday
+  // bot aylanib o'ta olmaydigan API cheklovi). Foydalanuvchi buni aniq
+  // BITTA post sifatida ko'rishni xohlagani uchun (2026-09): tugmalar
+  // (Yana ko'rish, kanal) bu holatda UMUMAN yuborilmaydi — kanal havolasi
+  // caption ICHIGA oddiy bosiladigan matn-havola sifatida qo'shiladi,
+  // "Yana ko'rish" esa albomli javoblarda butunlay olib tashlanadi (faqat
+  // matnli/bitta-rasmli javoblarda ishlaydi). Shu bilan chinakam bitta,
+  // ortiqcha ikkinchi xabarsiz post olinadi.
+  if (photoItems.length > 1) {
+    const communityLine = communityUrl && communityLabel ? `\n\n📣 <a href="${communityUrl}">${communityLabel}</a>` : '';
+    const albumCaption = `${fullResponse}${communityLine}`;
+    const captionFits = albumCaption.length <= 900;
+
     const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: fullResponse, parse_mode: 'HTML' as const } : p))
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: albumCaption, parse_mode: 'HTML' as const } : p))
       : photoItems;
     const sentPhotos = await ctx.replyWithMediaGroup(mediaGroupPayload, {
       reply_parameters: { message_id: ctx.message.message_id },
@@ -166,16 +182,21 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     if (ctx.chat?.id) {
       for (const p of sentPhotos) await scheduleMessageDeletion(ctx.chat.id, p.message_id, 15 * 60 * 1000);
     }
+    if (captionFits) return; // Bitta post — boshqa xabar yo'q
+
+    // Caption sig'magan kamdan-kam holat — eski usulga qaytiladi (bu holda
+    // "Yana ko'rish" tugmasi ham tiklanadi, chunki baribir alohida xabar kerak)
+    const sentMsg = await ctx.reply(fullResponse, {
+      parse_mode: 'HTML',
+      reply_parameters: { message_id: ctx.message.message_id },
+      reply_markup: finalKeyboard,
+    });
+    if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
+    return;
   }
 
-  // Bu yerga faqat quyidagi holatlarda yetib keladi: rasm yo'q, YOKI albom
-  // (2+ rasm, tugmalar baribir alohida xabar bo'lishi shart), YOKI caption
-  // sig'magani uchun eski usulga qaytilgan holat.
-  const textOnlyBody = photoItems.length > 0 && captionFits
-    ? "🕐 Bu post 15 daqiqada o'chadi" // Karta yuqoridagi albomda caption sifatida allaqachon bor
-    : fullResponse;
-
-  const sentMsg = await ctx.reply(textOnlyBody, {
+  // Rasm yo'q — odatdagi matn+tugmalar javobi
+  const sentMsg = await ctx.reply(fullResponse, {
     parse_mode: 'HTML',
     reply_parameters: { message_id: ctx.message.message_id },
     reply_markup: finalKeyboard,

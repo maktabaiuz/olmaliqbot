@@ -311,45 +311,52 @@ async function runPrivateSearch(
   // Kanal/guruhga o'tish havolasi — admin panelidan sozlansa, guruhdagi
   // kabi shaxsiy chatda ham har bir javobda ko'rinadi.
   const communityUrl = await getCommunityUrl();
-  if (communityUrl) {
-    const communityLabel = await getCommunityLabel();
+  const communityLabel = communityUrl ? await getCommunityLabel() : null;
+  if (communityUrl && communityLabel) {
     resultKeyboard.url(communityLabel, communityUrl).danger().row();
   }
 
-  // Rasmli yozuvlar (masalan "uy arendaga") — bitta rasm bo'lsa, karta matni
-  // VA tugmalar BITTA rasmli post sifatida (caption + reply_markup)
-  // yuboriladi. Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga
-  // UMUMAN reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi),
-  // shuning uchun matn albomning BIRINCHI rasmiga caption sifatida
-  // biriktiriladi, tugmalar esa albomdan keyingi juda qisqa, alohida
-  // xabarga qoladi. Caption cheklovi 1024 belgi — undan oshsa xavfsizlik
-  // uchun eski (rasm keyin alohida to'liq matn) usulga qaytiladi.
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
-  const captionFits = searchResult.formattedText.length <= 900;
   const finalKeyboard = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
 
+  // Bitta rasm bo'lsa — karta matni VA tugmalar BITTA rasmli post sifatida
+  // (caption + reply_markup) yuboriladi, Telegram bunga to'liq ruxsat beradi.
   if (photoItems.length === 1) {
+    const captionFits = searchResult.formattedText.length <= 900;
     await ctx.replyWithPhoto(photoItems[0].media, {
       caption: captionFits ? searchResult.formattedText : undefined,
       parse_mode: captionFits ? 'HTML' : undefined,
       reply_markup: captionFits ? finalKeyboard : undefined,
     });
     if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
-  } else if (photoItems.length > 1) {
-    const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: searchResult.formattedText, parse_mode: 'HTML' as const } : p))
-      : photoItems;
-    await ctx.replyWithMediaGroup(mediaGroupPayload);
-  }
 
-  if (photoItems.length > 0 && captionFits) {
-    // Karta yuqoridagi albomda caption sifatida allaqachon bor — bu yerda
-    // faqat tugmalar uchun qisqa xabar kifoya.
-    await ctx.reply("👆 Yuqoridagi e'lon", { reply_markup: finalKeyboard });
+    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
     return;
   }
 
+  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga UMUMAN
+  // reply_markup qo'shishga ruxsat bermaydi (rasmiy API cheklovi).
+  // Foydalanuvchi buni aniq BITTA post sifatida ko'rishni xohlagani uchun
+  // (2026-09): tugmalar bu holatda umuman yuborilmaydi — kanal havolasi
+  // caption ichiga oddiy bosiladigan matn-havola sifatida qo'shiladi,
+  // "Yana ko'rish" esa albomli javoblarda olib tashlanadi.
+  if (photoItems.length > 1) {
+    const communityLine = communityUrl && communityLabel ? `\n\n📣 <a href="${communityUrl}">${communityLabel}</a>` : '';
+    const albumCaption = `${searchResult.formattedText}${communityLine}`;
+    const captionFits = albumCaption.length <= 900;
+
+    const mediaGroupPayload = captionFits
+      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: albumCaption, parse_mode: 'HTML' as const } : p))
+      : photoItems;
+    await ctx.replyWithMediaGroup(mediaGroupPayload);
+    if (captionFits) return; // Bitta post — boshqa xabar yo'q
+
+    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
+    return;
+  }
+
+  // Rasm yo'q — odatdagi matn+tugmalar javobi
   await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: resultKeyboard });
 }
 
