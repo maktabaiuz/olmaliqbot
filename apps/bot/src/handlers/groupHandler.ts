@@ -135,15 +135,27 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
 
-  // Bitta rasm bo'lsa — karta matni VA tugmalar (Yana/kanal) BITTA rasmli
-  // post sifatida (caption + reply_markup) yuboriladi, Telegram bunga to'liq
-  // ruxsat beradi.
-  if (photoItems.length === 1) {
+  // Rasmli yozuvlar — faqat BIRINCHI (muqova) rasm karta matni VA barcha
+  // tugmalar (Yana ko'rish/kanal) bilan BITTA post sifatida yuboriladi —
+  // Telegram bitta rasmli xabarga reply_markup'ga to'liq ruxsat beradi,
+  // shuning uchun bu yo'l bilan chinakam bitta, to'liq funksional post
+  // olinadi. Agar yana rasmlar bo'lsa (2+), ular sendMediaGroup'ga tugma
+  // biriktirib bo'lmasligi sababli (Telegram'ning qat'iy, aylanib o'tib
+  // bo'lmaydigan cheklovi — Bot API 10.3'gacha tekshirildi) ALOHIDA, o'zi
+  // xohlagan vaqtda bosib ko'radigan "Yana N ta rasm" tugmasi orqali
+  // ko'rsatiladi — bosilganda qolgan rasmlar o'z albomida (suriladigan
+  // holatda) keladi.
+  if (photoItems.length > 0) {
+    if (photoItems.length > 1) {
+      keyboard.text(`🖼 Yana ${photoItems.length - 1} ta rasm`, `photos_${searchResult.listingId}`).row();
+    }
+    const finalKeyboardWithPhotos = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
     const captionFits = fullResponse.length <= 900;
+
     const sentPhoto = await ctx.replyWithPhoto(photoItems[0].media, {
       caption: captionFits ? fullResponse : undefined,
       parse_mode: captionFits ? 'HTML' : undefined,
-      reply_markup: captionFits ? finalKeyboard : undefined,
+      reply_markup: captionFits ? finalKeyboardWithPhotos : undefined,
       reply_parameters: { message_id: ctx.message.message_id },
     });
     if (sentPhoto && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentPhoto.message_id, 15 * 60 * 1000);
@@ -153,39 +165,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     const sentMsg = await ctx.reply(fullResponse, {
       parse_mode: 'HTML',
       reply_parameters: { message_id: ctx.message.message_id },
-      reply_markup: finalKeyboard,
-    });
-    if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
-    return;
-  }
-
-  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga tugma
-  // (reply_markup) qo'shishga UMUMAN ruxsat bermaydi. Bu rasmiy, o'zgarmas
-  // API cheklovi — Bot API 10.3 (2026-08, eng so'nggi versiya)gacha bo'lgan
-  // BARCHA o'zgarishlar tarixini va boshqa bot kutubxonalarining haqiqiy
-  // muammolarini tekshirdim: hech qachon, hech qanday usul bilan bitta
-  // media-group xabariga tugma biriktirib bo'lmaydi — bu Telegram'ning o'zi
-  // tomonidan qat'iy taqiqlangan, aylanib o'tish yo'li yo'q. Shuning uchun
-  // "Yana ko'rish" (yashil) va kanal (qizil) tugmalari albomdan keyin
-  // keladigan alohida, qisqa xabarda saqlanadi — bu yagona ishlaydigan yo'l.
-  if (photoItems.length > 1) {
-    const captionFits = fullResponse.length <= 900;
-
-    const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: fullResponse, parse_mode: 'HTML' as const } : p))
-      : photoItems;
-    const sentPhotos = await ctx.replyWithMediaGroup(mediaGroupPayload, {
-      reply_parameters: { message_id: ctx.message.message_id },
-    });
-    if (ctx.chat?.id) {
-      for (const p of sentPhotos) await scheduleMessageDeletion(ctx.chat.id, p.message_id, 15 * 60 * 1000);
-    }
-
-    const followUpText = captionFits ? "🕐 Bu post 15 daqiqada o'chadi" : fullResponse;
-    const sentMsg = await ctx.reply(followUpText, {
-      parse_mode: 'HTML',
-      reply_parameters: { message_id: ctx.message.message_id },
-      reply_markup: finalKeyboard,
+      reply_markup: finalKeyboardWithPhotos,
     });
     if (sentMsg && ctx.chat?.id) await scheduleMessageDeletion(ctx.chat.id, sentMsg.message_id, 15 * 60 * 1000);
     return;

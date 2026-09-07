@@ -320,36 +320,27 @@ async function runPrivateSearch(
   const photoItems = buildMediaGroupItems(searchResult.listing.photoUrls, publicBaseUrl);
   const finalKeyboard = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
 
-  // Bitta rasm bo'lsa — karta matni VA tugmalar BITTA rasmli post sifatida
-  // (caption + reply_markup) yuboriladi, Telegram bunga to'liq ruxsat beradi.
-  if (photoItems.length === 1) {
+  // Rasmli yozuvlar — faqat BIRINCHI (muqova) rasm karta matni VA barcha
+  // tugmalar bilan BITTA post sifatida yuboriladi (Telegram bitta rasmga
+  // reply_markup'ga to'liq ruxsat beradi). Qolgan rasmlar (2+ bo'lsa) —
+  // Telegram sendMediaGroup'ga tugma biriktirib bo'lmagani uchun (qat'iy,
+  // aylanib o'tib bo'lmaydigan API cheklovi) — alohida "Yana N ta rasm"
+  // tugmasi orqali, foydalanuvchi o'zi bosganda ko'rsatiladi.
+  if (photoItems.length > 0) {
+    if (photoItems.length > 1) {
+      resultKeyboard.text(`🖼 Yana ${photoItems.length - 1} ta rasm`, `photos_${searchResult.listingId}`).row();
+    }
+    const finalKeyboardWithPhotos = resultKeyboard.inline_keyboard.length > 0 ? resultKeyboard : undefined;
     const captionFits = searchResult.formattedText.length <= 900;
+
     await ctx.replyWithPhoto(photoItems[0].media, {
       caption: captionFits ? searchResult.formattedText : undefined,
       parse_mode: captionFits ? 'HTML' : undefined,
-      reply_markup: captionFits ? finalKeyboard : undefined,
+      reply_markup: captionFits ? finalKeyboardWithPhotos : undefined,
     });
     if (captionFits) return; // Karta + tugmalar allaqachon shu bitta postda
 
-    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
-    return;
-  }
-
-  // Bir nechta rasm (albom) bo'lsa — Telegram sendMediaGroup'ga tugma
-  // qo'shishga UMUMAN ruxsat bermaydi (rasmiy, o'zgarmas API cheklovi —
-  // Bot API 10.3'gacha, eng so'nggi versiyagacha tekshirildi, aylanib
-  // o'tish yo'li yo'q). "Yana ko'rish" (yashil) va kanal (qizil) tugmalari
-  // shuning uchun albomdan keyingi alohida, qisqa xabarda saqlanadi.
-  if (photoItems.length > 1) {
-    const captionFits = searchResult.formattedText.length <= 900;
-
-    const mediaGroupPayload = captionFits
-      ? photoItems.map((p, i) => (i === 0 ? { ...p, caption: searchResult.formattedText, parse_mode: 'HTML' as const } : p))
-      : photoItems;
-    await ctx.replyWithMediaGroup(mediaGroupPayload);
-
-    const followUpText = captionFits ? "👆 Yuqoridagi e'lon" : searchResult.formattedText;
-    await ctx.reply(followUpText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
+    await ctx.reply(searchResult.formattedText, { parse_mode: 'HTML', reply_markup: finalKeyboardWithPhotos });
     return;
   }
 
@@ -399,6 +390,31 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
   if (data.startsWith('copy_phone_')) {
     const phone = data.replace('copy_phone_', '');
     await ctx.answerCallbackQuery({ text: `📋 Telefon raqami: ${phone}`, show_alert: true });
+    return;
+  }
+
+  // "🖼 Yana N ta rasm" tugmasi — bosh (muqova) rasm allaqachon karta matni
+  // va tugmalar bilan bitta postda yuborilgan, bu yerda esa QOLGAN rasmlar
+  // (agar 2+ ta bo'lsa) suriladigan albom sifatida ko'rsatiladi. Telegram
+  // sendMediaGroup'ga tugma biriktirib bo'lmagani uchun bu xabarda tugma
+  // bo'lmaydi — lekin bu foydalanuvchi O'ZI ATAYIN bosgan qo'shimcha
+  // harakat, asosiy javob emas, shuning uchun bu qabul qilinadi.
+  if (data.startsWith('photos_')) {
+    const listingId = data.replace('photos_', '');
+    await ctx.answerCallbackQuery();
+    try {
+      const listing = await db.listing.findUnique({ where: { id: listingId } });
+      const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+      const allPhotos = buildMediaGroupItems(listing?.photoUrls, publicBaseUrl);
+      const remaining = allPhotos.slice(1); // 1-rasm (muqova) allaqachon ko'rsatilgan
+      if (remaining.length === 1) {
+        await ctx.replyWithPhoto(remaining[0].media);
+      } else if (remaining.length > 1) {
+        await ctx.replyWithMediaGroup(remaining);
+      }
+    } catch (err) {
+      console.error('Failed to send remaining photos:', err);
+    }
     return;
   }
 
