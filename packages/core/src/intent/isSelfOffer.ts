@@ -36,6 +36,16 @@ export function isSelfOffer(text: string): boolean {
     return true;
   }
 
+  // "X sotaman/sotiladi/beriladi" — o'zbek tilida e'lon berishning ENG
+  // KENG TARQALGAN shakli, ko'pincha "menda" so'zisiz ("Kvartiram bor
+  // sotiladi", "Kvartira sotaman", "1 xonali kvartira sotiladi
+  // shoshilinch") — avval faqat "menda ... bor" talab qilinardi, bu
+  // ko'plab haqiqiy e'lonlarni o'tkazib yuborar edi (production'da
+  // tasdiqlangan xato). isClearSeek yuqorida allaqachon narx savoli
+  // ("qancha sotiladi?") kabi holatlarni himoya qiladi.
+  if (/\b(sotaman|sotamiz|sotiladi|sotilmoqda)\b/.test(n)) return true;
+  if (/\b(beriladi|beraman|beramiz)\b/.test(n) && /\b(arenda|ijara)/.test(n)) return true;
+
   return false;
 }
 
