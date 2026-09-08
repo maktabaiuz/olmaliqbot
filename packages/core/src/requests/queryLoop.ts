@@ -27,7 +27,7 @@ function timeAgoFor(date: Date | undefined): string {
 }
 
 /**
- * "Javobsiz" so'rovlarni Claude (Anthropic) yordamida ma'nosiga qarab
+ * "Javobsiz" so'rovlarni Gemini (Google) yordamida ma'nosiga qarab
  * guruhlaydi — turlicha yozilgan, lekin bir xil ma'noni anglatuvchi
  * so'rovlarni (masalan "fotograf kerak", "surat oluvchi bormi",
  * "svadba uchun fotoqiz") bitta klasterga birlashtiradi. API kalit
@@ -43,43 +43,45 @@ async function clusterLeftoverWithAI(
   const MAX_ITEMS = 80;
   const toSend = logs.slice(0, MAX_ITEMS);
   const rest = logs.slice(MAX_ITEMS);
-  const claudeKey = apiKey || process.env.ANTHROPIC_API_KEY;
+  const geminiKey = apiKey || process.env.GEMINI_API_KEY;
 
   let groups: { label: string; logs: QueryLogRow[] }[] = [];
 
-  if (claudeKey && claudeKey !== 'your_anthropic_api_key_here' && claudeKey !== 'mock_key') {
+  if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
     try {
       const inputText = toSend
         .map((l, i) => `${i}: ${(l.rawMessage || l.categoryName || '').slice(0, 200)}`)
         .join('\n');
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': claudeKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2000,
-          system:
-            "You group short Uzbek/Russian/mixed-language chat messages — people asking for a local tradesperson, service, or shop our directory doesn't have a match for yet — into meaningful real-world profession/service categories. Each input line is \"INDEX: text\". Group lines that express the SAME underlying need together, even if worded very differently or misspelled (e.g. \"fotograf kerak\", \"surat oluvchi bormi\", \"svadba uchun fotograf\" all belong together). Give each group a short, canonical Uzbek label (lowercase, e.g. \"fotograf\", \"murabbiy\"). Every index must appear in exactly one group. If a line is clearly not a real service request (greeting, joke, unrelated chatter), put it in a group labeled exactly \"boshqa\".",
-          messages: [{ role: 'user', content: inputText }],
-          tools: [
-            {
-              name: 'group_queries',
-              description: 'Group unresolved service queries into labeled clusters',
-              input_schema: {
-                type: 'object',
+      const response = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': geminiKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [
+                {
+                  text: "You group short Uzbek/Russian/mixed-language chat messages — people asking for a local tradesperson, service, or shop our directory doesn't have a match for yet — into meaningful real-world profession/service categories. Each input line is \"INDEX: text\". Group lines that express the SAME underlying need together, even if worded very differently or misspelled (e.g. \"fotograf kerak\", \"surat oluvchi bormi\", \"svadba uchun fotograf\" all belong together). Give each group a short, canonical Uzbek label (lowercase, e.g. \"fotograf\", \"murabbiy\"). Every index must appear in exactly one group. If a line is clearly not a real service request (greeting, joke, unrelated chatter), put it in a group labeled exactly \"boshqa\".",
+                },
+              ],
+            },
+            contents: [{ role: 'user', parts: [{ text: inputText }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
                 properties: {
                   groups: {
-                    type: 'array',
+                    type: 'ARRAY',
                     items: {
-                      type: 'object',
+                      type: 'OBJECT',
                       properties: {
-                        label: { type: 'string' },
-                        indices: { type: 'array', items: { type: 'number' } },
+                        label: { type: 'STRING' },
+                        indices: { type: 'ARRAY', items: { type: 'NUMBER' } },
                       },
                       required: ['label', 'indices'],
                     },
@@ -87,16 +89,17 @@ async function clusterLeftoverWithAI(
                 },
                 required: ['groups'],
               },
+              maxOutputTokens: 2000,
             },
-          ],
-          tool_choice: { type: 'tool', name: 'group_queries' },
-        }),
-      });
+          }),
+        }
+      );
 
       if (response.ok) {
         const json = await response.json();
-        const toolUse = json.content?.find((b: any) => b.type === 'tool_use');
-        const aiGroups = toolUse?.input?.groups as { label: string; indices: number[] }[] | undefined;
+        const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parsed = rawText ? JSON.parse(rawText) : null;
+        const aiGroups = parsed?.groups as { label: string; indices: number[] }[] | undefined;
         if (aiGroups) {
           for (const g of aiGroups) {
             const groupLogs = (g.indices || []).map((i) => toSend[i]).filter(Boolean) as QueryLogRow[];
@@ -104,14 +107,14 @@ async function clusterLeftoverWithAI(
           }
         }
       } else {
-        console.error('Claude clustering HTTP error:', response.status, await response.text().catch(() => ''));
+        console.error('Gemini clustering HTTP error:', response.status, await response.text().catch(() => ''));
       }
     } catch (err) {
-      console.error('Claude clustering failed:', err);
+      console.error('Gemini clustering failed:', err);
     }
   }
 
-  // Claude ishlamagan (kalit yo'q, xato, yoki bo'sh javob) — aniq matn
+  // Gemini ishlamagan (kalit yo'q, xato, yoki bo'sh javob) — aniq matn
   // bo'yicha oddiy zaxira guruhlashga qaytiladi, hech qachon butunlay
   // ishlamay qolmasligi uchun.
   if (groups.length === 0) {

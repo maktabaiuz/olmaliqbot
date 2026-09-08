@@ -6,27 +6,29 @@ import crypto from 'crypto';
 // Simple in-memory fallback cache if Redis is not connected
 const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number }>();
 
-// Claude API'ning standart tariflari ham daqiqalik so'rov chegarasiga ega
-// (Gemini bepul tarifidagi 15/min muammosi productionda tasdiqlangan edi —
-// bot butunlay "jim" bo'lib qolgan). Xuddi shu turdagi tanazzulning oldini
-// olish uchun bu yerda ham xavfsiz mahalliy chegara saqlanadi — Claude
-// tarifi Gemini bepul tarifidan ancha yuqori bo'lgani uchun chegara ham
-// mos ravishda yuqoriroq (45/min), lekin baribir himoya sifatida qoladi.
-const CLAUDE_RPM_SAFE_LIMIT = 45;
-const recentClaudeCallTimestamps: number[] = [];
-function reserveClaudeCallSlot(): boolean {
+// MUHIM TARIX (2026-09): loyiha avval Gemini'dan foydalangan, lekin
+// bepul tarifning 15/so'rov-daqiqa chegarasi productionda bot butunlay
+// "jim" bo'lib qolishiga sabab bo'lgani uchun Claude'ga o'tkazilgan edi.
+// Endi (Claude hisobida balans tugagani sabab) qaytadan Gemini'ga
+// o'tkazildi — xuddi shu tanazzulning oldini olish uchun bu yerda ham
+// xavfsiz mahalliy chegara saqlanadi (agar hozirgi kalit yana bepul
+// tarifda bo'lsa ham, bot butunlay jim qolib ketmaydi — zaxira
+// klassifikatorga tushadi).
+const GEMINI_RPM_SAFE_LIMIT = 12;
+const recentGeminiCallTimestamps: number[] = [];
+function reserveGeminiCallSlot(): boolean {
   const now = Date.now();
-  while (recentClaudeCallTimestamps.length > 0 && now - recentClaudeCallTimestamps[0] > 60_000) {
-    recentClaudeCallTimestamps.shift();
+  while (recentGeminiCallTimestamps.length > 0 && now - recentGeminiCallTimestamps[0] > 60_000) {
+    recentGeminiCallTimestamps.shift();
   }
-  if (recentClaudeCallTimestamps.length >= CLAUDE_RPM_SAFE_LIMIT) return false;
-  recentClaudeCallTimestamps.push(now);
+  if (recentGeminiCallTimestamps.length >= GEMINI_RPM_SAFE_LIMIT) return false;
+  recentGeminiCallTimestamps.push(now);
   return true;
 }
 
 /**
  * 1-Qavat AI Klassifikator.
- * User message intent va ob'ektini Claude (Anthropic) yordamida tahlil qiladi.
+ * User message intent va ob'ektini Gemini (Google) yordamida tahlil qiladi.
  * Natija 10 daqiqa keshlanadi. Har bir so'rov QueryLog jadvaliga yoziladi.
  */
 export async function classifyQuery(
@@ -45,22 +47,22 @@ export async function classifyQuery(
     return cached.data;
   }
 
-  const claudeKey = apiKey || process.env.ANTHROPIC_API_KEY;
+  const geminiKey = apiKey || process.env.GEMINI_API_KEY;
   let result: ClassifierResult;
 
-  // 2. Claude AI so'rovini bajarish (Agar API key mavjud va RPM chegarasidan
+  // 2. Gemini AI so'rovini bajarish (Agar API key mavjud va RPM chegarasidan
   // hali oshmagan bo'lsa). Tarmoq/server tomonidan vaqtinchalik (bir
   // martalik) xatolar odatiy hol — shuning uchun darhol qo'pol fallbackka
   // o'tish o'rniga, qisqaroq muddat bilan BIR MARTA qayta urinib ko'riladi.
   // LEKIN: agar birinchi urinish aynan RATE LIMIT (429) sababli
   // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi.
-  if (claudeKey && claudeKey !== 'your_anthropic_api_key_here' && claudeKey !== 'mock_key') {
-    if (reserveClaudeCallSlot()) {
-      const first = await callClaudeClassifier(cleanText, claudeKey, 6000);
+  if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
+    if (reserveGeminiCallSlot()) {
+      const first = await callGeminiClassifier(cleanText, geminiKey, 6000);
       if (first.data) {
         result = first.data;
-      } else if (!first.rateLimited && reserveClaudeCallSlot()) {
-        const second = await callClaudeClassifier(cleanText, claudeKey, 6000);
+      } else if (!first.rateLimited && reserveGeminiCallSlot()) {
+        const second = await callGeminiClassifier(cleanText, geminiKey, 6000);
         result = second.data || fallbackRuleClassification(normalized, cleanText);
       } else {
         result = fallbackRuleClassification(normalized, cleanText);
@@ -101,7 +103,7 @@ export async function classifyQuery(
   return result;
 }
 
-interface ClaudeCallOutcome {
+interface GeminiCallOutcome {
   data: ClassifierResult | null;
   /** HTTP 429 (rate limit) sababli muvaffaqiyatsiz bo'ldimi — shu holatda
    * darhol qayta urinish foydasiz, chunki bir xil oynada baribir yana
@@ -109,84 +111,96 @@ interface ClaudeCallOutcome {
   rateLimited: boolean;
 }
 
-// Claude'ga aniq, tuzilgan (structured) JSON javob qaytarishni MAJBUR qilish
-// uchun tool-use (function calling) ishlatiladi — bu erkin matn ichidan JSON
-// "ushlashga" harakat qilishdan (markdown bloklar, qo'shimcha izohlar bilan
-// buzilishi mumkin) ancha ishonchli.
-const CLASSIFY_TOOL = {
-  name: 'classify_message',
-  description: "Classify a message from an Uzbek city group chat for a local directory bot.",
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      intent: {
-        type: 'string',
-        enum: ['CONTACT', 'SERVICE', 'HOURS', 'LOCATION', 'PRICE', 'EMERGENCY', 'NOT_RELEVANT'],
-      },
-      object_type: {
-        type: ['string', 'null'],
-        enum: ['USTA', 'DOKON', 'MUASSASA', 'TRANSPORT', null],
-      },
-      category: { type: ['string', 'null'], description: 'lowercase Latin, normalized' },
-      name: { type: ['string', 'null'], description: 'person or place name' },
-      landmark: { type: ['string', 'null'], description: 'landmark as the person said it' },
-      urgency: { type: 'string', enum: ['low', 'medium', 'high'] },
-      confidence: { type: 'number' },
+// Gemini'ga aniq, tuzilgan (structured) JSON javob qaytarishni MAJBUR qilish
+// uchun `responseSchema` + `responseMimeType: "application/json"` ishlatiladi
+// (Gemini structured-output mexanizmi Claude'ning tool-use'iga tengdosh) —
+// bu erkin matn ichidan JSON "ushlashga" harakat qilishdan (markdown
+// bloklar, qo'shimcha izohlar bilan buzilishi mumkin) ancha ishonchli.
+// Diqqat: Gemini schema'sida type qiymatlari UPPERCASE bo'lishi shart.
+const CLASSIFY_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    intent: {
+      type: 'STRING',
+      enum: ['CONTACT', 'SERVICE', 'HOURS', 'LOCATION', 'PRICE', 'EMERGENCY', 'NOT_RELEVANT'],
     },
-    required: ['intent', 'urgency', 'confidence'],
+    object_type: {
+      type: 'STRING',
+      enum: ['USTA', 'DOKON', 'MUASSASA', 'TRANSPORT', 'NONE'],
+    },
+    category: { type: 'STRING', description: 'lowercase Latin, normalized, yoki bo\'sh satr' },
+    name: { type: 'STRING', description: 'person or place name, yoki bo\'sh satr' },
+    landmark: { type: 'STRING', description: 'landmark as the person said it, yoki bo\'sh satr' },
+    urgency: { type: 'STRING', enum: ['low', 'medium', 'high'] },
+    confidence: { type: 'NUMBER' },
   },
+  required: ['intent', 'urgency', 'confidence'],
 };
 
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
 /**
- * Claude'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
+ * Gemini'ga bitta klassifikatsiya so'rovini yuboradi. Muvaffaqiyatsiz bo'lsa
  * (tarmoq xatosi, vaqt tugashi, HTTP xato) — sababini LOGGA yozib, `data:
  * null` qaytaradi (guruhda nima uchun javob kelmayotgani ko'rinishi uchun).
  */
-async function callClaudeClassifier(
+async function callGeminiClassifier(
   cleanText: string,
-  claudeKey: string,
+  geminiKey: string,
   timeoutMs: number
-): Promise<ClaudeCallOutcome> {
+): Promise<GeminiCallOutcome> {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': claudeKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: classifierPrompt,
-        messages: [{ role: 'user', content: `INPUT: "${cleanText}"` }],
-        tools: [CLASSIFY_TOOL],
-        tool_choice: { type: 'tool', name: 'classify_message' },
-      }),
-      signal: abortController.signal,
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': geminiKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: classifierPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: `INPUT: "${cleanText}"` }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: CLASSIFY_RESPONSE_SCHEMA,
+            maxOutputTokens: 400,
+          },
+        }),
+        signal: abortController.signal,
+      }
+    );
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
-      console.warn(`⚠️ Claude HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
+      console.warn(`⚠️ Gemini HTTP ${response.status}: ${bodyText.slice(0, 200)}`);
       return { data: null, rateLimited: response.status === 429 };
     }
 
     const json = await response.json();
-    const toolUse = json.content?.find((block: any) => block.type === 'tool_use');
-    if (!toolUse || !toolUse.input) {
-      console.warn('⚠️ Claude javobida tool_use topilmadi:', JSON.stringify(json).slice(0, 200));
+    const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      console.warn('⚠️ Gemini javobida matn topilmadi:', JSON.stringify(json).slice(0, 200));
       return { data: null, rateLimited: false };
     }
 
-    const parsed = toolUse.input;
+    let parsed: any;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      console.warn('⚠️ Gemini javobi JSON emas:', rawText.slice(0, 200));
+      return { data: null, rateLimited: false };
+    }
+
     return {
       data: {
         intent: parsed.intent as IntentType,
-        object_type: (parsed.object_type || null) as ListingObjectType | null,
+        object_type: (parsed.object_type && parsed.object_type !== 'NONE'
+          ? parsed.object_type
+          : null) as ListingObjectType | null,
         category: parsed.category || null,
         name: parsed.name || null,
         landmark: parsed.landmark || null,
@@ -195,7 +209,7 @@ async function callClaudeClassifier(
       rateLimited: false,
     };
   } catch (e: any) {
-    console.warn(`⚠️ Claude so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
+    console.warn(`⚠️ Gemini so'rovi muvaffaqiyatsiz (${e?.name || 'error'}):`, e?.message || e);
     return { data: null, rateLimited: false };
   } finally {
     clearTimeout(timeout);

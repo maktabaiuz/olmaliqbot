@@ -760,7 +760,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // --- 4. UNRESOLVED QUERY CLUSTERS & SYNONYM BINDING ---
   //
-  // clusterUnresolvedQueries() Claude API'ni chaqiradi va DB yozadi — har
+  // clusterUnresolvedQueries() Gemini API'ni chaqiradi va DB yozadi — har
   // Dashboard so'nggi (20s'da bir) yangilanishida qayta ishga tushirish
   // qimmat va keraksiz bo'lardi. Shu sabab natija shahar bo'yicha qisqa
   // muddat (5 daqiqa) keshlanadi — Requests ekrani ham, Dashboard'dagi
