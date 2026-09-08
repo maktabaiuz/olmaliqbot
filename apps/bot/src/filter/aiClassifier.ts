@@ -26,6 +26,32 @@ function reserveGeminiCallSlot(): boolean {
   return true;
 }
 
+// Guruh chatidagi xabarlarning katta qismi ("salom", kulgi, oddiy gap-so'z,
+// rasm izohi) umuman xizmat/kasb bilan bog'liq emas — bunday xabarlarni
+// tekin AI so'roviga yubormasdan, TEZKOR va BEPUL mahalliy tekshiruv orqali
+// oldindan ajratib olamiz. Shu bilan tor 15/daqiqa chegara FAQAT haqiqatan
+// ham nomzod bo'lgan xabarlarga sarflanadi — pullik tarifga o'tguncha
+// vaqtinchalik, lekin sezilarli samarali chora (real trafikda 70-90%
+// xabarlar hech qanday signal so'zisiz bo'ladi).
+// DIQQAT: bu funksiya juda "saxiy" (keng qamrovli) bo'lishi SHART — signalni
+// o'tkazib yuborish (false negative) chin so'rovga botning jim qolishiga
+// olib keladi, signalni ortiqcha topish (false positive) esa faqat bitta
+// qo'shimcha AI so'rovi sarflaydi. Shubha bo'lsa — signal bor deb hisoblanadi.
+const REQUEST_SIGNAL_RE =
+  /\b(kerak|kerakmi|bormi|bo'?lsa|qolsa|yo'?qmi|qayerda|qaerda|qanaqa|qancha|narxi|nechada|nechiga|nechi|nomeri|raqami|telefoni|qo'?ng'?iroq|murojaat|izlayapman|izlamoqda|izlab|ishlaydimi|ishlaydi|arenda|ijara|sotiladi|sotaman|sotamiz|sotilmoqda|beriladi|beraman|beramiz|kimda|kimdadir|topib|yordam)\b/;
+
+function hasPossibleServiceSignal(normalized: string): boolean {
+  if (!normalized || normalized.length < 3) return false;
+  // Favqulodda holat belgisi — buni HECH QACHON o'tkazib yubormaslik kerak.
+  if (detectEmergencyCategory(normalized)) return true;
+  // Lug'atdagi aniq yoki yozilish xatosiga chidamli kasb/kategoriya so'zi.
+  if (matchCategoryFromText(normalized)) return true;
+  if (fuzzyMatchCategoryFromText(normalized)) return true;
+  // So'rov/taklif/e'lon ekanini ko'rsatuvchi umumiy belgi so'zlar.
+  if (REQUEST_SIGNAL_RE.test(normalized)) return true;
+  return false;
+}
+
 /**
  * 1-Qavat AI Klassifikator.
  * User message intent va ob'ektini Gemini (Google) yordamida tahlil qiladi.
@@ -56,7 +82,9 @@ export async function classifyQuery(
   // o'tish o'rniga, qisqaroq muddat bilan BIR MARTA qayta urinib ko'riladi.
   // LEKIN: agar birinchi urinish aynan RATE LIMIT (429) sababli
   // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi.
-  if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key') {
+  const geminiUsable = !!geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key';
+
+  if (geminiUsable && hasPossibleServiceSignal(normalized)) {
     if (reserveGeminiCallSlot()) {
       const first = await callGeminiClassifier(cleanText, geminiKey, 6000);
       if (first.data) {
@@ -126,7 +154,7 @@ const CLASSIFY_RESPONSE_SCHEMA = {
     },
     object_type: {
       type: 'STRING',
-      enum: ['USTA', 'DOKON', 'MUASSASA', 'TRANSPORT', 'NONE'],
+      enum: ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'NONE'],
     },
     category: { type: 'STRING', description: 'lowercase Latin, normalized, yoki bo\'sh satr' },
     name: { type: 'STRING', description: 'person or place name, yoki bo\'sh satr' },
