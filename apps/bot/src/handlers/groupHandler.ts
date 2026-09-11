@@ -6,7 +6,13 @@ import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
 import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
-import { enforceModeration } from '../moderation/enforceModeration';
+// MUHIM: moderatsiya kodi (enforceModeration) TAYYOR va tekshirilgan, lekin
+// admin so'roviga ko'ra HOZIRCHA botga ULANMAGAN — chaqiruv ataylab
+// izohga olingan (pastga qarang). Fayllar (moderation/*.ts,
+// ModerationLog jadvali) o'z holida saqlanadi, faqat botda ISHLAMAYDI.
+// Qayta yoqish uchun: pastdagi 2 qatorni (import + chaqiruv) izohdan
+// chiqarish kifoya.
+// import { enforceModeration } from '../moderation/enforceModeration';
 
 export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
@@ -14,14 +20,10 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   const telegramUserId = ctx.from?.id ? BigInt(ctx.from.id) : BigInt(0);
 
-  // 0. Xavfsizlik-moderatsiya — HAR BIR xabarda, boshqa hamma narsadan
-  // OLDIN tekshiriladi (0-qavat filtridan ham avval, chunki spam/so'kinish
-  // xabarlar odatda xizmat-so'rov so'zlarini o'z ichiga olmaydi va
-  // 0-qavatda "false" qaytarib, hech qachon ko'rilmay qolar edi). Buzilish
-  // topilsa xabar allaqachon o'chirilgan/user jim qilingan — davom etish
-  // shart emas.
-  const wasModerated = await enforceModeration(ctx, messageText);
-  if (wasModerated) return;
+  // 0. Xavfsizlik-moderatsiya — HOZIRCHA O'CHIRILGAN (admin so'rovi, 2026-09).
+  // Kod tayyor, lekin botda ishlamasin deb ataylab chaqirilmayapti.
+  // const wasModerated = await enforceModeration(ctx, messageText);
+  // if (wasModerated) return;
 
   // 1. 0-qavat: Free Regex & Keyword Filter
   const passedZeroLayer = zeroLayerFilter(messageText);
