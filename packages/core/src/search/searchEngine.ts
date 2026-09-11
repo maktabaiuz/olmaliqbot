@@ -304,6 +304,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   // 1. Category Matching (Name or Synonyms or Direct Listing search)
   let categoryDisplayName = categoryName || 'Xizmat';
+  // AI klassifikator ANIQ, bazada haqiqatan ham mavjud kategoriyani topib
+  // berganmi (masalan "kafelchi", "santexnik")? Agar ha — pastda jargon
+  // moslashtiruvi bu qat'iy kategoriya chegarasidan CHIQIB, boshqa
+  // kategoriyadagi yozuvlarni majburan aralashtirib yubormasligi kerak
+  // (pastdagi jiddiy xato tuzatilishiga qarang).
+  let hasResolvedCategory = false;
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
@@ -331,6 +337,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       const categoryIds = categories.map((c) => c.id);
       whereCondition.categoryId = { in: categoryIds };
       categoryDisplayName = categories[0].name;
+      hasResolvedCategory = true;
     } else {
       // If Category table didn't match directly, search Listing name, jargonSynonyms, or specificServices
       whereCondition.OR = [
@@ -415,8 +422,37 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // Jargon orqali topilgan, lekin structured (kategoriya/mo'ljal) filtrga
   // to'g'ri kelmagani uchun natijaga tushmagan yozuvlarni ham qo'shib qo'yamiz —
   // admin qo'shgan aniq ibora har doim ustuvor topilishi kerak.
+  //
+  // MUHIM (2026-09 topilgan JIDDIY XATO): bu qo'shish FAQAT AI aniq
+  // kategoriya bera OLMAGAN hollarda bajarilishi kerak. Jargon moslashtiruvi
+  // butun xabar matnini (coreMatchText) bitta uzun "yadro" satrga siqib,
+  // ICHIDA jargon so'z bor-yo'qligini substring sifatida tekshiradi — bu
+  // qisqa/umumiy jargon so'zlar (masalan taksi/mashina xizmati uchun
+  // qo'shilgan "moshina" so'zi) BUTUNLAY ALOQASIZ xabarlarda ham (masalan
+  // "moshina eshigini remont qiladigan usta qayerda ishlaydi" — bu ustani
+  // izlash, taksi emas) tasodifan uchrab qoladi. Bunday holatda, agar AI
+  // ANIQ va bazada haqiqatan mavjud kategoriyani (masalan "kafelchi")
+  // aniqlab bergan bo'lsa, boshqa kategoriyadagi (masalan "taksi") yozuvni
+  // shu kategoriya chegarasidan tashqarida turib, faqat umumiy jargon so'zi
+  // ustida majburan qo'shib yuborish — foydalanuvchiga BUTUNLAY ALOQASIZ
+  // odamning telefon raqamini berib yuborishga olib keladi. Shu sabab, AI
+  // kategoriyani aniq topib bergan holatlarda, jargon moslik FAQAT o'sha
+  // kategoriya ichidagi yozuvlarga cheklanadi.
   const candidateIds = new Set(candidateListings.map((l) => l.id));
-  const missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
+  let missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
+  if (missingJargonIds.length > 0 && hasResolvedCategory) {
+    const resolvedCategoryIds = new Set(
+      (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
+    );
+    const missingListingsCategoryCheck = await db.listing.findMany({
+      where: { id: { in: missingJargonIds } },
+      select: { id: true, categoryId: true },
+    });
+    const sameCategoryIds = new Set(
+      missingListingsCategoryCheck.filter((l) => resolvedCategoryIds.has(l.categoryId)).map((l) => l.id)
+    );
+    missingJargonIds = missingJargonIds.filter((id) => sameCategoryIds.has(id));
+  }
   if (missingJargonIds.length > 0) {
     const extraJargonListings = await db.listing.findMany({
       where: { id: { in: missingJargonIds }, cityId, status: 'ACTIVE' },
