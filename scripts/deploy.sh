@@ -22,8 +22,16 @@ echo "🔨 Rebuilding Docker containers..."
 docker compose -f docker-compose.prod.yml up -d --build
 
 # 3. Apply Prisma database schema updates
+# --accept-data-loss: loyihada rasmiy migratsiya fayllari yo'q (faqat `db
+# push`), shu sabab Prisma har safar YANGI unique/constraint qo'shilganda
+# (masalan mavjud ustunlarda NULL qiymatlar bo'lsa ham) "xavfli o'zgarish"
+# deb OGOHLANTIRIB, bayroqsiz DARHOL to'xtaydi — bu esa `|| true` bilan jim
+# yutilib, ORQADA QOLGAN sxema bilan konteynerlar ishga tushib ketishiga
+# olib kelardi (masalan `priorityRank` ustuni yo'q holda, Prisma Client esa
+# uni kutgan holda — bu HAMMA yozuv so'rovini buzadi). Endi bayroq doim
+# beriladi, shu bilan sxema har doim to'liq sinxron bo'ladi.
 echo "🗄 Running Prisma database sync..."
-docker exec kimbor_api pnpm --filter @kimbor/db exec prisma db push --schema=./prisma/schema.prisma || true
+docker exec kimbor_api pnpm --filter @kimbor/db exec prisma db push --schema=./prisma/schema.prisma --accept-data-loss || true
 
 # 4. Verify deployment health
 echo "🔍 Verifying deployment health..."
