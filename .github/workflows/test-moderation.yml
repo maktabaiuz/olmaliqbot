@@ -1,0 +1,37 @@
+name: Test moderation filters (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test moderation filter via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            docker exec kimbor_bot node -e "
+              const { checkEasyModerationFilters } = require('/app/packages/core/dist/index.js');
+              const cases = [
+                'salom hammaga qalaysizlar',
+                'kvartira kerak edi',
+                'taksi kerak bormi',
+                'aka sen jalab ekansan',
+                '1xbet ga royhatdan oting promo kod bonus',
+                'bit.ly/abc123 kliknide',
+                't.me/+AbCdEfGh guruhga qoshiling',
+                'tabriklaymiz siz 50000000 som yutdingiz',
+                'investitsiya qiling 300% foyda kafolatlangan',
+                'menda kvartira bor sotaman',
+              ];
+              for (const c of cases) {
+                const r = checkEasyModerationFilters(c);
+                console.log(JSON.stringify({ text: c, result: r }));
+              }
+            "
