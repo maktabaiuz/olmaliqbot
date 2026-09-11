@@ -1,0 +1,154 @@
+/**
+ * enforceModeration.ts
+ *
+ * Guruh xabarlarini xavfsizlik nuqtai nazaridan tekshirib, buzilish
+ * topilsa AMALGA OSHIRADI: xabarni o'chiradi + foydalanuvchini 1 soatga
+ * "jim" qiladi (restrictChatMember). Admin bilan kelishilgan qoidalar
+ * (2026-09):
+ *   - Ogohlantirishsiz, DARHOL o'chirish + jim qilish (1-marta qoidabuzarlik).
+ *   - Jim qilish muddati: 1 soat.
+ *   - Mustasno: FAQAT bizning SUPER_ADMIN (User.role) va shu guruhning
+ *     haqiqiy egasi (Telegram "creator" statusi) — oddiy Telegram-adminlar
+ *     ham filtrga tushadi.
+ *   - Flud: agar xabar HAQIQIY xizmat so'rovi bo'lsa (hasPossibleServiceSignal
+ *     orqali aniqlanadi), hech qachon flud deb belgilanmaydi — odam
+ *     shoshilinch bir narsa kutayotgan bo'lishi mumkin (masalan "taksi
+ *     kerak" deb necha marta yozsa ham).
+ */
+
+import { Context } from 'grammy';
+import { db } from '@kimbor/db';
+import { checkEasyModerationFilters, normalizeText } from '@kimbor/core';
+import { hasPossibleServiceSignal } from '../filter/aiClassifier';
+import { checkAndRecordFlood } from './floodTracker';
+
+const MUTE_DURATION_MS = 60 * 60 * 1000; // 1 soat
+
+// Guruh egasi (creator) statusini qisqa muddat (10 daqiqa) keshlaymiz —
+// bu deyarli hech qachon o'zgarmaydigan ma'lumot, har xabarda Telegram
+// API'ga qayta so'rov yubormaslik uchun.
+const ownerCache = new Map<string, { isOwner: boolean; expiresAt: number }>();
+
+async function isGroupOwner(ctx: Context, chatId: number, userId: number): Promise<boolean> {
+  const cacheKey = `${chatId}:${userId}`;
+  const cached = ownerCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.isOwner;
+
+  try {
+    const member = await ctx.api.getChatMember(chatId, userId);
+    const isOwner = member.status === 'creator';
+    ownerCache.set(cacheKey, { isOwner, expiresAt: Date.now() + 10 * 60 * 1000 });
+    return isOwner;
+  } catch (err) {
+    console.error('getChatMember xatosi (moderatsiya mustasno tekshiruvi):', err);
+    return false;
+  }
+}
+
+async function isSuperAdmin(telegramUserId: bigint): Promise<boolean> {
+  try {
+    const user = await db.user.findUnique({ where: { telegramId: telegramUserId } });
+    return user?.role === 'SUPER_ADMIN';
+  } catch (err) {
+    console.error('SUPER_ADMIN tekshiruvi xatosi:', err);
+    return false;
+  }
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  PROFANITY: "so'kinish/haqorat",
+  SPAM_LINK: 'shubhali havola',
+  GAMBLING: 'qimor reklamasi',
+  SCAM: 'firibgarlik iborasi',
+  FLOOD: 'flud (spam-bombardimon)',
+};
+
+/**
+ * Guruh xabarini tekshiradi. Buzilish topilsa — o'chiradi, jim qiladi,
+ * va `true` qaytaradi (chaqiruvchi tomon shu xabarni BOSHQA HECH NARSA
+ * uchun qayta ishlamasligi kerak — masalan searchListings'ga yuborilmasin).
+ * Buzilish topilmasa — `false`.
+ */
+export async function enforceModeration(
+  ctx: Context,
+  messageText: string
+): Promise<boolean> {
+  const chatId = ctx.chat?.id;
+  const userId = ctx.from?.id;
+  const messageId = ctx.message?.message_id;
+  if (!chatId || !userId || !messageId) return false;
+
+  // Mustasnolar — filtr ularga umuman tegmaydi.
+  const telegramUserId = BigInt(userId);
+  const [superAdmin, groupOwner] = await Promise.all([
+    isSuperAdmin(telegramUserId),
+    isGroupOwner(ctx, chatId, userId),
+  ]);
+  if (superAdmin || groupOwner) return false;
+
+  // 1) "Oson" (AI'siz) filtrlar — so'kinish, spam-link, qimor, firibgarlik.
+  const easyResult = checkEasyModerationFilters(messageText);
+  let category: string | null = easyResult.category;
+
+  // 2) Flud — "bir xil xabar takrorlanishi" belgisi FAQAT xabar haqiqiy
+  // xizmat so'rovi BO'LMASA hisobga olinadi (haqiqiy so'rovchi — masalan
+  // "taksi kerak" deb necha marta yozsa ham — hech qachon jazolanmasligi
+  // kerak). Texnik hujum chegarasi ("rate" — 10s/15+ xabar) esa mazmunidan
+  // qat'iy nazar HAR DOIM tekshiriladi.
+  if (!category) {
+    const normalized = normalizeText(messageText);
+    const looksLikeRealRequest = hasPossibleServiceSignal(normalized);
+    const flood = await checkAndRecordFlood(chatId, userId, normalized);
+    if (flood.isFlood && (flood.reason === 'rate' || !looksLikeRealRequest)) {
+      category = 'FLOOD';
+    }
+  }
+
+  if (!category) return false;
+
+  // Amalga oshirish: o'chirish + 1 soatga jim qilish (ogohlantirishsiz).
+  try {
+    await ctx.api.deleteMessage(chatId, messageId);
+  } catch (err) {
+    console.error(`Moderatsiya: xabarni o'chirib bo'lmadi (${category}):`, err);
+  }
+
+  try {
+    await ctx.api.restrictChatMember(
+      chatId,
+      userId,
+      {
+        can_send_messages: false,
+        can_send_audios: false,
+        can_send_documents: false,
+        can_send_photos: false,
+        can_send_videos: false,
+        can_send_video_notes: false,
+        can_send_voice_notes: false,
+        can_send_polls: false,
+        can_send_other_messages: false,
+        can_add_web_page_previews: false,
+      },
+      { until_date: Math.floor((Date.now() + MUTE_DURATION_MS) / 1000) }
+    );
+  } catch (err) {
+    // Eng keng tarqalgan sabab: botda "a'zolarni cheklash" admin huquqi
+    // yo'q. Xabar allaqachon o'chirilgan (agar muvaffaqiyatli bo'lsa),
+    // shuning uchun bu jim yutiladi — lekin logga aniq yoziladi, shunda
+    // admin panelida ko'rish mumkin bo'ladi.
+    console.error(`Moderatsiya: userni jim qilib bo'lmadi (huquq yetishmasligi mumkin, ${category}):`, err);
+  }
+
+  db.moderationLog.create({
+    data: {
+      chatId: BigInt(chatId),
+      telegramUserId,
+      category,
+      rawMessage: messageText.slice(0, 500),
+    },
+  }).catch((err) => console.error('ModerationLog yozishda xato:', err));
+
+  console.log(`🛡 Moderatsiya: ${CATEGORY_LABELS[category] || category} — xabar o'chirildi, user 1 soatga jim qilindi (chat ${chatId}, user ${userId})`);
+
+  return true;
+}

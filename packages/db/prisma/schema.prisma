@@ -455,6 +455,23 @@ model QueryLog {
   @@map("query_logs")
 }
 
+// Guruhdagi xavfsizlik-moderatsiya filtrlari (so'kinish, spam-havola,
+// qimor reklamasi, firibgarlik, flud) tomonidan o'chirilgan xabarlar
+// tarixi — admin panelida "kim, qachon, nima uchun" jazolangani ko'rinishi
+// uchun (apps/bot/src/moderation/enforceModeration.ts).
+model ModerationLog {
+  id             String   @id @default(uuid())
+  chatId         BigInt
+  telegramUserId BigInt
+  category       String   // PROFANITY | SPAM_LINK | GAMBLING | SCAM | FLOOD
+  rawMessage     String
+  createdAt      DateTime @default(now())
+
+  @@index([chatId, createdAt])
+  @@index([telegramUserId])
+  @@map("moderation_logs")
+}
+
 model EmergencyNumber {
   id          String   @id @default(uuid())
   cityId      String

@@ -40,7 +40,7 @@ function reserveGeminiCallSlot(): boolean {
 const REQUEST_SIGNAL_RE =
   /\b(kerak|kerakmi|bormi|bo'?lsa|qolsa|yo'?qmi|qayerda|qaerda|qanaqa|qancha|narxi|nechada|nechiga|nechi|nomeri|raqami|telefoni|qo'?ng'?iroq|murojaat|izlayapman|izlamoqda|izlab|ishlaydimi|ishlaydi|arenda|ijara|sotiladi|sotaman|sotamiz|sotilmoqda|beriladi|beraman|beramiz|kimda|kimdadir|topib|yordam)\b/;
 
-function hasPossibleServiceSignal(normalized: string): boolean {
+export function hasPossibleServiceSignal(normalized: string): boolean {
   if (!normalized || normalized.length < 3) return false;
   // Favqulodda holat belgisi — buni HECH QACHON o'tkazib yubormaslik kerak.
   if (detectEmergencyCategory(normalized)) return true;

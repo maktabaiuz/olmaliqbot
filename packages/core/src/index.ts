@@ -7,6 +7,7 @@ export * from './search';
 export * from './transliteration';
 export * from './intent/isSelfOffer';
 export * from './requests/queryLoop';
+export * from './moderation/moderationFilter';
 
 export function calculateBayesianRating(thumbsUp: number, thumbsDown: number, globalAvg: number = 3.0, m: number = 5): number {
   const total = thumbsUp + thumbsDown;
