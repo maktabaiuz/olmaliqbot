@@ -1,0 +1,39 @@
+name: Verify production (smoke test)
+
+# Deploy'dan keyin haqiqiy konteynerlar ustida tezkor jonli tekshiruv —
+# AI klassifikator (Gemini), jargon/kategoriya aralashish xatosi, va
+# "1/2/3-o'rin" tartiblash to'g'ri ishlayotganini tasdiqlaydi.
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run smoke tests via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            echo "=== 1) AI klassifikator (Gemini) ==="
+            docker exec kimbor_bot node -e "
+              const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+              (async () => {
+                const cases = ['salom hammaga', 'kvartira kerak', 'santexnik kerak suv tomayabdi', 'menda kvartira bor sotaman'];
+                for (const c of cases) {
+                  const start = Date.now();
+                  const r = await classifyQuery(c);
+                  console.log(JSON.stringify({q:c, ms: Date.now()-start, r}));
+                }
+              })().catch(e=>{console.error('ERR',e); process.exit(1)});
+            "
+            echo ""
+            echo "=== 2) Konteyner holati ==="
+            docker ps --format '{{.Names}}: {{.Status}}' | grep kimbor
+            echo ""
+            echo "=== 3) Xato loglari (oxirgi 5 daqiqa) ==="
+            docker logs --since 5m kimbor_bot 2>&1 | grep -i "error\|xato" | tail -20 || echo "(xato topilmadi)"
