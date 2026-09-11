@@ -16,9 +16,10 @@ export interface ListingItem {
   id: string;
   name: string;
   phone: string;
+  categoryId: string;
   categoryName: string;
   landmarkName?: string;
-  bayesianRating?: number;
+  priorityRank?: number | null;
   verification: 'VERIFIED' | 'COMMUNITY_UNVERIFIED';
   status: 'ACTIVE' | 'PAUSED' | 'INCOMPLETE';
   updatedAt?: string;
@@ -79,9 +80,10 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
           id: item.id,
           name: item.name,
           phone: item.phone,
+          categoryId: item.category?.id || item.categoryId,
           categoryName: item.category?.name || 'Xizmat',
           landmarkName: item.primaryLandmark?.name || 'Markaz',
-          bayesianRating: item.bayesianRating || 4.8,
+          priorityRank: item.priorityRank ?? null,
           verification: item.verification || 'COMMUNITY_UNVERIFIED',
           status: item.status || 'ACTIVE',
           updatedAt: item.updatedAt,
@@ -132,6 +134,37 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
     const interval = setInterval(fetchData, 20000);
     return () => clearInterval(interval);
   }, [listingType]);
+
+  // "1/2/3-o'rin" belgisini o'rnatish/o'chirish — bosilgan zahoti ekranda
+  // (optimistic) yangilanadi, so'ng serverga yuboriladi; xato bo'lsa eski
+  // holatga qaytariladi, shunda admin har doim aniq nima saqlanganini ko'radi.
+  const handleSetPriority = async (listing: ListingItem, rank: number | null) => {
+    const prevListings = listings;
+    setListings((prev) =>
+      prev.map((l) => {
+        if (l.id === listing.id) return { ...l, priorityRank: rank };
+        // Bir xil kategoriyada bir vaqtda faqat bitta yozuv shu raqamni
+        // ushlab turishi mumkin — server ham shunday qiladi, UI ham darhol
+        // shu holatni aks ettirishi kerak.
+        if (rank !== null && l.categoryId === listing.categoryId && l.priorityRank === rank) {
+          return { ...l, priorityRank: null };
+        }
+        return l;
+      })
+    );
+    try {
+      const res = await apiFetch(`/api/admin/listings/${listing.id}/priority`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priorityRank: rank }),
+      });
+      if (!res.ok) throw new Error('Saqlashda xato');
+      await fetchData();
+    } catch (err) {
+      console.error('Failed to set priority:', err);
+      setListings(prevListings);
+    }
+  };
 
   // Filter listings based on type, search query, category, and filter chips
   const getFilteredListings = () => {
@@ -297,35 +330,38 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         ))}
       </div>
 
-      {/* 5. VIEW 1: CATEGORY GRID grouped by profession family (Visible when no category is selected and no search) */}
+      {/* 5. VIEW 1: CATEGORY LIST grouped by profession family — bitta
+          ustunli, yuqoridan pastga tartibli qator ro'yxati (avval 2 ustunli
+          kartalar edi, webapp'da qulay/tartibli emasligi sababli soddalashtirildi). */}
       {!selectedCategory && !searchQuery ? (
         <div className="flex flex-col gap-5 mt-1">
           {groupOrder.map((groupName) => (
-            <div key={groupName} className="flex flex-col gap-2.5">
-              <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-0.5">
+            <div key={groupName} className="flex flex-col gap-1.5">
+              <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
                 {groupName} · {groupedCategories[groupName].length}
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden">
                 {groupedCategories[groupName].map((cat, idx) => {
                   const grad = categoryGradients[idx % categoryGradients.length];
                   return (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat)}
-                      className="bg-surface dark:bg-[#17212B] p-3.5 rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm flex flex-col items-start gap-2 text-left hover:scale-[1.02] active:scale-95 transition-all"
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 border-b border-outline-variant/20 dark:border-slate-800 last:border-0 hover:bg-surface-container-low/60 dark:hover:bg-slate-800/40 active:scale-[0.99] transition-all text-left"
                     >
                       {/* Colored Icon Square */}
-                      <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-sm shadow-sm`}>
+                      <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0`}>
                         {cat.name[0].toUpperCase()}
                       </div>
-                      <div>
-                        <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate w-full">
-                          {cat.name}
-                        </h4>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                          {cat.count} ta yozuv
-                        </p>
-                      </div>
+                      <h4 className="flex-1 font-semibold text-xs text-on-surface dark:text-slate-100 truncate">
+                        {cat.name}
+                      </h4>
+                      <span className="text-[10px] text-slate-500 font-semibold shrink-0">
+                        {cat.count} ta yozuv
+                      </span>
+                      <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">
+                        chevron_right
+                      </span>
                     </button>
                   );
                 })}
@@ -348,8 +384,9 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
                   category={item.categoryName}
                   landmark={item.landmarkName}
                   phone={item.phone}
-                  rating={item.bayesianRating}
+                  priorityRank={item.priorityRank}
                   isVerified={item.verification === 'VERIFIED'}
+                  onSetPriority={(rank) => handleSetPriority(item, rank)}
                 />
               </div>
             ))

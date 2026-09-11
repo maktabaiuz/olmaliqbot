@@ -752,6 +752,45 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, listing: updated };
   });
 
+  // Kategoriya ichida "1/2/3-o'rin" belgilash (kelajakdagi pullik "top
+  // joylashuv" xizmati uchun asos) — "Yana ko'rish" shu tartibda birinchi
+  // bo'lib shu yozuvlarni ko'rsatadi (searchEngine.ts'dagi priorityRank
+  // bonusiga qarang). `priorityRank: null` yuborilsa, belgi olib tashlanadi.
+  fastify.put('/admin/listings/:id/priority', async (req: any, reply) => {
+    const auth = await requireSuperAdmin(req, reply);
+    if (!auth) return;
+
+    const { id } = req.params;
+    const { priorityRank } = req.body as { priorityRank: number | null };
+
+    if (priorityRank !== null && ![1, 2, 3].includes(priorityRank)) {
+      return reply.status(400).send({ success: false, message: 'priorityRank faqat 1, 2, 3 yoki null bo\'lishi kerak' });
+    }
+
+    const existing = await db.listing.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Yozuv topilmadi' });
+
+    // Bitta kategoriyada bir xil raqam (masalan "1") ikki yozuvda bir vaqtda
+    // turolmaydi — shu raqamni oldin ushlab turgan boshqa yozuvdan avtomatik
+    // olib tashlanadi, shunda admin qo'lda avval "bo'shatib" o'tirmaydi.
+    await db.$transaction(async (tx) => {
+      if (priorityRank !== null) {
+        await tx.listing.updateMany({
+          where: { categoryId: existing.categoryId, priorityRank, NOT: { id } },
+          data: { priorityRank: null },
+        });
+      }
+      await tx.listing.update({ where: { id }, data: { priorityRank } });
+    });
+
+    const updated = await db.listing.findUnique({
+      where: { id },
+      include: { category: true, primaryLandmark: true },
+    });
+
+    return { success: true, listing: updated };
+  });
+
   fastify.delete('/admin/listings/:id', async (req: any, reply) => {
     const { id } = req.params;
     await db.listing.delete({ where: { id } });

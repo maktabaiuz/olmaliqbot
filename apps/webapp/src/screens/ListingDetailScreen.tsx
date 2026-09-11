@@ -57,6 +57,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   // Quick Action Toggles
   const [verification, setVerification] = useState<'VERIFIED' | 'COMMUNITY_UNVERIFIED'>('COMMUNITY_UNVERIFIED');
   const [status, setStatus] = useState<'ACTIVE' | 'PAUSED'>('ACTIVE');
+  // Kategoriya ichidagi "1/2/3-o'rin" belgisi — bu yerda faqat ko'rsatiladi,
+  // o'zi "Baza" ro'yzatidagi 1/2/3 tugmalari orqali belgilanadi/o'chiriladi.
+  const [priorityRank, setPriorityRank] = useState<number | null>(null);
 
   // Related Sub-data
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
@@ -106,6 +109,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setPhotoUrls(l.photoUrls || []);
         setVerification(l.verification || 'COMMUNITY_UNVERIFIED');
         setStatus(l.status || 'ACTIVE');
+        setPriorityRank(l.priorityRank ?? null);
 
         setReviews(l.reviews || []);
         setCorrections(l.corrections || []);
@@ -438,234 +442,270 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
             </button>
           </div>
 
-          {/* INLINE EDITABLE FORM */}
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
-            {/* ISM */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Ism / Nom *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-semibold outline-none focus:border-primary transition-colors"
-              />
+          {/* Kategoriya ichidagi "1/2/3-o'rin" belgisi — faqat holatni
+              ko'rsatadi, o'zgartirish "Baza" ro'yxati ekranidan (1/2/3
+              tugmalari bilan) qilinadi. */}
+          {priorityRank && (
+            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-3 py-2 rounded-xl">
+              <span className="material-symbols-outlined text-[16px]">military_tech</span>
+              Kategoriya ichida {priorityRank}-o'rin qilib belgilangan
             </div>
+          )}
 
-            {/* TELEFON */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Telefon raqam *
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-mono font-semibold outline-none focus:border-primary transition-colors"
-              />
-            </div>
+          {/* INLINE EDITABLE FORM — aniq nomlangan bo'limlarga ajratilgan
+              (avval bitta uzun, bo'linmagan blok edi, topish qiyin bo'lardi). */}
+          <div className="space-y-4">
+            {/* BO'LIM: ASOSIY MA'LUMOT */}
+            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
+              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">badge</span>
+                Asosiy ma'lumot
+              </h2>
 
-            {/* KASB / KATEGORIYA */}
-            <div className="grid grid-cols-2 gap-3">
+              {/* ISM */}
               <div>
                 <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Kasb (Kategoriya) *
+                  Ism / Nom *
                 </label>
                 <input
                   type="text"
-                  value={categoryName}
-                  onChange={e => setCategoryName(e.target.value)}
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-semibold outline-none focus:border-primary transition-colors"
                 />
               </div>
 
-              {/* MO'LJAL */}
+              {/* TELEFON */}
               <div>
                 <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Mo'ljal *
+                  Telefon raqam *
                 </label>
                 <input
-                  type="text"
-                  value={landmarkName}
-                  onChange={e => setLandmarkName(e.target.value)}
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-mono font-semibold outline-none focus:border-primary transition-colors"
                 />
               </div>
-            </div>
 
-            {/* ISH VAQTI */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Ish vaqti
-              </label>
+              {/* KASB / KATEGORIYA */}
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Kasb (Kategoriya) *
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryName}
+                    onChange={e => setCategoryName(e.target.value)}
+                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
+                  />
+                </div>
+
+                {/* MO'LJAL */}
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Mo'ljal *
+                  </label>
+                  <input
+                    type="text"
+                    value={landmarkName}
+                    onChange={e => setLandmarkName(e.target.value)}
+                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
+                  />
+                </div>
+              </div>
+            </section>
+
+            {/* BO'LIM: ISH VAQTI VA XIZMAT TAFSILOTLARI */}
+            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
+              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                Ish vaqti va tafsilotlar
+              </h2>
+
+              {/* ISH VAQTI */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Ish vaqti
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    value={workFrom}
+                    onChange={e => setWorkFrom(e.target.value)}
+                    placeholder="08:00"
+                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={workTo}
+                    onChange={e => setWorkTo(e.target.value)}
+                    placeholder="20:00"
+                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* ANIQ XIZMATLAR */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Aniq xizmatlar
+                </label>
                 <input
                   type="text"
-                  value={workFrom}
-                  onChange={e => setWorkFrom(e.target.value)}
-                  placeholder="08:00"
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-                />
-                <input
-                  type="text"
-                  value={workTo}
-                  onChange={e => setWorkTo(e.target.value)}
-                  placeholder="20:00"
+                  value={specificServices}
+                  onChange={e => setSpecificServices(e.target.value)}
+                  placeholder="masalan: gaz kolonka tammirlash, plita ornatish"
                   className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
                 />
               </div>
-            </div>
 
-            {/* BELGILAR (BADGES CHIPS) */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Belgilar (Chiplar)
-              </label>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {badges.map((b) => (
-                  <span
-                    key={b}
-                    className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
-                  >
-                    🏷️ {b}
+              {/* TAXMINIY NARX */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Taxminiy narx
+                </label>
+                <input
+                  type="text"
+                  value={approxPrice}
+                  onChange={e => setApproxPrice(e.target.value)}
+                  placeholder="masalan: 50,000 - 150,000 som"
+                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                />
+              </div>
+
+              {/* IZOH */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Izoh
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="Qo'shimcha izoh..."
+                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none resize-none"
+                />
+              </div>
+            </section>
+
+            {/* BO'LIM: BELGILAR VA MAHALLIY ATAMALAR */}
+            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
+              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">sell</span>
+                Belgilar va mahalliy atamalar
+              </h2>
+
+              {/* BELGILAR (BADGES CHIPS) */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Belgilar (Chiplar)
+                </label>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {badges.map((b) => (
+                    <span
+                      key={b}
+                      className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
+                    >
+                      🏷️ {b}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBadge(b)}
+                        className="hover:text-red-400 font-bold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+
+                  {showNewBadgeInput ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={newBadgeInput}
+                        onChange={e => setNewBadgeInput(e.target.value)}
+                        placeholder="belgi..."
+                        className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddBadge}
+                        className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => handleRemoveBadge(b)}
-                      className="hover:text-red-400 font-bold"
+                      onClick={() => setShowNewBadgeInput(true)}
+                      className="border border-dashed border-outline-variant dark:border-slate-700 text-on-surface-variant dark:text-slate-400 text-xs font-semibold px-3 py-1 rounded-full hover:bg-surface-container-low"
                     >
-                      ×
+                      + Qo'shish
                     </button>
-                  </span>
-                ))}
+                  )}
+                </div>
+              </div>
 
-                {showNewBadgeInput ? (
+              {/* JARGON / XALQ ATAMALARI */}
+              <div>
+                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Jargon / xalq atamalari
+                </label>
+                <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
+                  Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
+                </p>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {jargonSynonyms.map((w) => (
+                    <span
+                      key={w}
+                      className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
+                    >
+                      {w}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveJargon(w)}
+                        className="hover:text-red-400 font-bold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+
                   <div className="flex items-center gap-1">
                     <input
                       type="text"
-                      value={newBadgeInput}
-                      onChange={e => setNewBadgeInput(e.target.value)}
-                      placeholder="belgi..."
+                      value={newJargonInput}
+                      onChange={e => setNewJargonInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddJargon();
+                        }
+                      }}
+                      placeholder="masalan: trubkachi"
                       className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
-                      autoFocus
                     />
                     <button
                       type="button"
-                      onClick={handleAddBadge}
+                      onClick={handleAddJargon}
                       className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
                     >
                       +
                     </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowNewBadgeInput(true)}
-                    className="border border-dashed border-outline-variant dark:border-slate-700 text-on-surface-variant dark:text-slate-400 text-xs font-semibold px-3 py-1 rounded-full hover:bg-surface-container-low"
-                  >
-                    + Qo'shish
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* JARGON / XALQ ATAMALARI */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Jargon / xalq atamalari
-              </label>
-              <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
-                Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
-              </p>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {jargonSynonyms.map((w) => (
-                  <span
-                    key={w}
-                    className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
-                  >
-                    {w}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveJargon(w)}
-                      className="hover:text-red-400 font-bold"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-
-                <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={newJargonInput}
-                    onChange={e => setNewJargonInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddJargon();
-                      }
-                    }}
-                    placeholder="masalan: trubkachi"
-                    className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddJargon}
-                    className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
-                  >
-                    +
-                  </button>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* ANIQ XIZMATLAR */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Aniq xizmatlar
-              </label>
-              <input
-                type="text"
-                value={specificServices}
-                onChange={e => setSpecificServices(e.target.value)}
-                placeholder="masalan: gaz kolonka tammirlash, plita ornatish"
-                className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-              />
-            </div>
-
-            {/* TAXMINIY NARX */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Taxminiy narx
-              </label>
-              <input
-                type="text"
-                value={approxPrice}
-                onChange={e => setApproxPrice(e.target.value)}
-                placeholder="masalan: 50,000 - 150,000 som"
-                className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-              />
-            </div>
-
-            {/* IZOH */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                Izoh
-              </label>
-              <textarea
-                rows={2}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder="Qo'shimcha izoh..."
-                className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none resize-none"
-              />
-            </div>
-
-            {/* RASMLAR */}
-            <div>
-              <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+            {/* BO'LIM: RASMLAR */}
+            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-2 shadow-sm">
+              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">photo_library</span>
                 Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
-              </label>
+              </h2>
               <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
                 Bir nechta rasm bo'lsa, bot javobida suriladigan albom sifatida ko'rsatiladi.
               </p>
@@ -705,7 +745,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 </label>
               )}
               {photoUploadError && <p className="text-red-500 text-[10px] font-semibold mt-1">{photoUploadError}</p>}
-            </div>
+            </section>
           </div>
         </main>
       )}

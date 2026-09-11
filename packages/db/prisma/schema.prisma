@@ -279,6 +279,14 @@ model Listing {
   source              String             @default("manual") // manual, archive, group, photo
   isSponsored         Boolean            @default(false)
   sponsorUntil        DateTime?
+  // Admin har bir kategoriya ichida eng ko'pi bilan 3 ta yozuvni "1/2/3-o'rin"
+  // deb belgilay oladi — "Yana ko'rish" shu tartibda birinchi bo'lib
+  // ularni, keyin qolganlarini oddiy reyting bo'yicha ko'rsatadi (kelajakda
+  // pullik "top joylashuv" xizmati uchun asos). Bir xil kategoriyada bir xil
+  // raqam ikki marta ishlatilmasligi uchun (categoryId, priorityRank) unique —
+  // Postgres'da NULL qiymatlar unique cheklovda bir-biriga to'qnashmaydi,
+  // shuning uchun belgilanmagan yozuvlar soni cheklanmaydi.
+  priorityRank        Int?
   completenessScore   Int                @default(50) // To'liqlik foizi
   
   // Reyting hisoblash (Bayesian average)
@@ -311,6 +319,7 @@ model Listing {
   @@index([primaryLandmarkId])
   @@index([cityId, bayesianRating(sort: Desc)])
   @@index([addedByUserId])
+  @@unique([categoryId, priorityRank])
   @@map("listings")
 }
 

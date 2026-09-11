@@ -502,7 +502,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // ustunroq bo'lishi kerak (AI klassifikator xato/vaqt tugagan bo'lsa ham).
     const directJargonBonus = jargonMatchedIds.has(item.id) ? 2000 : 0;
 
+    // Admin kategoriya ichida "1/2/3-o'rin" deb belgilagan yozuv — bu HAR
+    // QANDAY boshqa signaldan (tasdiqlanganlik, reyting, jargon) ustunroq
+    // turishi SHART, aks holda "Yana" tugmasi belgilangan tartibda emas,
+    // tasodifiy tartibda ko'rsatib qo'yadi. 1-o'rin > 2-o'rin > 3-o'rin >
+    // barcha boshqa (belgilanmagan) yozuvlar — shu sabab bonus qiymatlari
+    // bir-biridan katta farq bilan (10 000) ajratilgan.
+    const priorityBonus =
+      item.priorityRank === 1 ? 1_000_000 : item.priorityRank === 2 ? 990_000 : item.priorityRank === 3 ? 980_000 : 0;
+
     const totalScore =
+      priorityBonus +
       isVerifiedBonus +
       jargonBonus +
       directJargonBonus +
