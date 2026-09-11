@@ -1,0 +1,124 @@
+name: Analyze production usage (data-driven insights)
+
+# Guruhlardagi haqiqiy foydalanuvchi so'rovlarini, bazadagi bo'shliqlarni va
+# umumiy statistikani tahlil qilish uchun — yangi funksiya tavsiyalarini
+# taxminlar emas, HAQIQIY ma'lumotlarga asoslab berish uchun.
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run analysis via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { db } = require('/app/packages/db/dist/index.js');
+              (async () => {
+                console.log('=== 1) UMUMIY STATISTIKA ===');
+                const totalUsers = await db.user.count();
+                const totalListings = await db.listing.count({ where: { status: 'ACTIVE' } });
+                const totalGroups = await db.cityGroup.count();
+                const totalQueries = await db.queryLog.count();
+                console.log(JSON.stringify({ totalUsers, totalListings, totalGroups, totalQueries }));
+
+                console.log('');
+                console.log('=== 2) INTENT TAQSIMOTI (oxirgi 30 kun) ===');
+                const since30 = new Date(Date.now() - 30*24*60*60*1000);
+                const intentGroups = await db.queryLog.groupBy({
+                  by: ['intent'],
+                  where: { createdAt: { gte: since30 } },
+                  _count: { intent: true },
+                });
+                console.log(JSON.stringify(intentGroups.map(g => ({ intent: g.intent, count: g._count.intent })).sort((a,b)=>b.count-a.count)));
+
+                console.log('');
+                console.log('=== 3) HAL QILINMAGAN (isResolved=false, NOT_RELEVANT emas) SO\'ROVLAR — ENG KO\'P TAKRORLANGAN KATEGORIYA NOMLARI (oxirgi 30 kun) ===');
+                const unresolved = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' } },
+                  select: { categoryName: true, rawMessage: true, confidence: true },
+                });
+                const catCounts = {};
+                for (const u of unresolved) {
+                  const key = (u.categoryName || '(kategoriyasiz)').toLowerCase().trim();
+                  catCounts[key] = (catCounts[key] || 0) + 1;
+                }
+                const sortedCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0, 30);
+                console.log(JSON.stringify(sortedCats));
+
+                console.log('');
+                console.log('=== 4) BU KATEGORIYALARDAN QAYSILARI BAZADA UMUMAN YO\'Q (bo\'shliq) ===');
+                const allCategories = await db.category.findMany({ select: { name: true, synonyms: true } });
+                const catNameSet = new Set();
+                for (const c of allCategories) {
+                  catNameSet.add(c.name.toLowerCase());
+                  for (const s of c.synonyms) catNameSet.add(s.toLowerCase());
+                }
+                const missing = sortedCats.filter(([name]) => {
+                  if (name === '(kategoriyasiz)') return false;
+                  for (const known of catNameSet) {
+                    if (known.includes(name) || name.includes(known)) return false;
+                  }
+                  return true;
+                });
+                console.log(JSON.stringify(missing));
+
+                console.log('');
+                console.log('=== 5) KATEGORIYA BO\'YICHA YOZUVLAR SONI (eng kam/yo\'q yozuvli TOP 15 kategoriya, lekin so\'ralgan) ===');
+                const listingCatCounts = await db.listing.groupBy({
+                  by: ['categoryId'],
+                  where: { status: 'ACTIVE' },
+                  _count: { categoryId: true },
+                });
+                const catIdToCount = {};
+                for (const l of listingCatCounts) catIdToCount[l.categoryId] = l._count.categoryId;
+                const catsWithCounts = allCategories.length ? await db.category.findMany({ select: { id:true, name:true } }) : [];
+                const lowCoverage = catsWithCounts
+                  .map(c => ({ name: c.name, listingCount: catIdToCount[c.id] || 0 }))
+                  .sort((a,b) => a.listingCount - b.listingCount)
+                  .slice(0, 20);
+                console.log(JSON.stringify(lowCoverage));
+
+                console.log('');
+                console.log('=== 6) EMERGENCY SO\'ROVLAR SONI (oxirgi 30 kun) ===');
+                const emergencyCount = await db.queryLog.count({ where: { createdAt: { gte: since30 }, intent: 'EMERGENCY' } });
+                console.log(JSON.stringify({ emergencyCount }));
+
+                console.log('');
+                console.log('=== 7) SHARHLAR (REVIEWS) UMUMIY SONI ===');
+                const reviewCount = await db.review.count();
+                const positiveReviews = await db.review.count({ where: { isPositive: true } });
+                console.log(JSON.stringify({ reviewCount, positiveReviews }));
+
+                console.log('');
+                console.log('=== 8) YANGI USERLAR (oxirgi 7 va 30 kun) ===');
+                const since7 = new Date(Date.now() - 7*24*60*60*1000);
+                const newUsers7 = await db.user.count({ where: { createdAt: { gte: since7 } } });
+                const newUsers30 = await db.user.count({ where: { createdAt: { gte: since30 } } });
+                console.log(JSON.stringify({ newUsers7, newUsers30 }));
+
+                console.log('');
+                console.log('=== 9) ENG KO\'P SO\'ROV YOZILGAN XOM XABARLAR NAMUNASI (tasodifiy 25 ta, hal qilinmagan) ===');
+                const sampleRaw = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' }, confidence: { lt: 0.7 } },
+                  select: { rawMessage: true, confidence: true },
+                  take: 25,
+                  orderBy: { createdAt: 'desc' },
+                });
+                console.log(JSON.stringify(sampleRaw));
+
+                console.log('');
+                console.log('=== 10) BROADCAST FOYDALANISHI ===');
+                const broadcastCount = await db.broadcastMessage.count();
+                console.log(JSON.stringify({ broadcastCount }));
+
+                process.exit(0);
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
+            "
