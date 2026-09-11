@@ -1,0 +1,30 @@
+name: Deploy to production
+
+# Faqat qo'lda ishga tushiriladi (workflow_dispatch) — har push'da avtomatik
+# deploy qilinmaydi, chunki har bir o'zgarish avval mahalliy tekshirilib,
+# ataylab shu workflow orqali ishga tushiriladi. GitHub'ning o'z runner'lari
+# orqali ishlaydi — bu SSH orqali serverga ulanadi, muallif kompyuteridagi/
+# muhitidagi tarmoq cheklovlariga bog'liq emas.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 20m
+          script: |
+            bash /root/kimbor/scripts/deploy.sh
+            echo "--- bot logs ---"
+            docker logs --tail 30 kimbor_bot
+            echo "--- api logs ---"
+            docker logs --tail 15 kimbor_api
+            echo "--- container status ---"
+            docker ps --format '{{.Names}}: {{.Status}}' | grep kimbor
