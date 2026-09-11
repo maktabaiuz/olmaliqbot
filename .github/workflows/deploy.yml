@@ -21,6 +21,13 @@ jobs:
           timeout: 60s
           command_timeout: 20m
           script: |
+            set -e
+            # Avval kodni yangilaymiz (deploy.sh o'zi ham "git pull" qiladi,
+            # lekin bash o'zi bajarayotgan faylni o'zi o'zgartirib qo'yishi
+            # (self-modifying script) xato-moyil — shu sabab yangilanishni
+            # ALDINDAN, deploy.sh chaqirilishidan OLDIN bajaramiz, shunda
+            # bash har doim faylning TO'LIQ YANGI versiyasini o'qib boshlaydi.
+            cd /root/kimbor && git pull origin main
             bash /root/kimbor/scripts/deploy.sh
             echo "--- bot logs ---"
             docker logs --tail 30 kimbor_bot
