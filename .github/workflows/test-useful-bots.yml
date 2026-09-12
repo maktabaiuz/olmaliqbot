@@ -1,0 +1,53 @@
+name: Test useful-bots feature (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            docker exec kimbor_api node -e "
+              const { db } = require('/app/packages/db/dist/index.js');
+              const { USEFUL_BOTS, checkEasyModerationFilters } = require('/app/packages/core/dist/index.js');
+              (async () => {
+                console.log('USEFUL_BOTS:', JSON.stringify(USEFUL_BOTS.map(b => b.key)));
+
+                const city = await db.city.findFirst();
+                const group = await db.cityGroup.create({
+                  data: { city: { connect: { id: city.id } }, chatId: BigInt(-888777666), title: 'CI Test Guruh' },
+                });
+                console.log('Test guruh yaratildi:', group.id);
+
+                // Hech narsa yoqilmagan holatda bo\`sh bo\`lishi kerak
+                const before = await db.cityGroup.findUnique({ where: { id: group.id }, include: { featureToggles: { where: { isEnabled: true } } } });
+                console.log('Boshlang\`ich (bo\`sh bo\`lishi kerak):', JSON.stringify(before.featureToggles));
+
+                // PROFANITY'ni yoqamiz
+                await db.groupFeatureToggle.upsert({
+                  where: { cityGroupId_featureKey: { cityGroupId: group.id, featureKey: 'PROFANITY' } },
+                  update: { isEnabled: true },
+                  create: { cityGroupId: group.id, featureKey: 'PROFANITY', isEnabled: true },
+                });
+                const after = await db.cityGroup.findUnique({ where: { id: group.id }, include: { featureToggles: { where: { isEnabled: true } } } });
+                console.log('PROFANITY yoqilgandan keyin:', JSON.stringify(after.featureToggles.map(f => f.featureKey)));
+
+                const enabledSet = new Set(after.featureToggles.map(f => f.featureKey));
+                console.log('Filtr natijasi (sokinish, yoqilgan bolishi kerak):', JSON.stringify(checkEasyModerationFilters('aka sen jalab ekansan', enabledSet)));
+                console.log('Filtr natijasi (qimor, ochirilgan bolishi kerak):', JSON.stringify(checkEasyModerationFilters('1xbet promo bonus', enabledSet)));
+
+                await db.groupFeatureToggle.deleteMany({ where: { cityGroupId: group.id } });
+                await db.cityGroup.delete({ where: { id: group.id } });
+                console.log('Tozalandi');
+                process.exit(0);
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
+            "
