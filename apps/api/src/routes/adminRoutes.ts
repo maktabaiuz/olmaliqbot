@@ -13,6 +13,77 @@ const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+// Javob ichidagi ("steps" massivi ichida chuqur joylashgan bo'lishi mumkin)
+// barcha matn maydonlarini yig'ib oladi — Gemini "Interactions API"ning
+// aniq javob sxemasi hali to'liq hujjatlashtirilmagan (2026-09), shuning
+// uchun qat'iy bitta yo'l o'rniga CHIDAMLI, chuqur qidiruv ishlatiladi.
+function extractAllTextFields(obj: any, acc: string[] = []): string[] {
+  if (!obj) return acc;
+  if (Array.isArray(obj)) {
+    for (const item of obj) extractAllTextFields(item, acc);
+    return acc;
+  }
+  if (typeof obj === 'object') {
+    if (typeof obj.text === 'string') acc.push(obj.text);
+    for (const key of Object.keys(obj)) {
+      if (key !== 'text') extractAllTextFields(obj[key], acc);
+    }
+  }
+  return acc;
+}
+
+/**
+ * Gemini'ning "URL Context" vositasi orqali bitta havolani tekshiradi —
+ * Google'ning o'z serveri havolaga "kirib" tarkibini o'qiydi (bizning
+ * serverimiz emas, xavfsizroq) va Google Safe Browsing asosidagi xavfsizlik
+ * belgisi bilan birga tahlil qiladi. FAQAT admin "Tahlil qil" bosganda
+ * chaqiriladi (avtomatik emas).
+ *
+ * MUHIM (2026-09): bu — yangi "Interactions API" (v1beta/interactions),
+ * klassik generateContent'dan FARQLI endpoint. Javob sxemasi rasmiy
+ * hujjatlarda hali to'liq misolsiz tasvirlangan, shuning uchun quyidagi
+ * parsing CHIDAMLI (aniq bitta maydon nomiga tayanmaydi) qilib yozilgan.
+ * Gemini kreditlari tiklangach, jonli javobni ko'rib, kerak bo'lsa
+ * aniqlashtiriladi.
+ */
+async function analyzeLinkWithGemini(url: string, geminiKey: string): Promise<string> {
+  const prompt =
+    `Ushbu havolani tekshir (URL Context orqali havolaning o'ziga kirib tarkibini o'qi). ` +
+    `Bu nima ekanini (sayt, fayl, ijtimoiy tarmoq sahifasi va h.k.) va XAVFLI (firibgarlik, fishing, ` +
+    `viruslangan fayl) yoki ODDIY/ZARARSIZ ekanini aniqla. Javobni O'ZBEK TILIDA, 1-2 QISQA GAP bilan, ` +
+    `albatta "XULOSA:" so'zidan boshlab yoz.\n\nHavola: ${url}`;
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 15000);
+
+  try {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+      method: 'POST',
+      headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemini-3.5-flash',
+        input: prompt,
+        tools: [{ type: 'url_context' }],
+      }),
+      signal: abortController.signal,
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`Gemini HTTP ${response.status}: ${bodyText.slice(0, 300)}`);
+    }
+
+    const json = await response.json();
+    const allText = extractAllTextFields(json).join('\n');
+    const xulosaIdx = allText.indexOf('XULOSA:');
+    const summary = xulosaIdx >= 0 ? allText.slice(xulosaIdx) : allText;
+    const trimmed = summary.trim().slice(0, 500);
+    return trimmed || 'AI javob berdi, lekin matn topilmadi (javob tuzilishi kutilganidan farqli bo\'lishi mumkin).';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // moderatorRoutes.ts'dagi bilan bir xil tekshiruv — ommaviy xabar
 // (broadcast) yuborish kuchli, xavfli amal, faqat Super-Admin uchun.
 async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
@@ -1097,6 +1168,113 @@ export async function adminRoutes(fastify: FastifyInstance) {
     });
 
     return { success: true };
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "SPAM-LINK FILTRI" uchun guruh-darajasidagi ruxsat etilgan domenlar.
+  // Bizning o'z domenlarimiz (t.me/olmaliq_bot, olmaliq.online) bu yerga
+  // KIRMAYDI — ular kodda global, doimiy ruxsat etilgan
+  // (apps/bot/src/moderation/enforceModeration.ts).
+  // ──────────────────────────────────────────────────────────────────────────
+
+  fastify.get('/admin/useful-bots/groups/:groupId/allowed-domains', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { groupId } = req.params as { groupId: string };
+    const domains = await db.allowedDomain.findMany({ where: { cityGroupId: groupId }, orderBy: { createdAt: 'desc' } });
+    return domains;
+  });
+
+  fastify.post('/admin/useful-bots/groups/:groupId/allowed-domains', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { groupId } = req.params as { groupId: string };
+    const { domain } = req.body as { domain: string };
+    const cleanDomain = (domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '');
+    if (!cleanDomain) return reply.status(400).send({ success: false, message: "Domen bo'sh bo'lishi mumkin emas" });
+
+    const group = await db.cityGroup.findUnique({ where: { id: groupId } });
+    if (!group) return reply.status(404).send({ success: false, message: 'Guruh topilmadi' });
+
+    const created = await db.allowedDomain.upsert({
+      where: { cityGroupId_domain: { cityGroupId: groupId, domain: cleanDomain } },
+      update: {},
+      create: { cityGroupId: groupId, domain: cleanDomain },
+    });
+    return { success: true, domain: created };
+  });
+
+  fastify.delete('/admin/useful-bots/allowed-domains/:domainId', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { domainId } = req.params as { domainId: string };
+    await db.allowedDomain.delete({ where: { id: domainId } }).catch(() => {});
+    return { success: true };
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "BLOKLANGAN XABARLAR" — barcha 5 moderatsiya filtri bo'yicha kim,
+  // qachon, nima uchun jazolanganini ko'rish. SPAM_LINK yozuvlari uchun
+  // "Tahlil qil" AI-tekshiruvi ham shu yerda.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  fastify.get('/admin/moderation-logs', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { category, limit } = req.query as { category?: string; limit?: string };
+
+    const logs = await db.moderationLog.findMany({
+      where: category ? { category } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(parseInt(limit || '50', 10) || 50, 200),
+    });
+
+    // Guruh nomini ko'rsatish uchun chatId -> title moslashtiramiz.
+    const chatIds = [...new Set(logs.map((l) => l.chatId))];
+    const groups = await db.cityGroup.findMany({ where: { chatId: { in: chatIds } } });
+    const titleByChatId = new Map(groups.map((g) => [g.chatId.toString(), g.title || 'Nomsiz guruh']));
+
+    return logs.map((l) => ({
+      id: l.id,
+      chatId: l.chatId.toString(),
+      groupTitle: titleByChatId.get(l.chatId.toString()) || 'Nomsiz guruh',
+      telegramUserId: l.telegramUserId.toString(),
+      category: l.category,
+      rawMessage: l.rawMessage,
+      aiAnalysis: l.aiAnalysis,
+      createdAt: l.createdAt,
+    }));
+  });
+
+  // Gemini "URL Context" orqali bitta havolani tahlil qiladi — FAQAT talab
+  // bo'yicha (bu tugma bosilganda) ishlaydi, avtomatik emas (xarajatni
+  // tejash uchun). Natija ModerationLog.aiAnalysis'ga keshlanadi — bir marta
+  // so'ralgan havola ikkinchi marta qayta so'ralmaydi.
+  fastify.post('/admin/moderation-logs/:id/analyze-link', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+
+    const log = await db.moderationLog.findUnique({ where: { id } });
+    if (!log) return reply.status(404).send({ success: false, message: 'Yozuv topilmadi' });
+    if (log.aiAnalysis) return { success: true, aiAnalysis: log.aiAnalysis, cached: true };
+
+    const urlMatch = log.rawMessage.match(/(https?:\/\/[^\s]+|www\.[^\s]+|t\.me\/[^\s]+|(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?)/i);
+    if (!urlMatch) {
+      return reply.status(400).send({ success: false, message: 'Xabarda havola topilmadi' });
+    }
+
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
+      return reply.status(503).send({ success: false, message: 'GEMINI_API_KEY sozlanmagan' });
+    }
+
+    try {
+      const analysis = await analyzeLinkWithGemini(urlMatch[0], geminiKey);
+      await db.moderationLog.update({ where: { id }, data: { aiAnalysis: analysis } });
+      return { success: true, aiAnalysis: analysis, cached: false };
+    } catch (err: any) {
+      console.error('Havola AI tahlili xatosi:', err);
+      return reply.status(502).send({
+        success: false,
+        message: `AI tahlili muvaffaqiyatsiz bo'ldi: ${err?.message || err}`,
+      });
+    }
   });
 
   // ──────────────────────────────────────────────────────────────────────────

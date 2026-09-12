@@ -32,31 +32,46 @@ import { checkAndRecordFlood } from './floodTracker';
 
 const MUTE_DURATION_MS = 60 * 60 * 1000; // 1 soat
 
+// Bizning O'ZIMIZNING havolalarimiz — HAR DOIM, BARCHA guruhlarda ruxsat
+// etilgan (admin alohida qo'shishi shart emas), "Spam-link filtri" yoqilgan
+// bo'lsa ham. Aks holda "Habar yuborish" (broadcast) orqali yuborilgan
+// o'zimizning reklama/bot havolamiz ham o'chirilib ketardi.
+const GLOBAL_ALWAYS_ALLOWED_LINKS = ['t.me/olmaliq_bot', process.env.DOMAIN || 'olmaliq.online'];
+
 const ENABLED_FEATURES_TTL_MS = 60 * 1000; // 1 daqiqa
-const enabledFeaturesCache = new Map<number, { keys: Set<string>; expiresAt: number }>();
+interface GroupModerationConfig {
+  enabledKeys: Set<string>;
+  allowedLinkEntries: string[];
+}
+const groupConfigCache = new Map<number, { config: GroupModerationConfig; expiresAt: number }>();
 
 /**
- * Shu guruhda YOQILGAN "foydali botlar" ro'yxatini qaytaradi (bo'sh Set —
- * hech narsa yoqilmagan, ya'ni standart holat). CityGroup topilmasa (bot
- * hali shu guruhni ro'yxatga olmagan bo'lsa) ham bo'sh Set qaytaradi —
- * xavfsiz tomonga xato qiladi (yo'qligiga ishonch bo'lmasa, YOQILMAGAN deb
- * hisoblanadi, hech kimni bekorga jazolamaslik uchun).
+ * Shu guruhda YOQILGAN "foydali botlar" ro'yxatini VA ruxsat etilgan
+ * havola-domenlarini birga qaytaradi (bitta so'rovda). Hech narsa
+ * yoqilmagan bo'lsa (standart holat) bo'sh Set qaytadi. CityGroup
+ * topilmasa ham xavfsiz tomonga xato qiladi (YOQILMAGAN deb hisoblanadi).
  */
-async function getEnabledFeatures(chatId: number): Promise<Set<string>> {
-  const cached = enabledFeaturesCache.get(chatId);
-  if (cached && cached.expiresAt > Date.now()) return cached.keys;
+async function getGroupModerationConfig(chatId: number): Promise<GroupModerationConfig> {
+  const cached = groupConfigCache.get(chatId);
+  if (cached && cached.expiresAt > Date.now()) return cached.config;
 
   try {
     const group = await db.cityGroup.findUnique({
       where: { chatId: BigInt(chatId) },
-      include: { featureToggles: { where: { isEnabled: true } } },
+      include: {
+        featureToggles: { where: { isEnabled: true } },
+        allowedDomains: true,
+      },
     });
-    const keys = new Set((group?.featureToggles || []).map((f) => f.featureKey));
-    enabledFeaturesCache.set(chatId, { keys, expiresAt: Date.now() + ENABLED_FEATURES_TTL_MS });
-    return keys;
+    const config: GroupModerationConfig = {
+      enabledKeys: new Set((group?.featureToggles || []).map((f) => f.featureKey)),
+      allowedLinkEntries: [...GLOBAL_ALWAYS_ALLOWED_LINKS, ...(group?.allowedDomains || []).map((d) => d.domain)],
+    };
+    groupConfigCache.set(chatId, { config, expiresAt: Date.now() + ENABLED_FEATURES_TTL_MS });
+    return config;
   } catch (err) {
     console.error("Foydali botlar ro'yxatini o'qishda xato:", err);
-    return new Set();
+    return { enabledKeys: new Set(), allowedLinkEntries: GLOBAL_ALWAYS_ALLOWED_LINKS };
   }
 }
 
@@ -117,7 +132,7 @@ export async function enforceModeration(
   // 0) Shu guruhda umuman biror "foydali bot" yoqilganmi? Yo'q bo'lsa
   // (standart holat) — hech qanday DB/Telegram API so'rovi qilmasdan
   // darhol chiqib ketamiz, boshqa hamma guruh uchun bu deyarli bepul.
-  const enabledFeatures = await getEnabledFeatures(chatId);
+  const { enabledKeys: enabledFeatures, allowedLinkEntries } = await getGroupModerationConfig(chatId);
   if (enabledFeatures.size === 0) return false;
 
   // Mustasnolar — filtr ularga umuman tegmaydi.
@@ -133,7 +148,7 @@ export async function enforceModeration(
   const easyCategories = new Set(
     ['PROFANITY', 'SPAM_LINK', 'GAMBLING', 'SCAM'].filter((k) => enabledFeatures.has(k))
   ) as Set<ModerationCategory>;
-  const easyResult = checkEasyModerationFilters(messageText, easyCategories);
+  const easyResult = checkEasyModerationFilters(messageText, easyCategories, allowedLinkEntries);
   let category: string | null = easyResult.category;
 
   // 2) Flud — FAQAT shu guruhda "Flud filtri" yoqilgan bo'lsa tekshiriladi.
@@ -153,37 +168,43 @@ export async function enforceModeration(
 
   if (!category) return false;
 
-  // Amalga oshirish: o'chirish + 1 soatga jim qilish (ogohlantirishsiz).
+  // Amalga oshirish: o'chirish, ogohlantirishsiz.
   try {
     await ctx.api.deleteMessage(chatId, messageId);
   } catch (err) {
     console.error(`Moderatsiya: xabarni o'chirib bo'lmadi (${category}):`, err);
   }
 
-  try {
-    await ctx.api.restrictChatMember(
-      chatId,
-      userId,
-      {
-        can_send_messages: false,
-        can_send_audios: false,
-        can_send_documents: false,
-        can_send_photos: false,
-        can_send_videos: false,
-        can_send_video_notes: false,
-        can_send_voice_notes: false,
-        can_send_polls: false,
-        can_send_other_messages: false,
-        can_add_web_page_previews: false,
-      },
-      { until_date: Math.floor((Date.now() + MUTE_DURATION_MS) / 1000) }
-    );
-  } catch (err) {
-    // Eng keng tarqalgan sabab: botda "a'zolarni cheklash" admin huquqi
-    // yo'q. Xabar allaqachon o'chirilgan (agar muvaffaqiyatli bo'lsa),
-    // shuning uchun bu jim yutiladi — lekin logga aniq yoziladi, shunda
-    // admin panelida ko'rish mumkin bo'ladi.
-    console.error(`Moderatsiya: userni jim qilib bo'lmadi (huquq yetishmasligi mumkin, ${category}):`, err);
+  // SPAM_LINK — endi HAR QANDAY (hatto zararsiz) havolani ham tutadi,
+  // shuning uchun boshqa filtrlardan farqli, 1 soatlik "jim" qilish
+  // QO'LLANILMAYDI — faqat xabar o'chiriladi. Qolgan 4 filtr esa haqiqiy
+  // qoidabuzarlik belgisi bo'lgani uchun darhol jim qilinadi.
+  if (category !== 'SPAM_LINK') {
+    try {
+      await ctx.api.restrictChatMember(
+        chatId,
+        userId,
+        {
+          can_send_messages: false,
+          can_send_audios: false,
+          can_send_documents: false,
+          can_send_photos: false,
+          can_send_videos: false,
+          can_send_video_notes: false,
+          can_send_voice_notes: false,
+          can_send_polls: false,
+          can_send_other_messages: false,
+          can_add_web_page_previews: false,
+        },
+        { until_date: Math.floor((Date.now() + MUTE_DURATION_MS) / 1000) }
+      );
+    } catch (err) {
+      // Eng keng tarqalgan sabab: botda "a'zolarni cheklash" admin huquqi
+      // yo'q. Xabar allaqachon o'chirilgan (agar muvaffaqiyatli bo'lsa),
+      // shuning uchun bu jim yutiladi — lekin logga aniq yoziladi, shunda
+      // admin panelida ko'rish mumkin bo'ladi.
+      console.error(`Moderatsiya: userni jim qilib bo'lmadi (huquq yetishmasligi mumkin, ${category}):`, err);
+    }
   }
 
   db.moderationLog.create({
@@ -195,7 +216,8 @@ export async function enforceModeration(
     },
   }).catch((err) => console.error('ModerationLog yozishda xato:', err));
 
-  console.log(`🛡 Moderatsiya: ${CATEGORY_LABELS[category] || category} — xabar o'chirildi, user 1 soatga jim qilindi (chat ${chatId}, user ${userId})`);
+  const muteNote = category === 'SPAM_LINK' ? '' : ', user 1 soatga jim qilindi';
+  console.log(`🛡 Moderatsiya: ${CATEGORY_LABELS[category] || category} — xabar o'chirildi${muteNote} (chat ${chatId}, user ${userId})`);
 
   return true;
 }

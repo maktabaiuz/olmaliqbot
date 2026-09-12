@@ -109,6 +109,7 @@ model CityGroup {
   createdAt   DateTime @default(now())
 
   featureToggles GroupFeatureToggle[]
+  allowedDomains AllowedDomain[]
 
   @@map("city_groups")
 }
@@ -486,11 +487,30 @@ model ModerationLog {
   telegramUserId BigInt
   category       String   // PROFANITY | SPAM_LINK | GAMBLING | SCAM | FLOOD
   rawMessage     String
+  // Admin panelida "Tahlil qil" bosilganda Gemini (URL Context) orqali
+  // olingan qisqa xulosa shu yerga keshlanadi — talab bo'yicha ishlaydi
+  // (avtomatik emas), shuning uchun boshida har doim bo'sh (null).
+  aiAnalysis     String?
   createdAt      DateTime @default(now())
 
   @@index([chatId, createdAt])
   @@index([telegramUserId])
   @@map("moderation_logs")
+}
+
+// "Spam-link filtri" yoqilgan guruhda ADMIN "bu domenga ruxsat ber" deb
+// qo'shgan istisnolar — masalan o'zining rasmiy do'kon sayti. Bizning o'z
+// domenlarimiz (olmaliq.online, t.me/olmaliq_bot) BU JADVALGA KIRMAYDI —
+// ular kodda global, doimiy ruxsat etilgan (enforceModeration.ts).
+model AllowedDomain {
+  id          String    @id @default(uuid())
+  cityGroupId String
+  cityGroup   CityGroup @relation(fields: [cityGroupId], references: [id], onDelete: Cascade)
+  domain      String    // masalan "olmaliqshop.uz" yoki "instagram.com/olmaliqshop"
+  createdAt   DateTime  @default(now())
+
+  @@unique([cityGroupId, domain])
+  @@map("allowed_domains")
 }
 
 model EmergencyNumber {

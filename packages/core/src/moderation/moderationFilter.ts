@@ -48,42 +48,57 @@ export function detectProfanity(rawText: string): boolean {
   return PROFANITY_WORDS.some((w) => containsWholeWord(n, normalizeText(w)));
 }
 
-// --- 2) SHUBHALI / SPAM HAVOLALAR ------------------------------------------
-// Haqiqiy biznes egalari o'z do'koni/Instagram sahifasini ulashishi
-// TABIIY holat — shu sabab HAMMA havolani emas, faqat SPAM'ga XOS
-// naqshlarni (qisqartirilgan havolalar, boshqa guruhga taklif havolasi)
-// belgilaymiz. Bu — atayin ehtiyotkor (kam xato-musbat) yondashuv.
-const URL_REGEX = /(https?:\/\/|www\.)[^\s]+/gi;
+// --- 2) HAVOLALAR — "RUXSAT ETILMAGAN HAMMASI TAQIQLANADI" ----------------
+// 2026-09 qaror: avval faqat "shubhali" havolalar (qisqartirilgan havolalar
+// va h.k.) tutilardi. Endi mantiq TESKARISIGA o'zgardi — bu bot yoqilgan
+// guruhda ODDIY foydalanuvchilar UMUMAN HECH QANDAY havola yubora olmaydi,
+// zararli-zararsizligidan qat'iy nazar. Faqat ANIQ ro'yxatga olingan
+// domenlar (guruh admin qo'shgan + bizning o'z domenlarimiz, quyida
+// enforceModeration.ts'da) o'tadi. Bu qat'iyroq, lekin ancha oddiy va
+// bashorat qilinadigan qoida — "aql bilan hukm qilish" o'rniga "ruxsat
+// ro'yxati" (allowlist) orqali ishlaydi.
+const URL_REGEX =
+  /(https?:\/\/[^\s]+|www\.[^\s]+|t\.me\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|uz|ru|io|me|shop|store|biz|info|online|site|xyz|club|tv|co|uk|us|app|dev)(?:\/[^\s]*)?)/gi;
 
-const SUSPICIOUS_SHORTENERS = [
-  'bit.ly', 'tinyurl.com', 'cutt.ly', 'is.gd', 'shorte.st', 'clck.ru',
-  'goo.gl', 'ow.ly', 'rebrand.ly', 'v.gd', 'tiny.cc', 'shrtco.de',
-];
+export function extractUrls(rawText: string): string[] {
+  return rawText.match(URL_REGEX) || [];
+}
 
-export function detectSpamLink(rawText: string): boolean {
-  const lowerFull = rawText.toLowerCase();
+// URL'ni "domen[/yo'l]" shakliga keltiradi — protokol, "www.", oxirgi "/"
+// va query/fragment (?..., #...) olib tashlanadi, solishtirish uchun.
+function normalizeUrlForCompare(url: string): { domain: string; path: string } {
+  let u = url.toLowerCase().trim();
+  u = u.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  u = u.split(/[?#]/)[0];
+  u = u.replace(/\/+$/, '');
+  const slashIdx = u.indexOf('/');
+  if (slashIdx === -1) return { domain: u, path: '' };
+  return { domain: u.slice(0, slashIdx), path: u.slice(slashIdx) };
+}
 
-  // t.me/joinchat yoki t.me/+XXXX (boshqa guruhga TAKLIF havolasi) —
-  // "http"siz ham yozilishi mumkin ("t.me/+abc123").
-  if (/t\.me\/(joinchat\/|\+)/i.test(lowerFull)) return true;
+/**
+ * Berilgan URL ruxsat etilgan ro'yxatdagi biror yozuvga mos keladimi?
+ * Yozuv faqat domen ("olmaliq.online") yoki domen+yo'l
+ * ("instagram.com/olmaliqshop") bo'lishi mumkin. Sub-domen firibgarligidan
+ * ("olmaliq.online.evil.com") himoyalanish uchun domen aniq mos kelishi
+ * yoki uning haqiqiy sub-domeni bo'lishi shart (oddiy "startsWith" emas).
+ */
+export function isUrlAllowed(url: string, allowedEntries: string[]): boolean {
+  const { domain: urlDomain, path: urlPath } = normalizeUrlForCompare(url);
+  return allowedEntries.some((entry) => {
+    const { domain: entryDomain, path: entryPath } = normalizeUrlForCompare(entry);
+    if (!entryDomain) return false;
+    const domainMatches = urlDomain === entryDomain || urlDomain.endsWith(`.${entryDomain}`);
+    if (!domainMatches) return false;
+    if (!entryPath) return true;
+    return urlPath === entryPath || urlPath.startsWith(`${entryPath}/`);
+  });
+}
 
-  // Qisqartirilgan havola xizmatlari — bular deyarli HAR DOIM "http://"
-  // yoki "www." PREFIKSSIZ yoziladi (masalan "bit.ly/abc123"), shuning
-  // uchun to'liq URL_REGEX'ga emas, butun xabar matniga qarshi tekshiramiz.
-  if (SUSPICIOUS_SHORTENERS.some((s) => lowerFull.includes(s))) return true;
-
-  // Qolgan har qanday to'liq (http/www bilan boshlanuvchi) havola ham
-  // qo'shimcha qidiriladi — kelajakda yangi shubhali domenlar qo'shilsa,
-  // shu yerga qo'shish kifoya.
-  const urls = rawText.match(URL_REGEX);
-  if (urls) {
-    for (const url of urls) {
-      const lower = url.toLowerCase();
-      if (SUSPICIOUS_SHORTENERS.some((s) => lower.includes(s))) return true;
-    }
-  }
-
-  return false;
+export function detectDisallowedLink(rawText: string, allowedEntries: string[] = []): boolean {
+  const urls = extractUrls(rawText);
+  if (urls.length === 0) return false;
+  return urls.some((u) => !isUrlAllowed(u, allowedEntries));
 }
 
 // --- 3) QIMOR REKLAMASI ---------------------------------------------------
@@ -143,10 +158,14 @@ export function detectScamPhrase(rawText: string): boolean {
  * botlar" bo'limida har bir guruh o'zi kerakli botlarni tanlab yoqadi,
  * qolganlari o'sha guruhda umuman ishlamasligi kerak). Berilmasa (masalan
  * eski testlar/skriptlar uchun) — hammasi tekshiriladi.
+ *
+ * `allowedLinkEntries` — SPAM_LINK uchun: shu guruhda ruxsat etilgan
+ * domenlar ro'yxati (bizning o'z domenlarimiz + admin qo'shganlari).
  */
 export function checkEasyModerationFilters(
   rawText: string,
-  enabledCategories?: Set<ModerationCategory>
+  enabledCategories?: Set<ModerationCategory>,
+  allowedLinkEntries: string[] = []
 ): ModerationResult {
   if (!rawText || !rawText.trim()) return { violated: false, category: null };
   const isOn = (c: ModerationCategory) => !enabledCategories || enabledCategories.has(c);
@@ -154,7 +173,7 @@ export function checkEasyModerationFilters(
   if (isOn('PROFANITY') && detectProfanity(rawText)) return { violated: true, category: 'PROFANITY' };
   if (isOn('SCAM') && detectScamPhrase(rawText)) return { violated: true, category: 'SCAM' };
   if (isOn('GAMBLING') && detectGamblingAd(rawText)) return { violated: true, category: 'GAMBLING' };
-  if (isOn('SPAM_LINK') && detectSpamLink(rawText)) return { violated: true, category: 'SPAM_LINK' };
+  if (isOn('SPAM_LINK') && detectDisallowedLink(rawText, allowedLinkEntries)) return { violated: true, category: 'SPAM_LINK' };
   return { violated: false, category: null };
 }
 
@@ -180,7 +199,7 @@ export const USEFUL_BOTS: UsefulBotDefinition[] = [
   {
     key: 'SPAM_LINK',
     name: 'Spam-link filtri',
-    description: "Qisqartirilgan/shubhali havolalar va boshqa guruhga taklif havolalarini o'chiradi.",
+    description: "Ruxsat etilgan ro'yxatda yo'q har qanday havolani o'chiradi (jim qilmasdan).",
     icon: '🔗',
   },
   {

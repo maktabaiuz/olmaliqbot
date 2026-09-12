@@ -28,6 +28,7 @@ import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
+import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 
 export interface AppProps {
@@ -49,7 +50,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'uncertain' | 'broadcast' | 'useful_bots'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'uncertain' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -490,6 +491,20 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                               <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
                             </button>
                           )}
+
+                          {/* Bloklangan xabarlar (moderatsiya jurnali) */}
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => setMoreSubView('moderation_logs')}
+                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            >
+                              <span className="flex items-center gap-2.5">
+                                <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">block</span></span>
+                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Bloklangan xabarlar</span>
+                              </span>
+                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+                            </button>
+                          )}
                         </div>
 
                         {/* Hisob group */}
@@ -557,6 +572,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     )}
                     {moreSubView === 'useful_bots' && (
                       <UsefulBotsScreen onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'moderation_logs' && (
+                      <ModerationLogsScreen onBack={() => setMoreSubView('menu')} />
                     )}
                     {moreSubView === 'broadcast' && (
                       <BroadcastScreen onBack={() => setMoreSubView('menu')} />
