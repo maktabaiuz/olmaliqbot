@@ -1,0 +1,47 @@
+name: Verify per-group isolation (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            docker exec kimbor_bot node -e "
+              const { db } = require('/app/packages/db/dist/index.js');
+              const { checkEasyModerationFilters } = require('/app/packages/core/dist/index.js');
+              (async () => {
+                async function getConfig(chatId) {
+                  const group = await db.cityGroup.findUnique({
+                    where: { chatId: BigInt(chatId) },
+                    include: { featureToggles: { where: { isEnabled: true } }, allowedDomains: true },
+                  });
+                  const enabledKeys = new Set((group?.featureToggles || []).map(f => f.featureKey));
+                  const allowed = ['t.me/olmaliq_bot', 'olmaliq.online', ...(group?.allowedDomains || []).map(d => d.domain)];
+                  return { title: group?.title, enabledKeys: [...enabledKeys], allowed };
+                }
+
+                const enabledChatId = '-1004480934800'; // Olmaliq Suhbat (SPAM_LINK yoqilgan)
+                const disabledChatId1 = '-1002421893642'; // DSK (ochiq)
+                const disabledChatId2 = '-1001647665739'; // Olmaliq yollari (ochiq)
+
+                const testLink = 'random-spam-site-xyz123.uz/promo';
+
+                for (const [label, chatId] of [['YOQILGAN (Olmaliq Suhbat)', enabledChatId], ['OCHIQ (DSK)', disabledChatId1], ['OCHIQ (Olmaliq yollari)', disabledChatId2]]) {
+                  const cfg = await getConfig(chatId);
+                  const enabledSet = new Set(cfg.enabledKeys);
+                  const result = checkEasyModerationFilters(testLink, enabledSet, cfg.allowed);
+                  console.log(label + ' | guruh: ' + cfg.title + ' | yoqilgan botlar: ' + JSON.stringify(cfg.enabledKeys) + ' | test-havola natijasi: ' + JSON.stringify(result));
+                }
+                process.exit(0);
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
+            "
