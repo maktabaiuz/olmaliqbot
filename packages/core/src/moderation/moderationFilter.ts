@@ -114,13 +114,44 @@ const GAMBLING_BRANDS = [
 const GAMBLING_GENERIC = ['qimor', 'stavka', 'bukmeker', 'kazino', 'казино', 'ставка', 'букмекер'];
 const PROMO_SIGNALS = ['promo', 'bonus', 'ro\'yxatdan o\'ting', "ro'yhatdan o'ting", 'kod', 'фрибет', 'freebet'];
 
-export function detectGamblingAd(rawText: string): boolean {
+/**
+ * `extraKeywords` — admin "Foydali botlar > Qimor filtri" ekranida qo'shgan
+ * GLOBAL qo'shimcha taqiqlangan sayt/brend nomlari (yangi sayt chiqsa, kod
+ * o'zgartirmasdan tezda qo'shish uchun). GAMBLING_BRANDS bilan bir xil
+ * mantiqda ishlaydi.
+ */
+export function detectGamblingAd(rawText: string, extraKeywords: string[] = []): boolean {
   const n = normalizeText(rawText);
   if (!n) return false;
-  if (GAMBLING_BRANDS.some((b) => n.includes(normalizeText(b)))) return true;
+  const allBrands = [...GAMBLING_BRANDS, ...extraKeywords];
+  if (allBrands.some((b) => b && n.includes(normalizeText(b)))) return true;
   const hasGeneric = GAMBLING_GENERIC.some((w) => containsWholeWord(n, normalizeText(w)));
   const hasPromo = PROMO_SIGNALS.some((w) => n.includes(normalizeText(w)));
   return hasGeneric && hasPromo;
+}
+
+// Brend nomisiz, "yashiringan" qimor reklamasini taxmin qilish uchun
+// KENGROQ (lekin hali ham nisbatan tor) belgi to'plami — masalan "tetya
+// Anvar har kuni yutyapti, qiziqsangiz shaxsiyga yozing" kabi xabarlar.
+// Bu funksiya faqat "AI'ga tekshirtirish kerakmi?" degan savolga javob
+// beradi — o'zi hech qachon YAKUNIY qaror qabul qilmaydi (aniqlik past,
+// xato-musbat ehtimoli yuqoriroq, shuning uchun AI tasdiqlashi shart).
+const SOLICITATION_PHRASES = [
+  'shaxsiyga yozing', 'shaxsimga yozing', 'lsga yozing', 'lichkaga yozing',
+  'qiziqsangiz yozing', 'istasangiz yozing', 'kim xohlasa yozsin',
+  'batafsil lsda', 'faqat qiziqqanlar',
+];
+const MONEY_SIGNALS = ['har kuni', 'kafolat', 'daromad', 'foyda', 'yutaman', 'yutyapman', 'yutamiz', 'yutyapti'];
+
+export function looksLikePossibleGamblingAd(rawText: string, extraKeywords: string[] = []): boolean {
+  const n = normalizeText(rawText);
+  if (!n) return false;
+  // Allaqachon ANIQ topilgan bo'lsa (brend yoki umumiy so'z+promo), AI
+  // shart emas — javob allaqachon ma'lum.
+  if (detectGamblingAd(rawText, extraKeywords)) return false;
+  const hasSolicitation = SOLICITATION_PHRASES.some((p) => n.includes(normalizeText(p)));
+  const hasMoneySignal = MONEY_SIGNALS.some((w) => n.includes(normalizeText(w)));
+  return hasSolicitation && hasMoneySignal;
 }
 
 // --- 4) KLASSIK FIRIBGARLIK IBORALARI --------------------------------------
@@ -161,18 +192,21 @@ export function detectScamPhrase(rawText: string): boolean {
  *
  * `allowedLinkEntries` — SPAM_LINK uchun: shu guruhda ruxsat etilgan
  * domenlar ro'yxati (bizning o'z domenlarimiz + admin qo'shganlari).
+ * `extraGamblingKeywords` — GAMBLING uchun: admin qo'shgan GLOBAL qo'shimcha
+ * taqiqlangan sayt/brend nomlari.
  */
 export function checkEasyModerationFilters(
   rawText: string,
   enabledCategories?: Set<ModerationCategory>,
-  allowedLinkEntries: string[] = []
+  allowedLinkEntries: string[] = [],
+  extraGamblingKeywords: string[] = []
 ): ModerationResult {
   if (!rawText || !rawText.trim()) return { violated: false, category: null };
   const isOn = (c: ModerationCategory) => !enabledCategories || enabledCategories.has(c);
 
   if (isOn('PROFANITY') && detectProfanity(rawText)) return { violated: true, category: 'PROFANITY' };
   if (isOn('SCAM') && detectScamPhrase(rawText)) return { violated: true, category: 'SCAM' };
-  if (isOn('GAMBLING') && detectGamblingAd(rawText)) return { violated: true, category: 'GAMBLING' };
+  if (isOn('GAMBLING') && detectGamblingAd(rawText, extraGamblingKeywords)) return { violated: true, category: 'GAMBLING' };
   if (isOn('SPAM_LINK') && detectDisallowedLink(rawText, allowedLinkEntries)) return { violated: true, category: 'SPAM_LINK' };
   return { violated: false, category: null };
 }

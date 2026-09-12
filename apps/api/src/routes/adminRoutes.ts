@@ -1210,6 +1210,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
+  // "QIMOR FILTRI" uchun admin qo'shgan GLOBAL qo'shimcha taqiqlangan
+  // sayt/brend nomlari — BARCHA guruhlar uchun bitta ro'yxat (domenlar
+  // ro'yxatidan farqli, guruhga bog'liq emas).
+  // ──────────────────────────────────────────────────────────────────────────
+
+  fastify.get('/admin/useful-bots/gambling-keywords', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const keywords = await db.gamblingKeyword.findMany({ orderBy: { createdAt: 'desc' } });
+    return keywords;
+  });
+
+  fastify.post('/admin/useful-bots/gambling-keywords', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { keyword } = req.body as { keyword: string };
+    const clean = (keyword || '').trim().toLowerCase();
+    if (!clean) return reply.status(400).send({ success: false, message: "So'z bo'sh bo'lishi mumkin emas" });
+
+    const created = await db.gamblingKeyword.upsert({
+      where: { keyword: clean },
+      update: {},
+      create: { keyword: clean },
+    });
+    return { success: true, keyword: created };
+  });
+
+  fastify.delete('/admin/useful-bots/gambling-keywords/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    await db.gamblingKeyword.delete({ where: { id } }).catch(() => {});
+    return { success: true };
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
   // "BLOKLANGAN XABARLAR" — barcha 5 moderatsiya filtri bo'yicha kim,
   // qachon, nima uchun jazolanganini ko'rish. SPAM_LINK yozuvlari uchun
   // "Tahlil qil" AI-tekshiruvi ham shu yerda.

@@ -513,6 +513,19 @@ model AllowedDomain {
   @@map("allowed_domains")
 }
 
+// "Qimor filtri" uchun admin qo'shgan qo'shimcha taqiqlangan
+// sayt/brend nomlari — GLOBAL (barcha guruhlar uchun bitta ro'yxat),
+// chunki taqiqlangan qimor sayti hamma joyda taqiqlangan bo'lishi kerak,
+// guruh-guruh emas. Yangi sayt yopilib, o'rniga yangisi chiqqanda,
+// admin kodni o'zgartirmasdan tezda qo'sha oladi.
+model GamblingKeyword {
+  id        String   @id @default(uuid())
+  keyword   String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("gambling_keywords")
+}
+
 model EmergencyNumber {
   id          String   @id @default(uuid())
   cityId      String

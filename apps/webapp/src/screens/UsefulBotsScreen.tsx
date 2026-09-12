@@ -25,6 +25,11 @@ interface AllowedDomainItem {
   domain: string;
 }
 
+interface GamblingKeywordItem {
+  id: string;
+  keyword: string;
+}
+
 /**
  * "Foydali botlar" — xavfsizlik/moderatsiya filtrlarini (so'kinish,
  * spam-link, qimor, firibgarlik, flud) HAR BIR GURUHDA alohida yoqish/
@@ -46,6 +51,52 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
   const [domainsLoading, setDomainsLoading] = useState(false);
   const [newDomainInput, setNewDomainInput] = useState('');
 
+  // "Qimor filtri" uchun: GLOBAL qo'shimcha taqiqlangan sayt nomlari
+  // (guruhga bog'liq emas, barcha guruhlar uchun bitta ro'yxat).
+  const [gamblingKeywords, setGamblingKeywords] = useState<GamblingKeywordItem[]>([]);
+  const [gamblingKeywordsLoading, setGamblingKeywordsLoading] = useState(false);
+  const [newKeywordInput, setNewKeywordInput] = useState('');
+
+  const loadGamblingKeywords = async () => {
+    setGamblingKeywordsLoading(true);
+    try {
+      const res = await apiFetch('/api/admin/useful-bots/gambling-keywords');
+      if (res.ok) setGamblingKeywords(await res.json());
+    } catch (err) {
+      console.error('Failed to load gambling keywords:', err);
+    } finally {
+      setGamblingKeywordsLoading(false);
+    }
+  };
+
+  const addGamblingKeyword = async () => {
+    const keyword = newKeywordInput.trim();
+    if (!keyword) return;
+    try {
+      const res = await apiFetch('/api/admin/useful-bots/gambling-keywords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGamblingKeywords((prev) => [data.keyword, ...prev.filter((k) => k.keyword !== data.keyword.keyword)]);
+        setNewKeywordInput('');
+      }
+    } catch (err) {
+      console.error('Failed to add gambling keyword:', err);
+    }
+  };
+
+  const removeGamblingKeyword = async (id: string) => {
+    setGamblingKeywords((prev) => prev.filter((k) => k.id !== id));
+    try {
+      await apiFetch(`/api/admin/useful-bots/gambling-keywords/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Failed to remove gambling keyword:', err);
+    }
+  };
+
   const loadBots = async () => {
     setLoading(true);
     try {
@@ -65,6 +116,7 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
   const openBot = async (bot: BotSummary) => {
     setSelectedBot(bot);
     setGroupsLoading(true);
+    if (bot.key === 'GAMBLING') loadGamblingKeywords();
     try {
       const res = await apiFetch(`/api/admin/useful-bots/${bot.key}/groups`);
       if (res.ok) setGroups(await res.json());
@@ -166,6 +218,53 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
             </div>
           </div>
         </div>
+
+        {/* GLOBAL taqiqlangan sayt nomlari — faqat Qimor filtri uchun, barcha
+            guruhlarga bitta ro'yxat sifatida ta'sir qiladi. */}
+        {selectedBot.key === 'GAMBLING' && (
+          <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm p-3.5">
+            <h3 className="text-xs font-bold text-on-surface dark:text-slate-100 mb-1">
+              🚫 Taqiqlangan saytlar (barcha guruhlarda)
+            </h3>
+            <p className="text-[10px] text-slate-500 mb-2">
+              Yangi qimor sayti chiqsa, shu yerga qo'shing — darhol BARCHA guruhlarda taqiqlanadi.
+            </p>
+            {gamblingKeywordsLoading ? (
+              <p className="text-[10px] text-slate-500">Yuklanmoqda...</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {gamblingKeywords.map((k) => (
+                  <span
+                    key={k.id}
+                    className="bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                  >
+                    {k.keyword}
+                    <button onClick={() => removeGamblingKeyword(k.id)} className="hover:text-red-800 font-bold">×</button>
+                  </span>
+                ))}
+                {gamblingKeywords.length === 0 && (
+                  <span className="text-[10px] text-slate-500">Hali qo'shilmagan (hozircha faqat kod ichidagi taniqli brendlar ishlaydi)</span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newKeywordInput}
+                onChange={(e) => setNewKeywordInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addGamblingKeyword(); }}
+                placeholder="masalan: yangi-qimor-sayti"
+                className="flex-1 bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-full px-3 py-1.5 text-[11px] outline-none"
+              />
+              <button
+                onClick={addGamblingKeyword}
+                className="bg-red-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-full shrink-0"
+              >
+                Qo'shish
+              </button>
+            </div>
+          </div>
+        )}
 
         {groupsLoading ? (
           <div className="text-center text-xs text-slate-500 py-8">Yuklanmoqda...</div>

@@ -16,7 +16,7 @@ const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number 
 // klassifikatorga tushadi).
 const GEMINI_RPM_SAFE_LIMIT = 12;
 const recentGeminiCallTimestamps: number[] = [];
-function reserveGeminiCallSlot(): boolean {
+export function reserveGeminiCallSlot(): boolean {
   const now = Date.now();
   while (recentGeminiCallTimestamps.length > 0 && now - recentGeminiCallTimestamps[0] > 60_000) {
     recentGeminiCallTimestamps.shift();

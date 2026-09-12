@@ -26,9 +26,10 @@
 
 import { Context } from 'grammy';
 import { db } from '@kimbor/db';
-import { checkEasyModerationFilters, normalizeText, ModerationCategory } from '@kimbor/core';
-import { hasPossibleServiceSignal } from '../filter/aiClassifier';
+import { checkEasyModerationFilters, normalizeText, looksLikePossibleGamblingAd, ModerationCategory } from '@kimbor/core';
+import { hasPossibleServiceSignal, reserveGeminiCallSlot } from '../filter/aiClassifier';
 import { checkAndRecordFlood } from './floodTracker';
+import { checkGamblingWithAI } from './gamblingAiCheck';
 
 const MUTE_DURATION_MS = 60 * 60 * 1000; // 1 soat
 
@@ -44,6 +45,26 @@ interface GroupModerationConfig {
   allowedLinkEntries: string[];
 }
 const groupConfigCache = new Map<number, { config: GroupModerationConfig; expiresAt: number }>();
+
+// "Qimor filtri" uchun admin qo'shgan GLOBAL qo'shimcha taqiqlangan sayt
+// nomlari — barcha guruhlar uchun BITTA ro'yxat (domenlar ro'yxatidan
+// farqli, chatId'ga bog'liq emas), shu sabab alohida, oddiyroq keshlanadi.
+let gamblingKeywordsCache: { keywords: string[]; expiresAt: number } | null = null;
+
+async function getGlobalGamblingKeywords(): Promise<string[]> {
+  if (gamblingKeywordsCache && gamblingKeywordsCache.expiresAt > Date.now()) {
+    return gamblingKeywordsCache.keywords;
+  }
+  try {
+    const rows = await db.gamblingKeyword.findMany();
+    const keywords = rows.map((r) => r.keyword);
+    gamblingKeywordsCache = { keywords, expiresAt: Date.now() + ENABLED_FEATURES_TTL_MS };
+    return keywords;
+  } catch (err) {
+    console.error("Qimor-so'zlar ro'yxatini o'qishda xato:", err);
+    return [];
+  }
+}
 
 /**
  * Shu guruhda YOQILGAN "foydali botlar" ro'yxatini VA ruxsat etilgan
@@ -148,8 +169,23 @@ export async function enforceModeration(
   const easyCategories = new Set(
     ['PROFANITY', 'SPAM_LINK', 'GAMBLING', 'SCAM'].filter((k) => enabledFeatures.has(k))
   ) as Set<ModerationCategory>;
-  const easyResult = checkEasyModerationFilters(messageText, easyCategories, allowedLinkEntries);
+  const extraGamblingKeywords = enabledFeatures.has('GAMBLING') ? await getGlobalGamblingKeywords() : [];
+  const easyResult = checkEasyModerationFilters(messageText, easyCategories, allowedLinkEntries, extraGamblingKeywords);
   let category: string | null = easyResult.category;
+
+  // 1b) Qimor — brend nomisiz, "yashiringan" reklama shubhasi bo'lsa
+  // (looksLikePossibleGamblingAd), Gemini'dan tor savol so'raladi. Bu —
+  // ASOSIY AI klassifikator bilan BIR XIL umumiy byudjetni ishlatadi
+  // (reserveGeminiCallSlot) — band paytda band bo'lsa, oddiy o'tkazib
+  // yuboriladi (xavfsiz tomonga xato). Aniq brend/promo signal allaqachon
+  // yuqorida topilgan bo'lsa, bu bosqich umuman ishga tushmaydi.
+  if (!category && enabledFeatures.has('GAMBLING') && looksLikePossibleGamblingAd(messageText, extraGamblingKeywords)) {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && geminiKey !== 'your_gemini_api_key_here' && reserveGeminiCallSlot()) {
+      const isGambling = await checkGamblingWithAI(messageText, geminiKey);
+      if (isGambling) category = 'GAMBLING';
+    }
+  }
 
   // 2) Flud — FAQAT shu guruhda "Flud filtri" yoqilgan bo'lsa tekshiriladi.
   // "Bir xil xabar takrorlanishi" belgisi FAQAT xabar haqiqiy xizmat
