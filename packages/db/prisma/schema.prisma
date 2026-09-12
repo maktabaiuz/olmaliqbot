@@ -108,7 +108,28 @@ model CityGroup {
   title       String?
   createdAt   DateTime @default(now())
 
+  featureToggles GroupFeatureToggle[]
+
   @@map("city_groups")
+}
+
+// "Foydali botlar" bo'limi — har bir xavfsizlik/moderatsiya "botchasi"
+// (so'kinish filtri, spam-link filtri va h.k.) har bir guruhda ALOHIDA
+// yoqilishi/o'chirilishi mumkin (iOS sozlamalar uslubidagi tugmalar kabi) —
+// bitta guruhga kerak bo'lgan narsa boshqasiga keraksiz bo'lishi mumkin.
+// Qatorning O'ZI YO'Q bo'lsa — o'sha bot shu guruhda O'CHIQ deb hisoblanadi
+// (standart holat: yangi guruhda hammasi o'chiq boshlanadi).
+model GroupFeatureToggle {
+  id          String    @id @default(uuid())
+  cityGroupId String
+  cityGroup   CityGroup @relation(fields: [cityGroupId], references: [id], onDelete: Cascade)
+  featureKey  String    // "PROFANITY" | "SPAM_LINK" | "GAMBLING" | "SCAM" | "FLOOD"
+  isEnabled   Boolean   @default(false)
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  @@unique([cityGroupId, featureKey])
+  @@map("group_feature_toggles")
 }
 
 // Admin panelidan yaratiladigan, rejalashtirilgan ommaviy xabar (broadcast) —

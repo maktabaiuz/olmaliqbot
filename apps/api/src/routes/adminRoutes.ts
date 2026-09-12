@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1024,6 +1024,79 @@ export async function adminRoutes(fastify: FastifyInstance) {
       title: g.title || 'Nomsiz guruh',
       createdAt: g.createdAt,
     }));
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "FOYDALI BOTLAR" — xavfsizlik/moderatsiya filtrlarini (so'kinish,
+  // spam-link, qimor, firibgarlik, flud) HAR BIR GURUHDA alohida yoqish/
+  // o'chirish (iOS sozlamalar uslubidagi tugmalar). Standart holat: yangi
+  // guruhda hammasi o'chiq — GroupFeatureToggle qatori yo'qligi shuni
+  // bildiradi (apps/bot/src/moderation/enforceModeration.ts shu mantiqqa
+  // qarab ishlaydi). Faqat Super-Admin — bu guruh a'zolarini avtomatik
+  // jazolaydigan kuchli funksiya.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Botlar ro'yxati + har biri nechta guruhda yoqilganini ko'rsatadi.
+  fastify.get('/admin/useful-bots', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+
+    const counts = await db.groupFeatureToggle.groupBy({
+      by: ['featureKey'],
+      where: { isEnabled: true },
+      _count: { featureKey: true },
+    });
+    const countByKey: Record<string, number> = {};
+    for (const c of counts) countByKey[c.featureKey] = c._count.featureKey;
+
+    return USEFUL_BOTS.map((bot) => ({
+      ...bot,
+      enabledGroupCount: countByKey[bot.key] || 0,
+    }));
+  });
+
+  // Bitta bot uchun: BARCHA guruhlar + shu guruhda yoqiq/o'chiqligi.
+  fastify.get('/admin/useful-bots/:key/groups', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+
+    const { key } = req.params as { key: string };
+    if (!USEFUL_BOTS.some((b) => b.key === key)) {
+      return reply.status(404).send({ success: false, message: "Bunday bot topilmadi" });
+    }
+
+    const [groups, toggles] = await Promise.all([
+      db.cityGroup.findMany({ orderBy: { createdAt: 'desc' } }),
+      db.groupFeatureToggle.findMany({ where: { featureKey: key } }),
+    ]);
+    const enabledGroupIds = new Set(toggles.filter((t) => t.isEnabled).map((t) => t.cityGroupId));
+
+    return groups.map((g) => ({
+      id: g.id,
+      chatId: g.chatId.toString(),
+      title: g.title || 'Nomsiz guruh',
+      isEnabled: enabledGroupIds.has(g.id),
+    }));
+  });
+
+  // Bitta guruhda bitta botni yoqish/o'chirish.
+  fastify.put('/admin/useful-bots/:key/groups/:groupId', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+
+    const { key, groupId } = req.params as { key: string; groupId: string };
+    const { isEnabled } = req.body as { isEnabled: boolean };
+    if (!USEFUL_BOTS.some((b) => b.key === key)) {
+      return reply.status(404).send({ success: false, message: "Bunday bot topilmadi" });
+    }
+
+    const group = await db.cityGroup.findUnique({ where: { id: groupId } });
+    if (!group) return reply.status(404).send({ success: false, message: 'Guruh topilmadi' });
+
+    await db.groupFeatureToggle.upsert({
+      where: { cityGroupId_featureKey: { cityGroupId: groupId, featureKey: key } },
+      update: { isEnabled: !!isEnabled },
+      create: { cityGroupId: groupId, featureKey: key, isEnabled: !!isEnabled },
+    });
+
+    return { success: true };
   });
 
   // ──────────────────────────────────────────────────────────────────────────

@@ -14,15 +14,51 @@
  *     orqali aniqlanadi), hech qachon flud deb belgilanmaydi — odam
  *     shoshilinch bir narsa kutayotgan bo'lishi mumkin (masalan "taksi
  *     kerak" deb necha marta yozsa ham).
+ *
+ * "FOYDALI BOTLAR" (2026-09): har bir filtr endi GURUH DARAJASIDA alohida
+ * yoqiladi/o'chiriladi (GroupFeatureToggle jadvali, admin panel > Yana >
+ * Foydali botlar). Standart holat — YANGI guruhda HAMMASI O'CHIQ, admin
+ * o'zi kerakli botlarni tanlab yoqadi. Bu ro'yxat har xabarda tekshirilishi
+ * kerak bo'lgani uchun qisqa muddat (60s) xotirada keshlanadi — admin panel
+ * boshqa jarayonda (API) ishlaydi, shuning uchun o'zgarish botga yetib
+ * borishi bir daqiqagacha vaqt olishi mumkin.
  */
 
 import { Context } from 'grammy';
 import { db } from '@kimbor/db';
-import { checkEasyModerationFilters, normalizeText } from '@kimbor/core';
+import { checkEasyModerationFilters, normalizeText, ModerationCategory } from '@kimbor/core';
 import { hasPossibleServiceSignal } from '../filter/aiClassifier';
 import { checkAndRecordFlood } from './floodTracker';
 
 const MUTE_DURATION_MS = 60 * 60 * 1000; // 1 soat
+
+const ENABLED_FEATURES_TTL_MS = 60 * 1000; // 1 daqiqa
+const enabledFeaturesCache = new Map<number, { keys: Set<string>; expiresAt: number }>();
+
+/**
+ * Shu guruhda YOQILGAN "foydali botlar" ro'yxatini qaytaradi (bo'sh Set —
+ * hech narsa yoqilmagan, ya'ni standart holat). CityGroup topilmasa (bot
+ * hali shu guruhni ro'yxatga olmagan bo'lsa) ham bo'sh Set qaytaradi —
+ * xavfsiz tomonga xato qiladi (yo'qligiga ishonch bo'lmasa, YOQILMAGAN deb
+ * hisoblanadi, hech kimni bekorga jazolamaslik uchun).
+ */
+async function getEnabledFeatures(chatId: number): Promise<Set<string>> {
+  const cached = enabledFeaturesCache.get(chatId);
+  if (cached && cached.expiresAt > Date.now()) return cached.keys;
+
+  try {
+    const group = await db.cityGroup.findUnique({
+      where: { chatId: BigInt(chatId) },
+      include: { featureToggles: { where: { isEnabled: true } } },
+    });
+    const keys = new Set((group?.featureToggles || []).map((f) => f.featureKey));
+    enabledFeaturesCache.set(chatId, { keys, expiresAt: Date.now() + ENABLED_FEATURES_TTL_MS });
+    return keys;
+  } catch (err) {
+    console.error("Foydali botlar ro'yxatini o'qishda xato:", err);
+    return new Set();
+  }
+}
 
 // Guruh egasi (creator) statusini qisqa muddat (10 daqiqa) keshlaymiz —
 // bu deyarli hech qachon o'zgarmaydigan ma'lumot, har xabarda Telegram
@@ -78,6 +114,12 @@ export async function enforceModeration(
   const messageId = ctx.message?.message_id;
   if (!chatId || !userId || !messageId) return false;
 
+  // 0) Shu guruhda umuman biror "foydali bot" yoqilganmi? Yo'q bo'lsa
+  // (standart holat) — hech qanday DB/Telegram API so'rovi qilmasdan
+  // darhol chiqib ketamiz, boshqa hamma guruh uchun bu deyarli bepul.
+  const enabledFeatures = await getEnabledFeatures(chatId);
+  if (enabledFeatures.size === 0) return false;
+
   // Mustasnolar — filtr ularga umuman tegmaydi.
   const telegramUserId = BigInt(userId);
   const [superAdmin, groupOwner] = await Promise.all([
@@ -86,16 +128,21 @@ export async function enforceModeration(
   ]);
   if (superAdmin || groupOwner) return false;
 
-  // 1) "Oson" (AI'siz) filtrlar — so'kinish, spam-link, qimor, firibgarlik.
-  const easyResult = checkEasyModerationFilters(messageText);
+  // 1) "Oson" (AI'siz) filtrlar — FAQAT shu guruhda yoqilganlari
+  // tekshiriladi (so'kinish, spam-link, qimor, firibgarlik).
+  const easyCategories = new Set(
+    ['PROFANITY', 'SPAM_LINK', 'GAMBLING', 'SCAM'].filter((k) => enabledFeatures.has(k))
+  ) as Set<ModerationCategory>;
+  const easyResult = checkEasyModerationFilters(messageText, easyCategories);
   let category: string | null = easyResult.category;
 
-  // 2) Flud — "bir xil xabar takrorlanishi" belgisi FAQAT xabar haqiqiy
-  // xizmat so'rovi BO'LMASA hisobga olinadi (haqiqiy so'rovchi — masalan
-  // "taksi kerak" deb necha marta yozsa ham — hech qachon jazolanmasligi
-  // kerak). Texnik hujum chegarasi ("rate" — 10s/15+ xabar) esa mazmunidan
-  // qat'iy nazar HAR DOIM tekshiriladi.
-  if (!category) {
+  // 2) Flud — FAQAT shu guruhda "Flud filtri" yoqilgan bo'lsa tekshiriladi.
+  // "Bir xil xabar takrorlanishi" belgisi FAQAT xabar haqiqiy xizmat
+  // so'rovi BO'LMASA hisobga olinadi (haqiqiy so'rovchi — masalan "taksi
+  // kerak" deb necha marta yozsa ham — hech qachon jazolanmasligi kerak).
+  // Texnik hujum chegarasi ("rate" — 10s/15+ xabar) esa mazmunidan qat'iy
+  // nazar HAR DOIM tekshiriladi.
+  if (!category && enabledFeatures.has('FLOOD')) {
     const normalized = normalizeText(messageText);
     const looksLikeRealRequest = hasPossibleServiceSignal(normalized);
     const flood = await checkAndRecordFlood(chatId, userId, normalized);

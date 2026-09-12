@@ -138,12 +138,67 @@ export function detectScamPhrase(rawText: string): boolean {
  * Barcha "oson" (AI'siz, tez) filtrlarni birma-bir tekshiradi va birinchi
  * topilgan toifani qaytaradi. Tartib ahamiyatsiz — bittasi topilsa yetarli
  * (xabar baribir o'chiriladi).
+ *
+ * `enabledCategories` berilsa — FAQAT o'sha toifalar tekshiriladi ("Foydali
+ * botlar" bo'limida har bir guruh o'zi kerakli botlarni tanlab yoqadi,
+ * qolganlari o'sha guruhda umuman ishlamasligi kerak). Berilmasa (masalan
+ * eski testlar/skriptlar uchun) — hammasi tekshiriladi.
  */
-export function checkEasyModerationFilters(rawText: string): ModerationResult {
+export function checkEasyModerationFilters(
+  rawText: string,
+  enabledCategories?: Set<ModerationCategory>
+): ModerationResult {
   if (!rawText || !rawText.trim()) return { violated: false, category: null };
-  if (detectProfanity(rawText)) return { violated: true, category: 'PROFANITY' };
-  if (detectScamPhrase(rawText)) return { violated: true, category: 'SCAM' };
-  if (detectGamblingAd(rawText)) return { violated: true, category: 'GAMBLING' };
-  if (detectSpamLink(rawText)) return { violated: true, category: 'SPAM_LINK' };
+  const isOn = (c: ModerationCategory) => !enabledCategories || enabledCategories.has(c);
+
+  if (isOn('PROFANITY') && detectProfanity(rawText)) return { violated: true, category: 'PROFANITY' };
+  if (isOn('SCAM') && detectScamPhrase(rawText)) return { violated: true, category: 'SCAM' };
+  if (isOn('GAMBLING') && detectGamblingAd(rawText)) return { violated: true, category: 'GAMBLING' };
+  if (isOn('SPAM_LINK') && detectSpamLink(rawText)) return { violated: true, category: 'SPAM_LINK' };
   return { violated: false, category: null };
 }
+
+// "Foydali botlar" admin bo'limida ko'rsatiladigan barcha botlarning yagona
+// haqiqat manbai (key, nom, tavsif, ikonka) — admin API va bot ijrosi
+// (enforceModeration.ts) ikkalasi ham shu ro'yxatdan foydalanadi, shunda
+// nom/tavsif ikki joyda alohida-alohida yozilib, bir-biridan uzoqlashib
+// qolmaydi.
+export interface UsefulBotDefinition {
+  key: 'PROFANITY' | 'SPAM_LINK' | 'GAMBLING' | 'SCAM' | 'FLOOD';
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export const USEFUL_BOTS: UsefulBotDefinition[] = [
+  {
+    key: 'PROFANITY',
+    name: "So'kinish filtri",
+    description: "So'kinish/haqoratli so'zlar yozilgan xabarni o'chirib, yozuvchini 1 soatga jim qiladi.",
+    icon: '🤬',
+  },
+  {
+    key: 'SPAM_LINK',
+    name: 'Spam-link filtri',
+    description: "Qisqartirilgan/shubhali havolalar va boshqa guruhga taklif havolalarini o'chiradi.",
+    icon: '🔗',
+  },
+  {
+    key: 'GAMBLING',
+    name: 'Qimor filtri',
+    description: "Qimor/bukmeker (1xBet va h.k.) reklamalarini o'chiradi.",
+    icon: '🎰',
+  },
+  {
+    key: 'SCAM',
+    name: 'Firibgarlik filtri',
+    description: '"Pul yutdingiz", "bepul kredit" kabi klassik firibgarlik iboralarini o\'chiradi.',
+    icon: '💸',
+  },
+  {
+    key: 'FLOOD',
+    name: 'Flud filtri',
+    description: "Bir zumda ko'p xabar yozishni (spam-bombardimon) to'xtatadi. Haqiqiy so'rovlarga tegmaydi.",
+    icon: '🌊',
+  },
+];
