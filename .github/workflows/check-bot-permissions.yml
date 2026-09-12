@@ -17,10 +17,11 @@ jobs:
           command_timeout: 3m
           script: |
             docker exec kimbor_bot node -e "
-              const { Bot } = require('/app/node_modules/grammy/out/mod.js');
-              const bot = new Bot(process.env.BOT_TOKEN);
+              const token = process.env.BOT_TOKEN;
+              const base = 'https://api.telegram.org/bot' + token;
               (async () => {
-                const me = await bot.api.getMe();
+                const meRes = await fetch(base + '/getMe');
+                const me = (await meRes.json()).result;
                 console.log('Bot:', me.username, me.id);
 
                 const groups = [
@@ -31,7 +32,10 @@ jobs:
 
                 for (const g of groups) {
                   try {
-                    const member = await bot.api.getChatMember(g.chatId, me.id);
+                    const res = await fetch(base + '/getChatMember?chat_id=' + g.chatId + '&user_id=' + me.id);
+                    const data = await res.json();
+                    if (!data.ok) { console.log(g.title + ': API XATO -', JSON.stringify(data)); continue; }
+                    const member = data.result;
                     console.log(g.title + ':', JSON.stringify({
                       status: member.status,
                       can_delete_messages: member.can_delete_messages,
