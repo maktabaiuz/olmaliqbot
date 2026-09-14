@@ -247,7 +247,7 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
           Bot Matnlari
         </h1>
         <p className="text-[13px] text-[#8E8E93] leading-snug mt-0.5">
-          Bu yerda tahrirlangan matn botning haqiqiy javobida ishlatiladi (o'zgarish ~1 daqiqada kuchga kiradi).
+          Bu yerdagi matn botning haqiqiy javobida ishlatiladi.
         </p>
       </div>
 
@@ -257,8 +257,8 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
           <div className="h-40 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] animate-pulse" />
         </div>
       ) : (
-        <div className="px-4 space-y-3">
-          {/* Category segmented control */}
+        <div className="px-4 space-y-4">
+          {/* 1-qadam: qaysi turdagi xabar */}
           <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
             {CATEGORIES.map((c) => (
               <button
@@ -279,89 +279,64 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
             ))}
           </div>
 
-          {/* Template picker within category */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            {inCategory.map((m) => (
-              <button
-                key={m.key}
-                onClick={() => setSelectedKey(m.key)}
-                className={`px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
-                  selectedKey === m.key
-                    ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
-                    : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
-                }`}
-              >
-                {m.title}
-              </button>
-            ))}
-          </div>
+          {/* 2-qadam: qaysi aniq xabar (faqat bir nechta bo'lsa ko'rinadi — masalan Favqulodda'da 14 ta) */}
+          {inCategory.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              {inCategory.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => setSelectedKey(m.key)}
+                  className={`px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
+                    selectedKey === m.key
+                      ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                      : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
+                  }`}
+                >
+                  {m.title}
+                </button>
+              ))}
+            </div>
+          )}
 
           {currentMessage && (
             <>
-              {activeCategory === 'REPLY' && (
-                <div className="flex items-start gap-2 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 rounded-[10px] px-3 py-2.5">
-                  <span className="material-symbols-outlined text-[16px] text-[#007AFF] dark:text-[#0A84FF] mt-0.5">info</span>
-                  <p className="text-[12px] text-on-surface dark:text-white leading-snug">
-                    "Yana ko'rish" tugmasi va tartib-belgilar (🥈🥉) shablon matni EMAS — bot ularni avtomatik qo'shadi, bu yerda tahrirlanmaydi.
-                  </p>
+              {/* 3-qadam: yagona tahrirlash kartasi — til, vositalar, matn hammasi bitta joyda */}
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-[14px] shadow-sm overflow-hidden">
+                <h2 className="px-3.5 pt-3 text-[15px] font-semibold text-on-surface dark:text-white">
+                  {currentMessage.title}
+                </h2>
+
+                {/* Til */}
+                <div className="flex gap-4 px-3.5 pt-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+                  {([
+                    { id: 'lotin', label: 'Lotin' },
+                    { id: 'kirill', label: 'Кирилл' },
+                    { id: 'rus', label: 'Русский' },
+                  ] as { id: Lang; label: string }[]).map((lang) => (
+                    <button
+                      key={lang.id}
+                      onClick={() => setActiveLang(lang.id)}
+                      className="pb-2 text-[13px] font-medium relative"
+                      style={{ color: activeLang === lang.id ? '#007AFF' : '#8E8E93' }}
+                    >
+                      {lang.label}
+                      {activeLang === lang.id && (
+                        <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-[#007AFF] dark:bg-[#0A84FF] rounded-full" />
+                      )}
+                    </button>
+                  ))}
                 </div>
-              )}
 
-              {/* Language segmented control */}
-              <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
-                {([
-                  { id: 'lotin', label: "O'zbek (Lotin)" },
-                  { id: 'kirill', label: 'Ўзбекча (Кирилл)' },
-                  { id: 'rus', label: 'Русский' },
-                ] as { id: Lang; label: string }[]).map((lang) => (
-                  <button
-                    key={lang.id}
-                    onClick={() => setActiveLang(lang.id)}
-                    className={`flex-1 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
-                      activeLang === lang.id
-                        ? 'bg-white dark:bg-[#3A3A3C] text-on-surface dark:text-white shadow-sm'
-                        : 'text-[#8E8E93]'
-                    }`}
-                  >
-                    {lang.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Dynamic tokens */}
-              {currentMessage.tokens.length > 0 && (
-                <div>
-                  <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide block mb-1.5">
-                    Dinamik tokenlar (bosib joylashtiring)
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentMessage.tokens.map((tok) => (
-                      <button
-                        key={tok}
-                        onClick={() => insertToken(tok)}
-                        className="bg-[#AF52DE]/12 text-[#AF52DE] text-[12px] font-mono px-2.5 py-1 rounded-[8px] active:opacity-60"
-                      >
-                        + {`{${tok}}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Formatting toolbar */}
-              <div>
-                <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide block mb-1.5">
-                  Telegram formatlash
-                </span>
-                <div className="flex flex-wrap gap-1.5">
+                {/* Vositalar: formatlash + tokenlar bitta qatorda */}
+                <div className="flex flex-wrap items-center gap-1.5 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
                   {FORMAT_BUTTONS.map((f) => (
                     <button
                       key={f.label}
                       title={f.label}
                       onClick={() => wrapSelection(f.open, f.close)}
-                      className="w-9 h-9 rounded-[8px] bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center active:opacity-60"
+                      className="w-8 h-8 rounded-[7px] bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] flex items-center justify-center active:opacity-60"
                     >
-                      <span className="material-symbols-outlined text-[18px] text-on-surface dark:text-white">{f.icon}</span>
+                      <span className="material-symbols-outlined text-[16px] text-on-surface dark:text-white">{f.icon}</span>
                     </button>
                   ))}
                   <button
@@ -370,66 +345,74 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                       const url = window.prompt('Havola manzili (URL):', 'https://');
                       if (url) wrapSelection(`<a href="${url}">`, '</a>');
                     }}
-                    className="w-9 h-9 rounded-[8px] bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center active:opacity-60"
+                    className="w-8 h-8 rounded-[7px] bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] flex items-center justify-center active:opacity-60"
                   >
-                    <span className="material-symbols-outlined text-[18px] text-on-surface dark:text-white">link</span>
+                    <span className="material-symbols-outlined text-[16px] text-on-surface dark:text-white">link</span>
                   </button>
                   <button
                     title="Premium emoji"
                     onClick={() => setShowEmojiHelp((v) => !v)}
-                    className={`w-9 h-9 rounded-[8px] flex items-center justify-center active:opacity-60 ${
-                      showEmojiHelp ? 'bg-[#FF9500] text-white' : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
+                    className={`w-8 h-8 rounded-[7px] flex items-center justify-center active:opacity-60 ${
+                      showEmojiHelp ? 'bg-[#FF9500] text-white' : 'bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] text-on-surface dark:text-white'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[18px]">mood</span>
+                    <span className="material-symbols-outlined text-[16px]">mood</span>
                   </button>
-                </div>
-              </div>
 
-              {showEmojiHelp && (
-                <div className="bg-[#FF9500]/10 rounded-[10px] p-3 space-y-2">
-                  <p className="text-[12px] text-on-surface dark:text-white leading-snug">
-                    Premium (maxsus) emoji qo'shish uchun uning ID raqami kerak — Telegram Desktop'da shu
-                    emojini uzoq bosib "Copy as Emoji ID" (yoki shunga o'xshash) orqali oling, yoki
-                    o'sha emoji bor xabarni JSON eksport orqali tekshiring. "Zaxira belgi" — bu emoji
-                    ko'rinmaydigan eski Telegram versiyalarida o'rniga chiqadigan oddiy emoji.
-                  </p>
-                  <div className="flex gap-2">
+                  {currentMessage.tokens.length > 0 && (
+                    <>
+                      <span className="w-[1px] h-5 bg-[#767680]/[0.25] mx-0.5" />
+                      {currentMessage.tokens.map((tok) => (
+                        <button
+                          key={tok}
+                          onClick={() => insertToken(tok)}
+                          className="bg-[#AF52DE]/12 text-[#AF52DE] text-[11px] font-mono px-2 py-1.5 rounded-[7px] active:opacity-60"
+                        >
+                          {`{${tok}}`}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+
+                {showEmojiHelp && (
+                  <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
                     <input
                       value={emojiId}
                       onChange={(e) => setEmojiId(e.target.value)}
-                      placeholder="Emoji ID"
-                      className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-[8px] px-2.5 py-2 text-[12px] outline-none"
+                      placeholder="Emoji ID (Telegram'dan olinadi)"
+                      className="flex-1 bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[7px] px-2.5 py-2 text-[12px] outline-none"
                     />
                     <input
                       value={emojiFallback}
                       onChange={(e) => setEmojiFallback(e.target.value)}
                       placeholder="⭐"
-                      className="w-16 bg-white dark:bg-[#1C1C1E] rounded-[8px] px-2.5 py-2 text-[12px] outline-none text-center"
+                      className="w-14 bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[7px] px-2.5 py-2 text-[12px] outline-none text-center"
                     />
                     <button
                       onClick={insertCustomEmoji}
-                      className="bg-[#FF9500] text-white text-[12px] font-semibold px-3 rounded-[8px]"
+                      className="bg-[#FF9500] text-white text-[12px] font-semibold px-3 py-2 rounded-[7px]"
                     >
-                      Qo'shish
+                      Qo'sh
                     </button>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Textarea */}
-              <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm p-3.5 space-y-2">
-                <label className="block text-[12px] font-semibold text-on-surface dark:text-white">
-                  Shablon matni ({currentMessage.title})
-                </label>
+                {/* Matn */}
                 <textarea
                   ref={textareaRef}
                   rows={9}
                   value={currentTextValue}
                   onChange={(e) => handleUpdateText(e.target.value)}
-                  className="w-full bg-[#767680]/[0.06] dark:bg-[#1C2733] rounded-[8px] p-3 text-[12px] text-on-surface dark:text-white font-mono outline-none resize-none leading-relaxed"
+                  className="w-full bg-transparent p-3.5 text-[13px] text-on-surface dark:text-white font-mono outline-none resize-none leading-relaxed"
                 />
               </div>
+
+              <p className="text-[11px] text-[#8E8E93] leading-snug px-0.5">
+                {activeCategory === 'REPLY'
+                  ? "\"Yana ko'rish\" tugmasi va tartib-belgilar (🥈🥉) shu yerda tahrirlanmaydi — bot ularni avtomatik qo'shadi."
+                  : "O'zgarish botga ~1 daqiqada yetib boradi."}
+              </p>
 
               {saveError && (
                 <div className="bg-[#FF3B30]/10 rounded-[10px] p-3">
@@ -437,11 +420,11 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                 </div>
               )}
 
-              {/* Live preview */}
+              {/* Ko'rinishi */}
               <div className="space-y-1.5">
                 <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">visibility</span>
-                  Jonli Telegram ko'rinishi (namuna qiymatlar bilan)
+                  Ko'rinishi
                 </span>
                 <div className="bg-[#182533] rounded-[14px] p-4 text-[12px] font-sans text-slate-100 shadow-md whitespace-pre-wrap leading-relaxed">
                   {livePreview}
