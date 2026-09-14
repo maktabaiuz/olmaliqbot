@@ -110,14 +110,14 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
           }}
           onFocus={() => setIsOpen(true)}
           placeholder="Manzilni qidiring..."
-          className={`w-full bg-slate-100 dark:bg-[#1C2733] border rounded-full pl-9 pr-3.5 py-2.5 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors ${
-            error ? 'border-red-500' : 'border-transparent focus:bg-surface dark:focus:bg-[#1C2733]'
+          className={`w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] border rounded-[10px] pl-9 pr-3.5 py-2.5 text-sm text-on-surface dark:text-white outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors ${
+            error ? 'border-red-500' : 'border-transparent'
           }`}
         />
       </div>
 
       {isOpen && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-lg max-h-52 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#1C1C1E] border border-outline-variant/30 dark:border-slate-800 rounded-[10px] shadow-lg max-h-52 overflow-y-auto">
           {filtered.length === 0 && !query.trim() && (
             <div className="px-3.5 py-3 text-xs text-slate-500">Manzil nomini yozing...</div>
           )}
@@ -140,7 +140,7 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
               type="button"
               onClick={createAndSelect}
               disabled={creating}
-              className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-primary dark:text-sky-400 hover:bg-primary/5 dark:hover:bg-sky-500/10 disabled:opacity-50"
+              className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 dark:hover:bg-[#0A84FF]/10 disabled:opacity-50"
             >
               {creating ? 'Qo\'shilmoqda...' : `+ "${query.trim()}"ni yangi manzil sifatida qo'shish`}
             </button>

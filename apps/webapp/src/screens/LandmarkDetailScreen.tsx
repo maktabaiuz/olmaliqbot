@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { avatarColorForName } from '../utils/avatarColor';
 
 interface LandmarkDetailScreenProps {
   landmarkId: string;
   landmarkName: string;
   onBack: () => void;
 }
+
+const IOS_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+const HAIRLINE = '0.5px solid rgba(60,60,67,0.29)';
 
 export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   landmarkId,
@@ -126,128 +131,150 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
     }
   };
 
+  const canDelete = listingCount === 0;
+
   return (
-    <div className="flex flex-col gap-5 animate-fade-in pb-16">
-      <div className="flex items-center gap-3">
+    <div className="animate-fade-in -mx-4 -mt-2 pb-10" style={{ fontFamily: IOS_FONT }}>
+      {/* Nav bar */}
+      <div className="px-4 pt-1 pb-2 flex items-center justify-between">
         <button
           onClick={onBack}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-on-surface dark:text-slate-100 font-bold active:scale-95 transition-all"
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal -ml-1.5 active:opacity-40"
         >
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          Manzillar
         </button>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 disabled:opacity-40"
+        >
+          {isSaving ? 'Saqlanmoqda...' : 'Tayyor'}
+        </button>
+      </div>
+
+      {/* Avatar header — Contacts-app style */}
+      <div className="flex flex-col items-center gap-2 pt-2 pb-6">
+        <span
+          className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-white text-[28px] font-semibold shadow-sm"
+          style={{ backgroundColor: avatarColorForName(name || '?') }}
+        >
+          {name.trim()[0]?.toUpperCase() || '?'}
+        </span>
+        <h1 className="text-[20px] font-semibold text-on-surface dark:text-white text-center px-6">{name}</h1>
+        <p className="text-[13px] text-[#8E8E93]">
+          {listingCount !== null ? `${listingCount} ta yozuv bog'langan` : 'Yuklanmoqda...'}
+        </p>
+      </div>
+
+      <div className="px-4 space-y-6">
+        {/* Guruh: Nomi */}
         <div>
-          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Manzil tafsilotlari</h1>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-            {listingCount !== null ? `${listingCount} ta yozuv bog'langan` : 'Yuklanmoqda...'}
-          </p>
-        </div>
-      </div>
-
-      {/* Guruh 1: Nomi */}
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center px-4 py-3 gap-3">
-          <span className="text-[11px] font-bold text-slate-500 uppercase w-20 shrink-0">Nomi</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 bg-transparent text-sm font-semibold text-on-surface dark:text-slate-100 focus:outline-none text-right"
-          />
-        </div>
-      </div>
-
-      {/* Guruh 2: Mahalliy nomlar (sinonimlar) */}
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-500 uppercase">Mahalliy nomlari (xalq shunday deydi)</span>
-          <button
-            onClick={handleSuggest}
-            disabled={isSuggesting}
-            className="flex items-center gap-1 text-[11px] font-bold text-primary dark:text-sky-400 disabled:opacity-50 active:scale-95 transition-transform"
-          >
-            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
-            {isSuggesting ? 'Sorash...' : 'AI so\'z taklif qilsin'}
-          </button>
-        </div>
-
-        {/* O'chirish bo'limi — mavjud so'zlar, har birida chiqarib tashlash tugmasi */}
-        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {synonyms.length === 0 && (
-            <span className="text-[11px] text-slate-400">Hali mahalliy nom qo'shilmagan</span>
-          )}
-          {synonyms.map(syn => (
-            <span key={syn} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 pl-3 pr-1.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm">
-              {syn}
-              <button
-                onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
-                className="w-4 h-4 rounded-full bg-primary/20 dark:bg-sky-500/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
-                aria-label={`${syn}ni o'chirish`}
-              >
-                <span className="material-symbols-outlined text-[12px] leading-none">close</span>
-              </button>
-            </span>
-          ))}
-        </div>
-
-        {/* AI taklif qilgan so'zlar — bittasiga bosish shu so'zni qo'shadi */}
-        {suggestions.length > 0 && (
-          <div className="px-4 pb-3 flex flex-wrap gap-1.5 border-t border-outline-variant/10 dark:border-slate-800/80 pt-3">
-            {suggestions.map(s => (
-              <button
-                key={s}
-                onClick={() => handleAddSynonym(s)}
-                className="flex items-center gap-1 pl-2.5 pr-3 py-1 rounded-full border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold hover:bg-primary/5 dark:hover:bg-sky-500/10 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[13px]">add</span>
-                {s}
-              </button>
-            ))}
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+            <div className="flex items-center px-3.5 py-2.5 gap-3">
+              <span className="text-[15px] text-on-surface dark:text-white w-20 shrink-0">Nomi</span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="flex-1 bg-transparent text-[15px] text-[#8E8E93] focus:outline-none text-right"
+              />
+            </div>
           </div>
-        )}
-        {suggestError && (
-          <p className="px-4 pb-3 text-[10px] text-slate-500 -mt-1">{suggestError}</p>
-        )}
+        </div>
 
-        {/* Qo'shish bo'limi */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-outline-variant/10 dark:border-slate-800/80">
-          <span className="material-symbols-outlined text-[16px] text-slate-400">add_circle</span>
-          <input
-            type="text"
-            value={newSynonym}
-            onChange={(e) => setNewSynonym(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSynonym(); }}
-            placeholder="Yangi mahalliy nom qo'shish..."
-            className="flex-1 bg-transparent text-xs text-on-surface dark:text-slate-100 focus:outline-none"
-          />
+        {/* Guruh: Mahalliy nomlari */}
+        <div>
+          <div className="flex items-center justify-between px-1 mb-1.5">
+            <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Mahalliy nomlari</span>
+            <button
+              onClick={handleSuggest}
+              disabled={isSuggesting}
+              className="flex items-center gap-1 text-[13px] font-medium text-[#007AFF] dark:text-[#0A84FF] disabled:opacity-50 active:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+              {isSuggesting ? 'So\'ralmoqda...' : 'AI taklif qilsin'}
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+            <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
+              {synonyms.length === 0 && (
+                <span className="text-[13px] text-[#8E8E93]">Hali mahalliy nom qo'shilmagan</span>
+              )}
+              {synonyms.map(syn => (
+                <span
+                  key={syn}
+                  className="bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                >
+                  {syn}
+                  <button
+                    onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
+                    className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
+                    aria-label={`${syn}ni o'chirish`}
+                  >
+                    <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {suggestions.length > 0 && (
+              <div className="px-3.5 py-3 flex flex-wrap gap-1.5" style={{ borderTop: HAIRLINE }}>
+                {suggestions.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => handleAddSynonym(s)}
+                    className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full border border-dashed border-[#007AFF]/50 dark:border-[#0A84FF]/50 text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-medium active:bg-[#007AFF]/5 dark:active:bg-[#0A84FF]/10"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">add</span>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            {suggestError && (
+              <p className="px-3.5 pb-2.5 text-[12px] text-[#8E8E93]" style={{ borderTop: suggestions.length === 0 ? HAIRLINE : undefined, paddingTop: suggestions.length === 0 ? 10 : undefined }}>
+                {suggestError}
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderTop: HAIRLINE }}>
+              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">add_circle</span>
+              <input
+                type="text"
+                value={newSynonym}
+                onChange={(e) => setNewSynonym(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddSynonym(); }}
+                placeholder="Yangi mahalliy nom qo'shish..."
+                className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+              />
+              <button
+                onClick={() => handleAddSynonym()}
+                disabled={!newSynonym.trim()}
+                className="text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold disabled:opacity-30"
+              >
+                Qo'shish
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Destructive action — iOS "Delete Contact" pattern */}
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
           <button
-            onClick={() => handleAddSynonym()}
-            disabled={!newSynonym.trim()}
-            className="text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-30"
+            onClick={handleDelete}
+            disabled={isDeleting || !canDelete}
+            className="w-full text-center py-3 text-[15px] font-normal text-[#FF3B30] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] disabled:opacity-40 disabled:text-[#8E8E93]"
           >
-            Qo'shish
+            {isDeleting
+              ? "O'chirilmoqda..."
+              : canDelete
+              ? "Manzilni o'chirish"
+              : `O'chirish uchun avval ${listingCount} ta yozuvni ko'chiring`}
           </button>
         </div>
       </div>
-
-      <button
-        onClick={handleSave}
-        disabled={isSaving}
-        className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all"
-      >
-        {isSaving ? 'Saqlanmoqda...' : 'Saqlash'}
-      </button>
-
-      <button
-        onClick={handleDelete}
-        disabled={isDeleting || (listingCount !== null && listingCount > 0)}
-        className="w-full py-3 bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-xs rounded-xl active:scale-95 transition-all disabled:opacity-40"
-      >
-        {isDeleting
-          ? "O'chirilmoqda..."
-          : listingCount && listingCount > 0
-          ? `O'chirish (avval ${listingCount} ta yozuvni ko'chiring)`
-          : "Manzilni o'chirish"}
-      </button>
     </div>
   );
 };

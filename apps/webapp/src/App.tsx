@@ -30,6 +30,8 @@ import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
 import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
+import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
+import { avatarColorForName } from './utils/avatarColor';
 
 export interface AppProps {
   previewConfig?: {
@@ -959,14 +961,17 @@ const MoreCategoriesSubView: React.FC<{
   );
 };
 
+const IOS_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+
 const MoreLandmarksSubView: React.FC<{
   onBack: () => void;
   onSelectLandmark: (id: string, name: string) => void;
 }> = ({ onBack, onSelectLandmark }) => {
   const [lands, setLands] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadLandmarks = () => {
@@ -1024,75 +1029,99 @@ const MoreLandmarksSubView: React.FC<{
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-            <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-          </button>
-          <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Manzillar</h3>
+    <div className="animate-fade-in -mx-4 -mt-2" style={{ fontFamily: IOS_FONT }}>
+      {/* iOS Large Title header */}
+      <div className="px-4 pt-1 pb-3">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal mb-1 -ml-1.5 active:opacity-40"
+        >
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          Orqaga
+        </button>
+        <div className="flex items-end justify-between">
+          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
+            Manzillar
+          </h1>
+          <span className="text-[13px] text-[#8E8E93] font-normal mb-1">{lands.length} ta</span>
         </div>
-        <button
-          onClick={() => setIsEditing(v => !v)}
-          className="text-xs font-bold text-primary dark:text-sky-400 px-2 py-1 active:scale-95 transition-transform"
-        >
-          {isEditing ? 'Tayyor' : 'Tahrirlash'}
-        </button>
       </div>
-      <p className="text-[10px] text-slate-500 -mt-2">
-        Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi (ikkilanuvchilar ko'payib ketmasligi uchun) —
-        yangisini shu yerdan yoki yozuv qo'shish ekranida qo'shishingiz mumkin.
-      </p>
-      <div className="relative">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">search</span>
-        <input
-          type="text"
-          placeholder="Manzil qidirish yoki yangisini yozish..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-slate-100 dark:bg-slate-900 border border-transparent rounded-full pl-9 pr-3.5 py-2.5 text-xs focus:outline-none focus:bg-surface dark:focus:bg-slate-900 transition-colors"
-        />
-      </div>
-      {search.trim() && !exactMatchExists && (
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="w-full flex items-center gap-2 text-left px-3.5 py-3 rounded-2xl bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-50"
-        >
-          <span className="material-symbols-outlined text-[18px]">add_circle</span>
-          {creating ? 'Qo\'shilmoqda...' : `"${search.trim()}"ni yangi manzil sifatida qo'shish`}
-        </button>
-      )}
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[400px] overflow-y-auto">
-        {filtered.length === 0 && (
-          <div className="p-4 text-center text-xs text-slate-500">Manzil topilmadi</div>
+
+      <div className="px-4 space-y-3">
+        {/* iOS UISearchBar */}
+        <div className="relative">
+          <span
+            className={`material-symbols-outlined absolute top-1/2 -translate-y-1/2 text-[17px] text-[#8E8E93] pointer-events-none transition-all ${
+              searchFocused || search ? 'left-2.5' : 'left-1/2 -translate-x-1/2'
+            }`}
+          >
+            search
+          </span>
+          <input
+            type="text"
+            placeholder="Qidirish"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className={`w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] border-none rounded-[10px] py-[7px] text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none transition-all ${
+              searchFocused || search ? 'pl-8 pr-3 text-left' : 'pl-3 pr-3 text-center'
+            }`}
+          />
+        </div>
+
+        {search.trim() && !exactMatchExists && (
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="w-full flex items-center gap-2.5 text-left px-3.5 py-3 rounded-[10px] bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-medium disabled:opacity-50 active:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[20px]">add_circle</span>
+            {creating ? 'Qo\'shilmoqda...' : `"${search.trim()}"ni yangi manzil sifatida qo'shish`}
+          </button>
         )}
-        {filtered.map(l => (
-            <div key={l.id} className="w-full flex items-center gap-1 px-1.5">
-              {isEditing && (
-                <button
-                  onClick={() => handleDelete(l)}
-                  disabled={deletingId === l.id}
-                  className="shrink-0 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50"
-                  aria-label="O'chirish"
-                >
-                  <span className="material-symbols-outlined text-[16px]">remove</span>
-                </button>
-              )}
+
+        <p className="text-[13px] text-[#8E8E93] leading-snug -mt-1 px-0.5">
+          Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi. Qatorni chapga suring — o'chirish uchun.
+        </p>
+
+        {/* iOS grouped inset list */}
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden max-h-[420px] overflow-y-auto">
+          {filtered.length === 0 && (
+            <div className="p-5 text-center text-[15px] text-[#8E8E93]">Manzil topilmadi</div>
+          )}
+          {filtered.map((l, idx) => (
+            <SwipeToDeleteRow
+              key={l.id}
+              onDelete={() => handleDelete(l)}
+              disabled={deletingId === l.id}
+            >
               <button
-                onClick={() => !isEditing && onSelectLandmark(l.id, l.name)}
-                className="flex-1 flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
+                onClick={() => onSelectLandmark(l.id, l.name)}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 bg-white dark:bg-[#1C1C1E] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] text-left"
+                style={{
+                  borderTop: idx === 0 ? 'none' : '0.5px solid rgba(60,60,67,0.29)',
+                }}
               >
-                <span>📍 {l.name}</span>
-                <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
+                <span
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-[14px] font-semibold"
+                  style={{ backgroundColor: avatarColorForName(l.name) }}
+                >
+                  {l.name.trim()[0]?.toUpperCase() || '?'}
+                </span>
+                <span className="flex-1 min-w-0 text-[15px] font-normal text-on-surface dark:text-white truncate">
+                  {l.name}
+                </span>
+                <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
                   {typeof l.listingCount === 'number' && (
-                    <span className="text-[10px]">{l.listingCount} ta yozuv</span>
+                    <span className="text-[13px]">{l.listingCount}</span>
                   )}
-                  {!isEditing && <span className="material-symbols-outlined text-[16px]">chevron_right</span>}
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                 </span>
               </button>
-            </div>
+            </SwipeToDeleteRow>
           ))}
+        </div>
       </div>
     </div>
   );
