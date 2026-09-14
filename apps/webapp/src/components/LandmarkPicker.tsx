@@ -59,6 +59,7 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
   });
 
   const exactMatchExists = allLandmarks.some((l) => l.name.toLowerCase() === query.trim().toLowerCase());
+  const selectedLandmark = allLandmarks.find((l) => l.id === value) || null;
 
   const selectLandmark = (l: LandmarkOption) => {
     onChange(l.id, l.name);
@@ -90,25 +91,35 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
 
   return (
     <div className="relative" ref={containerRef}>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIsOpen(true);
-          if (!e.target.value.trim()) onChange('', '');
-        }}
-        onFocus={() => setIsOpen(true)}
-        placeholder="Mo'ljalni qidiring..."
-        className={`w-full bg-surface-container-low dark:bg-[#1C2733] border rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors ${
-          error ? 'border-red-500' : 'border-outline-variant/40 dark:border-slate-700'
-        }`}
-      />
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">search</span>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            const next = e.target.value;
+            setQuery(next);
+            setIsOpen(true);
+            // Matn tanlangan manzil nomidan farqli bo'lib qolsa (masalan admin
+            // tanlangandan keyin ustidan qayta yoza boshlasa), eski ID'ni
+            // darhol bekor qilamiz — aks holda ekranda ko'rinayotgan matn bilan
+            // saqlanadigan manzil ID'si mos kelmay qoladi.
+            if (!next.trim() || (selectedLandmark && next !== selectedLandmark.name)) {
+              onChange('', next);
+            }
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder="Manzilni qidiring..."
+          className={`w-full bg-slate-100 dark:bg-[#1C2733] border rounded-full pl-9 pr-3.5 py-2.5 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors ${
+            error ? 'border-red-500' : 'border-transparent focus:bg-surface dark:focus:bg-[#1C2733]'
+          }`}
+        />
+      </div>
 
       {isOpen && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-lg max-h-52 overflow-y-auto">
           {filtered.length === 0 && !query.trim() && (
-            <div className="px-3.5 py-3 text-xs text-slate-500">Mo'ljal nomini yozing...</div>
+            <div className="px-3.5 py-3 text-xs text-slate-500">Manzil nomini yozing...</div>
           )}
           {filtered.slice(0, 30).map((l) => (
             <button
@@ -131,7 +142,7 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
               disabled={creating}
               className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-primary dark:text-sky-400 hover:bg-primary/5 dark:hover:bg-sky-500/10 disabled:opacity-50"
             >
-              {creating ? 'Qo\'shilmoqda...' : `+ "${query.trim()}"ni yangi mo'ljal sifatida qo'shish`}
+              {creating ? 'Qo\'shilmoqda...' : `+ "${query.trim()}"ni yangi manzil sifatida qo'shish`}
             </button>
           )}
         </div>

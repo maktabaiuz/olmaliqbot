@@ -250,7 +250,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       if (!category.trim()) errors.category = 'Kasb/soha majburiy';
       const cleanPhone = phone.replace(/\D/g, '');
       if (cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
-      if (!primaryLandmarkId) errors.landmark = "Mo'ljalni ro'yxatdan tanlash (yoki yangi qo'shish) majburiy";
+      if (!primaryLandmarkId) errors.landmark = "Manzilni ro'yxatdan tanlash (yoki yangi qo'shish) majburiy";
 
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
@@ -597,7 +597,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">6. Mo'ljal manzili *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">6. Manzil *</label>
             <LandmarkPicker
               value={primaryLandmarkId || null}
               displayName={primaryLandmark}
@@ -744,7 +744,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               <div className="flex justify-between"><span className="text-slate-500">Ism:</span> <span className="font-bold text-on-surface dark:text-slate-100">{name}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Kasb:</span> <span className="font-bold text-on-surface dark:text-slate-100">{category}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Telefon:</span> <span className="font-bold text-on-surface dark:text-slate-100">{phone}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Mo'ljal:</span> <span className="font-bold text-on-surface dark:text-slate-100">{primaryLandmark}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Manzil:</span> <span className="font-bold text-on-surface dark:text-slate-100">{primaryLandmark}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Ish vaqti:</span> <span className="font-bold text-on-surface dark:text-slate-100">{workFrom} - {workTo}</span></div>
               {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
               {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}

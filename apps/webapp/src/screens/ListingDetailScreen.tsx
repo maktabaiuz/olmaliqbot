@@ -506,10 +506,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   />
                 </div>
 
-                {/* MO'LJAL */}
+                {/* MANZIL */}
                 <div>
                   <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Mo'ljal *
+                    Manzil *
                   </label>
                   <LandmarkPicker
                     value={landmarkId || null}

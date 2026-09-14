@@ -385,7 +385,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           >
                             <span className="flex items-center gap-2.5">
                               <span className="w-7 h-7 rounded-lg bg-teal-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">location_on</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Mo'ljallar</span>
+                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Manzillar</span>
                             </span>
                             <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
                           </button>
@@ -966,9 +966,12 @@ const MoreLandmarksSubView: React.FC<{
   const [lands, setLands] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadLandmarks = () => {
-    fetch('/api/admin/landmarks')
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/landmarks', { headers: { 'x-init-data': initData } })
       .then(r => r.json())
       .then(data => setLands(data || []));
   };
@@ -998,52 +1001,97 @@ const MoreLandmarksSubView: React.FC<{
     }
   };
 
+  const handleDelete = async (l: any) => {
+    if (!window.confirm(`"${l.name}" manzilini butunlay o'chirmoqchimisiz?`)) return;
+    setDeletingId(l.id);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/landmarks/${l.id}`, {
+        method: 'DELETE',
+        headers: { 'x-init-data': initData },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setLands(prev => prev.filter(x => x.id !== l.id));
+      } else {
+        alert(data.message || "O'chirishda xatolik yuz berdi.");
+      }
+    } catch {
+      alert('Aloqa xatosi.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+            <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+          </button>
+          <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Manzillar</h3>
+        </div>
+        <button
+          onClick={() => setIsEditing(v => !v)}
+          className="text-xs font-bold text-primary dark:text-sky-400 px-2 py-1 active:scale-95 transition-transform"
+        >
+          {isEditing ? 'Tayyor' : 'Tahrirlash'}
         </button>
-        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Mo'ljallar</h3>
       </div>
       <p className="text-[10px] text-slate-500 -mt-2">
-        Yozuv qo'shishda mo'ljal FAQAT shu ro'yxatdan tanlanadi (ikkilanuvchilar ko'payib ketmasligi uchun) —
+        Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi (ikkilanuvchilar ko'payib ketmasligi uchun) —
         yangisini shu yerdan yoki yozuv qo'shish ekranida qo'shishingiz mumkin.
       </p>
-      <input
-        type="text"
-        placeholder="Mo'ljalni qidirish yoki yangisini yozish..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
-      />
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">search</span>
+        <input
+          type="text"
+          placeholder="Manzil qidirish yoki yangisini yozish..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-slate-100 dark:bg-slate-900 border border-transparent rounded-full pl-9 pr-3.5 py-2.5 text-xs focus:outline-none focus:bg-surface dark:focus:bg-slate-900 transition-colors"
+        />
+      </div>
       {search.trim() && !exactMatchExists && (
         <button
           onClick={handleCreate}
           disabled={creating}
-          className="w-full text-left px-3.5 py-2.5 rounded-xl bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-50"
+          className="w-full flex items-center gap-2 text-left px-3.5 py-3 rounded-2xl bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-50"
         >
-          {creating ? 'Qo\'shilmoqda...' : `+ "${search.trim()}"ni yangi mo'ljal sifatida qo'shish`}
+          <span className="material-symbols-outlined text-[18px]">add_circle</span>
+          {creating ? 'Qo\'shilmoqda...' : `"${search.trim()}"ni yangi manzil sifatida qo'shish`}
         </button>
       )}
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[300px] overflow-y-auto">
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[400px] overflow-y-auto">
         {filtered.length === 0 && (
-          <div className="p-4 text-center text-xs text-slate-500">Mo'ljal topilmadi</div>
+          <div className="p-4 text-center text-xs text-slate-500">Manzil topilmadi</div>
         )}
         {filtered.map(l => (
-            <button
-              key={l.id}
-              onClick={() => onSelectLandmark(l.id, l.name)}
-              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
-            >
-              <span>📍 {l.name}</span>
-              <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
-                {typeof l.listingCount === 'number' && (
-                  <span className="text-[10px]">{l.listingCount} ta yozuv</span>
-                )}
-                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-              </span>
-            </button>
+            <div key={l.id} className="w-full flex items-center gap-1 px-1.5">
+              {isEditing && (
+                <button
+                  onClick={() => handleDelete(l)}
+                  disabled={deletingId === l.id}
+                  className="shrink-0 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50"
+                  aria-label="O'chirish"
+                >
+                  <span className="material-symbols-outlined text-[16px]">remove</span>
+                </button>
+              )}
+              <button
+                onClick={() => !isEditing && onSelectLandmark(l.id, l.name)}
+                className="flex-1 flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
+              >
+                <span>📍 {l.name}</span>
+                <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
+                  {typeof l.listingCount === 'number' && (
+                    <span className="text-[10px]">{l.listingCount} ta yozuv</span>
+                  )}
+                  {!isEditing && <span className="material-symbols-outlined text-[16px]">chevron_right</span>}
+                </span>
+              </button>
+            </div>
           ))}
       </div>
     </div>

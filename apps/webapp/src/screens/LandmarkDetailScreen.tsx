@@ -17,6 +17,9 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [listingCount, setListingCount] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const fetchLandmarkDetails = async () => {
     try {
@@ -29,22 +32,48 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         setSynonyms(data.synonyms || []);
         setListingCount(typeof data.listingCount === 'number' ? data.listingCount : null);
       } else {
-        alert("Mo'ljal ma'lumotlarini yuklab bo'lmadi.");
+        alert("Manzil ma'lumotlarini yuklab bo'lmadi.");
       }
     } catch {
-      alert('Aloqa xatosi — mo\'ljal ma\'lumotlari yuklanmadi.');
+      alert("Aloqa xatosi — manzil ma'lumotlari yuklanmadi.");
     }
   };
 
   useEffect(() => {
     fetchLandmarkDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarkId]);
 
-  const handleAddSynonym = () => {
-    const clean = newSynonym.trim().toLowerCase();
+  const handleAddSynonym = (raw?: string) => {
+    const clean = (raw ?? newSynonym).trim().toLowerCase();
     if (clean && !synonyms.includes(clean)) {
       setSynonyms([...synonyms, clean]);
-      setNewSynonym('');
+      if (!raw) setNewSynonym('');
+    }
+    setSuggestions((prev) => prev.filter((s) => s !== clean));
+  };
+
+  const handleSuggest = async () => {
+    setIsSuggesting(true);
+    setSuggestError(null);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const response = await fetch(`/api/admin/landmarks/${landmarkId}/suggest-synonyms`, {
+        method: 'POST',
+        headers: { 'x-init-data': initData },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) {
+        const fresh = (data.suggestions || []).filter((s: string) => !synonyms.includes(s));
+        setSuggestions(fresh);
+        if (fresh.length === 0) setSuggestError("AI hozircha yangi variant taklif qilolmadi.");
+      } else {
+        setSuggestError(data.message || 'AI taklifi muvaffaqiyatsiz bo\'ldi.');
+      }
+    } catch {
+      setSuggestError('Aloqa xatosi.');
+    } finally {
+      setIsSuggesting(false);
     }
   };
 
@@ -64,7 +93,6 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         }),
       });
       if (response.ok) {
-        alert("Mo'ljal muvaffaqiyatli saqlandi! ✅");
         onBack();
       } else {
         alert("Saqlashda xatolik yuz berdi.");
@@ -77,7 +105,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`"${name}" mo'ljalini butunlay o'chirmoqchimisiz?`)) return;
+    if (!window.confirm(`"${name}" manzilini butunlay o'chirmoqchimisiz?`)) return;
     setIsDeleting(true);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
@@ -108,57 +136,96 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
           <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
         </button>
         <div>
-          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Mo'ljal Detali</h1>
+          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Manzil tafsilotlari</h1>
           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-            Tahrirlash & Sinonimlar
-            {listingCount !== null && ` · ${listingCount} ta yozuv bog'langan`}
+            {listingCount !== null ? `${listingCount} ta yozuv bog'langan` : 'Yuklanmoqda...'}
           </p>
         </div>
       </div>
 
-      <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
-        {/* Name input */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Mo'ljal Nomi</label>
+      {/* Guruh 1: Nomi */}
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center px-4 py-3 gap-3">
+          <span className="text-[11px] font-bold text-slate-500 uppercase w-20 shrink-0">Nomi</span>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+            className="flex-1 bg-transparent text-sm font-semibold text-on-surface dark:text-slate-100 focus:outline-none text-right"
           />
         </div>
+      </div>
 
-        {/* Synonyms list */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Xalq tilidagi sinonimlari (Variantlar)</label>
-          <div className="flex flex-wrap gap-1.5">
-            {synonyms.map(syn => (
-              <span key={syn} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                {syn}
-                <button
-                  onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
-                  className="hover:text-red-500 text-[14px] leading-none"
-                >
-                  ×
-                </button>
-              </span>
+      {/* Guruh 2: Mahalliy nomlar (sinonimlar) */}
+      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-500 uppercase">Mahalliy nomlari (xalq shunday deydi)</span>
+          <button
+            onClick={handleSuggest}
+            disabled={isSuggesting}
+            className="flex items-center gap-1 text-[11px] font-bold text-primary dark:text-sky-400 disabled:opacity-50 active:scale-95 transition-transform"
+          >
+            <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+            {isSuggesting ? 'Sorash...' : 'AI so\'z taklif qilsin'}
+          </button>
+        </div>
+
+        {/* O'chirish bo'limi — mavjud so'zlar, har birida chiqarib tashlash tugmasi */}
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {synonyms.length === 0 && (
+            <span className="text-[11px] text-slate-400">Hali mahalliy nom qo'shilmagan</span>
+          )}
+          {synonyms.map(syn => (
+            <span key={syn} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 pl-3 pr-1.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm">
+              {syn}
+              <button
+                onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
+                className="w-4 h-4 rounded-full bg-primary/20 dark:bg-sky-500/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
+                aria-label={`${syn}ni o'chirish`}
+              >
+                <span className="material-symbols-outlined text-[12px] leading-none">close</span>
+              </button>
+            </span>
+          ))}
+        </div>
+
+        {/* AI taklif qilgan so'zlar — bittasiga bosish shu so'zni qo'shadi */}
+        {suggestions.length > 0 && (
+          <div className="px-4 pb-3 flex flex-wrap gap-1.5 border-t border-outline-variant/10 dark:border-slate-800/80 pt-3">
+            {suggestions.map(s => (
+              <button
+                key={s}
+                onClick={() => handleAddSynonym(s)}
+                className="flex items-center gap-1 pl-2.5 pr-3 py-1 rounded-full border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold hover:bg-primary/5 dark:hover:bg-sky-500/10 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[13px]">add</span>
+                {s}
+              </button>
             ))}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newSynonym}
-              onChange={(e) => setNewSynonym(e.target.value)}
-              placeholder="Yangi sinonim..."
-              className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
-            />
-            <button
-              onClick={handleAddSynonym}
-              className="bg-primary dark:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
-            >
-              Qo'shish
-            </button>
-          </div>
+        )}
+        {suggestError && (
+          <p className="px-4 pb-3 text-[10px] text-slate-500 -mt-1">{suggestError}</p>
+        )}
+
+        {/* Qo'shish bo'limi */}
+        <div className="flex items-center gap-2 px-4 py-3 border-t border-outline-variant/10 dark:border-slate-800/80">
+          <span className="material-symbols-outlined text-[16px] text-slate-400">add_circle</span>
+          <input
+            type="text"
+            value={newSynonym}
+            onChange={(e) => setNewSynonym(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSynonym(); }}
+            placeholder="Yangi mahalliy nom qo'shish..."
+            className="flex-1 bg-transparent text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+          />
+          <button
+            onClick={() => handleAddSynonym()}
+            disabled={!newSynonym.trim()}
+            className="text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-30"
+          >
+            Qo'shish
+          </button>
         </div>
       </div>
 
@@ -167,7 +234,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         disabled={isSaving}
         className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all"
       >
-        {isSaving ? 'Saqlanmoqda...' : 'Saqlash & Yangilash'}
+        {isSaving ? 'Saqlanmoqda...' : 'Saqlash'}
       </button>
 
       <button
@@ -179,7 +246,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
           ? "O'chirilmoqda..."
           : listingCount && listingCount > 0
           ? `O'chirish (avval ${listingCount} ta yozuvni ko'chiring)`
-          : "Mo'ljalni o'chirish"}
+          : "Manzilni o'chirish"}
       </button>
     </div>
   );

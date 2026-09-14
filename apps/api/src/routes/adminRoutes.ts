@@ -84,6 +84,65 @@ async function analyzeLinkWithGemini(url: string, geminiKey: string): Promise<st
   }
 }
 
+const LANDMARK_SYNONYM_SCHEMA = { type: 'ARRAY', items: { type: 'STRING' } };
+
+// Mo'ljal (Manzil) uchun mahalliy/jargon nomlarni Gemini'dan so'raydi —
+// FAQAT admin "AI so'z taklif qilsin" tugmasini bosganda ishlaydi
+// (avtomatik emas). Xatolik yoki bo'sh javob holatida bo'sh massiv
+// qaytaradi — chaqiruvchi (UI) buni "hech narsa topilmadi" deb ko'rsatadi.
+async function suggestLandmarkSynonymsWithGemini(
+  landmarkName: string,
+  existing: string[],
+  geminiKey: string
+): Promise<string[]> {
+  const prompt =
+    `Sen O'zbekistondagi bir shahar (Olmaliq)dagi mahalliy joy nomlarini yaxshi bilasan. ` +
+    `"${landmarkName}" degan manzil/mo'ljal uchun odamlar KUNDALIK SO'ZLASHUVDA, JARGON tilida ` +
+    `qanday nomlar bilan chaqirishi mumkinligini o'yla (qisqartma, eski nom, xalq orasidagi taxallus kabi). ` +
+    `Faqat HAQIQATAN HAM ishlatilishi mumkin bo'lgan, 3-5 ta variantni kichik harflarda taklif qil. ` +
+    `Bular ALLAQACHON bor: ${existing.length ? existing.join(', ') : "(yo'q)"} — shularni TAKRORLAMA. ` +
+    `Agar ishonchli variant topolmasang, bo'sh massiv qaytar. Faqat JSON massiv qaytar, boshqa hech qanday matn yozma.`;
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 10000);
+  try {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+      {
+        method: 'POST',
+        headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: LANDMARK_SYNONYM_SCHEMA,
+            maxOutputTokens: 200,
+          },
+        }),
+        signal: abortController.signal,
+      }
+    );
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`Gemini HTTP ${response.status}: ${bodyText.slice(0, 300)}`);
+    }
+
+    const json = await response.json();
+    const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) return [];
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+    const existingLower = new Set(existing.map((s) => s.toLowerCase()));
+    return parsed
+      .map((s: any) => String(s).toLowerCase().trim())
+      .filter((s: string) => s && !existingLower.has(s))
+      .slice(0, 5);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // moderatorRoutes.ts'dagi bilan bir xil tekshiruv — ommaviy xabar
 // (broadcast) yuborish kuchli, xavfli amal, faqat Super-Admin uchun.
 async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
@@ -1179,6 +1238,33 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     await db.landmark.delete({ where: { id } }).catch(() => {});
     return { success: true };
+  });
+
+  // Gemini'dan shu manzil uchun mahalliy/jargon nom taklif qildiradi —
+  // FAQAT talab bo'yicha (tugma bosilganda), keshlanmaydi (har safar yangi
+  // taklif berishi mumkin, bu maqsadga muvofiq — jargon o'zgarib turadi).
+  fastify.post('/admin/landmarks/:id/suggest-synonyms', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+
+    const landmark = await db.landmark.findUnique({ where: { id } });
+    if (!landmark) return reply.status(404).send({ success: false, message: "Manzil topilmadi" });
+
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey || geminiKey === 'your_gemini_api_key_here') {
+      return reply.status(503).send({ success: false, message: 'GEMINI_API_KEY sozlanmagan' });
+    }
+
+    try {
+      const suggestions = await suggestLandmarkSynonymsWithGemini(landmark.name, landmark.synonyms, geminiKey);
+      return { success: true, suggestions };
+    } catch (err: any) {
+      console.error("Manzil AI so'z taklifi xatosi:", err);
+      return reply.status(502).send({
+        success: false,
+        message: `AI taklifi muvaffaqiyatsiz bo'ldi: ${err?.message || err}`,
+      });
+    }
   });
 
   // Bot qaysi guruh/kanallarda ishlayotganini ko'rsatadi — botni yangi
