@@ -1,0 +1,70 @@
+name: Test landmarks CRUD (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run landmark CRUD test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            echo "=== Landmark CRUD test (real prod DB, test data cleaned up after) ==="
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const city = await db.city.findFirst();
+                if (!city) throw new Error('No city found');
+
+                // 1) CREATE
+                const created = await db.landmark.create({
+                  data: { cityId: city.id, name: '__TEST_LANDMARK__', synonyms: ['__test_landmark__'] },
+                });
+                console.log('out: CREATE ok, id=' + created.id);
+
+                // 2) GET single (list endpoint logic) with listing count
+                const fetched = await db.landmark.findUnique({
+                  where: { id: created.id },
+                  include: { _count: { select: { primaryListings: true } } },
+                });
+                console.log('out: GET ok, listingCount=' + fetched._count.primaryListings);
+
+                // 3) UPDATE
+                const updated = await db.landmark.update({
+                  where: { id: created.id },
+                  data: { name: '__TEST_LANDMARK_RENAMED__', synonyms: ['__test_renamed__'] },
+                });
+                console.log('out: UPDATE ok, newName=' + updated.name);
+
+                // 4) Simulate a listing referencing it, then verify delete is BLOCKED
+                const cat = await db.category.findFirst();
+                const testListing = await db.listing.create({
+                  data: {
+                    cityId: city.id,
+                    categoryId: cat.id,
+                    primaryLandmarkId: created.id,
+                    name: '__TEST_LISTING__',
+                    phone: '000',
+                  },
+                });
+                const countWithRef = await db.listing.count({ where: { primaryLandmarkId: created.id } });
+                console.log('out: DELETE-BLOCK check, referencedCount=' + countWithRef + ' (should be 1, delete should be refused by API)');
+
+                // cleanup: remove test listing, then delete landmark should succeed
+                await db.listing.delete({ where: { id: testListing.id } });
+                await db.landmark.delete({ where: { id: created.id } });
+                console.log('out: CLEANUP ok — test listing + test landmark removed');
+
+                // 5) Confirm real duplicate landmarks still exist (the problem we are fixing going forward, not retroactively)
+                const all = await db.landmark.findMany({ where: { cityId: city.id }, select: { name: true } });
+                console.log('out: TOTAL landmarks in DB=' + all.length);
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).finally(() => db.\$disconnect());
+            "
