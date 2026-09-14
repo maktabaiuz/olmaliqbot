@@ -64,7 +64,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeChatUserUsername, setActiveChatUserUsername] = useState<string | undefined>();
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [showAiModal, setShowAiModal] = useState(false);
   const [prefilledCategory, setPrefilledCategory] = useState<string | undefined>();
 
   // React to previewConfig changes
@@ -589,33 +588,12 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         )}
       </main>
 
-      {/* Floating AI Assistant Drawer */}
-      {showAiModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end justify-center p-4">
-          <div className="bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-6 w-full max-w-container-max shadow-2xl space-y-3 animate-slide-up">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary dark:text-sky-400 text-[24px]">auto_awesome</span>
-                <h3 className="font-bold text-base">Gemini AI Copilot</h3>
-              </div>
-              <button onClick={() => setShowAiModal(false)} className="text-outline hover:text-on-surface">
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-            <p className="text-xs text-on-surface-variant dark:text-slate-400">
-              Assalomu alaykum! Men Kim bor boti sun'iy intellekt yordamchisiman.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Bottom Navigation Bar (Hidden during SuperAdmin Control, Onboarding, or Expired view) */}
       {isBottomNavVisible && (
         <BottomNav
           activeTab={activeTab}
           onTabChange={setActiveTab}
           hasUnreadRequests={true}
-          onAiClick={() => setShowAiModal(true)}
         />
       )}
 
@@ -973,6 +951,7 @@ const MoreLandmarksSubView: React.FC<{
   const [searchFocused, setSearchFocused] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const loadLandmarks = () => {
     const initData = window.Telegram?.WebApp?.initData || '';
@@ -1043,7 +1022,15 @@ const MoreLandmarksSubView: React.FC<{
           <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
             Manzillar
           </h1>
-          <span className="text-[13px] text-[#8E8E93] font-normal mb-1">{lands.length} ta</span>
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className="text-[13px] text-[#8E8E93] font-normal">{lands.length} ta</span>
+            <button
+              onClick={() => setIsEditing(v => !v)}
+              className="text-[15px] font-medium text-[#007AFF] dark:text-[#0A84FF] active:opacity-40"
+            >
+              {isEditing ? 'Tayyor' : 'Tahrirlash'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1082,7 +1069,8 @@ const MoreLandmarksSubView: React.FC<{
         )}
 
         <p className="text-[13px] text-[#8E8E93] leading-snug -mt-1 px-0.5">
-          Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi. Qatorni chapga suring — o'chirish uchun.
+          Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi. O'chirish uchun qatorni chapga suring
+          yoki "Tahrirlash"ni bosing.
         </p>
 
         {/* iOS grouped inset list */}
@@ -1091,35 +1079,46 @@ const MoreLandmarksSubView: React.FC<{
             <div className="p-5 text-center text-[15px] text-[#8E8E93]">Manzil topilmadi</div>
           )}
           {filtered.map((l, idx) => (
-            <SwipeToDeleteRow
+            <div
               key={l.id}
-              onDelete={() => handleDelete(l)}
-              disabled={deletingId === l.id}
+              className="flex items-center bg-white dark:bg-[#1C1C1E]"
+              style={{ borderTop: idx === 0 ? 'none' : '0.5px solid rgba(60,60,67,0.29)' }}
             >
-              <button
-                onClick={() => onSelectLandmark(l.id, l.name)}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 bg-white dark:bg-[#1C1C1E] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] text-left"
-                style={{
-                  borderTop: idx === 0 ? 'none' : '0.5px solid rgba(60,60,67,0.29)',
-                }}
-              >
-                <span
-                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-[14px] font-semibold"
-                  style={{ backgroundColor: avatarColorForName(l.name) }}
+              {isEditing && (
+                <button
+                  onClick={() => handleDelete(l)}
+                  disabled={deletingId === l.id}
+                  className="shrink-0 w-6 h-6 rounded-full bg-[#FF3B30] text-white flex items-center justify-center ml-3.5 active:opacity-70 disabled:opacity-50"
+                  aria-label="O'chirish"
                 >
-                  {l.name.trim()[0]?.toUpperCase() || '?'}
-                </span>
-                <span className="flex-1 min-w-0 text-[15px] font-normal text-on-surface dark:text-white truncate">
-                  {l.name}
-                </span>
-                <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
-                  {typeof l.listingCount === 'number' && (
-                    <span className="text-[13px]">{l.listingCount}</span>
-                  )}
-                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                </span>
-              </button>
-            </SwipeToDeleteRow>
+                  <span className="material-symbols-outlined text-[16px] font-bold">remove</span>
+                </button>
+              )}
+              <div className="flex-1 min-w-0">
+                <SwipeToDeleteRow onDelete={() => handleDelete(l)} disabled={isEditing || deletingId === l.id}>
+                  <button
+                    onClick={() => !isEditing && onSelectLandmark(l.id, l.name)}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 bg-white dark:bg-[#1C1C1E] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] text-left"
+                  >
+                    <span
+                      className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-[14px] font-semibold"
+                      style={{ backgroundColor: avatarColorForName(l.name) }}
+                    >
+                      {l.name.trim()[0]?.toUpperCase() || '?'}
+                    </span>
+                    <span className="flex-1 min-w-0 text-[15px] font-normal text-on-surface dark:text-white truncate">
+                      {l.name}
+                    </span>
+                    <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
+                      {typeof l.listingCount === 'number' && (
+                        <span className="text-[13px]">{l.listingCount}</span>
+                      )}
+                      {!isEditing && <span className="material-symbols-outlined text-[18px]">chevron_right</span>}
+                    </span>
+                  </button>
+                </SwipeToDeleteRow>
+              </div>
+            </div>
           ))}
         </div>
       </div>

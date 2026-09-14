@@ -6,13 +6,11 @@ export interface BottomNavProps {
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   hasUnreadRequests?: boolean;
-  onAiClick?: () => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onTabChange,
-  onAiClick,
 }) => {
   const leftTabs: { id: NavTab; label: string; icon: string }[] = [
     { id: 'home', label: 'Bosh sahifa', icon: 'home' },
@@ -64,17 +62,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 max-w-container-max mx-auto pointer-events-none px-4 pb-4">
-      {/* Floating AI Assistant Button */}
-      <div className="absolute -top-14 right-6 pointer-events-auto">
-        <button
-          onClick={onAiClick}
-          className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-500 to-indigo-400 text-white shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center transition-all hover:scale-105 active:scale-95 border border-white/20"
-          title="AI Copilot"
-        >
-          <span className="material-symbols-outlined text-[22px]">smart_toy</span>
-        </button>
-      </div>
-
       {/* Navigation Bar Container */}
       <nav className="pointer-events-auto bg-surface/90 dark:bg-[#17212B]/90 backdrop-blur-xl border border-outline-variant/30 dark:border-slate-800/80 px-2 py-1 rounded-[24px] flex items-center justify-between shadow-2xl relative">
         {/* Left Tabs */}
