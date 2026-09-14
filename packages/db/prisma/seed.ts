@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import INITIAL_DICTIONARY from '../../core/src/dictionary/initialDictionary.json';
 import { EMERGENCY_TEMPLATES } from '../../core/src/emergency/templates';
+import { DEFAULT_REPLY_TEMPLATE } from '../../core/src/search/searchEngine';
 
 const db = new PrismaClient();
 
@@ -44,28 +45,54 @@ async function main() {
   }
   console.log(`✅ Seeded ${catCount} trade categories into Category table.`);
 
-  // 3. Seed BotMessage table with emergency safety templates (isEmergency = true)
+  // 3. Seed BotMessage table — bular botning HAQIQIY xabar yuborish kodi
+  // tomonidan o'qiladigan shablonlar (2026-09). MUHIM: `update: {}` ataylab
+  // BO'SH — agar qator ALLAQACHON mavjud bo'lsa (masalan admin uni panelda
+  // tahrirlab qo'ygan bo'lsa), qayta seed ishga tushirilganda ustidan
+  // yozib, admin o'zgartirishlarini yo'qotib qo'ymasligi uchun. Faqat YANGI
+  // (hali umuman mavjud bo'lmagan) qatorlar uchun asl (kod ichidagi) matn
+  // bilan yaratiladi.
   let emergencyCount = 0;
   for (const [key, data] of Object.entries(EMERGENCY_TEMPLATES)) {
     await db.botMessage.upsert({
       where: { key: `emergency_${key}` },
-      update: {
-        textLatin: data.templates.lotin,
-        textCyrillic: data.templates.kirill,
-        textRussian: data.templates.rus,
-        isEmergency: true,
-      },
+      update: {},
       create: {
         key: `emergency_${key}`,
+        category: 'EMERGENCY',
         textLatin: data.templates.lotin,
         textCyrillic: data.templates.kirill,
         textRussian: data.templates.rus,
-        isEmergency: true,
       },
     });
     emergencyCount++;
   }
-  console.log(`✅ Seeded ${emergencyCount} emergency templates into BotMessage table (isEmergency = true).`);
+  console.log(`✅ Seeded ${emergencyCount} emergency templates into BotMessage table.`);
+
+  await db.botMessage.upsert({
+    where: { key: 'reply_single_listing' },
+    update: {},
+    create: {
+      key: 'reply_single_listing',
+      category: 'REPLY',
+      textLatin: DEFAULT_REPLY_TEMPLATE,
+      textCyrillic: DEFAULT_REPLY_TEMPLATE,
+      textRussian: DEFAULT_REPLY_TEMPLATE,
+    },
+  });
+
+  await db.botMessage.upsert({
+    where: { key: 'other_not_found_private' },
+    update: {},
+    create: {
+      key: 'other_not_found_private',
+      category: 'OTHER',
+      textLatin: "Hozircha bazada yo'q. Yozib qo'ydim, chiqsa aytaman.",
+      textCyrillic: "Ҳозирча базада йўқ. Ёзиб қўйдим, чиқса айтаман.",
+      textRussian: 'Пока нет в базе. Запомнил, сообщу как появится.',
+    },
+  });
+  console.log('✅ Seeded reply_single_listing va other_not_found_private BotMessage qatorlari.');
 
   // 4. Seed sample local emergency numbers for Olmaliq
   await db.emergencyNumber.upsert({

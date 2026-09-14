@@ -2,6 +2,7 @@
 
 export * from './prompts';
 export * from './emergency';
+export * from './botMessages/botMessageStore';
 export * from './dictionary';
 export * from './search';
 export * from './transliteration';

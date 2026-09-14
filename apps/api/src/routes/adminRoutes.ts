@@ -1806,29 +1806,115 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, key: setting.key, value: setting.value };
   });
 
-  // --- 6. BOT EMERGENCY MESSAGES ---
+  // ──────────────────────────────────────────────────────────────────────────
+  // "BOT MATNLARI & SHABLONLAR" (2026-09 to'liq qayta qurildi). MUHIM: bu
+  // yerda tahrirlangan matn botning HAQIQIY xabar yuborish kodi tomonidan
+  // o'qiladi (packages/core/src/botMessages/botMessageStore.ts, 60s
+  // keshlangan) — avval bu ekran butunlay dekorativ edi, "Saqlash" hech
+  // narsaga ta'sir qilmasdi. Har bir kalit (key) uchun ruxsat etilgan
+  // tokenlar ro'yxati shu yerda — chaqiruvchi (frontend) shu katalogdan
+  // qaysi tokenlarni ko'rsatishni va Saqlashda qaysi tokenlar RUXSAT
+  // etilganini biladi (tasodifiy/xato token — masalan {ismm} — saqlanishdan
+  // oldin rad etiladi).
+  // ──────────────────────────────────────────────────────────────────────────
+  const REPLY_TOKENS = ['kasb_emoji', 'kasb', 'ism', 'tasdiq', 'moljal', 'ish_vaqti', 'belgilar', 'xizmatlar', 'narx', 'tavsif', 'telefon'];
+  const EMERGENCY_TOKENS = ['mahalliy_gaz', 'mahalliy_suv', 'mahalliy_elektr', 'mahalliy_issiqlik', 'mahalliy_hokimiyat', 'santexnik_royxati', 'elektrik_royxati'];
+  const OTHER_TOKENS: Record<string, string[]> = {
+    other_not_found_private: [],
+  };
+  const EMERGENCY_LABELS: Record<string, string> = {
+    gas_leak: 'Gaz hidi', fire: "Yong'in", smoke: 'Tutun', electric_shock: 'Elektr toki urishi',
+    unconscious: 'Hushidan ketish', bleeding: 'Qon ketishi', accident: 'Baxtsiz hodisa', drowning: "Cho'kish",
+    crime: 'Jinoyat', missing_child: "Bola yo'qolishi", water_pipe: 'Quvur yorilishi (suv)',
+    power_outage: "Svet o'chishi", stuck_elevator: 'Lift to\'xtab qolishi', heating_issue: 'Isitish muammosi',
+    hot_water_outage: "Issiq suv yo'qligi", cold_water_outage: "Sovuq suv yo'qligi",
+  };
+  const OTHER_LABELS: Record<string, string> = {
+    other_not_found_private: "Shaxsiyda Ma'lumot Yo'q",
+  };
+
+  function botMessageMeta(key: string, category: string): { title: string; tokens: string[]; isAutoButton?: boolean } {
+    if (category === 'REPLY') return { title: 'Bitta Usta Javobi', tokens: REPLY_TOKENS };
+    if (category === 'EMERGENCY') {
+      const cat = key.replace(/^emergency_/, '');
+      return { title: EMERGENCY_LABELS[cat] || cat, tokens: EMERGENCY_TOKENS };
+    }
+    return { title: OTHER_LABELS[key] || key, tokens: OTHER_TOKENS[key] || [] };
+  }
+
+  // Telegram HTML parse_mode ruxsat etgan teglar — ANIQ shular, boshqasi
+  // xabarni yuborishda Telegram tomonidan RAD ETILADI (400 xato).
+  const ALLOWED_HTML_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre', 'a', 'blockquote', 'tg-spoiler', 'tg-emoji', 'span']);
+
+  function validateTelegramHtml(text: string): string | null {
+    const tagRegex = /<\/?([a-zA-Z-]+)(?:\s[^>]*)?>/g;
+    const stack: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = tagRegex.exec(text)) !== null) {
+      const isClosing = match[0][1] === '/';
+      const tagName = match[1].toLowerCase();
+      if (!ALLOWED_HTML_TAGS.has(tagName)) {
+        return `Ruxsat etilmagan teg: <${tagName}> (Telegram bunday tegni tushunmaydi)`;
+      }
+      if (!isClosing) {
+        stack.push(tagName);
+      } else {
+        const last = stack.pop();
+        if (last !== tagName) {
+          return `Teglar noto'g'ri joylashgan: </${tagName}> kutilmagan joyda`;
+        }
+      }
+    }
+    if (stack.length > 0) {
+      return `Yopilmagan teg qoldi: <${stack[stack.length - 1]}>`;
+    }
+    return null;
+  }
+
+  function validateTokens(text: string, allowedTokens: string[]): string | null {
+    const found = [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    const unknown = [...new Set(found.filter((t) => !allowedTokens.includes(t)))];
+    if (unknown.length > 0) {
+      return `Noma'lum token(lar): ${unknown.map((t) => `{${t}}`).join(', ')}`;
+    }
+    return null;
+  }
+
+  function validateBotMessageText(text: string, tokens: string[]): string | null {
+    if (text.length > 3500) return `Matn juda uzun (${text.length} belgi, ko'pi bilan 3500)`;
+    return validateTelegramHtml(text) || validateTokens(text, tokens);
+  }
+
   fastify.get('/admin/bot-messages', async (req, reply) => {
-    const messages = await db.botMessage.findMany({
-      where: { isEmergency: true },
-      orderBy: { key: 'asc' },
-    });
-    return messages;
+    const messages = await db.botMessage.findMany({ orderBy: [{ category: 'asc' }, { key: 'asc' }] });
+    return messages.map((m) => ({ ...m, ...botMessageMeta(m.key, m.category) }));
   });
 
   fastify.put('/admin/bot-messages/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
     const { id } = req.params;
     const { textLatin, textCyrillic, textRussian } = req.body;
+
+    const existing = await db.botMessage.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: 'Shablon topilmadi' });
+
+    const { tokens } = botMessageMeta(existing.key, existing.category);
+    for (const [label, val] of [['Lotin', textLatin], ['Kirill', textCyrillic], ['Русский', textRussian]] as const) {
+      if (val === undefined) continue;
+      const err = validateBotMessageText(val, tokens);
+      if (err) return reply.status(400).send({ success: false, message: `${label}: ${err}` });
+    }
 
     const updated = await db.botMessage.update({
       where: { id },
       data: {
-        ...(textLatin && { textLatin }),
-        ...(textCyrillic && { textCyrillic }),
-        ...(textRussian && { textRussian }),
+        ...(textLatin !== undefined && { textLatin }),
+        ...(textCyrillic !== undefined && { textCyrillic }),
+        ...(textRussian !== undefined && { textRussian }),
       },
     });
 
-    return updated;
+    return { success: true, ...updated, ...botMessageMeta(updated.key, updated.category) };
   });
 
   // --- 7. DIRECT CHATS & SUHBATLAR ---

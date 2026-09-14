@@ -1,6 +1,6 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -207,7 +207,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
       : detectEmergencyCategory(messageText) || 'gas_leak';
     const localNumbers = await getEmergencyLocalNumbers();
     const emergencyMessage =
-      renderEmergencyTemplate(category, 'lotin', localNumbers) ||
+      (await renderEmergencyTemplate(category, 'lotin', localNumbers)) ||
       `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;
     await ctx.reply(emergencyMessage, { parse_mode: 'HTML' });
     return;
@@ -290,7 +290,12 @@ async function runPrivateSearch(
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 
-    await ctx.reply('Hozircha bazada yo\'q. Yozib qo\'ydim, chiqsa aytaman.');
+    const notFoundText = await getBotMessageText(
+      'other_not_found_private',
+      'lotin',
+      "Hozircha bazada yo'q. Yozib qo'ydim, chiqsa aytaman."
+    );
+    await ctx.reply(notFoundText, { parse_mode: 'HTML' });
     return;
   }
 

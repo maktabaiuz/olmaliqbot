@@ -70,7 +70,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
     const localNumbers = await getEmergencyLocalNumbers();
     const emergencyMessage =
-      renderEmergencyTemplate(category, 'lotin', localNumbers) ||
+      (await renderEmergencyTemplate(category, 'lotin', localNumbers)) ||
       `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;
 
     // 1-darajali xabar: usta berilmaydi va O'CHMAYDI

@@ -421,15 +421,22 @@ model Payment {
   @@map("payments")
 }
 
+// Bot foydalanuvchiga yuboradigan HAQIQIY shablonlar (2026-09: avval bu
+// jadval admin panelidan tahrirlanar edi, lekin botning o'zi hech qachon
+// bazadan o'qimasdi — tahrirlangan matn hech qachon foydalanuvchiga
+// bormas edi. Endi packages/core/src/botMessages/botMessageStore.ts
+// orqali botning haqiqiy xabar yuborish kodi shu jadvaldan o'qiydi,
+// 60 soniyalik keshlash bilan).
 model BotMessage {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  textLatin   String
+  id           String   @id @default(uuid())
+  key          String   @unique
+  category     String   @default("OTHER") // "REPLY" | "EMERGENCY" | "OTHER"
+  textLatin    String
   textCyrillic String
-  textRussian String
-  isEmergency Boolean  @default(false)
-  updatedAt   DateTime @updatedAt
+  textRussian  String
+  updatedAt    DateTime @updatedAt
 
+  @@index([category])
   @@map("bot_messages")
 }
 

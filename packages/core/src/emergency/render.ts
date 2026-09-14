@@ -1,6 +1,7 @@
 import { EMERGENCY_TEMPLATES } from './templates';
 import { Language } from './types';
 import { normalizeText, containsWholeWord } from '../transliteration';
+import { getBotMessageText } from '../botMessages/botMessageStore';
 
 /**
  * Xabar matnini EMERGENCY_TEMPLATES'dagi HAQIQIY kalit so'zlar ro'yxati
@@ -38,16 +39,21 @@ export interface LocalNumbers {
   mahalliy_hokimiyat?: string;
 }
 
-export function renderEmergencyTemplate(
+export async function renderEmergencyTemplate(
   category: string,
   lang: Language = 'lotin',
   localNumbers: LocalNumbers = {},
   serviceListingsFormatted?: string
-): string | null {
+): Promise<string | null> {
   const data = EMERGENCY_TEMPLATES[category];
   if (!data) return null;
 
-  let text = data.templates[lang] || data.templates.lotin;
+  // 2026-09: matn endi ADMIN PANELIDA tahrirlanadigan bazadan o'qiladi
+  // (60s keshlangan) — bazada topilmasa yoki bo'sh bo'lsa, shu yerdagi
+  // kod-ichidagi asl matn xavfsizlik to'ri sifatida ishlatiladi (bu
+  // xavfsizlik-kritik xabar — hech qachon butunlay javobsiz qolmasligi kerak).
+  const fallback = data.templates[lang] || data.templates.lotin;
+  let text = await getBotMessageText(`emergency_${category}`, lang, fallback);
 
   // Placeholder labels based on language
   const labels: Record<keyof LocalNumbers, Record<Language, string>> = {

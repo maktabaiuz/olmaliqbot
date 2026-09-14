@@ -1,250 +1,456 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 export interface BotMessagesEditorScreenProps {
   onBack: () => void;
 }
 
-interface MessageTemplate {
+type Category = 'REPLY' | 'EMERGENCY' | 'OTHER';
+type Lang = 'lotin' | 'kirill' | 'rus';
+
+interface BotMessageRow {
   id: string;
-  category: 'reply' | 'emergency' | 'other';
+  key: string;
+  category: Category;
   title: string;
-  latin: string;
-  cyrillic: string;
-  russian: string;
+  tokens: string[];
+  textLatin: string;
+  textCyrillic: string;
+  textRussian: string;
+  updatedAt: string;
 }
 
+const IOS_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+
+const LANG_FIELD: Record<Lang, keyof BotMessageRow> = {
+  lotin: 'textLatin',
+  kirill: 'textCyrillic',
+  rus: 'textRussian',
+};
+
+const CATEGORY_LABEL: Record<Category, string> = {
+  REPLY: 'Javoblar',
+  EMERGENCY: 'Favqulodda',
+  OTHER: 'Boshqa',
+};
+
+const SAMPLE_VALUES: Record<string, string> = {
+  kasb_emoji: '🔧',
+  kasb: 'Santexnik',
+  ism: 'Botir Aliyev',
+  tasdiq: '✅',
+  moljal: 'Korzinka orqasi',
+  ish_vaqti: '09:00–18:00',
+  belgilar: 'Uyga boradi · Kafolat',
+  xizmatlar: 'Kran, trubka tuzatish',
+  narx: "50 000 – 150 000 so'm",
+  tavsif: 'Tez va sifatli xizmat',
+  telefon: '+998 90 123 45 67',
+  mahalliy_gaz: '+998 71 234 56 78',
+  mahalliy_suv: '+998 71 987 65 43',
+  mahalliy_elektr: '+998 71 111 22 33',
+  mahalliy_issiqlik: '+998 71 444 55 66',
+  mahalliy_hokimiyat: '+998 71 777 88 99',
+  santexnik_royxati: '1. Alisher (+998 91 111 22 33)',
+  elektrik_royxati: '1. Sardor (+998 90 222 33 44)',
+};
+
+// Backend'dagi renderLineTemplate bilan BIR XIL mantiq — faqat ko'rish
+// (preview) uchun, admin haqiqiy botda qanday ko'rinishini oldindan
+// ko'rishi kerak.
+function renderLineTemplatePreview(template: string, values: Record<string, string>): string {
+  const lines = template.split('\n');
+  const out: string[] = [];
+  for (const line of lines) {
+    const tokens = [...line.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+    if (tokens.length === 0) {
+      out.push(line);
+      continue;
+    }
+    const allPresent = tokens.every((t) => values[t] && values[t].trim().length > 0);
+    if (!allPresent) continue;
+    let rendered = line;
+    for (const t of tokens) rendered = rendered.split(`{${t}}`).join(values[t]);
+    out.push(rendered);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+const FORMAT_BUTTONS: { label: string; icon: string; open: string; close: string }[] = [
+  { label: 'Qalin', icon: 'format_bold', open: '<b>', close: '</b>' },
+  { label: 'Kursiv', icon: 'format_italic', open: '<i>', close: '</i>' },
+  { label: 'Tagcha chizilgan', icon: 'format_underlined', open: '<u>', close: '</u>' },
+  { label: "Ustidan chizilgan", icon: 'format_strikethrough', open: '<s>', close: '</s>' },
+  { label: 'Spoyler', icon: 'visibility_off', open: '<tg-spoiler>', close: '</tg-spoiler>' },
+  { label: 'Kod', icon: 'code', open: '<code>', close: '</code>' },
+  { label: 'Iqtibos', icon: 'format_quote', open: '<blockquote>', close: '</blockquote>' },
+];
+
 export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = ({ onBack }) => {
-  const [activeCategory, setActiveCategory] = useState<'reply' | 'emergency' | 'other'>('reply');
-  const [activeLang, setActiveLang] = useState<'latin' | 'cyrillic' | 'russian'>('latin');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('single_listing_reply');
+  const [messages, setMessages] = useState<BotMessageRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<Category>('REPLY');
+  const [selectedKey, setSelectedKey] = useState<string>('');
+  const [activeLang, setActiveLang] = useState<Lang>('lotin');
   const [toast, setToast] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [emojiId, setEmojiId] = useState('');
+  const [emojiFallback, setEmojiFallback] = useState('');
+  const [showEmojiHelp, setShowEmojiHelp] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [templates, setTemplates] = useState<MessageTemplate[]>([
-    {
-      id: 'single_listing_reply',
-      category: 'reply',
-      title: 'Bitta Usta Javobi',
-      latin: `🔧 {kasb}\n\n{ism} ✅ ⭐{reyting}\n📍 {moljal}\n🏷 {belgilar}\n📞 {telefon}\n\n[Yana 2 tasini ko'rish]\n\n🕐 Bu xabar 15 daqiqada o'chadi`,
-      cyrillic: `🔧 {kasb}\n\n{ism} ✅ ⭐{reyting}\n📍 {moljal}\n🏷 {belgilar}\n📞 {telefon}\n\n[Яна 2 таsini кўриш]\n\n🕐 Бу хабар 15 дақиқада ўчади`,
-      russian: `🔧 {kasb}\n\n{ism} ✅ ⭐{reyting}\n📍 {moljal}\n🏷 {belgilar}\n📞 {telefon}\n\n[Посмотреть еще 2]\n\n🕐 Это сообщение удалится через 15 минут`,
-    },
-    {
-      id: 'gas_leak_emergency',
-      category: 'emergency',
-      title: '🔴 1.1 Gaz Hidi (Avariya)',
-      latin: `🚨 GAZ HIDI — DARHOL:\n\n❌ Chiroq, gugurt, zajigalka — yoqmang\n❌ Vyklyuchatel, rozetka, telefonga tegmang\n❌ Liftga kirmang\n\n✅ Derazalarni keng oching\n✅ Gaz kranini yoping\n✅ Uydan chiqing\n✅ Qo'ng'iroqni tashqaridan qiling\n\n📞 104 — Gaz avariya xizmati\n📞 112 — Yagona qutqaruv\n📞 {mahalliy_gaz}\n\nUsta emas — avval avariya xizmatini chaqiring.`,
-      cyrillic: `🚨 ГАЗ ХИДИ — ДАРҲОЛ:\n\n❌ Чироқ, гугурт — ёқманг\n❌ Включатель, розеткага тегманг\n❌ Лифтга кирманг\n\n✅ Деразаларни кенг очинг\n✅ Газ кранини ёпинг\n✅ Уйдан чиқинг\n\n📞 104 — Газ авария хизмати\n📞 112 — Ягона қутқарув\n📞 {mahalliy_gaz}`,
-      russian: `🚨 ЗАПАХ ГАЗА — СРОЧНО:\n\n❌ Не включайте свет и спички\n❌ Не трогайте розетки и телефон\n❌ Не пользуйтесь лифтом\n\n✅ Откройте окна\n✅ Перекройте газ\n✅ Выйдите из помещения\n\n📞 104 — Аварийная газовая служба\n📞 112 — Единая служба спасения`,
-    },
-    {
-      id: 'fire_emergency',
-      category: 'emergency',
-      title: '🔴 1.2 Yong\'in',
-      latin: `🚨 YONG'IN — DARHOL:\n\n✅ Hammani uyg'oting, tashqariga chiqing\n✅ Chiqayotganda eshiklarni yopib boring\n✅ Liftdan foydalanmang — zinadan tushing\n✅ Qo'ng'iroqni xavfsiz joydan qiling\n\n❌ Narsa yig'ib o'tirmang\n❌ Katta olovni o'zingiz o'chirishga urinmang\n\n📞 101 — Yong'in xavfsizligi\n📞 112 — Yagona qutqaruv`,
-      cyrillic: `🚨 ЁНҒИН — ДАРҲОЛ:\n\n✅ Ҳаммани уйғотинг, ташқарига чиқинг\n✅ Зинадан тушинг, лифтга кирманг\n\n📞 101 — Ёнғин хавфсизлиги\n📞 112 — Ягона қутқарув`,
-      russian: `🚨 ПОЖАР — СРОЧНО:\n\n✅ Разбудите всех, выходите на улицу\n✅ Спускайтесь по лестнице\n\n📞 101 — Пожарная служба\n📞 112 — Единая спасательная служба`,
-    },
-    {
-      id: 'water_leak_emergency',
-      category: 'emergency',
-      title: '🟠 2.1 Quvur Yorildi (Suv)',
-      latin: `💧 SUV AVARIYASI:\n\n✅ Kvartira kranini yoping\n✅ Pastdagi qo'shnilarni ogohlantiring\n✅ Suv elektr shchitiga yetayotgan bo'lsa — avtomatni o'chiring\n\n📞 {mahalliy_suv} — Suv ta'minoti avariya xizmati\n\nKeyin ta'mirlash uchun:\n{santexnik_royxati}`,
-      cyrillic: `💧 СУВ АВАРИЯСИ:\n\n✅ Квартира кранини ёпинг\n✅ Пастдаги қўшниларни огоҳлантиринг\n\n📞 {mahalliy_suv} — Сув таъминоти\n\nТаъмирлаш учун:\n{santexnik_royxati}`,
-      russian: `💧 АВАРИЯ ВОДОПРОВОДА:\n\n✅ Перекройте кран в квартире\n✅ Предупредите соседей снизу\n\n📞 {mahalliy_suv} — Аварийная водоканала\n\nДля ремонта:\n{santexnik_royxati}`,
-    },
-    {
-      id: 'not_found_private',
-      category: 'other',
-      title: "Lichkada Ma'lumot Yo'q",
-      latin: `Kechirasiz, bu bo'yicha bazamizda hali tasdiqlangan ma'lumot yo'q.\n\nAdminlarga so'rov yuborildi. Ishonchli usta topilsa, tez orada qo'shiladi!`,
-      cyrillic: `Кечирасиз, бу бўйича базамизда ҳали тасдиқланган маълумот йўқ.\n\nАдминларга сўров юборилди.`,
-      russian: `Извините, по вашему запросу проверенной информации пока нет.\n\nЗапрос передан администраторам.`,
-    },
-  ]);
+  const load = () => {
+    setLoading(true);
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/bot-messages', { headers: { 'x-init-data': initData } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: BotMessageRow[]) => {
+        setMessages(data || []);
+        const firstReply = (data || []).find((m) => m.category === 'REPLY');
+        if (firstReply) setSelectedKey(firstReply.key);
+      })
+      .finally(() => setLoading(false));
+  };
 
-  const currentTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
+  useEffect(() => {
+    load();
+  }, []);
 
   const showToastMsg = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
+  const currentMessage = messages.find((m) => m.key === selectedKey) || null;
+  const inCategory = messages.filter((m) => m.category === activeCategory);
+
   const handleUpdateText = (val: string) => {
-    setTemplates(prev =>
-      prev.map(t => (t.id === selectedTemplateId ? { ...t, [activeLang]: val } : t))
+    setMessages((prev) =>
+      prev.map((m) => (m.key === selectedKey ? { ...m, [LANG_FIELD[activeLang]]: val } : m))
     );
+    setSaveError(null);
+  };
+
+  const currentTextValue = currentMessage ? (currentMessage[LANG_FIELD[activeLang]] as string) : '';
+
+  const wrapSelection = (open: string, close: string) => {
+    const el = textareaRef.current;
+    if (!el || !currentMessage) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = currentTextValue;
+    const newValue = value.slice(0, start) + open + value.slice(start, end) + close + value.slice(end);
+    handleUpdateText(newValue);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = start + open.length;
+      el.selectionEnd = end + open.length;
+    });
+  };
+
+  const insertAtCursor = (text: string) => {
+    const el = textareaRef.current;
+    if (!el || !currentMessage) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = currentTextValue;
+    const newValue = value.slice(0, start) + text + value.slice(end);
+    handleUpdateText(newValue);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + text.length;
+      el.selectionStart = pos;
+      el.selectionEnd = pos;
+    });
   };
 
   const insertToken = (token: string) => {
-    const currentText = currentTemplate[activeLang];
-    handleUpdateText(currentText + ' ' + token);
-    showToastMsg(`"${token}" tokeni qo'shildi`);
+    insertAtCursor(`{${token}}`);
   };
 
-  const currentTextValue = currentTemplate[activeLang];
+  const insertCustomEmoji = () => {
+    const id = emojiId.trim();
+    const fallback = emojiFallback.trim() || '⭐';
+    if (!id) {
+      showToastMsg("Avval emoji ID kiriting");
+      return;
+    }
+    insertAtCursor(`<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`);
+    setEmojiId('');
+    setEmojiFallback('');
+  };
 
-  // Substitute sample tokens for live Telegram preview
-  const livePreview = currentTextValue
-    .replace(/\{kasb\}/g, 'Gazavik')
-    .replace(/\{ism\}/g, 'Bahrom')
-    .replace(/\{telefon\}/g, '+998 90 123 45 67')
-    .replace(/\{moljal\}/g, 'Korzinka orqasi')
-    .replace(/\{reyting\}/g, '4.8')
-    .replace(/\{belgilar\}/g, 'Uyga boradi · Kafolat')
-    .replace(/\{mahalliy_gaz\}/g, '+998 71 234 56 78')
-    .replace(/\{mahalliy_suv\}/g, '+998 71 987 65 43')
-    .replace(/\{santexnik_royxati\}/g, '1. Alisher (+998 91 111 22 33)');
+  const livePreview = useMemo(() => {
+    if (!currentMessage) return '';
+    return renderLineTemplatePreview(currentTextValue, SAMPLE_VALUES);
+  }, [currentTextValue, currentMessage]);
+
+  const handleSave = async () => {
+    if (!currentMessage) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/bot-messages/${currentMessage.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({
+          textLatin: currentMessage.textLatin,
+          textCyrillic: currentMessage.textCyrillic,
+          textRussian: currentMessage.textRussian,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToastMsg('✅ Saqlandi — bot endi shu matnni ishlatadi');
+      } else {
+        setSaveError(data.message || "Saqlashda xatolik yuz berdi");
+      }
+    } catch {
+      setSaveError('Aloqa xatosi.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const CATEGORIES: Category[] = ['REPLY', 'EMERGENCY', 'OTHER'];
 
   return (
-    <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 font-sans flex flex-col relative pb-12">
-      {/* Toast Notification */}
+    <div className="animate-fade-in -mx-4 -mt-2 pb-16" style={{ fontFamily: IOS_FONT }}>
       {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-full shadow-2xl border border-slate-700">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1C1C1E] text-white font-medium text-[13px] px-4 py-2.5 rounded-full shadow-2xl">
           {toast}
         </div>
       )}
 
-      {/* HEADER */}
-      <header className="sticky top-0 z-30 bg-surface/95 dark:bg-[#17212B]/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1.5 rounded-xl hover:bg-surface-container-low dark:hover:bg-slate-800 text-on-surface-variant dark:text-slate-300 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
-          </button>
-          <div>
-            <h1 className="font-bold text-base text-on-surface dark:text-slate-100 flex items-center gap-2">
-              Bot Matnlari & Shablonlar
-              <span className="bg-purple-500/20 text-purple-400 text-[10px] font-black px-2 py-0.5 rounded-full">
-                Super-Admin
-              </span>
-            </h1>
-            <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
-              Bot beradigan barcha xabarlar tahrirchisi
-            </p>
-          </div>
-        </div>
-
+      {/* Nav bar */}
+      <div className="px-4 pt-1 pb-2 flex items-center justify-between">
         <button
-          onClick={() => showToastMsg('✅ Barcha matnlar saqlandi!')}
-          className="bg-primary text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-md"
+          onClick={onBack}
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal -ml-1.5 active:opacity-40"
         >
-          Saqlash
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          Orqaga
         </button>
-      </header>
-
-      {/* CATEGORY TABS (JAVOBLAR / FAVQULODDA / BOSHQA) */}
-      <div className="px-4 py-2.5 bg-surface dark:bg-[#17212B] border-b border-outline-variant/30 dark:border-slate-800 flex items-center gap-2">
-        {[
-          { id: 'reply', label: 'Javoblar' },
-          { id: 'emergency', label: '🚨 Favqulodda (1-2 Daraja)' },
-          { id: 'other', label: 'Boshqa Xabarlar' },
-        ].map(cat => (
-          <button
-            key={cat.id}
-            onClick={() => {
-              setActiveCategory(cat.id as any);
-              const firstInCat = templates.find(t => t.category === cat.id);
-              if (firstInCat) setSelectedTemplateId(firstInCat.id);
-            }}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border ${
-              activeCategory === cat.id
-                ? cat.id === 'emergency'
-                  ? 'bg-red-500/20 text-red-400 border-red-500/50 shadow-md'
-                  : 'bg-primary text-white border-primary shadow-md'
-                : 'bg-surface-container-low dark:bg-slate-800 text-slate-400 border-slate-700'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
+        <button
+          onClick={handleSave}
+          disabled={saving || !currentMessage}
+          className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 disabled:opacity-40"
+        >
+          {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+        </button>
       </div>
 
-      <main className="p-4 space-y-4 animate-fadeIn">
-        {/* TEMPLATE LIST SELECTOR */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-          {templates
-            .filter(t => t.category === activeCategory)
-            .map(t => (
+      <div className="px-4 pb-3">
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
+          Bot Matnlari
+        </h1>
+        <p className="text-[13px] text-[#8E8E93] leading-snug mt-0.5">
+          Bu yerda tahrirlangan matn botning haqiqiy javobida ishlatiladi (o'zgarish ~1 daqiqada kuchga kiradi).
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="px-4 space-y-3">
+          <div className="h-10 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] animate-pulse" />
+          <div className="h-40 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] animate-pulse" />
+        </div>
+      ) : (
+        <div className="px-4 space-y-3">
+          {/* Category segmented control */}
+          <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
+            {CATEGORIES.map((c) => (
               <button
-                key={t.id}
-                onClick={() => setSelectedTemplateId(t.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
-                  selectedTemplateId === t.id
-                    ? 'bg-sky-500/20 text-sky-400 border-sky-500 font-bold'
-                    : 'bg-surface-container-lowest dark:bg-[#17212B] text-slate-400 border-slate-800'
+                key={c}
+                onClick={() => {
+                  setActiveCategory(c);
+                  const first = messages.find((m) => m.category === c);
+                  if (first) setSelectedKey(first.key);
+                }}
+                className={`flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-colors ${
+                  activeCategory === c
+                    ? 'bg-white dark:bg-[#3A3A3C] text-on-surface dark:text-white shadow-sm'
+                    : 'text-[#8E8E93]'
                 }`}
               >
-                {t.title}
+                {CATEGORY_LABEL[c]}
               </button>
             ))}
-        </div>
+          </div>
 
-        {/* LANGUAGE SELECTOR TABS */}
-        <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-1.5 border border-outline-variant/30 dark:border-slate-800 flex">
-          {[
-            { id: 'latin', label: 'O\'zbek (Lotin)' },
-            { id: 'cyrillic', label: 'Ўзбекcha (Kirill)' },
-            { id: 'russian', label: 'Русский' },
-          ].map(lang => (
-            <button
-              key={lang.id}
-              onClick={() => setActiveLang(lang.id as any)}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                activeLang === lang.id
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div>
-
-        {/* TOKEN CHIPS INSERTION */}
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-            Dinamik Tokenlar (Bosib joylashtiring):
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {['{kasb}', '{ism}', '{telefon}', '{moljal}', '{reyting}', '{belgilar}', '{mahalliy_gaz}', '{mahalliy_suv}'].map(tok => (
+          {/* Template picker within category */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            {inCategory.map((m) => (
               <button
-                key={tok}
-                onClick={() => insertToken(tok)}
-                className="bg-purple-500/15 text-purple-300 hover:bg-purple-500/30 text-xs font-mono px-2.5 py-1 rounded-lg border border-purple-500/30 transition-colors"
+                key={m.key}
+                onClick={() => setSelectedKey(m.key)}
+                className={`px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
+                  selectedKey === m.key
+                    ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
+                    : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
+                }`}
               >
-                + {tok}
+                {m.title}
               </button>
             ))}
           </div>
-        </div>
 
-        {/* TEXTAREA EDITOR */}
-        <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-2">
-          <label className="block text-xs font-bold text-slate-300">
-            Shablon Matni ({currentTemplate.title})
-          </label>
-          <textarea
-            rows={7}
-            value={currentTextValue}
-            onChange={e => handleUpdateText(e.target.value)}
-            className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-xl p-3.5 text-xs text-slate-100 font-mono outline-none focus:border-primary resize-none leading-relaxed"
-          />
-        </div>
+          {currentMessage && (
+            <>
+              {activeCategory === 'REPLY' && (
+                <div className="flex items-start gap-2 bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 rounded-[10px] px-3 py-2.5">
+                  <span className="material-symbols-outlined text-[16px] text-[#007AFF] dark:text-[#0A84FF] mt-0.5">info</span>
+                  <p className="text-[12px] text-on-surface dark:text-white leading-snug">
+                    "Yana ko'rish" tugmasi va tartib-belgilar (🥈🥉) shablon matni EMAS — bot ularni avtomatik qo'shadi, bu yerda tahrirlanmaydi.
+                  </p>
+                </div>
+              )}
 
-        {/* LIVE TELEGRAM PREVIEW BUBBLE */}
-        <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-2">
-          <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[16px]">visibility</span>
-            Jonli Telegram Natija Ko'rinishi
-          </span>
+              {/* Language segmented control */}
+              <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
+                {([
+                  { id: 'lotin', label: "O'zbek (Lotin)" },
+                  { id: 'kirill', label: 'Ўзбекча (Кирилл)' },
+                  { id: 'rus', label: 'Русский' },
+                ] as { id: Lang; label: string }[]).map((lang) => (
+                  <button
+                    key={lang.id}
+                    onClick={() => setActiveLang(lang.id)}
+                    className={`flex-1 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
+                      activeLang === lang.id
+                        ? 'bg-white dark:bg-[#3A3A3C] text-on-surface dark:text-white shadow-sm'
+                        : 'text-[#8E8E93]'
+                    }`}
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
 
-          <div className="bg-[#182533] rounded-2xl p-4 text-xs font-sans text-slate-100 shadow-md border border-slate-800/80 whitespace-pre-wrap leading-relaxed">
-            {livePreview}
-          </div>
+              {/* Dynamic tokens */}
+              {currentMessage.tokens.length > 0 && (
+                <div>
+                  <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide block mb-1.5">
+                    Dinamik tokenlar (bosib joylashtiring)
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentMessage.tokens.map((tok) => (
+                      <button
+                        key={tok}
+                        onClick={() => insertToken(tok)}
+                        className="bg-[#AF52DE]/12 text-[#AF52DE] text-[12px] font-mono px-2.5 py-1 rounded-[8px] active:opacity-60"
+                      >
+                        + {`{${tok}}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Formatting toolbar */}
+              <div>
+                <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide block mb-1.5">
+                  Telegram formatlash
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {FORMAT_BUTTONS.map((f) => (
+                    <button
+                      key={f.label}
+                      title={f.label}
+                      onClick={() => wrapSelection(f.open, f.close)}
+                      className="w-9 h-9 rounded-[8px] bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center active:opacity-60"
+                    >
+                      <span className="material-symbols-outlined text-[18px] text-on-surface dark:text-white">{f.icon}</span>
+                    </button>
+                  ))}
+                  <button
+                    title="Havola"
+                    onClick={() => {
+                      const url = window.prompt('Havola manzili (URL):', 'https://');
+                      if (url) wrapSelection(`<a href="${url}">`, '</a>');
+                    }}
+                    className="w-9 h-9 rounded-[8px] bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center active:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-on-surface dark:text-white">link</span>
+                  </button>
+                  <button
+                    title="Premium emoji"
+                    onClick={() => setShowEmojiHelp((v) => !v)}
+                    className={`w-9 h-9 rounded-[8px] flex items-center justify-center active:opacity-60 ${
+                      showEmojiHelp ? 'bg-[#FF9500] text-white' : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">mood</span>
+                  </button>
+                </div>
+              </div>
+
+              {showEmojiHelp && (
+                <div className="bg-[#FF9500]/10 rounded-[10px] p-3 space-y-2">
+                  <p className="text-[12px] text-on-surface dark:text-white leading-snug">
+                    Premium (maxsus) emoji qo'shish uchun uning ID raqami kerak — Telegram Desktop'da shu
+                    emojini uzoq bosib "Copy as Emoji ID" (yoki shunga o'xshash) orqali oling, yoki
+                    o'sha emoji bor xabarni JSON eksport orqali tekshiring. "Zaxira belgi" — bu emoji
+                    ko'rinmaydigan eski Telegram versiyalarida o'rniga chiqadigan oddiy emoji.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={emojiId}
+                      onChange={(e) => setEmojiId(e.target.value)}
+                      placeholder="Emoji ID"
+                      className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-[8px] px-2.5 py-2 text-[12px] outline-none"
+                    />
+                    <input
+                      value={emojiFallback}
+                      onChange={(e) => setEmojiFallback(e.target.value)}
+                      placeholder="⭐"
+                      className="w-16 bg-white dark:bg-[#1C1C1E] rounded-[8px] px-2.5 py-2 text-[12px] outline-none text-center"
+                    />
+                    <button
+                      onClick={insertCustomEmoji}
+                      className="bg-[#FF9500] text-white text-[12px] font-semibold px-3 rounded-[8px]"
+                    >
+                      Qo'shish
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Textarea */}
+              <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm p-3.5 space-y-2">
+                <label className="block text-[12px] font-semibold text-on-surface dark:text-white">
+                  Shablon matni ({currentMessage.title})
+                </label>
+                <textarea
+                  ref={textareaRef}
+                  rows={9}
+                  value={currentTextValue}
+                  onChange={(e) => handleUpdateText(e.target.value)}
+                  className="w-full bg-[#767680]/[0.06] dark:bg-[#1C2733] rounded-[8px] p-3 text-[12px] text-on-surface dark:text-white font-mono outline-none resize-none leading-relaxed"
+                />
+              </div>
+
+              {saveError && (
+                <div className="bg-[#FF3B30]/10 rounded-[10px] p-3">
+                  <p className="text-[12px] text-[#FF3B30] font-medium">{saveError}</p>
+                </div>
+              )}
+
+              {/* Live preview */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                  Jonli Telegram ko'rinishi (namuna qiymatlar bilan)
+                </span>
+                <div className="bg-[#182533] rounded-[14px] p-4 text-[12px] font-sans text-slate-100 shadow-md whitespace-pre-wrap leading-relaxed">
+                  {livePreview}
+                </div>
+              </div>
+            </>
+          )}
         </div>
-      </main>
+      )}
     </div>
   );
 };

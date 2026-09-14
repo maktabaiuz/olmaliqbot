@@ -30,7 +30,7 @@ export async function testBotFlows() {
 
     // Check emergency
     if (q.text.includes('gaz hidi')) {
-      const emergencyReply = renderEmergencyTemplate('gaz_hidi', 'lotin', { mahalliy_gaz: '104' });
+      const emergencyReply = await renderEmergencyTemplate('gaz_hidi', 'lotin', { mahalliy_gaz: '104' });
       console.log(`  🤖 BOT JAVOBI (Favqulodda xabar):\n"${emergencyReply?.slice(0, 150)}..."`);
       continue;
     }

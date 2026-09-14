@@ -2,6 +2,7 @@ import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
 import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
+import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
 // matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
@@ -187,13 +188,40 @@ export interface FormattedListingResult {
 const MAX_RANKED_RESULTS = 7;
 const RANK_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣'];
 
+// "Bot Matnlari & Shablonlar" (admin panel) shu shablonni tahrirlaydi —
+// bazada topilmasa yoki bo'sh bo'lsa shu ASL matn ishlatiladi (2026-09:
+// avval bu MATN kod ichida qattiq yozilgan edi, admin panelidan
+// tahrirlash imkoni bo'lsa ham hech qachon haqiqiy javobga ta'sir
+// qilmasdi — endi getBotMessageText orqali bazadan o'qiladi).
+// {kasb_emoji}/{kasb}/{ism}/{tasdiq}/{moljal}/{telefon} — har doim mavjud
+// (majburiy maydonlar), qolganlari bo'sh bo'lsa o'sha QATOR butunlay
+// chiqmaydi (renderLineTemplate). "Yana ko'rish" tugmasi va daraja-emoji
+// (🥈/🥉) BU YERDA emas — ular haqiqiy Telegram tugmasi/pozitsiya belgisi,
+// botning o'zi avtomatik qo'shadi, shablon matni emas.
+export const DEFAULT_REPLY_TEMPLATE =
+  `{kasb_emoji} <b>{kasb}</b>\n\n` +
+  `<blockquote>{ism} {tasdiq}\n` +
+  `📍 {moljal}\n` +
+  `🕐 {ish_vaqti}\n` +
+  `🏷 {belgilar}\n` +
+  `🛠 {xizmatlar}\n` +
+  `💵 {narx}\n` +
+  `📝 {tavsif}\n\n` +
+  `📞 <code>{telefon}</code></blockquote>`;
+
 /**
- * Bitta yozuv uchun to'liq "karta" (native Telegram <blockquote>) matnini
- * quradi. `rank` berilsa (2-7 o'rinlar uchun), karta oldiga raqam-emoji
- * qo'yiladi — "Yana ko'rish" orqali qo'shiladigan har bir yozuv ham 1-o'rin
- * bilan BIR XIL uslubda ko'rinishi uchun (foydalanuvchining aniq so'ragani).
+ * Bitta yozuv uchun to'liq xabar (sarlavha + native Telegram <blockquote>
+ * "karta") matnini bazadagi (admin tahrirlagan) shablon orqali quradi.
+ * `rank` berilsa (2-7 o'rinlar uchun), karta oldiga raqam-emoji qo'yiladi
+ * — bu shablon ICHIDA emas, avtomatik/pozitsion, admin tahrirlamaydi.
  */
-function buildListingCard(item: any, bayesianRating: number, rank: number | null): string {
+async function buildListingCard(
+  item: any,
+  bayesianRating: number,
+  rank: number | null,
+  categoryEmoji: string,
+  categoryDisplayName: string
+): Promise<string> {
   const verifiedIcon = item.verification === 'VERIFIED' ? '✅' : '⚠️';
   const landmarkText = item.primaryLandmark?.name || '';
 
@@ -201,41 +229,42 @@ function buildListingCard(item: any, bayesianRating: number, rank: number | null
     ? item.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
     : '';
 
-  // Yulduzcha (Bayesian reyting) endi ko'rsatilmaydi — foydalanuvchi buni
-  // baholash tizimidan qolgan keraksiz element deb topdi. Reyting hisoblash
-  // va saralash (ranking) mantiqi o'zgarmadi — faqat MATNDA chiqarilmaydi.
-  const cardLines: string[] = [];
-  cardLines.push(`<b>${escapeHtml(item.name)}</b> ${verifiedIcon}`);
-
+  let moljalValue = '';
   if (landmarkText) {
     if (item.primaryLandmark?.latitude && item.primaryLandmark?.longitude) {
       const mapUrl = `https://yandex.uz/maps/?pt=${item.primaryLandmark.longitude},${item.primaryLandmark.latitude}&z=16&l=map`;
-      cardLines.push(`📍 <a href="${mapUrl}">${escapeHtml(landmarkText)}</a>`);
+      moljalValue = `<a href="${mapUrl}">${escapeHtml(landmarkText)}</a>`;
     } else {
-      cardLines.push(`📍 ${escapeHtml(landmarkText)}`);
+      moljalValue = escapeHtml(landmarkText);
     }
   }
 
+  let ishVaqtiValue = '';
   if (item.workFrom && item.workTo) {
     if (item.workFrom === '00:00' && (item.workTo === '24:00' || item.workTo === '23:59')) {
-      cardLines.push(`🕐 24/7 (Tunu-kun)`);
+      ishVaqtiValue = '24/7 (Tunu-kun)';
     } else {
-      cardLines.push(`🕐 ${item.workFrom}–${item.workTo}`);
+      ishVaqtiValue = `${item.workFrom}–${item.workTo}`;
     }
   }
 
-  if (badgesText) cardLines.push(`🏷 ${escapeHtml(badgesText)}`);
-  if (item.specificServices) cardLines.push(`🛠 ${escapeHtml(item.specificServices)}`);
-  if (item.approxPrice) cardLines.push(`💵 ${escapeHtml(item.approxPrice)}`);
-  // Admin panelida "Tavsif / Izoh" maydoniga yozilgan qo'shimcha ma'lumot —
-  // bazaga saqlanardi, lekin bot javobida HECH QACHON ko'rsatilmasdi (bu
-  // funksiya description'ni umuman o'qimasdi). Endi ko'rinadi.
-  if (item.description) cardLines.push(`📝 ${escapeHtml(item.description)}`);
-  cardLines.push('');
-  cardLines.push(`📞 <code>${escapeHtml(item.phone)}</code>`);
+  const template = await getBotMessageText('reply_single_listing', 'lotin', DEFAULT_REPLY_TEMPLATE);
+  const rendered = renderLineTemplate(template, {
+    kasb_emoji: categoryEmoji,
+    kasb: escapeHtml(categoryDisplayName),
+    ism: escapeHtml(item.name),
+    tasdiq: verifiedIcon,
+    moljal: moljalValue,
+    ish_vaqti: ishVaqtiValue,
+    belgilar: badgesText ? escapeHtml(badgesText) : '',
+    xizmatlar: item.specificServices ? escapeHtml(item.specificServices) : '',
+    narx: item.approxPrice ? escapeHtml(item.approxPrice) : '',
+    tavsif: item.description ? escapeHtml(item.description) : '',
+    telefon: escapeHtml(item.phone),
+  });
 
   const rankPrefix = rank ? `${RANK_EMOJI[rank - 1] || `${rank}.`} ` : '';
-  return `${rankPrefix}<blockquote>${cardLines.join('\n')}</blockquote>`;
+  return `${rankPrefix}${rendered}`;
 }
 
 /**
@@ -549,32 +578,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // kategoriya), turi (Usta/Do'kon/Muassasa/Transport) bo'yicha umumiy belgi ishlatiladi.
   const categoryEmoji = bestMatch.category?.emoji || DEFAULT_EMOJI_BY_OBJECT_TYPE[bestMatch.category?.objectType || ''] || '🔧';
 
-  // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — TZ §3.5 namunasiga mos:
-  // ikonka + qiymat, ortiqcha yorliqlarsiz. "Xalq atamalari" faqat qidiruv uchun,
-  // foydalanuvchiga ko'rsatilmaydi.
-  const verifiedIcon = bestMatch.verification === 'VERIFIED' ? '✅' : '⚠️';
-  const landmarkText = bestMatch.primaryLandmark ? bestMatch.primaryLandmark.name : landmarkName || '';
-
-  // Belgilarni chiroyli ko'rinishga keltirish (masalan uyga_boradi -> Uyga boradi)
-  const badgesText = Array.isArray(bestMatch.badges) && bestMatch.badges.length > 0
-    ? bestMatch.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')
-    : '';
-
-  const formattedText =
-    `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
-    buildListingCard(bestMatch, bestBayesianRating, null);
+  // 5. Qisqa, toza guruh javobi (Telegram HTML parse_mode) — matn shablon
+  // bazasidan (admin panelida tahrirlanadigan) olinadi, buildListingCard
+  // ichida quriladi.
+  const formattedText = await buildListingCard(bestMatch, bestBayesianRating, null, categoryEmoji, categoryDisplayName);
 
   // 2-7 o'rinlar — 1-o'rin bilan BIR XIL "karta" uslubi (sarlavha + blockquote)
   // va HAR BIRI o'zining rasmlari (agar bor bo'lsa) bilan. "Yana ko'rish"
   // bosilganda ENDI mavjud xabarga qo'shib qo'yish O'RNIGA, har biri
   // O'ZINING alohida, to'liq postida yuboriladi — matn/rasmlar
   // aralashib ketmasligi uchun (1-o'rin formattedText'da allaqachon bor).
-  const otherMatches: OtherMatch[] = rankedTop.slice(1).map((s, i) => ({
-    formattedText:
-      `${categoryEmoji} <b>${escapeHtml(categoryDisplayName)}</b>\n\n` +
-      buildListingCard(s.listing, s.bayesianRating, i + 2),
-    photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
-  }));
+  const otherMatches: OtherMatch[] = await Promise.all(
+    rankedTop.slice(1).map(async (s, i) => ({
+      formattedText: await buildListingCard(s.listing, s.bayesianRating, i + 2, categoryEmoji, categoryDisplayName),
+      photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
+    }))
+  );
 
   const executionTimeMs = Date.now() - startTime;
 
