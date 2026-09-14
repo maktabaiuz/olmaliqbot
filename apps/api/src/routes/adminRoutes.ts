@@ -976,29 +976,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return clusters.filter((c) => !c.isExistingCategory).slice(0, limit);
   });
 
-  // AI klassifikatorning ISHONCHSIZ (chegaradosh, 0.5-0.75) baholagan
-  // so'rovlari — bot javob bermadi ("silence"), lekin AI o'zi ham "aniq
-  // bilmayman" degan holatlar. Bularni muntazam ko'rib turish AI aynan
-  // qayerda (qaysi mahalliy ibora/dialektda) adashayotganini ko'rsatadi.
-  fastify.get('/admin/requests/uncertain', async (req: any, reply) => {
-    const cityId = await getCityId(req);
-    const limit = Math.min(Number(req.query?.limit) || 30, 100);
-    const logs = await db.queryLog.findMany({
-      where: { cityId, confidence: { gte: 0.5, lte: 0.75 } },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-    return logs.map((l) => ({
-      id: l.id,
-      rawMessage: l.rawMessage,
-      intent: l.intent,
-      categoryName: l.categoryName,
-      landmarkName: l.landmarkName,
-      confidence: l.confidence,
-      createdAt: l.createdAt,
-    }));
-  });
-
   fastify.post('/admin/requests/bind-synonym', async (req: any, reply) => {
     const { categoryId, synonym } = req.body;
 

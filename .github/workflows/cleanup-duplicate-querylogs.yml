@@ -1,0 +1,51 @@
+name: Cleanup duplicate QueryLog rows (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run duplicate cleanup via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            echo "=== Duplicate QueryLog cleanup (pre-fix double-write bug artifacts) ==="
+            docker exec -w /app/apps/api kimbor_api node -e "
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const all = await db.queryLog.findMany({
+                  orderBy: [{ telegramUserId: 'asc' }, { rawMessage: 'asc' }, { createdAt: 'asc' }],
+                  select: { id: true, telegramUserId: true, rawMessage: true, createdAt: true },
+                });
+                console.log('out: total QueryLog rows=' + all.length);
+
+                const toDelete = [];
+                for (let i = 1; i < all.length; i++) {
+                  const prev = all[i-1];
+                  const cur = all[i];
+                  if (cur.telegramUserId === prev.telegramUserId && cur.rawMessage === prev.rawMessage) {
+                    const diffMs = new Date(cur.createdAt).getTime() - new Date(prev.createdAt).getTime();
+                    if (diffMs >= 0 && diffMs <= 5000) {
+                      toDelete.push(cur.id);
+                    }
+                  }
+                }
+                console.log('out: duplicate rows found=' + toDelete.length);
+                console.log('out: sample ids=' + JSON.stringify(toDelete.slice(0,5)));
+
+                if (toDelete.length > 0) {
+                  const result = await db.queryLog.deleteMany({ where: { id: { in: toDelete } } });
+                  console.log('out: deleted=' + result.count);
+                }
+
+                const remaining = await db.queryLog.count();
+                console.log('out: remaining total QueryLog rows=' + remaining);
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
+            "
