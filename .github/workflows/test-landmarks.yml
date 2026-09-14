@@ -16,8 +16,8 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
-            echo "=== locate @kimbor/db module ==="
-            docker exec kimbor_api node -e "console.log(require.resolve('@kimbor/db'))" || true
+            echo "=== inspect kimbor_api container layout ==="
+            docker exec kimbor_api sh -c "cat /app/package.json 2>/dev/null | head -5; echo '---'; find /app -maxdepth 2 -type d; echo '---node_modules?---'; find / -maxdepth 4 -iname '*kimbor*db*' -type d 2>/dev/null; echo '---prisma client?---'; find / -maxdepth 6 -path '*@prisma/client*' -type d 2>/dev/null | head -5"
             echo ""
             echo "=== Landmark CRUD test (real prod DB, test data cleaned up after) ==="
             docker exec -w /app kimbor_api node -e "
