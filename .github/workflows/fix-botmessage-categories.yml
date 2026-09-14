@@ -1,0 +1,79 @@
+name: Fix BotMessage categories + verify real rendering (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run data fix + live render test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            echo "=== 1) Fix categories + seed new rows ==="
+            docker exec -w /app/apps/api kimbor_api node -e "
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const emergencyFix = await db.botMessage.updateMany({
+                  where: { key: { startsWith: 'emergency_' } },
+                  data: { category: 'EMERGENCY' },
+                });
+                console.log('out: emergency rows re-categorized=' + emergencyFix.count);
+
+                const DEFAULT_REPLY_TEMPLATE = '{kasb_emoji} <b>{kasb}</b>\n\n<blockquote>{ism} {tasdiq}\n📍 {moljal}\n🕐 {ish_vaqti}\n🏷 {belgilar}\n🛠 {xizmatlar}\n💵 {narx}\n📝 {tavsif}\n\n📞 <code>{telefon}</code></blockquote>';
+
+                await db.botMessage.upsert({
+                  where: { key: 'reply_single_listing' },
+                  update: {},
+                  create: {
+                    key: 'reply_single_listing', category: 'REPLY',
+                    textLatin: DEFAULT_REPLY_TEMPLATE, textCyrillic: DEFAULT_REPLY_TEMPLATE, textRussian: DEFAULT_REPLY_TEMPLATE,
+                  },
+                });
+                await db.botMessage.upsert({
+                  where: { key: 'other_not_found_private' },
+                  update: {},
+                  create: {
+                    key: 'other_not_found_private', category: 'OTHER',
+                    textLatin: \"Hozircha bazada yo'q. Yozib qo'ydim, chiqsa aytaman.\",
+                    textCyrillic: 'Ҳозирча базада йўқ. Ёзиб қўйдим, чиқса айтаман.',
+                    textRussian: 'Пока нет в базе. Запомнил, сообщу как появится.',
+                  },
+                });
+
+                const byCategory = await db.botMessage.groupBy({ by: ['category'], _count: { category: true } });
+                console.log('out: rows by category=' + JSON.stringify(byCategory.map(c => ({cat: c.category, n: c._count.category}))));
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
+            "
+            echo ""
+            echo "=== 2) Live render test (REAL exported functions, REAL prod data) ==="
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+              const { renderEmergencyTemplate } = require('@kimbor/core');
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const emergencyText = await renderEmergencyTemplate('gas_leak', 'lotin', { mahalliy_gaz: '104' });
+                console.log('out: === EMERGENCY (gas_leak) rendered ===');
+                console.log('out: ' + JSON.stringify(emergencyText).slice(0, 400));
+                console.log('out: contains unrendered {token}=' + /\{[a-z_]+\}/.test(emergencyText || ''));
+
+                const listing = await db.listing.findFirst({
+                  where: { status: 'ACTIVE' },
+                  include: { category: true, primaryLandmark: true },
+                });
+                if (!listing) { console.log('out: NO ACTIVE LISTING FOUND for real search test'); return; }
+                console.log('out: === testing real searchListings() with listing: ' + listing.name + ' ===');
+                const { searchListings } = require('@kimbor/core');
+                const result = await searchListings({ cityId: listing.cityId, categoryName: listing.category.name, rawMessage: listing.category.name });
+                if (!result) { console.log('out: searchListings returned NULL (unexpected)'); return; }
+                console.log('out: formattedText=' + JSON.stringify(result.formattedText));
+                console.log('out: contains unrendered {token}=' + /\{[a-z_]+\}/.test(result.formattedText));
+                console.log('out: contains <blockquote>=' + result.formattedText.includes('<blockquote>'));
+                console.log('out: contains phone=' + result.formattedText.includes(listing.phone));
+              })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
+            "
