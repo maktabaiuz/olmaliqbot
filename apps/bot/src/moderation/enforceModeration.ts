@@ -28,7 +28,7 @@ import { Context } from 'grammy';
 import { db } from '@kimbor/db';
 import { checkEasyModerationFilters, normalizeText, looksLikePossibleGamblingAd, ModerationCategory } from '@kimbor/core';
 import { hasPossibleServiceSignal, reserveGeminiCallSlot } from '../filter/aiClassifier';
-import { checkAndRecordFlood } from './floodTracker';
+import { checkAndRecordFlood, checkAndRecordGroupFlood } from './floodTracker';
 import { checkGamblingWithAI } from './gamblingAiCheck';
 
 const MUTE_DURATION_MS = 60 * 60 * 1000; // 1 soat
@@ -193,12 +193,25 @@ export async function enforceModeration(
   // kerak" deb necha marta yozsa ham — hech qachon jazolanmasligi kerak).
   // Texnik hujum chegarasi ("rate" — 10s/15+ xabar) esa mazmunidan qat'iy
   // nazar HAR DOIM tekshiriladi.
+  let burstMessageIdsToDelete: number[] = [];
   if (!category && enabledFeatures.has('FLOOD')) {
     const normalized = normalizeText(messageText);
     const looksLikeRealRequest = hasPossibleServiceSignal(normalized);
     const flood = await checkAndRecordFlood(chatId, userId, normalized);
     if (flood.isFlood && (flood.reason === 'rate' || !looksLikeRealRequest)) {
       category = 'FLOOD';
+    }
+
+    // 2b) Ko'p-akkauntli hujum (raid) — bir necha TURLI odam qisqa vaqt
+    // ichida bir xil xabar yozsa. Haqiqiy so'rov bo'lsa (masalan bir necha
+    // odam tasodifan bir vaqtda "taksi kerak" desa) — bu yerga umuman
+    // kirilmaydi, adolatsiz jazoning oldi olinadi.
+    if (!category && !looksLikeRealRequest) {
+      const groupFlood = await checkAndRecordGroupFlood(chatId, userId, messageId, normalized);
+      if (groupFlood.isGroupFlood) {
+        category = 'FLOOD';
+        burstMessageIdsToDelete = groupFlood.burstMessageIds.filter((id) => id !== messageId);
+      }
     }
   }
 
@@ -209,6 +222,12 @@ export async function enforceModeration(
     await ctx.api.deleteMessage(chatId, messageId);
   } catch (err) {
     console.error(`Moderatsiya: xabarni o'chirib bo'lmadi (${category}):`, err);
+  }
+
+  // Ko'p-akkauntli hujum aniqlansa — shu "portlash"dagi BOSHQA xabarlarni
+  // ham (turli foydalanuvchilardan) tozalaymiz, faqat oxirgisini emas.
+  for (const extraMessageId of burstMessageIdsToDelete) {
+    ctx.api.deleteMessage(chatId, extraMessageId).catch(() => {});
   }
 
   // SPAM_LINK — endi HAR QANDAY (hatto zararsiz) havolani ham tutadi,
