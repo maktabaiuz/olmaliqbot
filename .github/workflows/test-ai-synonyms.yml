@@ -24,7 +24,6 @@ jobs:
                 if (!landmark) throw new Error('No landmark found');
                 console.log('out: using landmark: ' + landmark.name + ' (existing synonyms: ' + landmark.synonyms.join(', ') + ')');
 
-                const fetch = require('undici').fetch || global.fetch;
                 const geminiKey = process.env.GEMINI_API_KEY;
                 if (!geminiKey) throw new Error('No GEMINI_API_KEY in container env');
 
