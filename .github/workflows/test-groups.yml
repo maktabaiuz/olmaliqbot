@@ -1,0 +1,53 @@
+name: Test groups monitoring (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run group health/stats test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            echo "=== 1) GET /api/admin/groups (list, live health+memberCount) ==="
+            curl -s https://olmaliq.online/api/admin/groups | head -c 3000
+            echo ""
+            echo ""
+            echo "=== 2) GET /admin/groups/:id (detail, needs superadmin auth so hit DB/logic directly instead) ==="
+            docker exec -w /app/apps/api kimbor_api node -e "
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const group = await db.cityGroup.findFirst({ orderBy: { createdAt: 'desc' } });
+                if (!group) throw new Error('No group found');
+                console.log('out: testing group: ' + group.title + ' chatId=' + group.chatId);
+
+                const botToken = process.env.BOT_TOKEN;
+                const botId = botToken.split(':')[0];
+                const base = 'https://api.telegram.org/bot' + botToken;
+
+                const memberRes = await fetch(base + '/getChatMember?chat_id=' + group.chatId + '&user_id=' + botId).then(r => r.json());
+                console.log('out: getChatMember ok=' + memberRes.ok + ' status=' + (memberRes.result && memberRes.result.status));
+                if (memberRes.result) {
+                  console.log('out: can_delete_messages=' + memberRes.result.can_delete_messages + ' can_restrict_members=' + memberRes.result.can_restrict_members);
+                }
+
+                const countRes = await fetch(base + '/getChatMemberCount?chat_id=' + group.chatId).then(r => r.json());
+                console.log('out: getChatMemberCount ok=' + countRes.ok + ' count=' + countRes.result);
+
+                const toggles = await db.groupFeatureToggle.findMany({ where: { cityGroupId: group.id, isEnabled: true } });
+                console.log('out: enabled features=' + JSON.stringify(toggles.map(t => t.featureKey)));
+
+                const totalQueries = await db.queryLog.count({ where: { chatId: group.chatId } });
+                console.log('out: total QueryLog rows with this chatId (should be 0, feature just deployed)=' + totalQueries);
+
+                const modCount = await db.moderationLog.count({ where: { chatId: group.chatId } });
+                console.log('out: moderationLog rows for this chatId=' + modCount);
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
+            "
