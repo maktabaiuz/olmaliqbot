@@ -308,6 +308,21 @@ async function runPrivateSearch(
     photoUrls: searchResult.listing.photoUrls,
     keyboard: resultKeyboard,
   });
+
+  // Muvaffaqiyatli topildi — ilgari bu holat umuman qayd etilmasdi
+  // (2026-09 tuzatildi, xuddi groupHandler.ts'dagi kabi).
+  db.queryLog.create({
+    data: {
+      cityId: opts.cityId,
+      telegramUserId: opts.telegramUserId,
+      rawMessage: opts.rawMessage,
+      intent: opts.intent || IntentType.SERVICE,
+      categoryName: opts.categoryName,
+      landmarkName: opts.landmarkName,
+      isResolved: true,
+      confidence: opts.confidence,
+    },
+  }).catch((err) => console.error('Failed to log resolved QueryLog:', err));
 }
 
 export async function handleDirectCallbacks(ctx: Context, defaultCityId: string) {

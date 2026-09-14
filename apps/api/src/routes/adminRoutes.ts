@@ -1267,6 +1267,78 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // "GURUHLAR" — monitoring va salomatlik (2026-09). Har bir moderatsiya
+  // filtri (so'kinish/spam-link/qimor/firibgarlik/flud) xabarni O'CHIRISHNI
+  // talab qiladi, SPAM_LINK'dan tashqari qolgan 4 tasi qo'shimcha JIM
+  // QILISHNI ham talab qiladi (enforceModeration.ts bilan bir xil qoida) —
+  // shu ikki huquqdan qay biri yetishmasligi filtrni SUKUT ravishda
+  // ishlamay qo'yadi (xatosiz, ogohlantirishsiz). Shu sababli "salomatlik"
+  // belgisi FAQAT shu guruhda kamida bitta filtr YOQILGAN bo'lsagina
+  // tekshiriladi — aks holda huquq yo'qligi hech qanday amaliy ta'sirga
+  // ega emas. HECH QACHON guruhning o'ziga hech narsa yuborilmaydi — bu
+  // faqat admin panelida ko'rinadigan, kuzatuv uchun ma'lumot.
+  // ──────────────────────────────────────────────────────────────────────────
+  const MODERATION_FEATURES_NEEDING_RESTRICT = new Set(['PROFANITY', 'GAMBLING', 'SCAM', 'FLOOD']);
+
+  interface GroupHealth {
+    memberCount: number | null;
+    botStatus: string | null;
+    canDelete: boolean;
+    canRestrict: boolean;
+    hasIssue: boolean;
+    message: string;
+  }
+
+  async function fetchGroupHealth(
+    chatId: bigint,
+    botToken: string,
+    enabledFeatureKeys: string[]
+  ): Promise<GroupHealth> {
+    const botId = botToken.split(':')[0];
+    const base = `https://api.telegram.org/bot${botToken}`;
+
+    const [memberRes, countRes] = await Promise.allSettled([
+      fetch(`${base}/getChatMember?chat_id=${chatId}&user_id=${botId}`).then((r) => r.json()),
+      fetch(`${base}/getChatMemberCount?chat_id=${chatId}`).then((r) => r.json()),
+    ]);
+
+    const memberData = memberRes.status === 'fulfilled' && memberRes.value?.ok ? memberRes.value.result : null;
+    const memberCount = countRes.status === 'fulfilled' && countRes.value?.ok ? countRes.value.result : null;
+
+    const botStatus: string | null = memberData?.status || null;
+    const isAdmin = botStatus === 'administrator' || botStatus === 'creator';
+    const canDelete = isAdmin ? !!memberData?.can_delete_messages : false;
+    const canRestrict = isAdmin ? !!memberData?.can_restrict_members : false;
+
+    const needsDelete = enabledFeatureKeys.length > 0;
+    const needsRestrict = enabledFeatureKeys.some((k) => MODERATION_FEATURES_NEEDING_RESTRICT.has(k));
+
+    let hasIssue = false;
+    let message = 'Moderatsiya botlari yoqilmagan';
+
+    if (needsDelete) {
+      if (!isAdmin) {
+        hasIssue = true;
+        message = "Bot admin emas — yoqilgan moderatsiya botlari ishlamaydi";
+      } else {
+        const missing: string[] = [];
+        if (!canDelete) missing.push("xabar o'chirish");
+        if (needsRestrict && !canRestrict) missing.push('jim qilish');
+        if (missing.length > 0) {
+          hasIssue = true;
+          message = `${missing.join(' va ')} huquqi yo'q`;
+        } else {
+          message = 'Hammasi tayyor';
+        }
+      }
+    } else if (isAdmin) {
+      message = 'Admin (moderatsiya botlari yoqilmagan)';
+    }
+
+    return { memberCount, botStatus, canDelete, canRestrict, hasIssue, message };
+  }
+
   // Bot qaysi guruh/kanallarda ishlayotganini ko'rsatadi — botni yangi
   // guruhga admin qilib qo'shsangiz, qo'shimcha sozlashsiz shu yerda
   // avtomatik ko'rinadi (Telegram bot.on('my_chat_member') orqali yoziladi).
@@ -1274,12 +1346,124 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const groups = await db.cityGroup.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return groups.map((g) => ({
-      id: g.id,
-      chatId: g.chatId.toString(),
-      title: g.title || 'Nomsiz guruh',
-      createdAt: g.createdAt,
-    }));
+
+    const toggles = await db.groupFeatureToggle.findMany({ where: { isEnabled: true } });
+    const featureKeysByGroupId = new Map<string, string[]>();
+    for (const t of toggles) {
+      const arr = featureKeysByGroupId.get(t.cityGroupId) || [];
+      arr.push(t.featureKey);
+      featureKeysByGroupId.set(t.cityGroupId, arr);
+    }
+
+    const botToken = process.env.BOT_TOKEN;
+
+    const results = await Promise.all(
+      groups.map(async (g) => {
+        const enabledFeatureKeys = featureKeysByGroupId.get(g.id) || [];
+        const health = botToken
+          ? await fetchGroupHealth(g.chatId, botToken, enabledFeatureKeys).catch(() => null)
+          : null;
+        return {
+          id: g.id,
+          chatId: g.chatId.toString(),
+          title: g.title || 'Nomsiz guruh',
+          createdAt: g.createdAt,
+          memberCount: health?.memberCount ?? null,
+          hasIssue: health?.hasIssue ?? false,
+        };
+      })
+    );
+
+    return results;
+  });
+
+  // Bitta guruh uchun to'liq monitoring: salomatlik, a'zolar soni, so'rov/
+  // javob statistikasi, javobsiz qolgan mavzular, faollik vaqti, moderatsiya
+  // statistikasi. `days` — 7 (standart) yoki 30.
+  fastify.get('/admin/groups/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    const { days } = req.query as { days?: string };
+    const periodDays = days === '30' ? 30 : 7;
+    const periodStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+    const group = await db.cityGroup.findUnique({ where: { id } });
+    if (!group) return reply.status(404).send({ success: false, message: 'Guruh topilmadi' });
+
+    const toggles = await db.groupFeatureToggle.findMany({ where: { cityGroupId: id, isEnabled: true } });
+    const enabledFeatureKeys = toggles.map((t) => t.featureKey);
+
+    const botToken = process.env.BOT_TOKEN;
+    const health: GroupHealth = botToken
+      ? await fetchGroupHealth(group.chatId, botToken, enabledFeatureKeys).catch(
+          () => ({ memberCount: null, botStatus: null, canDelete: false, canRestrict: false, hasIssue: false, message: "Telegram'dan ma'lumot olib bo'lmadi" })
+        )
+      : { memberCount: null, botStatus: null, canDelete: false, canRestrict: false, hasIssue: false, message: 'BOT_TOKEN sozlanmagan' };
+
+    const [totalQueries, resolvedQueries, unresolvedTopics, moderationCounts, recentQueryTimes] = await Promise.all([
+      db.queryLog.count({
+        where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
+      }),
+      db.queryLog.count({
+        where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' }, isResolved: true },
+      }),
+      db.queryLog.groupBy({
+        by: ['categoryName'],
+        where: { chatId: group.chatId, createdAt: { gte: periodStart }, isResolved: false, categoryName: { not: null } },
+        _count: { categoryName: true },
+        orderBy: { _count: { categoryName: 'desc' } },
+        take: 5,
+      }),
+      db.moderationLog.groupBy({
+        by: ['category'],
+        where: { chatId: group.chatId, createdAt: { gte: periodStart } },
+        _count: { category: true },
+      }),
+      db.queryLog.findMany({
+        where: { chatId: group.chatId, createdAt: { gte: periodStart } },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    // Server UTC'da ishlaydi (konteynerlarda TZ sozlanmagan) — Olmaliq
+    // (Toshkent, UTC+5, DST yo'q) mahalliy soatiga to'g'ri o'girish uchun
+    // Intl orqali hisoblanadi (server TZ sozlamasidan mustaqil, ishonchli).
+    const hourFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tashkent' });
+    const activityByHour = new Array(24).fill(0);
+    for (const row of recentQueryTimes) {
+      const hour = parseInt(hourFormatter.format(row.createdAt), 10) % 24;
+      activityByHour[hour]++;
+    }
+
+    const moderationTotal = moderationCounts.reduce((sum, m) => sum + m._count.category, 0);
+
+    return {
+      id: group.id,
+      chatId: group.chatId.toString(),
+      title: group.title || 'Nomsiz guruh',
+      createdAt: group.createdAt,
+      memberCount: health.memberCount,
+      health: {
+        botStatus: health.botStatus,
+        canDelete: health.canDelete,
+        canRestrict: health.canRestrict,
+        hasIssue: health.hasIssue,
+        message: health.message,
+      },
+      enabledFeatureKeys,
+      periodDays,
+      queryStats: {
+        total: totalQueries,
+        resolved: resolvedQueries,
+        resolvedPercent: totalQueries > 0 ? Math.round((resolvedQueries / totalQueries) * 100) : null,
+      },
+      unresolvedTopics: unresolvedTopics.map((t) => ({ categoryName: t.categoryName, count: t._count.categoryName })),
+      activityByHour,
+      moderationStats: {
+        total: moderationTotal,
+        byCategory: moderationCounts.map((m) => ({ category: m.category, count: m._count.category })),
+      },
+    };
   });
 
   // ──────────────────────────────────────────────────────────────────────────

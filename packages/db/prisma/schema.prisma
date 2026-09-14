@@ -461,6 +461,12 @@ model QueryLog {
   id                String      @id @default(uuid())
   cityId            String
   city              City        @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  // Guruhdan kelgan so'rov bo'lsa shu guruhning chatId'si (2026-09,
+  // "Guruhlar" bo'limidagi so'rov/javob statistikasi uchun qo'shildi) —
+  // shaxsiy (DM) so'rovlarda har doim null qoladi. FAQAT shu maydon
+  // qo'shilgandan KEYINGI yozuvlarda to'ldiriladi, eski tarixiy
+  // yozuvlarda null (orqaga tiklab bo'lmaydi).
+  chatId            BigInt?
   telegramUserId    BigInt
   rawMessage        String
   intent            IntentType  @default(SERVICE)
@@ -474,6 +480,7 @@ model QueryLog {
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])
+  @@index([chatId, createdAt])
   @@map("query_logs")
 }
 

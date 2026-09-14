@@ -1,6 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
 import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory } from '@kimbor/core';
-import { db } from '@kimbor/db';
 import crypto from 'crypto';
 
 // Simple in-memory fallback cache if Redis is not connected
@@ -111,23 +110,18 @@ export async function classifyQuery(
   // 3. 10 daqiqaga keshga saqlash (600,000 ms)
   memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-  // 4. Har bir tahlil qilingan so'rovni QueryLog jadvaliga yozish
-  // Javobni sekinlashtirmasligi uchun kutilmaydi (fire-and-forget)
-  if (cityId) {
-    db.queryLog.create({
-      data: {
-        cityId,
-        telegramUserId: telegramUserId || BigInt(0),
-        rawMessage: cleanText,
-        intent: result.intent,
-        categoryName: result.category,
-        landmarkName: result.landmark,
-        isResolved: false,
-        confidence: result.confidence,
-      },
-    }).catch((err) => console.error('Failed to log QueryLog to DB:', err));
-  }
-
+  // MUHIM (2026-09 topilgan xato, tuzatildi): bu yerda ILGARI har bir
+  // klassifikatsiya uchun QueryLog'ga darhol "isResolved: false" qilib
+  // yozib qo'yilardi — CHAQIRUVCHI (groupHandler/directHandler) keyinchalik
+  // qidiruv MUVAFFAQIYATLI topilganda ham buni hech qachon true qilib
+  // yangilamas edi. Natijada bot darhol to'g'ri javob topib yuborgan
+  // so'rovlar ham doim "javobsiz" bo'lib qolib ketardi (Bosh sahifadagi
+  // "javobsiz so'rovlar" soni haqiqatdan ancha OSHIRIB ko'rsatilardi), VA
+  // chaqiruvchilar o'zlari HAM alohida yozuv qo'shganda (topilmagan/
+  // o'zi-taklif holatlarida) bitta xabar uchun IKKITA QueryLog qatori
+  // paydo bo'lardi. Endi yozuv FAQAT chaqiruvchida (groupHandler.ts,
+  // directHandler.ts) — natijaning HAQIQIY holatini (topildi/topilmadi)
+  // bilgan joyda — bir marta amalga oshiriladi.
   return result;
 }
 

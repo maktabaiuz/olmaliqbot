@@ -13,6 +13,9 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   if (!messageText) return;
 
   const telegramUserId = ctx.from?.id ? BigInt(ctx.from.id) : BigInt(0);
+  // "Guruhlar" bo'limidagi so'rov/javob statistikasi uchun (2026-09) —
+  // shu guruhning chatId'si har bir QueryLog yozuviga qo'shiladi.
+  const chatId = ctx.chat?.id ? BigInt(ctx.chat.id) : null;
 
   // 0. Xavfsizlik-moderatsiya ("Foydali botlar", 2026-09) — har bir filtr
   // GURUH DARAJASIDA admin panelida yoqiladi/o'chiriladi (standart holat:
@@ -35,6 +38,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     db.queryLog.create({
       data: {
         cityId,
+        chatId,
         telegramUserId,
         rawMessage: messageText,
         intent: 'NOT_RELEVANT',
@@ -105,6 +109,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     db.queryLog.create({
       data: {
         cityId,
+        chatId,
         telegramUserId,
         rawMessage: messageText,
         intent: classification.intent,
@@ -135,4 +140,21 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     replyToMessageId: ctx.message.message_id,
     autoDeleteChatId: ctx.chat?.id,
   });
+
+  // Muvaffaqiyatli topildi — "Guruhlar" bo'limidagi "so'rov/javob"
+  // statistikasi shu yozuvga tayanadi (2026-09, ilgari BU HOLAT umuman
+  // qayd etilmasdi, shu sabab statistika har doim noto'g'ri chiqardi).
+  db.queryLog.create({
+    data: {
+      cityId,
+      chatId,
+      telegramUserId,
+      rawMessage: messageText,
+      intent: classification.intent,
+      categoryName: classification.category,
+      landmarkName: classification.landmark,
+      isResolved: true,
+      confidence: classification.confidence,
+    },
+  }).catch((err) => console.error('Failed to log resolved QueryLog:', err));
 }

@@ -24,6 +24,7 @@ import { EmergencyNumbersScreen } from './screens/EmergencyNumbersScreen';
 import { GlobalDictionaryScreen } from './screens/GlobalDictionaryScreen';
 import { CategoryDetailScreen } from './screens/CategoryDetailScreen';
 import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
+import { GroupDetailScreen } from './screens/GroupDetailScreen';
 import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { BroadcastScreen } from './screens/BroadcastScreen';
@@ -50,13 +51,15 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'subscription_billing' | 'settings_lang_theme'
+    'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'subscription_billing' | 'settings_lang_theme'
   >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'uncertain' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
   const [activeLandmarkName, setActiveLandmarkName] = useState<string>('');
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [activeGroupTitle, setActiveGroupTitle] = useState<string>('');
 
   // Direct Chat states
   const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
@@ -266,6 +269,14 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
           <LandmarkDetailScreen
             landmarkId={activeLandmarkId}
             landmarkName={activeLandmarkName}
+            onBack={() => setViewMode('normal')}
+          />
+        )}
+
+        {viewMode === 'group_detail' && activeGroupId && (
+          <GroupDetailScreen
+            groupId={activeGroupId}
+            groupTitle={activeGroupTitle}
             onBack={() => setViewMode('normal')}
           />
         )}
@@ -563,7 +574,14 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
                     {/* SUBVIEW: Connected Groups List */}
                     {moreSubView === 'groups' && (
-                      <MoreGroupsSubView onBack={() => setMoreSubView('menu')} />
+                      <MoreGroupsSubView
+                        onBack={() => setMoreSubView('menu')}
+                        onSelectGroup={(id, title) => {
+                          setActiveGroupId(id);
+                          setActiveGroupTitle(title);
+                          setViewMode('group_detail');
+                        }}
+                      />
                     )}
                     {moreSubView === 'community_link' && (
                       <CommunityLinkSubView onBack={() => setMoreSubView('menu')} />
@@ -1126,9 +1144,14 @@ const MoreLandmarksSubView: React.FC<{
   );
 };
 
-const MoreGroupsSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+const MoreGroupsSubView: React.FC<{
+  onBack: () => void;
+  onSelectGroup: (id: string, title: string) => void;
+}> = ({ onBack, onSelectGroup }) => {
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/groups')
@@ -1137,45 +1160,101 @@ const MoreGroupsSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       .finally(() => setLoading(false));
   }, []);
 
+  const filtered = groups.filter(g => (g.title || '').toLowerCase().includes(search.toLowerCase()));
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+    <div className="animate-fade-in -mx-4 -mt-2" style={{ fontFamily: IOS_FONT }}>
+      <div className="px-4 pt-1 pb-3">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal mb-1 -ml-1.5 active:opacity-40"
+        >
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          Orqaga
         </button>
-        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Guruhlar</h3>
+        <div className="flex items-end justify-between">
+          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
+            Guruhlar
+          </h1>
+          <span className="text-[13px] text-[#8E8E93] font-normal mb-1">{groups.length} ta</span>
+        </div>
       </div>
-      <p className="text-[11px] text-slate-500 leading-relaxed">
-        Botni yangi guruh yoki kanalga qo'shish uchun — Telegram'da botni qidirib
-        (@ nomi bilan), o'sha guruhga a'zo sifatida qo'shing va <b>admin</b> qiling
-        (xabarlarni o'qishi uchun shart). Qo'shimcha sozlash shart emas — admin
-        qilib qo'yilgan zahoti bot avtomatik ishlay boshlaydi va shu yerda paydo bo'ladi.
-      </p>
-      {loading ? (
-        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-4 space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          ))}
+
+      <div className="px-4 space-y-3">
+        <div className="relative">
+          <span
+            className={`material-symbols-outlined absolute top-1/2 -translate-y-1/2 text-[17px] text-[#8E8E93] pointer-events-none transition-all ${
+              searchFocused || search ? 'left-2.5' : 'left-1/2 -translate-x-1/2'
+            }`}
+          >
+            search
+          </span>
+          <input
+            type="text"
+            placeholder="Qidirish"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            className={`w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] border-none rounded-[10px] py-[7px] text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none transition-all ${
+              searchFocused || search ? 'pl-8 pr-3 text-left' : 'pl-3 pr-3 text-center'
+            }`}
+          />
         </div>
-      ) : groups.length === 0 ? (
-        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-8 text-center text-xs text-slate-500">
-          Hali hech qanday guruhga qo'shilmagan
-        </div>
-      ) : (
-        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
-          {groups.map((g) => (
-            <div key={g.id} className="flex items-center justify-between p-3.5">
-              <span className="flex items-center gap-2.5 min-w-0">
-                <span className="w-7 h-7 rounded-lg bg-sky-500 text-white flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-[16px]">groups</span></span>
-                <span className="text-xs font-bold text-on-surface dark:text-slate-100 truncate">{g.title}</span>
-              </span>
-              <span className="text-[10px] text-slate-500 shrink-0">
-                {new Date(g.createdAt).toLocaleDateString('uz-UZ')}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+
+        <p className="text-[13px] text-[#8E8E93] leading-snug -mt-1 px-0.5">
+          Botni yangi guruh yoki kanalga qo'shish uchun — Telegram'da botni qidirib
+          (@ nomi bilan), o'sha guruhga a'zo sifatida qo'shing va <b>admin</b> qiling
+          (xabarlarni o'qishi va o'chirishi uchun shart). Qo'shimcha sozlash shart emas.
+        </p>
+
+        {loading ? (
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm p-4 space-y-3">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-4 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+            {filtered.length === 0 && (
+              <div className="p-5 text-center text-[15px] text-[#8E8E93]">
+                {groups.length === 0 ? 'Hali hech qanday guruhga qo\'shilmagan' : 'Guruh topilmadi'}
+              </div>
+            )}
+            {filtered.map((g, idx) => (
+              <button
+                key={g.id}
+                onClick={() => onSelectGroup(g.id, g.title)}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 bg-white dark:bg-[#1C1C1E] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] text-left"
+                style={{ borderTop: idx === 0 ? 'none' : '0.5px solid rgba(60,60,67,0.29)' }}
+              >
+                <span
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-[14px] font-semibold"
+                  style={{ backgroundColor: avatarColorForName(g.title || '?') }}
+                >
+                  {(g.title || '?').trim()[0]?.toUpperCase() || '?'}
+                </span>
+                <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                  <span className="text-[15px] font-normal text-on-surface dark:text-white truncate">
+                    {g.title}
+                  </span>
+                  {g.hasIssue && (
+                    <span className="material-symbols-outlined text-[16px] text-[#FF9500] shrink-0" title="Bot huquqi yetishmayapti">
+                      warning
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
+                  {typeof g.memberCount === 'number' && (
+                    <span className="text-[13px]">{g.memberCount} a'zo</span>
+                  )}
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
