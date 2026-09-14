@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { LandmarkPicker } from '../components/LandmarkPicker';
 
 export interface ListingDetailScreenProps {
   listingId: string;
@@ -42,6 +43,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [phone, setPhone] = useState('');
   const [categoryName, setCategoryName] = useState('');
   const [landmarkName, setLandmarkName] = useState('');
+  const [landmarkId, setLandmarkId] = useState('');
   const [workFrom, setWorkFrom] = useState('08:00');
   const [workTo, setWorkTo] = useState('20:00');
   const [badges, setBadges] = useState<string[]>([]);
@@ -99,6 +101,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setPhone(l.phone || '');
         setCategoryName(l.category?.name || '');
         setLandmarkName(l.primaryLandmark?.name || '');
+        setLandmarkId(l.primaryLandmark?.id || '');
         setWorkFrom(l.workFrom || '08:00');
         setWorkTo(l.workTo || '20:00');
         setBadges(l.badges || []);
@@ -159,6 +162,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           name,
           phone,
           categoryName,
+          landmarkId,
           landmarkName,
           workFrom,
           workTo,
@@ -507,11 +511,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
                     Mo'ljal *
                   </label>
-                  <input
-                    type="text"
-                    value={landmarkName}
-                    onChange={e => setLandmarkName(e.target.value)}
-                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
+                  <LandmarkPicker
+                    value={landmarkId || null}
+                    displayName={landmarkName}
+                    onChange={(id, name) => { setLandmarkId(id); setLandmarkName(name); }}
                   />
                 </div>
               </div>

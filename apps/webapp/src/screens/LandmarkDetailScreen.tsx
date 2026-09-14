@@ -15,6 +15,8 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [newSynonym, setNewSynonym] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [listingCount, setListingCount] = useState<number | null>(null);
 
   const fetchLandmarkDetails = async () => {
     try {
@@ -25,12 +27,12 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         const data = await response.json();
         setName(data.name || landmarkName);
         setSynonyms(data.synonyms || []);
+        setListingCount(typeof data.listingCount === 'number' ? data.listingCount : null);
       } else {
-        // Fallback default details
-        setSynonyms([landmarkName.toLowerCase(), landmarkName.toLowerCase() + ' yaqinida']);
+        alert("Mo'ljal ma'lumotlarini yuklab bo'lmadi.");
       }
     } catch {
-      setSynonyms([landmarkName.toLowerCase(), landmarkName.toLowerCase() + ' yaqinida']);
+      alert('Aloqa xatosi — mo\'ljal ma\'lumotlari yuklanmadi.');
     }
   };
 
@@ -74,6 +76,28 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm(`"${name}" mo'ljalini butunlay o'chirmoqchimisiz?`)) return;
+    setIsDeleting(true);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const response = await fetch(`/api/admin/landmarks/${landmarkId}`, {
+        method: 'DELETE',
+        headers: { 'x-init-data': initData },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) {
+        onBack();
+      } else {
+        alert(data.message || "O'chirishda xatolik yuz berdi.");
+      }
+    } catch {
+      alert('Aloqa xatosi.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5 animate-fade-in pb-16">
       <div className="flex items-center gap-3">
@@ -85,7 +109,10 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         </button>
         <div>
           <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Mo'ljal Detali</h1>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tahrirlash & Sinonimlar</p>
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+            Tahrirlash & Sinonimlar
+            {listingCount !== null && ` · ${listingCount} ta yozuv bog'langan`}
+          </p>
         </div>
       </div>
 
@@ -141,6 +168,18 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all"
       >
         {isSaving ? 'Saqlanmoqda...' : 'Saqlash & Yangilash'}
+      </button>
+
+      <button
+        onClick={handleDelete}
+        disabled={isDeleting || (listingCount !== null && listingCount > 0)}
+        className="w-full py-3 bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-xs rounded-xl active:scale-95 transition-all disabled:opacity-40"
+      >
+        {isDeleting
+          ? "O'chirilmoqda..."
+          : listingCount && listingCount > 0
+          ? `O'chirish (avval ${listingCount} ta yozuvni ko'chiring)`
+          : "Mo'ljalni o'chirish"}
       </button>
     </div>
   );

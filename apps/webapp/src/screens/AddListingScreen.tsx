@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { LandmarkPicker } from '../components/LandmarkPicker';
 
 export interface AddListingScreenProps {
   initialCategory?: string;
@@ -44,6 +45,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [category, setCategory] = useState(() => initialCategory || localStorage.getItem('draft_category') || '');
   const [phone, setPhone] = useState(() => localStorage.getItem('draft_phone') || '+998 ');
   const [primaryLandmark, setPrimaryLandmark] = useState(() => localStorage.getItem('draft_landmark') || '');
+  const [primaryLandmarkId, setPrimaryLandmarkId] = useState(() => localStorage.getItem('draft_landmarkId') || '');
   const [jargonWords, setJargonWords] = useState<string[]>(() => {
     const saved = localStorage.getItem('draft_jargonWords');
     return saved ? JSON.parse(saved) : [];
@@ -138,6 +140,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_category', category);
     localStorage.setItem('draft_phone', phone);
     localStorage.setItem('draft_landmark', primaryLandmark);
+    localStorage.setItem('draft_landmarkId', primaryLandmarkId);
     localStorage.setItem('draft_jargonWords', JSON.stringify(jargonWords));
     localStorage.setItem('draft_workFrom', workFrom);
     localStorage.setItem('draft_workTo', workTo);
@@ -148,7 +151,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_description', description);
     localStorage.setItem('draft_consentGiven', String(consentGiven));
     localStorage.setItem('draft_photoUrls', JSON.stringify(photoUrls));
-  }, [name, category, phone, primaryLandmark, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls]);
+  }, [name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls]);
 
   const handlePhotoFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -247,7 +250,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       if (!category.trim()) errors.category = 'Kasb/soha majburiy';
       const cleanPhone = phone.replace(/\D/g, '');
       if (cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
-      if (!primaryLandmark.trim()) errors.landmark = 'Mo\'ljal majburiy';
+      if (!primaryLandmarkId) errors.landmark = "Mo'ljalni ro'yxatdan tanlash (yoki yangi qo'shish) majburiy";
 
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
@@ -285,6 +288,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           name,
           categoryName: category,
           phone,
+          landmarkId: primaryLandmarkId,
           landmarkName: primaryLandmark,
           workFrom,
           workTo,
@@ -317,6 +321,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         localStorage.removeItem('draft_category');
         localStorage.removeItem('draft_phone');
         localStorage.removeItem('draft_landmark');
+        localStorage.removeItem('draft_landmarkId');
         localStorage.removeItem('draft_jargonWords');
         localStorage.removeItem('draft_workFrom');
         localStorage.removeItem('draft_workTo');
@@ -593,19 +598,16 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase">6. Mo'ljal manzili *</label>
-            <input
-              type="text"
-              value={primaryLandmark}
-              onChange={(e) => {
-                setPrimaryLandmark(e.target.value);
+            <LandmarkPicker
+              value={primaryLandmarkId || null}
+              displayName={primaryLandmark}
+              onChange={(id, landmarkName) => {
+                setPrimaryLandmarkId(id);
+                setPrimaryLandmark(landmarkName);
                 setFieldErrors(prev => ({ ...prev, landmark: undefined }));
               }}
-              placeholder="Masalan, Korzinka orqasida"
-              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
-                fieldErrors.landmark ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
-              }`}
+              error={fieldErrors.landmark}
             />
-            {fieldErrors.landmark && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.landmark}</p>}
           </div>
         </div>
       )}

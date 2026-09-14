@@ -569,6 +569,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         name,
         categoryName,
         phone,
+        landmarkId,
         landmarkName,
         badges,
         verified,
@@ -614,24 +615,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Find or create landmark. Nom saqlashdan oldin "yonida", "orqasida" kabi
-      // qo'shimchalar olib tashlanadi (stripLandmarkSuffixes) — aks holda
-      // qidiruvda foydalanuvchi xabaridan xuddi shu qo'shimchalar olib
-      // tashlanib solishtirilgani uchun ("Vadakanal yonida" -> "vadakanal")
-      // to'liq nom ("Vadakanal yonidagi") bilan mos kelmay qolar edi.
-      const rawLandmarkInput = landmarkName || 'Markaz';
-      const targetLandmarkName = stripLandmarkSuffixes(rawLandmarkInput) || rawLandmarkInput;
-      let landmark = await db.landmark.findFirst({
-        where: { cityId, name: { equals: targetLandmarkName, mode: 'insensitive' } },
-      });
+      // Mo'ljal — 2026-09'dan boshlab admin panel HAR DOIM aniq mavjud
+      // mo'ljalni (yoki "Mo'ljallar"da/shu ekranda ATAYLAB yaratilgan
+      // yangisini) TANLAB yuboradi (`landmarkId`), erkin matn emas — shu
+      // orqali yangi ikkilanuvchi mo'ljallar ("5/1", "5/1 dahasi" kabi)
+      // tasodifan ko'payib ketishining oldi olinadi. `landmarkName` faqat
+      // eski/tashqi chaqiruvlar uchun zaxira sifatida saqlanadi.
+      let landmark = landmarkId
+        ? await db.landmark.findUnique({ where: { id: landmarkId } })
+        : null;
+
       if (!landmark) {
-        landmark = await db.landmark.create({
-          data: {
-            cityId,
-            name: targetLandmarkName,
-            synonyms: Array.from(new Set([targetLandmarkName.toLowerCase(), rawLandmarkInput.toLowerCase()])),
-          },
+        const rawLandmarkInput = landmarkName || 'Markaz';
+        const targetLandmarkName = stripLandmarkSuffixes(rawLandmarkInput) || rawLandmarkInput;
+        landmark = await db.landmark.findFirst({
+          where: { cityId, name: { equals: targetLandmarkName, mode: 'insensitive' } },
         });
+        if (!landmark) {
+          landmark = await db.landmark.create({
+            data: {
+              cityId,
+              name: targetLandmarkName,
+              synonyms: Array.from(new Set([targetLandmarkName.toLowerCase(), rawLandmarkInput.toLowerCase()])),
+            },
+          });
+        }
       }
 
       const ip = (req.headers['x-forwarded-for'] as string || req.ip || '').split(',')[0].trim();
@@ -741,6 +749,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       verification,
       status,
       categoryName,
+      landmarkId,
       landmarkName,
       workFrom,
       workTo,
@@ -777,8 +786,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
       categoryId = cat.id;
     }
 
+    // Mo'ljal — endi admin panel `landmarkId` (aniq tanlangan mo'ljal)
+    // yuboradi, erkin matn emas (POST /admin/listings'dagi bilan bir xil
+    // sabab). `landmarkName` faqat zaxira sifatida qoladi.
     let primaryLandmarkId = existing.primaryLandmarkId;
-    if (landmarkName) {
+    if (landmarkId) {
+      const lm = await db.landmark.findUnique({ where: { id: landmarkId } });
+      if (lm) primaryLandmarkId = lm.id;
+    } else if (landmarkName) {
       const cleanLandmarkName = stripLandmarkSuffixes(landmarkName) || landmarkName;
       let lm = await db.landmark.findFirst({
         where: { cityId: existing.cityId, name: { equals: cleanLandmarkName, mode: 'insensitive' } },
@@ -1078,8 +1093,92 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const landmarks = await db.landmark.findMany({
       where: { cityId },
       orderBy: { name: 'asc' },
+      include: { _count: { select: { primaryListings: true } } },
     });
-    return landmarks;
+    // Har bir mo'ljalga necha yozuv bog'langanini ham qo'shamiz — admin
+    // "bu mo'ljal ishlatilmayapti, o'chirsam bo'ladi" kabi qarorni ko'rib
+    // turib qabul qilishi uchun.
+    return landmarks.map((l) => ({ ...l, listingCount: l._count.primaryListings, _count: undefined }));
+  });
+
+  // Bitta mo'ljal (tahrirlash ekrani uchun) — MUHIM (2026-09 topilgan
+  // jiddiy xato): bu endpoint avval UMUMAN mavjud emas edi, shuning uchun
+  // "Mo'ljal tahrirlash" ekrani hech qachon haqiqiy ma'lumot ko'rsatmasdi.
+  fastify.get('/admin/landmarks/:id', async (req: any, reply) => {
+    const { id } = req.params as { id: string };
+    const landmark = await db.landmark.findUnique({
+      where: { id },
+      include: { _count: { select: { primaryListings: true } } },
+    });
+    if (!landmark) return reply.status(404).send({ success: false, message: "Mo'ljal topilmadi" });
+    return { ...landmark, listingCount: landmark._count.primaryListings, _count: undefined };
+  });
+
+  // Yangi mo'ljal QO'LDA qo'shish (admin panelidan — "Mo'ljallar" bo'limi
+  // yoki yozuv qo'shish ekranidagi "+ Yangi mo'ljal" orqali). Aynan shu
+  // nomdagi mo'ljal allaqachon bo'lsa, YANGI yaratmasdan MAVJUDINI
+  // qaytaradi — tasodifiy ikkilanuvchi yaratilmasligi uchun.
+  fastify.post('/admin/landmarks', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { name, synonyms } = req.body as { name: string; synonyms?: string[] };
+    const cleanName = (name || '').trim();
+    if (!cleanName) return reply.status(400).send({ success: false, message: "Mo'ljal nomi bo'sh bo'lishi mumkin emas" });
+
+    const existing = await db.landmark.findFirst({
+      where: { cityId, name: { equals: cleanName, mode: 'insensitive' } },
+    });
+    if (existing) return { success: true, landmark: existing, alreadyExisted: true };
+
+    const created = await db.landmark.create({
+      data: {
+        cityId,
+        name: cleanName,
+        synonyms: synonyms && synonyms.length > 0 ? synonyms.map((s) => s.toLowerCase()) : [cleanName.toLowerCase()],
+      },
+    });
+    return { success: true, landmark: created, alreadyExisted: false };
+  });
+
+  // Mo'ljal nomi/sinonimlarini tahrirlash — MUHIM (2026-09): bu endpoint
+  // ham avval mavjud emas edi, "Saqlash" tugmasi doim xato berardi.
+  fastify.put('/admin/landmarks/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    const { name, synonyms } = req.body as { name?: string; synonyms?: string[] };
+
+    const existing = await db.landmark.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: "Mo'ljal topilmadi" });
+
+    const updated = await db.landmark.update({
+      where: { id },
+      data: {
+        ...(name && name.trim() && { name: name.trim() }),
+        ...(synonyms && { synonyms: synonyms.map((s) => s.toLowerCase().trim()).filter(Boolean) }),
+      },
+    });
+    return { success: true, landmark: updated };
+  });
+
+  // Mo'ljalni o'chirish — FAQAT hech qanday yozuv unga bog'lanmagan bo'lsa
+  // (Listing.primaryLandmarkId majburiy maydon, shuning uchun bog'liq
+  // yozuvlar bo'lsa o'chirish ularni "egasiz" qoldiradi — buning o'rniga
+  // admin avval o'sha yozuvlarning mo'ljalini boshqasiga o'zgartirishi
+  // kerak).
+  fastify.delete('/admin/landmarks/:id', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+
+    const listingCount = await db.listing.count({ where: { primaryLandmarkId: id } });
+    if (listingCount > 0) {
+      return reply.status(400).send({
+        success: false,
+        message: `Bu mo'ljalga ${listingCount} ta yozuv bog'langan — avval o'sha yozuvlarning mo'ljalini boshqasiga o'zgartiring, keyin o'chiring.`,
+      });
+    }
+
+    await db.landmark.delete({ where: { id } }).catch(() => {});
+    return { success: true };
   });
 
   // Bot qaysi guruh/kanallarda ishlayotganini ko'rsatadi — botni yangi

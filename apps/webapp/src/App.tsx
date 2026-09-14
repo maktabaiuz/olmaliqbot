@@ -965,11 +965,38 @@ const MoreLandmarksSubView: React.FC<{
 }> = ({ onBack, onSelectLandmark }) => {
   const [lands, setLands] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  useEffect(() => {
+  const [creating, setCreating] = useState(false);
+
+  const loadLandmarks = () => {
     fetch('/api/admin/landmarks')
       .then(r => r.json())
       .then(data => setLands(data || []));
-  }, []);
+  };
+  useEffect(() => { loadLandmarks(); }, []);
+
+  const filtered = lands.filter(l => l.name.toLowerCase().includes(search.toLowerCase()));
+  const exactMatchExists = lands.some(l => l.name.toLowerCase() === search.trim().toLowerCase());
+
+  const handleCreate = async () => {
+    const name = search.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/landmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSearch('');
+        loadLandmarks();
+      }
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -979,24 +1006,43 @@ const MoreLandmarksSubView: React.FC<{
         </button>
         <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Mo'ljallar</h3>
       </div>
+      <p className="text-[10px] text-slate-500 -mt-2">
+        Yozuv qo'shishda mo'ljal FAQAT shu ro'yxatdan tanlanadi (ikkilanuvchilar ko'payib ketmasligi uchun) —
+        yangisini shu yerdan yoki yozuv qo'shish ekranida qo'shishingiz mumkin.
+      </p>
       <input
         type="text"
-        placeholder="Mo'ljalni qidirish..."
+        placeholder="Mo'ljalni qidirish yoki yangisini yozish..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
       />
+      {search.trim() && !exactMatchExists && (
+        <button
+          onClick={handleCreate}
+          disabled={creating}
+          className="w-full text-left px-3.5 py-2.5 rounded-xl bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 text-xs font-bold disabled:opacity-50"
+        >
+          {creating ? 'Qo\'shilmoqda...' : `+ "${search.trim()}"ni yangi mo'ljal sifatida qo'shish`}
+        </button>
+      )}
       <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden max-h-[300px] overflow-y-auto">
-        {lands
-          .filter(l => l.name.toLowerCase().includes(search.toLowerCase()))
-          .map(l => (
+        {filtered.length === 0 && (
+          <div className="p-4 text-center text-xs text-slate-500">Mo'ljal topilmadi</div>
+        )}
+        {filtered.map(l => (
             <button
               key={l.id}
               onClick={() => onSelectLandmark(l.id, l.name)}
               className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
             >
-              <span>{l.name}</span>
-              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
+              <span>📍 {l.name}</span>
+              <span className="flex items-center gap-1.5 text-slate-500 font-semibold">
+                {typeof l.listingCount === 'number' && (
+                  <span className="text-[10px]">{l.listingCount} ta yozuv</span>
+                )}
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              </span>
             </button>
           ))}
       </div>
