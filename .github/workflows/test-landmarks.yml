@@ -16,10 +16,12 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
+            echo "=== locate @kimbor/db module ==="
+            docker exec kimbor_api node -e "console.log(require.resolve('@kimbor/db'))" || true
+            echo ""
             echo "=== Landmark CRUD test (real prod DB, test data cleaned up after) ==="
-            docker exec kimbor_api node -e "
-              const { PrismaClient } = require('@prisma/client');
-              const db = new PrismaClient();
+            docker exec -w /app kimbor_api node -e "
+              const { db } = require('@kimbor/db');
               (async () => {
                 const city = await db.city.findFirst();
                 if (!city) throw new Error('No city found');
@@ -66,5 +68,5 @@ jobs:
                 // 5) Confirm real duplicate landmarks still exist (the problem we are fixing going forward, not retroactively)
                 const all = await db.landmark.findMany({ where: { cityId: city.id }, select: { name: true } });
                 console.log('out: TOTAL landmarks in DB=' + all.length);
-              })().catch(e => { console.error('err:', e.message); process.exit(1); }).finally(() => db.\$disconnect());
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
             "
