@@ -354,6 +354,37 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       },
     });
 
+    // MUHIM (2026-09 topilgan xato): yuqoridagi `synonyms: { has: cleanCat } }`
+    // FAQAT massivning BITTA elementi cleanCat bilan AYNAN bir xil bo'lsagina
+    // ishlaydi. Lekin ko'p sinonimlar ko'p so'zli iboralar ("benzin quyish",
+    // "metan quyish") — AI klassifikator esa ko'pincha foydalanuvchi so'ragan
+    // QISQA, bitta so'zni qaytaradi ("benzin"). Natijada "benzin kerak edi"
+    // kabi juda oddiy, to'g'ridan-to'g'ri so'rov ham kategoriya topolmay,
+    // botning butunlay javob bermay qolishiga olib kelardi — garchi mos
+    // kategoriya ("Avtomobil zapravkasi", sinonimi "benzin quyish") bazada
+    // aniq mavjud bo'lsa ham. Shu sabab qat'iy moslikdan keyin, lekin
+    // (yozilish xatosiga mo'ljallangan, uzunlik farqiga chidamsiz) fuzzy
+    // qidiruvdan OLDIN — SO'Z darajasidagi moslikni tekshiramiz: kategoriya
+    // nomi so'z(lar)idan biri categoryName so'z(lar)idan biriga ustma-ust
+    // tushsa, shu kategoriya ham nomzod hisoblanadi.
+    if (categories.length === 0) {
+      const catWords = cleanCat.split(/\s+/).filter((w) => w.length >= 4);
+      if (catWords.length > 0) {
+        const allCategoriesForWordMatch = await db.category.findMany({
+          select: { id: true, name: true, synonyms: true },
+        });
+        const wordMatches = allCategoriesForWordMatch.filter((c) => {
+          const targetWords = new Set(
+            [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/))
+          );
+          return catWords.some((w) => targetWords.has(w));
+        });
+        if (wordMatches.length > 0) {
+          categories = wordMatches as any;
+        }
+      }
+    }
+
     // Aniq moslik topilmasa — yozilish xatosiga chidamli qidiruvga o'tamiz
     // (masalan "avtoelektirik" -> "Avtoelektrik"). Xabar matni ham
     // qo'shiladi, chunki klassifikator ba'zan kategoriyani asl matndan
@@ -406,7 +437,20 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   }
 
   // Landmark, Service Area & Jargon Synonyms Matching
-  if (matchedLandmarkIds.length > 0 || cleanLandmarkName) {
+  // MUHIM (2026-09 topilgan xato): avval bu shart FAQAT `cleanLandmarkName`
+  // bo'sh emasligini tekshirardi — hatto HECH QANDAY haqiqiy mo'ljal (aniq
+  // yoki fuzzy) topilmagan taqdirda ham. Natijada AI klassifikator noaniq,
+  // joy nomi BO'LMAGAN ibora ("yaqin atrofi", "shu yerda" kabi)ni "mo'ljal"
+  // deb noto'g'ri ajratib bersa, pastda faqat `jargonSynonyms: {has: ...}`
+  // shartigina qo'shilib qolardi — bu esa ALLAQACHON to'g'ri topilgan
+  // KATEGORIYA bilan majburan AND'lanib, kategoriyasi to'g'ri, lekin admin
+  // maxsus jargon so'z kiritmagan (juda ko'p, aksariyat) yozuvlarni butunlay
+  // yashirib qo'yardi. Endi: agar haqiqiy mo'ljal (aniq yoki fuzzy) TOPILMASA
+  // va kategoriya ALLAQACHON aniq topilgan bo'lsa — bu noaniq "mo'ljal"
+  // signalini butunlay e'tiborsiz qoldiramiz (kategoriya yolg'iz o'zi
+  // yetarli). Faqat kategoriya topilmagan holatlarda (bu holda jargon —
+  // yagona zaxira signal) eski xulq-atvor saqlanadi.
+  if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !hasResolvedCategory)) {
     const landmarkOrConditions: any[] = [];
     if (matchedLandmarkIds.length > 0) {
       landmarkOrConditions.push({ primaryLandmarkId: { in: matchedLandmarkIds } });
