@@ -1,4 +1,4 @@
-name: One-off - verify zapravka search live 2
+name: One-off - verify zapravka search live 3
 
 on:
   workflow_dispatch:
@@ -17,25 +17,5 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            docker exec -w /app/apps/bot kimbor_bot node -e "
-            const core = require('/app/packages/core/dist/index.js');
-            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
-            const db = new PrismaClient();
-            (async () => {
-              const city = await db.city.findFirst({ where: { name: { contains: 'Olmaliq', mode: 'insensitive' } } });
-              console.log('CITY:', city && city.id, city && city.name);
-
-              const queries = ['zapravka bormi', 'benzin kerak', 'yaqin atrofda avtomobil zapravkasi bormi', 'metan quyish joyi kerak'];
-              for (const q of queries) {
-                const result = await core.searchListings({ cityId: city.id, rawMessage: q });
-                console.log('QUERY:', JSON.stringify(q));
-                console.log('FOUND:', !!result);
-                if (result) {
-                  console.log('TEXT_SNIPPET:', (result.text || '').slice(0, 300));
-                  console.log('LISTING_IDS:', JSON.stringify(result.listingIds || result.matchedListingIds || null));
-                }
-                console.log('---');
-              }
-              await db.\$disconnect();
-            })().catch(e => { console.error('VERIFY_ERROR:', e); process.exit(1); });
-            "
+            echo "--- apps/bot dist layout ---"
+            docker exec kimbor_bot sh -c "find /app/apps/bot/dist -maxdepth 2 -type d 2>/dev/null; echo ---; find /app/apps/bot/dist -maxdepth 2 -iname '*classif*' 2>/dev/null"
