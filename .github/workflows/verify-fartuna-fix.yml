@@ -39,9 +39,17 @@ jobs:
                 console.log(label, '| intent:', c.intent, '| category:', c.category, '| landmark:', c.landmark, '| name:', c.name, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
               }
 
-              console.log('--- YANGI TUZATISH: fartuna 8 marta, hech qachon aloqasiz yozuv chiqmasligi kerak ---');
-              for (let i = 0; i < 8; i++) {
-                await run('FARTUNA_' + i, 'Akalar fartunani nomeri bormi ' + i, 8000000 + i);
+              console.log('--- YANGI TUZATISH: fartuna, tabiiy variatsiyalar bilan (raqam qoshilmagan - AI raqamni mavze deb notogri tushunib qolishi aniqlandi) ---');
+              const fartunaPhrasings = [
+                'Akalar fartunani nomeri bormi',
+                'Fartunani raqami kimda bor',
+                'Fartuna kompaniyasining telefon nomeri kerak edi',
+                'Fartunaning nomerini biladiganlar bormi akalar',
+                'Kimda fartunani raqami bor yozing',
+                'Fartuna degan joyning nomeri bormi',
+              ];
+              for (let i = 0; i < fartunaPhrasings.length; i++) {
+                await run('FARTUNA_' + i, fartunaPhrasings[i], 8000000 + i);
               }
 
               console.log('--- REGRESSIYA: haqiqiy yozilish xatosi hali togri tuzatilishi kerak ---');

@@ -406,15 +406,25 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // intent — foydalanuvchi ANIQ NOMLANGAN biror narsaning kontaktini
   // so'ragani ("Fartunani nomeri bormi", "Hasan ustaning raqami bormi")
   // — "santexnik kerak" kabi UMUMIY xizmat so'rovidan TUBDAN farq qiladi.
-  // Bunday so'rovda, agar ANIQ mo'ljal berilmagan VA hech qanday jargon
-  // moslik (bizning aniq, admin ro'yxatdan o'tkazgan ma'lumotimiz) TOPILMASA
-  // — demak biz aynan SHU nomdagi narsani bilmaymiz. AI klassifikatorning
-  // "category" maydoni bunday holatda ISHONCHSIZ (production'da tasdiqlandi:
-  // "fartuna" so'ziga har safar BOSHQA-BOSHQA kategoriya — "taksi",
-  // "transport", "elektromontaj" — taxmin qilib berardi) — shu tasodifiy
-  // taxminga tayanib "eng yaqin" kategoriyadagi ALOQASIZ yozuvni ko'rsatish
-  // noto'g'ri javobdan HAM YOMONROQ. Shu sabab bunday holatda JIM turamiz.
-  if (options.intent === 'CONTACT' && !landmarkName && jargonMatchedIds.size === 0) {
+  // Bunday so'rovda, hech qanday jargon moslik (bizning aniq, admin
+  // ro'yxatdan o'tkazgan ma'lumotimiz) TOPILMASA — demak biz aynan SHU
+  // nomdagi narsani bilmaymiz.
+  //
+  // MUHIM (2026-09, birinchi urinish YETARLI bo'lmadi): dastlab bu shart
+  // qo'shimcha ravishda "va aniq mo'ljal berilmagan bo'lsa" (`!landmarkName`)
+  // talab qilardi. Lekin AI klassifikatorning "landmark" maydoni ham
+  // ISHONCHSIZ ekani (avvalgi "to'ytepa/beshbир" xatolarida ham
+  // ko'rilgan) yana bir bor tasdiqlandi: sinov paytida AI hatto oddiy
+  // raqamni ("fartuna 3") "3-mavze" mo'ljal deb NOTO'G'RI talqin qildi —
+  // bu esa `!landmarkName` shartini yolg'on ravishda buzib, himoyani
+  // ishlamay qoldirardi. CONTACT intent uchun "landmark" maydoni UMUMAN
+  // ahamiyatsiz — muhimi FAQAT bitta narsa: bizda bu ANIQ nom (jargon)
+  // ro'yxatdan o'tganmi yoki yo'qmi. AI ning "category"/"landmark"
+  // taxminlari (ular ISHONCHSIZ, production'da tasdiqlandi: bir xil
+  // "fartuna"ga har safar boshqa-boshqa kategoriya/mo'ljal — "taksi",
+  // "transport", "3-mavze" — taxmin qilib berardi) bunday holatda
+  // UMUMAN e'tiborga olinmaydi.
+  if (options.intent === 'CONTACT' && jargonMatchedIds.size === 0) {
     return null;
   }
 
