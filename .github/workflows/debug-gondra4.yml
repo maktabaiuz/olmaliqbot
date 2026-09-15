@@ -1,0 +1,33 @@
+name: One-off - check recent activity and moderation config
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const recent = await db.queryLog.findMany({ orderBy: { createdAt: 'desc' }, take: 10 });
+              console.log('MOST_RECENT_QUERYLOGS:', JSON.stringify(recent.map(l => ({ rawMessage: l.rawMessage, intent: l.intent, isResolved: l.isResolved, chatId: l.chatId ? l.chatId.toString() : null, createdAt: l.createdAt })), null, 2));
+
+              const tables = await db.\$queryRawUnsafe(\"SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name ILIKE '%moderation%' OR table_name ILIKE '%group%'\");
+              console.log('RELEVANT_TABLES:', JSON.stringify(tables));
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
