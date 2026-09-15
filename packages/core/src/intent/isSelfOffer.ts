@@ -32,7 +32,15 @@ export function isSelfOffer(text: string): boolean {
   // odatda telefon raqami bilan. Bu haqiqiy so'rov ("elektrik kerak") bilan
   // deyarli bir xil so'zlardan iborat, faqat fe'l shaxsi farq qiladi —
   // "qilamiz/bajaramiz" (biz/men qilamiz) doim taklif, "kerak/bormi" doim so'rov.
-  if (/\b(qilamiz|bajaramiz|ko'?rsatamiz|tuzatamiz|o'?rnatamiz|qilaman|bajaraman|tuzataman|o'?rnataman)\b/.test(n)) {
+  //
+  // MUHIM (2026-09 topilgan xato): "olaman" ("metall olaman" — mahalliy
+  // metall-yig'uvchi "sizdan metall SOTIB OLAMAN" degan e'lon shakli)
+  // ro'yxatda yo'q edi — natijada bu bitta so'z ham qidiruv, ham taklif
+  // ma'nosida ishlatilishi mumkinligi sabab (masalan "usta olib kelaman"
+  // kabi neytral holatlar bilan farqlanmasdan) e'lon SIFATIDA emas, SO'ROV
+  // sifatida ko'rilib, bot xato ravishda mavjud "metalchi" (temirchi/usta)
+  // yozuvlarini ko'rsatib yuborardi.
+  if (/\b(qilamiz|bajaramiz|ko'?rsatamiz|tuzatamiz|o'?rnatamiz|qilaman|bajaraman|tuzataman|o'?rnataman|olaman|olamiz)\b/.test(n)) {
     return true;
   }
 
@@ -53,7 +61,12 @@ function isClearSeek(n: string): boolean {
   if (/\bbormi\b/.test(n)) return true;
   if (/\b(nomeri|raqami|telefoni)\b/.test(n) && !/\bmenda\b/.test(n)) return true;
   if (/\bmenga\b/.test(n) && /\bkerak\b/.test(n) && !/\bkerak bo'?lsa\b/.test(n)) return true;
-  if (/\b(qayerda|narxi|qancha|nechigacha)\b/.test(n)) return true;
+  // "qayerda" so'zining qo'shimchali shakllari ham ("qayerdan", "qayerdagi")
+  // aniq so'rov belgisi — trailing \b talab qilinmaydi, aks holda masalan
+  // "qayerdan olaman" kabi ODDIY savol pastdagi "olaman" (taklif) belgisi
+  // bilan XATO ravishda e'lon deb hisoblanib qolar edi.
+  if (/\bqayerda\w*/.test(n)) return true;
+  if (/\b(narxi|qancha|nechigacha)\b/.test(n)) return true;
   if (
     /\bkimda\b/.test(n) &&
     /\b(nomeri|raqami|labo|lobo|taksi|usta|gazavik)\b/.test(n) &&
@@ -65,9 +78,18 @@ function isClearSeek(n: string): boolean {
 }
 
 function hasFirstPersonPossession(n: string): boolean {
-  if (!/\bmenda\b/.test(n)) return false;
   if (/\bbormi\b/.test(n)) return false;
-  return /\bbor\b/.test(n);
+  if (!/\bbor\b/.test(n)) return false;
+  if (/\bmenda\b/.test(n)) return true;
+
+  // MUHIM (2026-09 topilgan xato): o'zbek tilida birinchi shaxs egalik
+  // ("mening ... bor") ko'pincha alohida "menda" so'zisiz, faqat so'z
+  // oxiridagi "-im" qo'shimchasi orqali ifodalanadi — masalan "labo
+  // xizmatim bor" ("mening labo xizmatim bor" degani, "menda" so'zi
+  // aytilmasa ham). Avval faqat "menda ... bor" tanilardi, shu sabab bu
+  // juda tabiiy va keng tarqalgan shakl E'LON emas, SO'ROV deb xato
+  // baholanib, bot mavjud (aloqasiz) yozuvlarni ko'rsatib yuborardi.
+  return /\b\w+im\s+bor\b/.test(n);
 }
 
 function hasVehicleHint(n: string): boolean {
