@@ -467,9 +467,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // odamning telefon raqamini berib yuborishga olib keladi. Shu sabab, AI
   // kategoriyani aniq topib bergan holatlarda, jargon moslik FAQAT o'sha
   // kategoriya ichidagi yozuvlarga cheklanadi.
+  // MUHIM (2026-09 topilgan XATO, tuzatildi): yuqoridagi chegara faqat
+  // resolved kategoriyada HAQIQATDA yozuv bo'lgandagina mantiqiy — aks
+  // holda hech narsani himoya qilmaydi, faqat aniq jargon moslikni bekorga
+  // to'sib qo'yadi. Bu real ishlab chiqarishda tasdiqlangan: yangi
+  // (sinonimsiz) kategoriya yaratilganda AI har safar boshqacha, tasodifiy
+  // kategoriya nomi taxmin qiladi ("balon" o'rniga "avtomobil shinasi",
+  // "avtoshohobcha" va h.k.) — agar shu taxmin TASODIFAN bazadagi BOSHQA,
+  // BO'SH (hech qanday yozuvi yo'q) kategoriya bilan mos kelib qolsa,
+  // to'g'ri javob (masalan jargon orqali aniq topilgan "Largo" balon
+  // do'koni) HECH QACHON ko'rsatilmasdi — garchi hech qanday haqiqiy
+  // "aralashib ketish" xavfi yo'qligiga qaramay (himoya qiladigan yozuv
+  // umuman yo'q edi).
   const candidateIds = new Set(candidateListings.map((l) => l.id));
   let missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
-  if (missingJargonIds.length > 0 && hasResolvedCategory) {
+  if (missingJargonIds.length > 0 && hasResolvedCategory && candidateListings.length > 0) {
     const resolvedCategoryIds = new Set(
       (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
     );
