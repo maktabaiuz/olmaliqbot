@@ -1,4 +1,4 @@
-name: One-off - diagnose zapravka search failure
+name: One-off - check listing existence
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose via SSH
+      - name: Check via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -21,21 +21,16 @@ jobs:
             const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
             const db = new PrismaClient();
             (async () => {
-              const city = await db.city.findFirst({ where: { name: { contains: 'Olmaliq', mode: 'insensitive' } } });
+              const allZap = await db.listing.findMany({ where: { type: 'ZAPRAVKA' } });
+              console.log('ALL_ZAPRAVKA_LISTINGS_COUNT:', allZap.length);
+              console.log('ALL_ZAPRAVKA_LISTINGS:', JSON.stringify(allZap.map(l => ({ id: l.id, name: l.name, status: l.status, categoryId: l.categoryId }))));
 
-              const gondra = await db.listing.findMany({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
-              console.log('GONDRA_STATE:', JSON.stringify(gondra.map(l => ({ id: l.id, type: l.type, status: l.status, categoryId: l.categoryId, cityId: l.cityId }))));
+              const anyGondra = await db.listing.findMany({ where: { name: { contains: 'Gon' } } });
+              console.log('ANY_GONDRA_LIKE:', JSON.stringify(anyGondra.map(l => ({id: l.id, name: l.name, status: l.status, type: l.type}))));
 
-              const catNames = ['zapravka', 'benzin', 'metan zapravka'];
-              for (const cleanCat of catNames) {
-                const exact = await db.category.findMany({ where: { OR: [ { name: { contains: cleanCat, mode: 'insensitive' } }, { synonyms: { has: cleanCat } } ] } });
-                console.log('CATEGORYNAME:', JSON.stringify(cleanCat), 'EXACT_MATCH_COUNT:', exact.length, 'NAMES:', JSON.stringify(exact.map(c => c.name)));
-              }
-
-              // Zapravka kategoriyasi haqiqatan ham to'g'ri sinonimlarga egami?
-              const zapCat = await db.category.findFirst({ where: { name: 'Avtomobil zapravkasi' } });
-              console.log('ZAP_CATEGORY:', JSON.stringify(zapCat));
+              const recentAudit = await db.auditLog.findMany({ where: { action: { in: ['DELETE_LISTING', 'CREATE_LISTING'] } }, orderBy: { createdAt: 'desc' }, take: 10 });
+              console.log('RECENT_AUDIT:', JSON.stringify(recentAudit.map(a => ({ action: a.action, details: a.details, createdAt: a.createdAt }))));
 
               await db.\$disconnect();
-            })().catch(e => { console.error('DIAG_ERROR:', e); process.exit(1); });
+            })().catch(e => { console.error('CHECK_ERROR:', e); process.exit(1); });
             "
