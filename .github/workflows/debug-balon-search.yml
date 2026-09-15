@@ -1,0 +1,56 @@
+name: Debug balon/shina search (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Investigate via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            echo "=== 1) Category + listing data ==="
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const cats = await db.category.findMany({
+                  where: { name: { contains: 'shin', mode: 'insensitive' } },
+                });
+                console.log('out: categories matching shin=' + JSON.stringify(cats.map(c => ({name: c.name, synonyms: c.synonyms, objectType: c.objectType}))));
+
+                for (const c of cats) {
+                  const listings = await db.listing.findMany({ where: { categoryId: c.id } });
+                  console.log('out: listings in ' + c.name + '=' + JSON.stringify(listings.map(l => ({name: l.name, status: l.status, verification: l.verification, jargonSynonyms: l.jargonSynonyms, phone: l.phone}))));
+                }
+              })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
+            "
+            echo ""
+            echo "=== 2) Real classifyQuery + searchListings pipeline test ==="
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+              const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+              const { searchListings } = require('@kimbor/core');
+              const { db } = require('@kimbor/db');
+              (async () => {
+                const city = await db.city.findFirst();
+                const start = Date.now();
+                const classification = await classifyQuery('balon kerak', city.id, BigInt(1));
+                console.log('out: classifyQuery(\"balon kerak\") ms=' + (Date.now()-start));
+                console.log('out: classification=' + JSON.stringify(classification));
+
+                const searchResult = await searchListings({
+                  cityId: city.id,
+                  categoryName: classification.intent !== 'NOT_RELEVANT' ? classification.category : null,
+                  landmarkName: classification.intent !== 'NOT_RELEVANT' ? classification.landmark : null,
+                  rawMessage: 'balon kerak',
+                });
+                console.log('out: searchResult found=' + !!searchResult);
+                if (searchResult) console.log('out: matched listing=' + searchResult.listing.name);
+              })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
+            "
