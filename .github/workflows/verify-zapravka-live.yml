@@ -25,11 +25,14 @@ jobs:
             (async () => {
               const cityId = '23fdb721-7073-4fd3-bda5-b61bde593490';
               const categoryId = 'd4364137-3bd1-462c-900c-92c4b753f6ce';
+              const anyLandmark = await db.landmark.findFirst({ where: { cityId } });
+              if (!anyLandmark) throw new Error('No landmark found for city');
 
               const testListing = await db.listing.create({
                 data: {
                   city: { connect: { id: cityId } },
                   category: { connect: { id: categoryId } },
+                  primaryLandmark: { connect: { id: anyLandmark.id } },
                   type: 'ZAPRAVKA',
                   name: 'TEST-vaqtinchalik-zapravka',
                   phone: '+998901234567',
