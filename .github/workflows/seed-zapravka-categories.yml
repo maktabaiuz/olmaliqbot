@@ -17,11 +17,8 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "--- debug: find @prisma/client ---"
-            docker exec kimbor_bot sh -c "find / -maxdepth 6 -type d -name '@prisma' 2>/dev/null"
-            docker exec kimbor_bot sh -c "find / -maxdepth 8 -type d -path '*@prisma/client' 2>/dev/null"
             docker exec -w /app/apps/bot kimbor_bot node -e "
-            const { PrismaClient } = require('@prisma/client');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
             const db = new PrismaClient();
             (async () => {
               const existing = await db.category.findMany({ where: { objectType: 'ZAPRAVKA' } });
