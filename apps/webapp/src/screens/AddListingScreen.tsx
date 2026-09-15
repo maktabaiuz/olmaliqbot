@@ -54,7 +54,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'>('USTA');
+  // MUHIM (2026-09 topilgan xato, tuzatildi): "Turi" (listingType) boshqa
+  // barcha maydonlardan farqli o'laroq localStorage'da SAQLANMAS edi. Natija:
+  // sahifa biror sababdan (masalan deploy paytida webapp qayta yuklansa)
+  // qayta ochilsa, "category" qoralamadan ("Avtomobil zapravkasi" kabi)
+  // tiklanardi, lekin "listingType" standart 'USTA'ga qaytib qolardi — va
+  // foydalanuvchi buni sezmasdan "Tasdiqlash"ni bossa, yozuv NOTO'G'RI
+  // turda (USTA) saqlanardi, garchi kategoriyasi Zapravka bo'lsa ham. Endi
+  // "Turi" ham saqlanadi/tiklanadi.
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'>(
+    () => (localStorage.getItem('draft_listingType') as any) || 'USTA'
+  );
 
   // Form Fields State (Prefilled or restored from LocalStorage)
   const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');
@@ -138,6 +148,21 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   // ko'rsatiladi; agar shu turda HALI umuman kategoriya bo'lmasa
   // (haqiqatan bo'sh holat), shundagina butun ro'yxat zaxira sifatida
   // ko'rsatiladi — hech narsa yo'qolib qolmasligi uchun.
+  // Xavfsizlik to'ri: agar tanlangan "category" ning HAQIQIY turi (bazadagi
+  // objectType) joriy "listingType"dan farq qilsa — masalan yuqoridagi
+  // holatlardan biri sabab ("Turi" 'USTA'ga qaytib qolgan, lekin "category"
+  // hali ham "Avtomobil zapravkasi" bo'lib qolgan) — "Turi"ni kategoriyaga
+  // MOS holga avtomatik to'g'rilaymiz. Shu orqali "category" va "listingType"
+  // hech qachon bir-biridan uzilib qolmaydi, hatto sabab boshqacha bo'lsa ham.
+  useEffect(() => {
+    if (!category) return;
+    const match = categoryList.find(c => c.name === category);
+    const validTypes = LISTING_TYPE_OPTIONS.map(o => o.id);
+    if (match?.objectType && match.objectType !== listingType && (validTypes as string[]).includes(match.objectType)) {
+      setListingType(match.objectType as typeof listingType);
+    }
+  }, [category, categoryList]);
+
   const categoryMatchesType = (c: CategoryOption) => c.objectType === listingType;
   const relevantCategories = categoryList.filter(categoryMatchesType);
   const baseCategoryPool = relevantCategories.length > 0 ? relevantCategories : categoryList;
@@ -158,6 +183,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Save draft state
   useEffect(() => {
+    localStorage.setItem('draft_listingType', listingType);
     localStorage.setItem('draft_name', name);
     localStorage.setItem('draft_category', category);
     localStorage.setItem('draft_phone', phone);
@@ -174,7 +200,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_consentGiven', String(consentGiven));
     localStorage.setItem('draft_photoUrls', JSON.stringify(photoUrls));
     localStorage.setItem('draft_mapUrl', mapUrl);
-  }, [name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls, mapUrl]);
+  }, [listingType, name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls, mapUrl]);
 
   const handlePhotoFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -341,6 +367,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
       if (res.ok) {
         // Clear drafts
+        localStorage.removeItem('draft_listingType');
         localStorage.removeItem('draft_name');
         localStorage.removeItem('draft_category');
         localStorage.removeItem('draft_phone');
@@ -793,6 +820,14 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               <div className="flex justify-between"><span className="text-slate-500">Kasb:</span> <span className="font-bold text-on-surface dark:text-slate-100">{category}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Telefon:</span> <span className="font-bold text-on-surface dark:text-slate-100">{phone}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Manzil:</span> <span className="font-bold text-on-surface dark:text-slate-100">{primaryLandmark}</span></div>
+              {listingType === 'ZAPRAVKA' && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Xarita havolasi:</span>
+                  <span className={`font-bold ${mapUrl.trim() ? 'text-on-surface dark:text-slate-100' : 'text-amber-500'}`}>
+                    {mapUrl.trim() ? "✓ qo'shilgan" : "⚠️ kiritilmagan"}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between"><span className="text-slate-500">Ish vaqti:</span> <span className="font-bold text-on-surface dark:text-slate-100">{workFrom} - {workTo}</span></div>
               {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
               {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}
