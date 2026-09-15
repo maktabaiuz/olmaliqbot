@@ -68,5 +68,21 @@ jobs:
                 });
                 console.log('out: fallback-path searchResult found=' + !!fallbackSearch);
                 if (fallbackSearch) console.log('out: fallback-path matched listing=' + fallbackSearch.listing.name);
+
+                console.log('out: === 4) Testing what happens if AI guesses the OTHER (wrong, pre-existing) category ===');
+                const wrongCategorySearch = await searchListings({
+                  cityId: city.id,
+                  categoryName: 'shinamontaj',
+                  landmarkName: null,
+                  rawMessage: 'balon kerak',
+                });
+                console.log('out: categoryName=shinamontaj searchResult found=' + !!wrongCategorySearch);
+                if (wrongCategorySearch) console.log('out: matched=' + wrongCategorySearch.listing.name);
+
+                console.log('out: === 5) Repeated real classifyQuery calls (checking Gemini consistency) ===');
+                for (let i = 0; i < 5; i++) {
+                  const c = await classifyQuery('balon kerak ' + i, city.id, BigInt(1));
+                  console.log('out: run ' + i + ': category=' + c.category + ' intent=' + c.intent + ' confidence=' + c.confidence);
+                }
               })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
             "
