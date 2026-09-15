@@ -1,0 +1,64 @@
+name: One-off - trace exact word causing Ahmadjon false match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+              const ahmadjon = await db.listing.findMany({ where: { cityId, name: { contains: 'Ahmadjon', mode: 'insensitive' } } });
+              console.log('AHMADJON_JARGON:', JSON.stringify(ahmadjon.map(l => l.jargonSynonyms)));
+
+              const q = 'Fartunaning nomerini biladiganlar bormi akalar';
+              const msgWords = core.normalizeText(q).split(/\s+/).filter(w => w.length >= 5);
+              console.log('MSG_WORDS:', JSON.stringify(msgWords));
+
+              for (const l of ahmadjon) {
+                for (const phrase of l.jargonSynonyms) {
+                  const jargonWords = core.normalizeText(phrase).split(/\s+/).filter(w => w.length >= 5);
+                  for (const jw of jargonWords) {
+                    for (const mw of msgWords) {
+                      const dist = core.levenshteinDistance(jw, mw);
+                      const threshold = Math.max(1, Math.floor(jw.length/8));
+                      if (Math.abs(jw.length-mw.length)<=2 && dist<=threshold) {
+                        console.log('ACTUAL_MATCH_PAIR (passes real threshold):', JSON.stringify({jargonWord: jw, msgWord: mw, distance: dist, threshold, phrase}));
+                      } else if (dist <= 4) {
+                        console.log('close_but_filtered:', JSON.stringify({jargonWord: jw, msgWord: mw, distance: dist, threshold}));
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Butun ibora (whole-phrase) moslikni ham tekshiramiz
+              const msgCore = core.coreMatchText ? core.coreMatchText(q) : null;
+              console.log('MSG_CORE:', msgCore);
+              for (const l of ahmadjon) {
+                for (const phrase of l.jargonSynonyms) {
+                  const jCore = core.coreMatchText ? core.coreMatchText(phrase) : null;
+                  console.log('JARGON_CORE for', JSON.stringify(phrase), ':', jCore);
+                }
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
