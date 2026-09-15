@@ -24,6 +24,41 @@ export interface SearchOptions {
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
 
+// Ko'p kategoriyalarda takrorlanadigan, "identifying" (o'ziga xos) BO'LMAGAN
+// umumiy so'zlar — so'z darajasidagi jargon moslikda (hasWordLevelJargonMatch)
+// bular hisobga OLINMAYDI, aks holda deyarli har qanday shu turdagi so'rov
+// "mos keladi" deb topilib qolar edi (masalan "zaprafka" so'zining o'zi HAR
+// QANDAY zaprafka bilan mos kelib, aniqlashtirish vazifasini bajarmaydi).
+const GENERIC_JARGON_WORDS = new Set([
+  'zaprafka', 'zapravka', 'benzin', 'metan', 'propan', 'yoqilgi', 'quyish',
+  'ochiq', 'ochiqmi', 'yopiq', 'yopiqmi', 'ishlaydi', 'ishlaydimi',
+  'ishlayapti', 'ishlayaptimi', 'ishlayabdi', 'ishlayabdimi', 'kerak',
+  'bormi', 'ekan', 'hozir', 'nechigacha', 'nechida', 'qancha',
+]);
+
+/**
+ * Jargon iborasi BUTUN ibora sifatida mos kelmasa ham (so'z tartibi yoki
+ * orasiga boshqa so'z qo'shilgani sabab), uning ENG XOS (uzun, umumiy
+ * bo'lmagan) so'zi xabarda alohida so'z sifatida (yoki yozilishga juda
+ * yaqin) uchrasa — bu ham yetarli, ishonchli moslik hisoblanadi. Masalan
+ * jargon "beshbirdagi karvon zaprafka" va xabar "Beshbirdagi zaprafka
+ * ochiqmi" — "karvon" so'zi yo'q, lekin "beshbirdagi" ikkalasida ham bor.
+ */
+function hasWordLevelJargonMatch(msgWords: string[], jargonPhrase: string): boolean {
+  const jargonWords = normalizeText(jargonPhrase)
+    .split(/\s+/)
+    .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w));
+  if (jargonWords.length === 0) return false;
+  return jargonWords.some((jw) =>
+    msgWords.some((mw) => {
+      if (jw === mw) return true;
+      if (Math.abs(jw.length - mw.length) > 2) return false;
+      const threshold = Math.max(1, Math.round(jw.length / 5));
+      return levenshteinDistance(jw, mw) <= threshold;
+    })
+  );
+}
+
 // So'rov ko'rinishidagi xabar signalini tekshiradi. MUHIM (2026-09 topilgan
 // jiddiy xato): pastdagi jargon moslashtiruvchi butun xabarni bo'shliqsiz
 // "yadro" shaklga siqib, ICHIDA jargon so'z bor-yo'qligini tekshiradi — gap
@@ -295,6 +330,31 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   let jargonMatchedIds = new Set<string>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     const msgCore = coreMatchText(rawMessage);
+    // MUHIM (2026-09 topilgan JIDDIY xato): yuqoridagi moslik BUTUN iborani
+    // (bo'shliqsiz "yadro" shaklda) solishtiradi — bu ko'p so'zli jargon
+    // iboralar ("beshbirdagi karvon zaprafka") uchun juda qattiq: agar
+    // foydalanuvchi so'z tartibini o'zgartirsa yoki orasiga boshqa so'z
+    // qo'shsa (masalan "ochiqmi" o'rniga "ishlayabdimi", yoki "karvon"
+    // so'zini aytmasa) — moslik butunlay yo'qoladi. Real production'da
+    // aniqlandi: AI klassifikator "landmark" maydoni ham har doim ishonchli
+    // emas (ba'zan kirill-lotin aralash, masalan "beshbир" kabi buzilgan
+    // matn qaytaradi) — shu ikkalasi birga kelib, tegishli jargon
+    // ro'yxatdan o'tkazilmagan (yoki noaniq) so'rovlar uchun tizim
+    // TASODIFIY (RotationBonus) yozuvni tanlab qo'yishiga olib kelardi —
+    // garchi to'g'ri yozuv (masalan "CARVON") bazada ANIQ jargon bilan
+    // ro'yxatdan o'tgan bo'lsa ham.
+    //
+    // Tuzatildi: BUTUN ibora mos kelmasa, endi SO'Z darajasida ham
+    // tekshiriladi — jargon iborasining ENG XOS (uzun, umumiy bo'lmagan)
+    // so'zi xabarda alohida so'z sifatida (yoki yozilishga yaqin) uchrasa,
+    // bu ham yetarli moslik hisoblanadi. Bu orqali "beshbirdagi" so'zining
+    // o'zi xabar va jargonda BIR XIL bo'lsa, atrofidagi boshqa so'zlar
+    // (tartib/qo'shimcha) farq qilsa ham, to'g'ri yozuv +2000 ustuvorlik
+    // bilan (pastdagi directJargonBonus) g'olib chiqadi — tasodifiylik
+    // o'rniga.
+    const msgWords = normalizeText(rawMessage)
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w));
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, jargonSynonyms: true },
@@ -302,16 +362,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     for (const cand of jargonCandidates) {
       const hit = cand.jargonSynonyms.some((j) => {
         const jargonCore = coreMatchText(j);
-        if (jargonCore.length < MIN_JARGON_PHRASE_LENGTH || msgCore.length < MIN_JARGON_PHRASE_LENGTH) return false;
-        // Ikki tomonlama qamrash: xabar jargon "yadrosi"ni o'z ichiga oladimi,
-        // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa)
-        if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) return true;
-        // Kichik yozilish xatosiga chidamli oxirgi tekshiruv (uzunliklari yaqin bo'lsa)
-        if (Math.abs(msgCore.length - jargonCore.length) <= 3) {
-          const threshold = Math.max(1, Math.floor(Math.max(msgCore.length, jargonCore.length) / 6));
-          return levenshteinDistance(msgCore, jargonCore) <= threshold;
+        if (jargonCore.length >= MIN_JARGON_PHRASE_LENGTH && msgCore.length >= MIN_JARGON_PHRASE_LENGTH) {
+          // Ikki tomonlama qamrash: xabar jargon "yadrosi"ni o'z ichiga oladimi,
+          // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa)
+          if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) return true;
+          // Kichik yozilish xatosiga chidamli oxirgi tekshiruv (uzunliklari yaqin bo'lsa)
+          if (Math.abs(msgCore.length - jargonCore.length) <= 3) {
+            const threshold = Math.max(1, Math.floor(Math.max(msgCore.length, jargonCore.length) / 6));
+            if (levenshteinDistance(msgCore, jargonCore) <= threshold) return true;
+          }
         }
-        return false;
+        return hasWordLevelJargonMatch(msgWords, j);
       });
       if (hit) jargonMatchedIds.add(cand.id);
     }
