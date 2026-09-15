@@ -36,6 +36,15 @@ const GENERIC_JARGON_WORDS = new Set([
   'bormi', 'ekan', 'hozir', 'nechigacha', 'nechida', 'qancha',
 ]);
 
+// "ishla..." o'zagidan yasalgan barcha fe'l shakllari ("ishlaydi",
+// "ishlayapti", "ishlayabdi", "ishlayapdimi" va h.k. — imlo ko'p xilma-xil
+// bo'lishi mumkin) — har birini alohida ro'yxatga yozish o'rniga, o'zak
+// bo'yicha tekshiramiz, shunda yangi imlo variantlari ham avtomatik
+// "umumiy" hisoblanadi.
+function isGenericVerbForm(word: string): boolean {
+  return word.startsWith('ishla');
+}
+
 /**
  * Jargon iborasi BUTUN ibora sifatida mos kelmasa ham (so'z tartibi yoki
  * orasiga boshqa so'z qo'shilgani sabab), uning ENG XOS (uzun, umumiy
@@ -47,7 +56,7 @@ const GENERIC_JARGON_WORDS = new Set([
 function hasWordLevelJargonMatch(msgWords: string[], jargonPhrase: string): boolean {
   const jargonWords = normalizeText(jargonPhrase)
     .split(/\s+/)
-    .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w));
+    .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w));
   if (jargonWords.length === 0) return false;
   return jargonWords.some((jw) =>
     msgWords.some((mw) => {
@@ -354,7 +363,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // o'rniga.
     const msgWords = normalizeText(rawMessage)
       .split(/\s+/)
-      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w));
+      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w));
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, jargonSynonyms: true },
@@ -403,6 +412,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // kategoriyadagi yozuvlarni majburan aralashtirib yubormasligi kerak
   // (pastdagi jiddiy xato tuzatilishiga qarang).
   let hasResolvedCategory = false;
+  let categoryHasAnyListings = false;
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
@@ -462,6 +472,13 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       whereCondition.categoryId = { in: categoryIds };
       categoryDisplayName = categories[0].name;
       hasResolvedCategory = true;
+      // Kategoriyaning o'zida (mo'ljal/landmark cheklovidan MUSTAQIL) umuman
+      // yozuv bor-yo'qligi — pastdagi jargon-qutqarish bosqichida kerak
+      // bo'ladi (candidateListings landmark cheklovi sabab bo'sh bo'lib
+      // qolgan holatlarni, kategoriyaning o'zi bo'sh bo'lgan holatlardan
+      // farqlash uchun).
+      categoryHasAnyListings =
+        (await db.listing.count({ where: { cityId, status: 'ACTIVE', categoryId: { in: categoryIds } } })) > 0;
     } else {
       // If Category table didn't match directly, search Listing name, jargonSynonyms, or specificServices
       whereCondition.OR = [
@@ -511,7 +528,26 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // signalini butunlay e'tiborsiz qoldiramiz (kategoriya yolg'iz o'zi
   // yetarli). Faqat kategoriya topilmagan holatlarda (bu holda jargon —
   // yagona zaxira signal) eski xulq-atvor saqlanadi.
-  if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !hasResolvedCategory)) {
+  //
+  // MUHIM (2026-09, ANIQ skrinshot bilan tasdiqlangan YANGI xato): yuqoridagi
+  // "e'tiborsiz qoldirish" qoidasi juda KENG edi — u "yaqin atrofi" kabi
+  // UMUMIY iboralar UCHUN to'g'ri, lekin AI ba'zan chindan ham ANIQ, lekin
+  // bazada MAVJUD BO'LMAGAN joy nomini ham landmark sifatida chiqaradi
+  // (masalan "to'ytepa pavarot" — foydalanuvchi chindan ham shu ANIQ joy
+  // haqida so'ragan, lekin bizda u yerda zaprafka yo'q). Bunday holatda
+  // kategoriya yolg'iz o'zi ASLO yetarli emas — aks holda bot foydalanuvchi
+  // so'ragan joy o'rniga BUTUNLAY BOSHQA, aloqasiz joydagi yozuvni "aynan
+  // shu" deb ko'rsatib, XATO ma'lumot beradi (bu umuman javob
+  // bermaslikdan HAM YOMONROQ — foydalanuvchi noto'g'ri ma'lumotga
+  // ishonishi mumkin). Shu sabab farqlanadi: agar landmark chindan ham
+  // UMUMIY/noaniq ibora bo'lsa (hozircha: "atrof" ildizli so'zlar —
+  // "yaqin atrofi/atrofda/atrofa") — kategoriya yolg'iz yetarli. Aks
+  // holda (landmark ANIQ, o'ziga xos joy nomiga o'xshasa) — filtr
+  // baribir qo'llaniladi: agar hech narsa (na Landmark jadvali, na
+  // jargon) mos kelmasa, natija BO'SH qoladi va bot to'g'ri ravishda JIM
+  // turadi — noto'g'ri "eng yaqin" yozuvni taxmin qilib bermaydi.
+  const isGenericLocationPhrase = !!cleanLandmarkName && /\batrof/.test(cleanLandmarkName);
+  if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !(hasResolvedCategory && isGenericLocationPhrase))) {
     const landmarkOrConditions: any[] = [];
     if (matchedLandmarkIds.length > 0) {
       landmarkOrConditions.push({ primaryLandmarkId: { in: matchedLandmarkIds } });
@@ -587,9 +623,20 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // do'koni) HECH QACHON ko'rsatilmasdi — garchi hech qanday haqiqiy
   // "aralashib ketish" xavfi yo'qligiga qaramay (himoya qiladigan yozuv
   // umuman yo'q edi).
+  // MUHIM (2026-09, "to'ytepa pavarot" xatosi bilan bog'liq qo'shimcha
+  // tuzatish): yuqoridagi shart avval `candidateListings.length > 0`ni
+  // tekshirardi — bu "balon kerak" holati uchun to'g'ri edi (kategoriya
+  // haqiqatan BO'SH bo'lganda himoyaning ma'nosi yo'q). Lekin ENDI
+  // candidateListings ANIQ, lekin bazada yo'q mo'ljal (masalan "to'ytepa
+  // pavarot") sabab ham bo'sh bo'lib qolishi mumkin — bu holda kategoriya
+  // O'ZI bo'sh EMAS, shunchaki mo'ljal filtri hech narsa qoldirmagan.
+  // Bunday holatda ham chegara (boshqa kategoriyadagi jargon aralashib
+  // ketmasligi) albatta qo'llanilishi kerak — aks holda foydalanuvchi
+  // so'ragan ANIQ, mavjud bo'lmagan joy o'rniga ALOQASIZ kategoriyadagi
+  // biror yozuv "botqoqlab" chiqib qolishi mumkin edi.
   const candidateIds = new Set(candidateListings.map((l) => l.id));
   let missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
-  if (missingJargonIds.length > 0 && hasResolvedCategory && candidateListings.length > 0) {
+  if (missingJargonIds.length > 0 && hasResolvedCategory && categoryHasAnyListings) {
     const resolvedCategoryIds = new Set(
       (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
     );
