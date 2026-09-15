@@ -36,7 +36,7 @@ jobs:
                   rawMessage: q,
                   intent: c.intent,
                 });
-                console.log(label, '| intent:', c.intent, '| category:', c.category, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
+                console.log(label, '| intent:', c.intent, '| category:', c.category, '| landmark:', c.landmark, '| name:', c.name, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
               }
 
               console.log('--- YANGI TUZATISH: fartuna 8 marta, hech qachon aloqasiz yozuv chiqmasligi kerak ---');
