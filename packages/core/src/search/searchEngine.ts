@@ -49,18 +49,58 @@ function isGenericVerbForm(word: string): boolean {
   return word.startsWith('ishla');
 }
 
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan JIDDIY xato): statik
+// GENERIC_JARGON_WORDS ro'yxati faqat OLDINDAN o'ylab topilgan so'zlarni
+// (zaprafka, ochiq, kerak va h.k.) qamrab olardi — lekin amalda har qanday
+// biznes o'z jargoniga "X nomeri kerak" uslubida yozadi, ya'ni "nomeri",
+// "raqami", "telefoni", "akalar" kabi so'zlar O'ZI o'ziga xos EMAS, faqat
+// TASODIFAN ro'yxatda yo'q edi. Natija: "Fartunani nomeri bormi" so'rovi
+// "nomeri" so'zi orqali BUTUNLAY ALOQASIZ "Mondo nomeri kerak" jargoniga
+// mos kelib qolgan (ikkalasida ham "nomeri" bor xolos). Qo'lda ro'yxat
+// tuzish o'rniga endi CHASTOTAGA (frequency) qaraymiz: agar bir so'z
+// bazadagi bir nechta TURLI yozuvlarning jargonida uchrasa — bu so'z
+// umumiy filler, "o'ziga xos" emas, qancha ko'p ro'yxatga yozilmagan
+// so'z bo'lsa ham. Faqat KAM SONLI (odatda BITTA) yozuvga xos so'zgina
+// haqiqiy identifikator hisoblanadi.
+const WORD_FREQUENCY_THRESHOLD = 2;
+
+function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[] }[]): Map<string, number> {
+  const freq = new Map<string, number>();
+  for (const cand of jargonCandidates) {
+    const wordsInThisListing = new Set<string>();
+    for (const phrase of cand.jargonSynonyms) {
+      for (const w of normalizeText(phrase).split(/\s+/)) {
+        if (w.length >= 5) wordsInThisListing.add(w);
+      }
+    }
+    for (const w of wordsInThisListing) freq.set(w, (freq.get(w) || 0) + 1);
+  }
+  return freq;
+}
+
 /**
  * Jargon iborasi BUTUN ibora sifatida mos kelmasa ham (so'z tartibi yoki
  * orasiga boshqa so'z qo'shilgani sabab), uning ENG XOS (uzun, umumiy
- * bo'lmagan) so'zi xabarda alohida so'z sifatida (yoki yozilishga juda
- * yaqin) uchrasa — bu ham yetarli, ishonchli moslik hisoblanadi. Masalan
- * jargon "beshbirdagi karvon zaprafka" va xabar "Beshbirdagi zaprafka
- * ochiqmi" — "karvon" so'zi yo'q, lekin "beshbirdagi" ikkalasida ham bor.
+ * bo'lmagan, KAM SONLI yozuvga xos) so'zi xabarda alohida so'z sifatida
+ * (yoki yozilishga juda yaqin) uchrasa — bu ham yetarli, ishonchli moslik
+ * hisoblanadi. Masalan jargon "beshbirdagi karvon zaprafka" va xabar
+ * "Beshbirdagi zaprafka ochiqmi" — "karvon" so'zi yo'q, lekin
+ * "beshbirdagi" ikkalasida ham bor (va faqat shu bitta yozuvga xos).
  */
-function hasWordLevelJargonMatch(msgWords: string[], jargonPhrase: string): boolean {
+function hasWordLevelJargonMatch(
+  msgWords: string[],
+  jargonPhrase: string,
+  wordFrequency: Map<string, number>
+): boolean {
   const jargonWords = normalizeText(jargonPhrase)
     .split(/\s+/)
-    .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w));
+    .filter(
+      (w) =>
+        w.length >= 5 &&
+        !GENERIC_JARGON_WORDS.has(w) &&
+        !isGenericVerbForm(w) &&
+        (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
+    );
   if (jargonWords.length === 0) return false;
   return jargonWords.some((jw) =>
     msgWords.some((mw) => {
@@ -372,6 +412,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, jargonSynonyms: true },
     });
+    const wordFrequency = computeJargonWordFrequency(jargonCandidates);
     for (const cand of jargonCandidates) {
       const hit = cand.jargonSynonyms.some((j) => {
         const jargonCore = coreMatchText(j);
@@ -385,7 +426,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             if (levenshteinDistance(msgCore, jargonCore) <= threshold) return true;
           }
         }
-        return hasWordLevelJargonMatch(msgWords, j);
+        return hasWordLevelJargonMatch(msgWords, j, wordFrequency);
       });
       if (hit) jargonMatchedIds.add(cand.id);
     }
