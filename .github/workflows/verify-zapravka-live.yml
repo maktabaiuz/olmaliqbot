@@ -1,4 +1,4 @@
-name: One-off - verify zapravka search live 4
+name: One-off - diagnose zapravka search failure
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify via SSH
+      - name: Diagnose via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -18,32 +18,24 @@ jobs:
           script: |
             set -e
             docker exec -w /app/apps/bot kimbor_bot node -e "
-            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
-            const core = require('/app/packages/core/dist/index.js');
             const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
             const db = new PrismaClient();
             (async () => {
               const city = await db.city.findFirst({ where: { name: { contains: 'Olmaliq', mode: 'insensitive' } } });
-              console.log('CITY:', city && city.id, city && city.name);
 
-              const queries = ['guruhda zapravka bor eken kimda', 'benzin kerak edi', 'yaqin atrofda avtomobil zapravkasi bormi', 'metan quyadigan joy kerak'];
-              for (const q of queries) {
-                const classification = await classifyQuery(q, city.id, BigInt(999999));
-                console.log('QUERY:', JSON.stringify(q));
-                console.log('CLASSIFICATION:', JSON.stringify(classification));
-                const isSeeking = classification.intent === 'SEEKING' || classification.intent !== 'NOT_RELEVANT';
-                const searchResult = await core.searchListings({
-                  cityId: city.id,
-                  categoryName: isSeeking ? classification.category : null,
-                  landmarkName: isSeeking ? classification.landmark : null,
-                  rawMessage: q,
-                });
-                console.log('FOUND:', !!searchResult);
-                if (searchResult) {
-                  console.log('TEXT_SNIPPET:', (searchResult.text || '').slice(0, 400));
-                }
-                console.log('---');
+              const gondra = await db.listing.findMany({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              console.log('GONDRA_STATE:', JSON.stringify(gondra.map(l => ({ id: l.id, type: l.type, status: l.status, categoryId: l.categoryId, cityId: l.cityId }))));
+
+              const catNames = ['zapravka', 'benzin', 'metan zapravka'];
+              for (const cleanCat of catNames) {
+                const exact = await db.category.findMany({ where: { OR: [ { name: { contains: cleanCat, mode: 'insensitive' } }, { synonyms: { has: cleanCat } } ] } });
+                console.log('CATEGORYNAME:', JSON.stringify(cleanCat), 'EXACT_MATCH_COUNT:', exact.length, 'NAMES:', JSON.stringify(exact.map(c => c.name)));
               }
+
+              // Zapravka kategoriyasi haqiqatan ham to'g'ri sinonimlarga egami?
+              const zapCat = await db.category.findFirst({ where: { name: 'Avtomobil zapravkasi' } });
+              console.log('ZAP_CATEGORY:', JSON.stringify(zapCat));
+
               await db.\$disconnect();
-            })().catch(e => { console.error('VERIFY_ERROR:', e); process.exit(1); });
+            })().catch(e => { console.error('DIAG_ERROR:', e); process.exit(1); });
             "
