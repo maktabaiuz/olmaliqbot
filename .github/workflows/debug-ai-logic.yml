@@ -1,0 +1,63 @@
+name: One-off - debug AI self-offer and landmark narrowing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              console.log('--- isSelfOffer tests ---');
+              const offerTests = [
+                'metall olaman',
+                'metal olaman qimmat narxda',
+                'labo hizmati menda bor',
+                'menda labo xizmati bor',
+                'labo xizmatim bor',
+                'santexnik kerak',
+                'metalchi kerak',
+              ];
+              for (const t of offerTests) {
+                console.log('SELF_OFFER:', JSON.stringify(t), '->', core.isSelfOffer(t));
+              }
+
+              console.log('--- zapravka landmark narrowing ---');
+              const zapListings = await db.listing.findMany({ where: { type: 'ZAPRAVKA', status: 'ACTIVE' }, select: { id: true, name: true, jargonSynonyms: true, cityId: true } });
+              console.log('ALL_ACTIVE_ZAPRAVKA:', JSON.stringify(zapListings.map(l => ({ name: l.name, jargonSynonyms: l.jargonSynonyms }))));
+
+              if (zapListings.length > 0) {
+                const cityId = zapListings[0].cityId;
+                const q = 'beshbirdagi zaprafka ochiqmi';
+                const classification = await classifyQuery(q, cityId, BigInt(999999));
+                console.log('CLASSIFICATION_BESHBIR:', JSON.stringify(classification));
+                const isSeeking = classification.intent !== 'NOT_RELEVANT';
+                const searchResult = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? classification.category : null,
+                  landmarkName: isSeeking ? classification.landmark : null,
+                  rawMessage: q,
+                });
+                console.log('BESHBIR_SEARCH_FOUND:', !!searchResult);
+                if (searchResult) console.log('BESHBIR_MATCHED_NAME:', searchResult.listing.name);
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
