@@ -457,11 +457,25 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     }
 
     // Aniq moslik topilmasa — yozilish xatosiga chidamli qidiruvga o'tamiz
-    // (masalan "avtoelektirik" -> "Avtoelektrik"). Xabar matni ham
-    // qo'shiladi, chunki klassifikator ba'zan kategoriyani asl matndan
-    // to'liq ajrata olmaydi.
+    // (masalan "avtoelektirik" -> "Avtoelektrik").
+    //
+    // MUHIM (2026-09, real xato bilan tasdiqlangan): avval bu yerga BUTUN
+    // xabar matni ham ("Akalar fartunani nomeri bormi" kabi) qo'shib
+    // yuborilardi — niyat AI kategoriyani "to'liq" ajrata olmagan holatlar
+    // uchun edi. Lekin amalda bu XAVFLI bo'lib chiqdi: AI ba'zan "fartuna"
+    // (aslida BIZNES NOMI, umuman kategoriya emas) kabi so'zni categoryName
+    // sifatida chiqarib yuboradi — bunday holda BUTUN xabar matnidagi
+    // "akalar", "nomeri", "bormi" kabi so'zlar (va ularning juft
+    // birikmalari) ham nomzod sifatida tekshirilib, TASODIFAN qandaydir
+    // ALOQASIZ kategoriyaga "yaqin" chiqib qolishi mumkin edi — natijada
+    // bot HAR SAFAR BOSHQA-BOSHQA, umuman aloqasiz javob berardi (masalan
+    // "Mondo" kafeni, keyingi safar "Sushitana"ni). Endi FAQAT AI
+    // chiqargan categoryName so'zining o'zi (xabar matni QO'SHILMASDAN)
+    // tekshiriladi — bu haqiqiy yozilish xatosini ("avtoelektirik") hali
+    // ham to'g'ri tuzatadi, lekin butunlay aloqasiz so'zdan (bo'lishi
+    // mumkin bo'lmagan "kategoriya") tasodifiy moslik xavfini yo'qotadi.
     if (categories.length === 0) {
-      const fuzzyMatches = await fuzzyFindCategory(`${cleanCat} ${rawMessage || ''}`);
+      const fuzzyMatches = await fuzzyFindCategory(cleanCat);
       if (fuzzyMatches.length > 0) {
         categories = fuzzyMatches as any;
       }
