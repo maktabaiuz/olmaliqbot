@@ -22,6 +22,7 @@ enum ListingType {
   MUASSASA
   TRANSPORT
   ARENDA
+  ZAPRAVKA
 }
 
 enum ListingStatus {
@@ -293,6 +294,11 @@ model Listing {
   description         String?
   latitude            Float?             // Jonli GPS Kenglik (Xarita nuqtasi)
   longitude           Float?             // Jonli GPS Uzunlik (Xarita nuqtasi)
+  // Admin Yandex Xaritadan olib joylagan tayyor havola (2026-09,
+  // Zapravkalar uchun) — bot javobida yashil "📍 Lokatsiya" tugmasi shu
+  // havolaga olib boradi. lat/long'dan farqli — admin koordinata
+  // kiritmaydi, Yandex'ning o'zi bergan ulashish havolasini nusxalaydi.
+  mapUrl              String?
   jargonSynonyms      String[]           // Mahalliy jargon / xalq atamalari ["karzinka orqasi", "карзинка", "eski bozor"]
 
   // Tizim maydonlari

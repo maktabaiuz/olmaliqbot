@@ -14,13 +14,21 @@ import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { getCommunityUrl, getCommunityLabel } from '../settings/appSettings';
 
 /**
- * "Yana ko'rish" (qolgan mosliklar bo'lsa) va kanal havolasi (sozlangan
+ * "Yana ko'rish" (qolgan mosliklar bo'lsa), "📍 Lokatsiya" (yashil, admin
+ * Yandex Xaritadan havola qo'ygan bo'lsa) va kanal havolasi (sozlangan
  * bo'lsa) tugmalarini quradi — har bir alohida postda BIR XIL tartibda.
  */
-export async function buildResultKeyboard(remainingCount: number, listingId: string): Promise<InlineKeyboard> {
+export async function buildResultKeyboard(
+  remainingCount: number,
+  listingId: string,
+  mapUrl?: string | null
+): Promise<InlineKeyboard> {
   const keyboard = new InlineKeyboard();
   if (remainingCount > 0) {
     keyboard.text(`Yana ${remainingCount} tasini ko'rish`, `more_${listingId}`).success().row();
+  }
+  if (mapUrl) {
+    keyboard.url('📍 Lokatsiya', mapUrl).success().row();
   }
   const communityUrl = await getCommunityUrl();
   const communityLabel = communityUrl ? await getCommunityLabel() : null;

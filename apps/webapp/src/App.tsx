@@ -612,6 +612,7 @@ const OBJECT_TYPE_LABEL: Record<string, string> = {
   MUASSASA: 'Muassasa',
   TRANSPORT: 'Transport',
   ARENDA: 'Arenda',
+  ZAPRAVKA: 'Zapravka',
 };
 
 const MoreCategoriesSubView: React.FC<{
@@ -625,7 +626,7 @@ const MoreCategoriesSubView: React.FC<{
 
   // Yangi kategoriya forma maydonlari
   const [newName, setNewName] = useState('');
-  const [newObjectType, setNewObjectType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA'>('USTA');
+  const [newObjectType, setNewObjectType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'>('USTA');
   const [newGroup, setNewGroup] = useState('');
   const [isAddingNewGroup, setIsAddingNewGroup] = useState(false);
   const [customGroupInput, setCustomGroupInput] = useState('');
@@ -834,6 +835,7 @@ const MoreCategoriesSubView: React.FC<{
                   { id: 'MUASSASA', icon: '🏢' },
                   { id: 'TRANSPORT', icon: '🚗' },
                   { id: 'ARENDA', icon: '🔑' },
+                  { id: 'ZAPRAVKA', icon: '⛽' },
                 ] as const).map((t) => (
                   <button
                     key={t.id}

@@ -47,6 +47,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [workFrom, setWorkFrom] = useState('08:00');
   const [workTo, setWorkTo] = useState('20:00');
   const [badges, setBadges] = useState<string[]>([]);
+  const [mapUrl, setMapUrl] = useState('');
   const [jargonSynonyms, setJargonSynonyms] = useState<string[]>([]);
   const [specificServices, setSpecificServices] = useState('');
   const [approxPrice, setApproxPrice] = useState('');
@@ -105,6 +106,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setWorkFrom(l.workFrom || '08:00');
         setWorkTo(l.workTo || '20:00');
         setBadges(l.badges || []);
+        setMapUrl(l.mapUrl || '');
         setJargonSynonyms(l.jargonSynonyms || []);
         setSpecificServices(l.specificServices || '');
         setApproxPrice(l.approxPrice || '');
@@ -147,7 +149,8 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         description !== (originalData.description || '') ||
         JSON.stringify(badges) !== JSON.stringify(originalData.badges || []) ||
         JSON.stringify(jargonSynonyms) !== JSON.stringify(originalData.jargonSynonyms || []) ||
-        JSON.stringify(photoUrls) !== JSON.stringify(originalData.photoUrls || []))
+        JSON.stringify(photoUrls) !== JSON.stringify(originalData.photoUrls || []) ||
+        mapUrl !== (originalData.mapUrl || ''))
   );
 
   // Save changes
@@ -174,6 +177,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           approxPrice,
           description,
           photoUrls,
+          mapUrl,
         }),
       });
       const data = await res.json();
@@ -549,6 +553,25 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   />
                 </div>
               </div>
+
+              {/* XARITA HAVOLASI (faqat Zapravkalar) */}
+              {originalData?.type === 'ZAPRAVKA' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Xarita havolasi (Yandex)
+                  </label>
+                  <input
+                    type="text"
+                    value={mapUrl}
+                    onChange={e => setMapUrl(e.target.value)}
+                    placeholder="https://yandex.uz/maps/..."
+                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.
+                  </p>
+                </div>
+              )}
 
               {/* ANIQ XIZMATLAR */}
               <div>

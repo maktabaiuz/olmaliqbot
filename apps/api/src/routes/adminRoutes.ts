@@ -645,13 +645,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
         description,
         specificServices,
         approxPrice,
+        mapUrl,
       } = req.body;
 
       if (!name || !categoryName || !phone) {
         return reply.status(400).send({ error: "Ism, Kategoriya va Telefon majburiy!" });
       }
 
-      const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT, ListingType.ARENDA];
+      const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT, ListingType.ARENDA, ListingType.ZAPRAVKA];
       const listingType = VALID_LISTING_TYPES.includes(type) ? type : ListingType.USTA;
 
       // Find or create category. Avval kiritilgan nomni lug'atdagi KANONIK
@@ -727,6 +728,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
           description: description || null,
           specificServices: specificServices || null,
           approxPrice: approxPrice || null,
+          mapUrl: mapUrl || null,
         },
       });
 
@@ -817,6 +819,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       description,
       jargonSynonyms,
       photoUrls,
+      mapUrl,
     } = req.body;
 
     const existing = await db.listing.findUnique({ where: { id } });
@@ -884,6 +887,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(description !== undefined && { description }),
         ...(Array.isArray(jargonSynonyms) && { jargonSynonyms }),
         ...(Array.isArray(photoUrls) && { photoUrls: photoUrls.slice(0, 8) }),
+        ...(mapUrl !== undefined && { mapUrl: mapUrl || null }),
         categoryId,
         primaryLandmarkId,
         lastVerifiedAt: new Date(),
@@ -1090,7 +1094,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(409).send({ success: false, message: 'Bu nomdagi kategoriya allaqachon mavjud' });
     }
 
-    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'ARENDA'];
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'ARENDA', 'ZAPRAVKA'];
     const category = await db.category.create({
       data: {
         name: name.trim(),
@@ -1110,7 +1114,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const existing = await db.category.findUnique({ where: { id } });
     if (!existing) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
 
-    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'ARENDA'];
+    const VALID_OBJECT_TYPES = ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'ARENDA', 'ZAPRAVKA'];
     const updated = await db.category.update({
       where: { id },
       data: {

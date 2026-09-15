@@ -21,6 +21,8 @@ const TTL_SECONDS = 15 * 60;
 export interface RankedListItem {
   formattedText: string;
   photoUrls: string[];
+  /** Bo'lsa — "📍 Lokatsiya" (yashil) tugmasi shu yozuv uchun ham qo'shiladi. */
+  mapUrl: string | null;
 }
 
 export interface RankedListState {

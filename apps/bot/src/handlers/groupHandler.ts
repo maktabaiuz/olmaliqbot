@@ -131,7 +131,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.otherMatches);
   }
-  const keyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId);
+  const keyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 
   await sendListingReply(ctx, {
     formattedText: searchResult.formattedText,

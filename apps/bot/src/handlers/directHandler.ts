@@ -299,14 +299,14 @@ async function runPrivateSearch(
     return;
   }
 
-  // "Raqamni nusxalash" va alohida "Xarita" tugmalari olib tashlandi —
-  // telefon raqami <code> formatida (bosilsa o'zi nusxalanadi), mo'ljal
-  // nomi esa kartaning o'zida (lat/long bo'lsa) bosiladigan havola —
-  // ikkalasi ham alohida tugma sifatida ortiqcha edi.
+  // "Raqamni nusxalash" tugmasi olib tashlangan — telefon raqami <code>
+  // formatida (bosilsa o'zi nusxalanadi). "📍 Lokatsiya" tugmasi esa
+  // (2026-09, Zapravkalar uchun) admin mapUrl qo'ygan bo'lsa qaytadan
+  // qo'shiladi (buildResultKeyboard ichida).
   if (searchResult.hasMore) {
     await setRankedList(searchResult.listingId, searchResult.otherMatches);
   }
-  const resultKeyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId);
+  const resultKeyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 
   await sendListingReply(ctx, {
     formattedText: searchResult.formattedText,
@@ -392,7 +392,7 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     // tuzatildi). "Yana ko'rish" qolganlar bo'lsa shu yangi postga ham
     // qo'shiladi, hammasi ko'rsatilgan bo'lsa esa butunlay yo'qoladi.
     const isGroupChat = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
-    const keyboard = await buildResultKeyboard(revealed.remaining, listingId);
+    const keyboard = await buildResultKeyboard(revealed.remaining, listingId, revealed.item.mapUrl);
 
     try {
       await sendListingReply(ctx, {

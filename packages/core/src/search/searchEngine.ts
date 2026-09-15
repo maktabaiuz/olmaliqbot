@@ -63,6 +63,7 @@ const DEFAULT_EMOJI_BY_OBJECT_TYPE: Record<string, string> = {
   MUASSASA: '🏢',
   TRANSPORT: '🚗',
   ARENDA: '🔑',
+  ZAPRAVKA: '⛽',
 };
 
 // --- Yozilish xatolariga (typo) chidamli kategoriya moslashtirish ---
@@ -171,6 +172,8 @@ async function fuzzyFindLandmark(cityId: string, searchText: string): Promise<st
 export interface OtherMatch {
   formattedText: string;
   photoUrls: string[];
+  /** Bo'lsa — "📍 Lokatsiya" (yashil) tugmasi shu yozuv uchun ham qo'shiladi. */
+  mapUrl: string | null;
 }
 
 export interface FormattedListingResult {
@@ -604,6 +607,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     rankedTop.slice(1).map(async (s, i) => ({
       formattedText: await buildListingCard(s.listing, s.bayesianRating, i + 2, categoryEmoji, categoryDisplayName),
       photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
+      mapUrl: s.listing.mapUrl || null,
     }))
   );
 

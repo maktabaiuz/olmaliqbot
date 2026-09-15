@@ -14,6 +14,7 @@ const CATEGORY_FIELD_LABEL: Record<string, string> = {
   MUASSASA: 'Muassasa turi',
   TRANSPORT: 'Transport turi',
   ARENDA: 'Arenda turi',
+  ZAPRAVKA: 'Zapravka turi',
 };
 const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
   USTA: 'Masalan, Santexnik',
@@ -21,14 +22,21 @@ const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
   MUASSASA: 'Masalan, Notarius',
   TRANSPORT: 'Masalan, Taksi',
   ARENDA: 'Masalan, Lesa',
+  ZAPRAVKA: 'Masalan, Avtomobil Zapravkasi',
 };
-const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA'; label: string; icon: string }[] = [
+const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'; label: string; icon: string }[] = [
   { id: 'USTA', label: 'Usta', icon: 'engineering' },
   { id: 'DOKON_OBYEKT', label: "Do'kon", icon: 'storefront' },
   { id: 'MUASSASA', label: 'Muassasa', icon: 'account_balance' },
   { id: 'TRANSPORT', label: 'Avtomobil', icon: 'directions_car' },
   { id: 'ARENDA', label: 'Arenda', icon: 'key' },
+  { id: 'ZAPRAVKA', label: 'Zapravka', icon: 'local_gas_station' },
 ];
+
+// Zapravkalar uchun yoqilg'i turi belgilar — boshqa turlarda ko'rinmaydi
+// (2026-09, deep-TZ'da kelishilgan: "tanlanadigan maydon (badge kabi)").
+const DEFAULT_BADGE_OPTIONS = ['Uyga boradi', 'Kafolat', '24/7', 'Karta', 'Zudlik', 'Ruscha'];
+const ZAPRAVKA_BADGE_OPTIONS = ['Metan', 'Propan', 'AI-80', 'AI-91', 'AI-92', 'AI-95', 'Dizel', '24/7'];
 
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   initialCategory,
@@ -38,7 +46,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA'>('USTA');
+  const [listingType, setListingType] = useState<'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'>('USTA');
 
   // Form Fields State (Prefilled or restored from LocalStorage)
   const [name, setName] = useState(() => localStorage.getItem('draft_name') || '');
@@ -58,6 +66,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     const saved = localStorage.getItem('draft_badges');
     return saved ? JSON.parse(saved) : ['Uyga boradi', 'Kafolat'];
   });
+  const [mapUrl, setMapUrl] = useState(() => localStorage.getItem('draft_mapUrl') || '');
   const [serviceAreas] = useState<string[]>(() => {
     const saved = localStorage.getItem('draft_serviceAreas');
     return saved ? JSON.parse(saved) : ['3-mavze', '4-mavze'];
@@ -151,7 +160,8 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_description', description);
     localStorage.setItem('draft_consentGiven', String(consentGiven));
     localStorage.setItem('draft_photoUrls', JSON.stringify(photoUrls));
-  }, [name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls]);
+    localStorage.setItem('draft_mapUrl', mapUrl);
+  }, [name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls, mapUrl]);
 
   const handlePhotoFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -312,6 +322,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           specificServices,
           description,
           photoUrls,
+          mapUrl: listingType === 'ZAPRAVKA' ? mapUrl.trim() : '',
         }),
       });
 
@@ -332,6 +343,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         localStorage.removeItem('draft_description');
         localStorage.removeItem('draft_consentGiven');
         localStorage.removeItem('draft_photoUrls');
+        localStorage.removeItem('draft_mapUrl');
 
         onNavigateTab('database');
       } else {
@@ -636,11 +648,30 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
             </div>
           </div>
 
+          {/* Zapravkalar uchun: manzil havolasi (Yandex Xarita) */}
+          {listingType === 'ZAPRAVKA' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-bold text-slate-500 uppercase">Xarita havolasi (Yandex)</label>
+              <input
+                type="text"
+                value={mapUrl}
+                onChange={(e) => setMapUrl(e.target.value)}
+                placeholder="https://yandex.uz/maps/..."
+                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Yandex Xarita ilovasida joyni toping → "Ulashish" → havolani shu yerga joylashtiring. Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.
+              </p>
+            </div>
+          )}
+
           {/* Badges Chips */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Xizmat xususiyatlari (Belgilar)</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">
+              {listingType === 'ZAPRAVKA' ? "Yoqilg'i turi" : 'Xizmat xususiyatlari (Belgilar)'}
+            </label>
             <div className="flex flex-wrap gap-1.5">
-              {['Uyga boradi', 'Kafolat', '24/7', 'Karta', 'Zudlik', 'Ruscha'].map((badge) => {
+              {(listingType === 'ZAPRAVKA' ? ZAPRAVKA_BADGE_OPTIONS : DEFAULT_BADGE_OPTIONS).map((badge) => {
                 const hasBadge = badges.includes(badge);
                 return (
                   <button
