@@ -28,8 +28,8 @@ jobs:
 
               const testListing = await db.listing.create({
                 data: {
-                  cityId,
-                  categoryId,
+                  city: { connect: { id: cityId } },
+                  category: { connect: { id: categoryId } },
                   type: 'ZAPRAVKA',
                   name: 'TEST-vaqtinchalik-zapravka',
                   phone: '+998901234567',
