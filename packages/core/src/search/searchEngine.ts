@@ -49,6 +49,26 @@ function isGenericVerbForm(word: string): boolean {
   return word.startsWith('ishla');
 }
 
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 4-qatlam): faqat
+// CHASTOTAGA qarash YETARLI emas — "nomeri" so'zining O'ZI juda ko'p
+// yozuvda uchrab, chastota bo'yicha to'g'ri chiqarib tashlanardi, lekin
+// N1 Choyxona buni "nemeri" deb (bitta harf farqi bilan) yozgan edi — bu
+// YAGONA shu yozuvga xos "kam chastotali" so'z bo'lib chiqib, filtrdan
+// yashirincha o'tib ketardi, garchi MA'NOSI xuddi "nomeri" bilan bir xil
+// bo'lsa ham. Shu sabab "nomer/raqam/telefon/kontakt" kabi ALOQA so'zlari
+// endi ANIQ yozilishidan qat'iy nazar (yozilish xatosiga chidamli, o'zak
+// bo'yicha) "umumiy" deb tanilmoqda — bular hech qachon bironta ALOHIDA
+// biznesga xos identifikator bo'la olmaydi, qanday yozilishidan qat'iy nazar.
+const GENERIC_CONTACT_STEMS = ['nomer', 'raqam', 'telefon', 'kontakt'];
+function isGenericContactWord(word: string): boolean {
+  return GENERIC_CONTACT_STEMS.some((stem) => {
+    if (word.length < stem.length - 2) return false;
+    const prefix = word.slice(0, stem.length);
+    if (Math.abs(prefix.length - stem.length) > 1) return false;
+    return levenshteinDistance(prefix, stem) <= 1;
+  });
+}
+
 // MUHIM (2026-09, real skrinshot bilan tasdiqlangan JIDDIY xato): statik
 // GENERIC_JARGON_WORDS ro'yxati faqat OLDINDAN o'ylab topilgan so'zlarni
 // (zaprafka, ochiq, kerak va h.k.) qamrab olardi — lekin amalda har qanday
@@ -99,6 +119,7 @@ function hasWordLevelJargonMatch(
         w.length >= 5 &&
         !GENERIC_JARGON_WORDS.has(w) &&
         !isGenericVerbForm(w) &&
+        !isGenericContactWord(w) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
   if (jargonWords.length === 0) return false;
@@ -407,7 +428,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // o'rniga.
     const msgWords = normalizeText(rawMessage)
       .split(/\s+/)
-      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w));
+      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w) && !isGenericContactWord(w));
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, jargonSynonyms: true },
