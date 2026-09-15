@@ -84,5 +84,27 @@ jobs:
                   const c = await classifyQuery('balon kerak ' + i, city.id, BigInt(1));
                   console.log('out: run ' + i + ': category=' + c.category + ' intent=' + c.intent + ' confidence=' + c.confidence);
                 }
+
+                console.log('out: === 6) Checking moderation as possible cause ===');
+                const modLogs = await db.moderationLog.findMany({
+                  where: { rawMessage: { contains: 'balon', mode: 'insensitive' } },
+                  orderBy: { createdAt: 'desc' },
+                  take: 10,
+                });
+                console.log('out: moderationLog entries mentioning balon=' + JSON.stringify(modLogs.map(m => ({category: m.category, rawMessage: m.rawMessage, createdAt: m.createdAt, chatId: m.chatId.toString()}))));
+
+                const groups = await db.cityGroup.findMany();
+                for (const g of groups) {
+                  const toggles = await db.groupFeatureToggle.findMany({ where: { cityGroupId: g.id, isEnabled: true } });
+                  console.log('out: group ' + g.title + ' enabled filters=' + JSON.stringify(toggles.map(t => t.featureKey)));
+                }
+
+                console.log('out: === 7) Recent QueryLog entries mentioning balon (any chatId) ===');
+                const qlogs = await db.queryLog.findMany({
+                  where: { rawMessage: { contains: 'balon', mode: 'insensitive' } },
+                  orderBy: { createdAt: 'desc' },
+                  take: 10,
+                });
+                console.log('out: queryLog entries=' + JSON.stringify(qlogs.map(q => ({rawMessage: q.rawMessage, intent: q.intent, categoryName: q.categoryName, isResolved: q.isResolved, confidence: q.confidence, chatId: q.chatId ? q.chatId.toString() : null, createdAt: q.createdAt}))));
               })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
             "
