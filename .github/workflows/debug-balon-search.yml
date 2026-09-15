@@ -1,13 +1,13 @@
-name: Debug balon/shina search (one-off)
+name: Fix Avtomobil Shinalari synonyms + verify (one-off)
 
 on:
   workflow_dispatch:
 
 jobs:
-  debug:
+  fix-and-verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Investigate via SSH
+      - name: Add category synonyms + re-verify via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -16,95 +16,43 @@ jobs:
           timeout: 60s
           command_timeout: 3m
           script: |
-            echo "=== 1) Category + listing data ==="
+            echo "=== 1) Add synonyms to Avtomobil Shinalari category ==="
             docker exec -w /app/apps/bot kimbor_bot node -e "
               const { db } = require('@kimbor/db');
               (async () => {
-                const cats = await db.category.findMany({
-                  where: { name: { contains: 'shin', mode: 'insensitive' } },
+                const cat = await db.category.findFirst({ where: { name: 'Avtomobil Shinalari' } });
+                if (!cat) throw new Error('Category not found');
+                const newSynonyms = ['balon', 'balonlar', 'shina', 'shinalar', 'avto shina', 'avto shinalar', 'avtomobil shinasi', 'rezina', 'pokrishka', 'vulkanizatsiya'];
+                const updated = await db.category.update({
+                  where: { id: cat.id },
+                  data: { synonyms: Array.from(new Set([...cat.synonyms, ...newSynonyms])) },
                 });
-                console.log('out: categories matching shin=' + JSON.stringify(cats.map(c => ({name: c.name, synonyms: c.synonyms, objectType: c.objectType}))));
-
-                for (const c of cats) {
-                  const listings = await db.listing.findMany({ where: { categoryId: c.id } });
-                  console.log('out: listings in ' + c.name + '=' + JSON.stringify(listings.map(l => ({name: l.name, status: l.status, verification: l.verification, jargonSynonyms: l.jargonSynonyms, phone: l.phone}))));
-                }
+                console.log('out: updated synonyms=' + JSON.stringify(updated.synonyms));
               })().catch(e => { console.error('err:', e.message); process.exit(1); }).then(() => process.exit(0));
             "
             echo ""
-            echo "=== 2) Real classifyQuery + searchListings pipeline test ==="
+            echo "=== 2) Re-test: previously-failing wrong-category scenario ==="
             docker exec -w /app/apps/bot kimbor_bot node -e "
-              const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
               const { searchListings } = require('@kimbor/core');
               const { db } = require('@kimbor/db');
               (async () => {
                 const city = await db.city.findFirst();
-                const start = Date.now();
-                const classification = await classifyQuery('balon kerak', city.id, BigInt(1));
-                console.log('out: classifyQuery(\"balon kerak\") ms=' + (Date.now()-start));
-                console.log('out: classification=' + JSON.stringify(classification));
 
-                const searchResult = await searchListings({
-                  cityId: city.id,
-                  categoryName: classification.intent !== 'NOT_RELEVANT' ? classification.category : null,
-                  landmarkName: classification.intent !== 'NOT_RELEVANT' ? classification.landmark : null,
-                  rawMessage: 'balon kerak',
-                });
-                console.log('out: searchResult found=' + !!searchResult);
-                if (searchResult) console.log('out: matched listing=' + searchResult.listing.name);
+                const wrongCatTest = await searchListings({ cityId: city.id, categoryName: 'shinamontaj', landmarkName: null, rawMessage: 'balon kerak' });
+                console.log('out: [FIX B check] categoryName=shinamontaj (empty category) now finds=' + !!wrongCatTest + (wrongCatTest ? ' listing=' + wrongCatTest.listing.name : ''));
 
-                console.log('out: === 3) Simulating Gemini-unavailable fallback classification ===');
-                const { fallbackRuleClassification } = require('/app/apps/bot/dist/filter/aiClassifier.js');
-                const { normalizeText } = require('@kimbor/core');
-                const normalized = normalizeText('balon kerak');
-                const fallbackClass = fallbackRuleClassification(normalized, 'balon kerak');
-                console.log('out: fallbackRuleClassification=' + JSON.stringify(fallbackClass));
+                const directCatTest = await searchListings({ cityId: city.id, categoryName: 'balon', landmarkName: null, rawMessage: 'balon kerak' });
+                console.log('out: [FIX A check] categoryName=balon now resolves to real category, finds=' + !!directCatTest + (directCatTest ? ' listing=' + directCatTest.listing.name + ' categoryDisplay=' + directCatTest.formattedText.split(String.fromCharCode(10))[0] : ''));
 
-                const fallbackSearch = await searchListings({
-                  cityId: city.id,
-                  categoryName: fallbackClass.intent !== 'NOT_RELEVANT' ? fallbackClass.category : null,
-                  landmarkName: fallbackClass.intent !== 'NOT_RELEVANT' ? fallbackClass.landmark : null,
-                  rawMessage: 'balon kerak',
-                });
-                console.log('out: fallback-path searchResult found=' + !!fallbackSearch);
-                if (fallbackSearch) console.log('out: fallback-path matched listing=' + fallbackSearch.listing.name);
+                const variantTest = await searchListings({ cityId: city.id, categoryName: 'avtomobil shinasi', landmarkName: null, rawMessage: 'shina kerak' });
+                console.log('out: [FIX A check 2] categoryName=avtomobil shinasi finds=' + !!variantTest + (variantTest ? ' listing=' + variantTest.listing.name : ''));
 
-                console.log('out: === 4) Testing what happens if AI guesses the OTHER (wrong, pre-existing) category ===');
-                const wrongCategorySearch = await searchListings({
-                  cityId: city.id,
-                  categoryName: 'shinamontaj',
-                  landmarkName: null,
-                  rawMessage: 'balon kerak',
-                });
-                console.log('out: categoryName=shinamontaj searchResult found=' + !!wrongCategorySearch);
-                if (wrongCategorySearch) console.log('out: matched=' + wrongCategorySearch.listing.name);
-
-                console.log('out: === 5) Repeated real classifyQuery calls (checking Gemini consistency) ===');
-                for (let i = 0; i < 5; i++) {
-                  const c = await classifyQuery('balon kerak ' + i, city.id, BigInt(1));
-                  console.log('out: run ' + i + ': category=' + c.category + ' intent=' + c.intent + ' confidence=' + c.confidence);
+                console.log('out: === 3) Full real classifyQuery+search pipeline, 3 fresh runs ===');
+                const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+                for (let i = 0; i < 3; i++) {
+                  const c = await classifyQuery('balon kerakmi ' + i, city.id, BigInt(1));
+                  const r = await searchListings({ cityId: city.id, categoryName: c.intent !== 'NOT_RELEVANT' ? c.category : null, landmarkName: c.intent !== 'NOT_RELEVANT' ? c.landmark : null, rawMessage: 'balon kerakmi ' + i });
+                  console.log('out: run ' + i + ': category=' + c.category + ' found=' + !!r + (r ? ' listing=' + r.listing.name : ''));
                 }
-
-                console.log('out: === 6) Checking moderation as possible cause ===');
-                const modLogs = await db.moderationLog.findMany({
-                  where: { rawMessage: { contains: 'balon', mode: 'insensitive' } },
-                  orderBy: { createdAt: 'desc' },
-                  take: 10,
-                });
-                console.log('out: moderationLog entries mentioning balon=' + JSON.stringify(modLogs.map(m => ({category: m.category, rawMessage: m.rawMessage, createdAt: m.createdAt, chatId: m.chatId.toString()}))));
-
-                const groups = await db.cityGroup.findMany();
-                for (const g of groups) {
-                  const toggles = await db.groupFeatureToggle.findMany({ where: { cityGroupId: g.id, isEnabled: true } });
-                  console.log('out: group ' + g.title + ' enabled filters=' + JSON.stringify(toggles.map(t => t.featureKey)));
-                }
-
-                console.log('out: === 7) Recent QueryLog entries mentioning balon (any chatId) ===');
-                const qlogs = await db.queryLog.findMany({
-                  where: { rawMessage: { contains: 'balon', mode: 'insensitive' } },
-                  orderBy: { createdAt: 'desc' },
-                  take: 10,
-                });
-                console.log('out: queryLog entries=' + JSON.stringify(qlogs.map(q => ({rawMessage: q.rawMessage, intent: q.intent, categoryName: q.categoryName, isResolved: q.isResolved, confidence: q.confidence, chatId: q.chatId ? q.chatId.toString() : null, createdAt: q.createdAt}))));
               })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
             "
