@@ -1,4 +1,4 @@
-import { INITIAL_DICTIONARY, normalizeText, containsWholeWord } from '@kimbor/core';
+import { INITIAL_DICTIONARY, normalizeText, containsWholeWord, levenshteinDistance } from '@kimbor/core';
 
 // 0-Qavat Filtr: Kod bo'yicha bepul va tezkor filtr (AI so'rovisiz).
 // 90% keraksiz guruh suhbatlarini AI'ga yubormay tashlab yuboradi (return false).
@@ -47,6 +47,38 @@ INITIAL_DICTIONARY.categories.forEach((cat) => {
   });
 });
 
+// MUHIM (2026-09 topilgan xato): pastdagi `hasTradeKeyword` avval FAQAT
+// aniq ("includes") substring moslikni tekshirardi — yozilish xatosiga
+// (typo) chidamsiz edi. Natijada, masalan, foydalanuvchi "zapravka"
+// o'rniga "zaprafa" deb yozsa ("v" harfi "f"ga almashib, "k" tushib
+// qolgan — 2 ta xato), bu 0-qavat filtrdan UMUMAN o'tolmay, butun zanjir
+// (AI klassifikator, keyin qidiruv) hech qachon ishga tushmasdi — garchi
+// pastdagi qidiruv (searchEngine.ts) o'ziga xos fuzzy/yozilish-xatosiga
+// chidamli moslashtiruvga ega bo'lsa ham, xabar shu yergacha yetib
+// bormasdi. Endi aniq moslik topilmasa, HAR BIR so'zni har bir lug'at
+// kalit so'ziga Levenshtein masofasi bo'yicha ham solishtiramiz.
+//
+// DIQQAT: bu yerdagi chegara searchEngine.ts'dagi fuzzyFindCategory'dan
+// ATAYIN BIR OZ BO'SHROQ (masalan 8 harfli so'z uchun ~2 xato, u yerda
+// ~1) — sabab: bu yerda noto'g'ri "musbat" natijaning yagona narxi bitta
+// qo'shimcha (arzon, tez) AI so'rovi, AI o'zi "NOT_RELEVANT" deb to'g'ri
+// xulosa qiladi. searchEngine.ts'da esa noto'g'ri musbat XATO
+// KATEGORIYaga yozuv biriktirib qo'yishi mumkin — u yerda qattiqroq
+// chegara kerak. Shu farq tufayli ikkala joyda alohida formula ishlatiladi.
+function hasFuzzyTradeKeyword(normalized: string): boolean {
+  const words = normalized.split(/\s+/).filter((w) => w.length >= 4);
+  if (words.length === 0) return false;
+  for (const kw of TRADE_KEYWORDS) {
+    if (kw.length < 4) continue;
+    for (const word of words) {
+      if (Math.abs(kw.length - word.length) > 3) continue;
+      const threshold = Math.max(1, Math.round(kw.length / 4));
+      if (levenshteinDistance(word, kw) <= threshold) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * 0-Qavat Filtr funksiyasi.
  * Xabarni AI Klassifikatorga yuborish kerak bo'lsa `true`, aks holda `false` qaytaradi.
@@ -67,7 +99,8 @@ export function zeroLayerFilter(text: string): boolean {
   const hasQuestionWord = QUESTION_KEYWORDS.some((kw) => containsWholeWord(normalized, normalizeText(kw)));
 
   // 4. Kasb / Obyekt lug'atidan biror so'z bormi?
-  const hasTradeKeyword = TRADE_KEYWORDS.some((kw) => kw.length > 2 && normalized.includes(kw));
+  const hasTradeKeyword =
+    TRADE_KEYWORDS.some((kw) => kw.length > 2 && normalized.includes(kw)) || hasFuzzyTradeKeyword(normalized);
 
   // O'tkazish qoidasi:
   // 1. Kasb/xizmat nomi aniq mavjud bo'lsa (masalan: "karzinka oldida santexnik", "gazavik bormi")
