@@ -123,24 +123,23 @@ function hasWordLevelJargonMatch(
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
   if (jargonWords.length === 0) return false;
-  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 6-qatlam): avval
-  // Levenshtein chegarasi so'z uzunligiga nisbatan biroz "bo'sh" edi
-  // (~har 5 harfga 1 xato) — bu qisqa so'zlar uchun (typo tuzatish uchun
-  // mo'ljallangan) maqbul, lekin UZUN so'zlar uchun juda KENG bo'lib
-  // chiqdi: "teradiganlar" va "biladiganlar" (ikkalasi ham 12 harf, lekin
-  // MA'NOSI BUTUNLAY BOSHQA) atigi 3 ta harf farq qilib, "yaqin" deb
-  // hisoblanib qolgan edi. Endi chegara ANCHA qattiqroq (~har 8 harfga
-  // 1 xato) — qisqa so'zlar uchun (masalan "beshbirdagi" kabi) hali ham
-  // 1 ta yozilish xatosiga chidamli, lekin uzun so'zlarda faqat DEYARLI
-  // bir xil so'zlarnigina "mos" deb hisoblaydi.
-  return jargonWords.some((jw) =>
-    msgWords.some((mw) => {
-      if (jw === mw) return true;
-      if (Math.abs(jw.length - mw.length) > 2) return false;
-      const threshold = Math.max(1, Math.floor(jw.length / 8));
-      return levenshteinDistance(jw, mw) <= threshold;
-    })
-  );
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 7-qatlam,
+  // OXIRGI): oldingi 2 ta urinish (chegarani ~5dan ~8 harfga toraytirish)
+  // baribir YETARLI bo'lmadi — "qiladiganlar" (qil-, "qilmoq" fe'lidan)
+  // va "biladiganlar" (bil-, "bilmoq" fe'lidan) — ma'nosi BUTUNLAY BOSHQA
+  // ikki fe'l — atigi 1 TA harf farq qiladi (12 harfdan), bu Levenshtein
+  // bo'yicha "juda yaqin" bo'lib chiqaveradi, qanday chegara qo'yilmasin.
+  // O'zbek tilida "-adiganlar" kabi keng tarqalgan fe'l qo'shimchalari
+  // ko'plab, ma'nosi mutlaqo boshqa fe'llarni ham bir-biriga son jihatdan
+  // "yaqin" qilib qo'yadi — bu yerda uzunlik/harflar soni ma'noga hech
+  // qanday aloqador emas. TEKSHIRILGAN: barcha haqiqiy ishlaydigan
+  // holatlar (Beshbir/Deska/Gondra) faqat ANIQ (bir xil) so'z mosligiga
+  // tayanadi — Levenshtein "moslashuvchanligi" ularning birortasi uchun
+  // ham shart emas edi, faqat qo'shimcha xato manbai bo'lib chiqdi. Shu
+  // sabab endi so'z darajasidagi moslik FAQAT ANIQ (harfma-harf) bir xil
+  // so'zlarga cheklanadi — yozilish xatosiga chidamlilik esa yuqoridagi
+  // BUTUN-IBORA darajasidagi tekshiruvda (kichik farqlarda) allaqachon bor.
+  return jargonWords.some((jw) => msgWords.includes(jw));
 }
 
 // So'rov ko'rinishidagi xabar signalini tekshiradi. MUHIM (2026-09 topilgan
