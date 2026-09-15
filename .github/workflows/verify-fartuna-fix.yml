@@ -34,12 +34,13 @@ jobs:
                   categoryName: isSeeking ? c.category : null,
                   landmarkName: isSeeking ? c.landmark : null,
                   rawMessage: q,
+                  intent: c.intent,
                 });
-                console.log(label, '| category:', c.category, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
+                console.log(label, '| intent:', c.intent, '| category:', c.category, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
               }
 
-              console.log('--- YANGI TUZATISH: fartuna 5 marta, hech qachon aloqasiz yozuv chiqmasligi kerak ---');
-              for (let i = 0; i < 5; i++) {
+              console.log('--- YANGI TUZATISH: fartuna 8 marta, hech qachon aloqasiz yozuv chiqmasligi kerak ---');
+              for (let i = 0; i < 8; i++) {
                 await run('FARTUNA_' + i, 'Akalar fartunani nomeri bormi ' + i, 8000000 + i);
               }
 
