@@ -1,4 +1,4 @@
-name: One-off - verify zapravka search live 3
+name: One-off - verify zapravka search live 4
 
 on:
   workflow_dispatch:
@@ -17,5 +17,33 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            echo "--- apps/bot dist layout ---"
-            docker exec kimbor_bot sh -c "find /app/apps/bot/dist -maxdepth 2 -type d 2>/dev/null; echo ---; find /app/apps/bot/dist -maxdepth 2 -iname '*classif*' 2>/dev/null"
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const city = await db.city.findFirst({ where: { name: { contains: 'Olmaliq', mode: 'insensitive' } } });
+              console.log('CITY:', city && city.id, city && city.name);
+
+              const queries = ['guruhda zapravka bor eken kimda', 'benzin kerak edi', 'yaqin atrofda avtomobil zapravkasi bormi', 'metan quyadigan joy kerak'];
+              for (const q of queries) {
+                const classification = await classifyQuery(q, city.id, BigInt(999999));
+                console.log('QUERY:', JSON.stringify(q));
+                console.log('CLASSIFICATION:', JSON.stringify(classification));
+                const isSeeking = classification.intent === 'SEEKING' || classification.intent !== 'NOT_RELEVANT';
+                const searchResult = await core.searchListings({
+                  cityId: city.id,
+                  categoryName: isSeeking ? classification.category : null,
+                  landmarkName: isSeeking ? classification.landmark : null,
+                  rawMessage: q,
+                });
+                console.log('FOUND:', !!searchResult);
+                if (searchResult) {
+                  console.log('TEXT_SNIPPET:', (searchResult.text || '').slice(0, 400));
+                }
+                console.log('---');
+              }
+              await db.\$disconnect();
+            })().catch(e => { console.error('VERIFY_ERROR:', e); process.exit(1); });
+            "
