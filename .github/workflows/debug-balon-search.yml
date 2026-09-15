@@ -47,12 +47,14 @@ jobs:
                 const variantTest = await searchListings({ cityId: city.id, categoryName: 'avtomobil shinasi', landmarkName: null, rawMessage: 'shina kerak' });
                 console.log('out: [FIX A check 2] categoryName=avtomobil shinasi finds=' + !!variantTest + (variantTest ? ' listing=' + variantTest.listing.name : ''));
 
-                console.log('out: === 3) Full real classifyQuery+search pipeline, 3 fresh runs ===');
+                console.log('out: === 3) EXACT full pipeline test for the user real phrase, 3 fresh runs (cache-busted via case variants) ===');
                 const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
-                for (let i = 0; i < 3; i++) {
-                  const c = await classifyQuery('balon kerakmi ' + i, city.id, BigInt(1));
-                  const r = await searchListings({ cityId: city.id, categoryName: c.intent !== 'NOT_RELEVANT' ? c.category : null, landmarkName: c.intent !== 'NOT_RELEVANT' ? c.landmark : null, rawMessage: 'balon kerakmi ' + i });
-                  console.log('out: run ' + i + ': category=' + c.category + ' found=' + !!r + (r ? ' listing=' + r.listing.name : ''));
+                const variants = ['balon kerak', 'Balon kerak', 'balon kerak.'];
+                for (const msg of variants) {
+                  const c = await classifyQuery(msg, city.id, BigInt(1));
+                  const catForSearch = c.intent !== 'NOT_RELEVANT' ? c.category : null;
+                  const r = await searchListings({ cityId: city.id, categoryName: catForSearch, landmarkName: c.intent !== 'NOT_RELEVANT' ? c.landmark : null, rawMessage: msg });
+                  console.log('out: msg=\"' + msg + '\" intent=' + c.intent + ' category=' + c.category + ' confidence=' + c.confidence + ' -> found=' + !!r + (r ? ' listing=' + r.listing.name : ' (categoryName passed=' + catForSearch + ')'));
                 }
               })().catch(e => { console.error('err:', e.message, e.stack); process.exit(1); }).then(() => process.exit(0));
             "
