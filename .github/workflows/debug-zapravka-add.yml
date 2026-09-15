@@ -1,4 +1,4 @@
-name: One-off - debug zapravka add failure 3
+name: One-off - debug zapravka enum check
 
 on:
   workflow_dispatch:
@@ -17,12 +17,9 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            docker exec -w /app/apps/bot kimbor_bot node -e "
-            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
-            const db = new PrismaClient();
-            (async () => {
-              const listings = await db.listing.findMany({ where: { name: { contains: 'Gondra', mode: 'insensitive' } }, include: { category: true, primaryLandmark: true } });
-              console.log('GONDRA_LISTINGS:', JSON.stringify(listings.map(l => ({ id: l.id, name: l.name, type: l.type, phone: l.phone, mapUrl: l.mapUrl, category: l.category?.name, categoryObjectType: l.category?.objectType, landmark: l.primaryLandmark?.name, createdAt: l.createdAt })), null, 2));
-              await db.\$disconnect();
-            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
-            "
+            echo "--- ListingType enum inside kimbor_api container ---"
+            docker exec kimbor_api node -e "const { ListingType } = require('@kimbor/db'); console.log(JSON.stringify(ListingType));"
+            echo "--- ListingType enum inside kimbor_bot container ---"
+            docker exec kimbor_bot node -e "const { ListingType } = require('@kimbor/db'); console.log(JSON.stringify(ListingType));"
+            echo "--- postgres enum values ---"
+            docker exec kimbor_postgres psql -U postgres -d kimbor_prod_db -c "SELECT unnest(enum_range(NULL::\"ListingType\"));" 2>&1 || docker exec kimbor_postgres psql -U kimbor -d kimbor_prod_db -c "SELECT unnest(enum_range(NULL::\"ListingType\"));" 2>&1 || true
