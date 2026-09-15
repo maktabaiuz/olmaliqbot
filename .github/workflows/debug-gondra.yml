@@ -1,0 +1,48 @@
+name: One-off - debug gondra zapravka no-response
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const core = require('/app/packages/core/dist/index.js');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findMany({ where: { name: { contains: 'Gondra', mode: 'insensitive' } }, include: { category: true, primaryLandmark: true } });
+              console.log('GONDRA_LISTINGS:', JSON.stringify(gondra.map(l => ({ id: l.id, name: l.name, type: l.type, status: l.status, phone: l.phone, category: l.category?.name, categoryObjectType: l.category?.objectType, landmark: l.primaryLandmark?.name, jargonSynonyms: l.jargonSynonyms, cityId: l.cityId })), null, 2));
+
+              if (gondra.length > 0) {
+                const cityId = gondra[0].cityId;
+                const q = 'gondra zaprafa';
+                const classification = await classifyQuery(q, cityId, BigInt(999999));
+                console.log('CLASSIFICATION:', JSON.stringify(classification));
+                const isSeeking = classification.intent !== 'NOT_RELEVANT';
+                const searchResult = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? classification.category : null,
+                  landmarkName: isSeeking ? classification.landmark : null,
+                  rawMessage: q,
+                });
+                console.log('FOUND:', !!searchResult);
+                if (searchResult) console.log('TEXT_SNIPPET:', (searchResult.text || searchResult.formattedText || '').slice(0,300));
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
