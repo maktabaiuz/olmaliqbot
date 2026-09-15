@@ -272,7 +272,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       if (!name.trim()) errors.name = 'Ism majburiy';
       if (!category.trim()) errors.category = 'Kasb/soha majburiy';
       const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
+      if (listingType === 'ZAPRAVKA' && cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
       if (!primaryLandmarkId) errors.landmark = "Manzilni ro'yxatdan tanlash (yoki yangi qo'shish) majburiy";
 
       if (Object.keys(errors).length > 0) {
@@ -605,7 +605,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami{listingType === 'ZAPRAVKA' ? ' *' : ''}</label>
             <input
               type="text"
               value={phone}
