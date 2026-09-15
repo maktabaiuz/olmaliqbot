@@ -1,0 +1,35 @@
+name: One-off - debug zapravka add failure
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+            echo "--- recent api logs mentioning /admin/listings ---"
+            docker logs --since 6h kimbor_api 2>&1 | grep -i "admin/listings" | tail -80
+            echo "--- recent api error logs ---"
+            docker logs --since 6h kimbor_api 2>&1 | grep -iE '"level":50|"level":40|error' | tail -80
+            echo "--- newest ZAPRAVKA listings in DB ---"
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const listings = await db.listing.findMany({ where: { type: 'ZAPRAVKA' }, orderBy: { createdAt: 'desc' }, take: 5, include: { category: true, primaryLandmark: true } });
+              console.log('ZAPRAVKA_LISTINGS:', JSON.stringify(listings.map(l => ({ id: l.id, name: l.name, phone: l.phone, mapUrl: l.mapUrl, category: l.category?.name, landmark: l.primaryLandmark?.name, createdAt: l.createdAt })), null, 2));
+              const cats = await db.category.findMany({ where: { objectType: 'ZAPRAVKA' } });
+              console.log('ZAPRAVKA_CATEGORIES:', JSON.stringify(cats.map(c => ({ id: c.id, name: c.name, objectType: c.objectType })), null, 2));
+              await db.\$disconnect();
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
