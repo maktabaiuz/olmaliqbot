@@ -24,6 +24,14 @@ const CATEGORY_FIELD_PLACEHOLDER: Record<string, string> = {
   ARENDA: 'Masalan, Lesa',
   ZAPRAVKA: 'Masalan, Avtomobil Zapravkasi',
 };
+// "Nomi" maydoni — odam ismi (Usta) yoki shoxobcha nomi (Zapravka/Do'kon)
+// bo'lishi mumkin, shunga qarab yorliq/namuna o'zgaradi.
+const NAME_FIELD_LABEL: Record<string, string> = {
+  ZAPRAVKA: 'Zapravka nomi',
+};
+const NAME_FIELD_PLACEHOLDER: Record<string, string> = {
+  ZAPRAVKA: 'Masalan, Lukoil - Olmaliq 3',
+};
 const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSPORT' | 'ARENDA' | 'ZAPRAVKA'; label: string; icon: string }[] = [
   { id: 'USTA', label: 'Usta', icon: 'engineering' },
   { id: 'DOKON_OBYEKT', label: "Do'kon", icon: 'storefront' },
@@ -120,12 +128,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       .catch(() => {});
   }, []);
 
-  // Tanlangan Turi (Usta/Do'kon/Muassasa)ga MOS kasblarnigina ko'rsatamiz —
-  // aralash (mos + nomos) ro'yxat o'rniga aniq va tartibli bo'lishi uchun.
-  // Hech narsa mos kelmasa (masalan hali turi belgilanmagan yangi
-  // kategoriyalar), butun ro'yxat ko'rsatiladi — hech narsa yo'qolib
-  // qolmasligi uchun.
-  const categoryMatchesType = (c: CategoryOption) => !c.objectType || c.objectType === listingType;
+  // Tanlangan Turi (Usta/Do'kon/Muassasa/Zapravka)ga ANIQ mos kasblarnigina
+  // ko'rsatamiz. MUHIM (2026-09 topilgan xato, tuzatildi): avval
+  // `objectType` belgilanmagan (null) kategoriyalar HAR DOIM, har qanday
+  // turda ko'rinardi — bu yangi turlar uchun (masalan Zapravka) haqiqiy
+  // "bardak" edi: hech narsa mos kelmasa emas, DOIM boshqa turlarning
+  // (Arenda/Usta/Do'kon) aloqasiz eski kategoriyalari ham aralashib
+  // ko'rinardi. Endi FAQAT aniq shu turga tegishli kategoriyalar
+  // ko'rsatiladi; agar shu turda HALI umuman kategoriya bo'lmasa
+  // (haqiqatan bo'sh holat), shundagina butun ro'yxat zaxira sifatida
+  // ko'rsatiladi — hech narsa yo'qolib qolmasligi uchun.
+  const categoryMatchesType = (c: CategoryOption) => c.objectType === listingType;
   const relevantCategories = categoryList.filter(categoryMatchesType);
   const baseCategoryPool = relevantCategories.length > 0 ? relevantCategories : categoryList;
   const searchedCategories = baseCategoryPool.filter(
@@ -532,7 +545,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">3. Ismi-familiyasi *</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">3. {NAME_FIELD_LABEL[listingType] || 'Ismi-familiyasi'} *</label>
             <input
               type="text"
               value={name}
@@ -540,7 +553,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 setName(e.target.value);
                 setFieldErrors(prev => ({ ...prev, name: undefined }));
               }}
-              placeholder="Masalan, Anvar Usta"
+              placeholder={NAME_FIELD_PLACEHOLDER[listingType] || 'Masalan, Anvar Usta'}
               className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
                 fieldErrors.name ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
               }`}
@@ -550,7 +563,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold text-slate-500 uppercase">4. Jargon / xalq atamalari</label>
-            <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar bu usta/do'konni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
+            <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar buni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
             {jargonWords.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {jargonWords.map(word => (
@@ -665,7 +678,10 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
             </div>
           )}
 
-          {/* Badges Chips */}
+          {/* Badges Chips — Elektr zaryadlash shoxobchasi uchun yoqilg'i
+              turi (Metan/Propan/AI-.../Dizel) mos emas, shuning uchun
+              umuman ko'rsatilmaydi (2026-09, kelishilgan qaror). */}
+          {!(listingType === 'ZAPRAVKA' && /elektr|zaryad/i.test(category)) && (
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase">
               {listingType === 'ZAPRAVKA' ? "Yoqilg'i turi" : 'Xizmat xususiyatlari (Belgilar)'}
@@ -693,6 +709,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               })}
             </div>
           </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Narxi (Taxminiy)</label>

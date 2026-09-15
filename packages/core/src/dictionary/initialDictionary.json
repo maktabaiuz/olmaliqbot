@@ -1199,6 +1199,45 @@
       "object_type": "ARENDA",
       "group": "Arenda xizmatlari",
       "emoji": "🏠"
+    },
+    {
+      "id": "avtomobil-zapravkasi",
+      "name": "Avtomobil zapravkasi",
+      "synonyms": [
+        "zapravka",
+        "benzin quyish",
+        "yoqilgi quyish shoxobchasi",
+        "azs",
+        "gaz quyish",
+        "metan quyish",
+        "propan quyish",
+        "zapravochnaya",
+        "yonilgi quyish",
+        "benzokolonka",
+        "заправка",
+        "азс",
+        "бензоколонка"
+      ],
+      "object_type": "ZAPRAVKA",
+      "group": "Avtomobil xizmatlari",
+      "emoji": "⛽"
+    },
+    {
+      "id": "elektr-zaryadlash-shoxobchasi",
+      "name": "Elektr zaryadlash shoxobchasi",
+      "synonyms": [
+        "zaryadlash stansiyasi",
+        "elektromobil zaryadlash",
+        "zaryadka",
+        "elektro zapravka",
+        "zaryad stansiyasi",
+        "elektromobil zaryadkasi",
+        "зарядная станция",
+        "зарядка электромобиля"
+      ],
+      "object_type": "ZAPRAVKA",
+      "group": "Avtomobil xizmatlari",
+      "emoji": "🔌"
     }
   ],
   "olmaliq_landmarks": [
