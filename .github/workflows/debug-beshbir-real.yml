@@ -1,0 +1,52 @@
+name: One-off - reproduce beshbir wrong match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+              const q = 'Beshbirdagi zaprafka ochiqmi';
+
+              console.log('--- classifyQuery run 5 marta (bir xil matn, cache tozalanmagan holda) ---');
+              for (let i = 0; i < 5; i++) {
+                const c = await classifyQuery(q + ' ' + i, cityId, BigInt(999999 + i));
+                console.log('RUN', i, ':', JSON.stringify(c));
+              }
+
+              console.log('--- xuddi shu ANIQ matn (cache ta\\'sirini korish uchun) ---');
+              for (let i = 0; i < 3; i++) {
+                const c = await classifyQuery(q, cityId, BigInt(1000000 + i));
+                const isSeeking = c.intent !== 'NOT_RELEVANT';
+                const sr = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? c.category : null,
+                  landmarkName: isSeeking ? c.landmark : null,
+                  rawMessage: q,
+                });
+                console.log('SAME_TEXT_RUN', i, 'CLASSIFICATION:', JSON.stringify(c), 'MATCHED:', sr ? sr.listing.name : 'NONE');
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
