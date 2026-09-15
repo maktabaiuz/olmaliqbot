@@ -1,0 +1,59 @@
+name: One-off - verify silence-on-unmatched-place fix + regressions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+
+              async function run(label, q, userId) {
+                const c = await classifyQuery(q, cityId, BigInt(userId));
+                const isSeeking = c.intent !== 'NOT_RELEVANT';
+                const sr = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? c.category : null,
+                  landmarkName: isSeeking ? c.landmark : null,
+                  rawMessage: q,
+                });
+                console.log(label, '| landmark:', c.landmark, '| MATCHED:', sr ? sr.listing.name.trim() : 'NONE (jim)');
+              }
+
+              console.log('--- YANGI TUZATISH: aniq, mavjud bolmagan joy - JIM turishi kerak ---');
+              await run('TOY_TEPA_CYRILLIC', 'Туй тепа паварот заправка ишлаяпдими', 6000001);
+              await run('TOY_TEPA_LATIN', 'toy tepa pavarot zaprafka ishlayaptimi', 6000002);
+
+              console.log('--- REGRESSIYA: umumiy soroв hali togri ishlashi kerak ---');
+              await run('YAQIN_ATROF', 'yaqin atrofda zaprafka bormi', 6000003);
+
+              console.log('--- REGRESSIYA: aniq jargon-registered joylar hali togri ishlashi kerak ---');
+              await run('BESHBIR', 'Beshbirdagi zaprafka ochiqmi', 6000004);
+              await run('DESKA', 'deska zaprafka ochiqmi', 6000005);
+              await run('GONDRA', 'gondra zaprafka ochiqmi', 6000006);
+
+              console.log('--- REGRESSIYA: balon kerak (avvalgi sessiyadagi tuzatish) ---');
+              await run('BALON', 'balon kerak qata bor', 6000007);
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('VERIFY_ERROR:', e); process.exit(1); });
+            "
