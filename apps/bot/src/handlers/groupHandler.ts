@@ -98,6 +98,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     categoryName: isSeeking ? classification.category : null,
     landmarkName: isSeeking ? classification.landmark : null,
     rawMessage: messageText,
+    intent: classification.intent,
   });
 
   if (!searchResult) {

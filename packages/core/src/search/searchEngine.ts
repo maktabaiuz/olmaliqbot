@@ -20,6 +20,10 @@ export interface SearchOptions {
   badgeFilter?: string[] | null;
   /** Foydalanuvchining asl xabari — jargon so'zlarni to'g'ridan-to'g'ri qidirish uchun (AI klassifikator xato/vaqt tugashi holatida ham topish uchun). */
   rawMessage?: string | null;
+  /** AI klassifikatorning "intent" bahosi (masalan "CONTACT", "SERVICE",
+   * "HOURS") — "CONTACT" uchun maxsus, qattiqroq mantiq qo'llanadi (pastga
+   * qarang: hasWordLevelJargonMatch yaqinidagi izohga). */
+  intent?: string | null;
 }
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
@@ -395,6 +399,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // yozuv bilan noto'g'ri "javoblanib" qolar edi — AI klassifikator xato
   // qilib landmark ajratib olgan taqdirda ham, bu yerda qat'iy to'xtatiladi.
   if (!categoryName && jargonMatchedIds.size === 0) {
+    return null;
+  }
+
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "CONTACT"
+  // intent — foydalanuvchi ANIQ NOMLANGAN biror narsaning kontaktini
+  // so'ragani ("Fartunani nomeri bormi", "Hasan ustaning raqami bormi")
+  // — "santexnik kerak" kabi UMUMIY xizmat so'rovidan TUBDAN farq qiladi.
+  // Bunday so'rovda, agar ANIQ mo'ljal berilmagan VA hech qanday jargon
+  // moslik (bizning aniq, admin ro'yxatdan o'tkazgan ma'lumotimiz) TOPILMASA
+  // — demak biz aynan SHU nomdagi narsani bilmaymiz. AI klassifikatorning
+  // "category" maydoni bunday holatda ISHONCHSIZ (production'da tasdiqlandi:
+  // "fartuna" so'ziga har safar BOSHQA-BOSHQA kategoriya — "taksi",
+  // "transport", "elektromontaj" — taxmin qilib berardi) — shu tasodifiy
+  // taxminga tayanib "eng yaqin" kategoriyadagi ALOQASIZ yozuvni ko'rsatish
+  // noto'g'ri javobdan HAM YOMONROQ. Shu sabab bunday holatda JIM turamiz.
+  if (options.intent === 'CONTACT' && !landmarkName && jargonMatchedIds.size === 0) {
     return null;
   }
 

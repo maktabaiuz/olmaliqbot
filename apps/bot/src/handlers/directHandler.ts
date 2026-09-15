@@ -274,6 +274,7 @@ async function runPrivateSearch(
     categoryName: opts.categoryName,
     landmarkName: opts.landmarkName,
     rawMessage: opts.rawMessage,
+    intent: opts.intent,
   });
 
   if (!searchResult) {
