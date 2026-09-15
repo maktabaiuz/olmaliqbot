@@ -582,6 +582,16 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                       type="text"
                       value={mapUrl}
                       onChange={(e) => setMapUrl(e.target.value)}
+                      onBlur={(e) => {
+                        // Yandex "Ulashish"da ko'pincha joy nomi + manzil +
+                        // havola BIRGALIKDA nusxalanadi — bunday holatda
+                        // tugma Telegram tomonidan rad etilib, bot UMUMAN
+                        // javob bermay qolgan (2026-09 topilgan xato). Shu
+                        // sabab maydondan chiqqanda faqat havola qismi
+                        // ajratib qoldiriladi.
+                        const match = e.target.value.match(/https?:\/\/\S+/);
+                        if (match && match[0] !== e.target.value.trim()) setMapUrl(match[0]);
+                      }}
                       placeholder="https://yandex.uz/maps/..."
                       className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
                     />

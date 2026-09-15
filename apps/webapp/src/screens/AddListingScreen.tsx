@@ -701,6 +701,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 type="text"
                 value={mapUrl}
                 onChange={(e) => setMapUrl(e.target.value)}
+                onBlur={(e) => {
+                  // Yandex Navigator/Xarita "Ulashish"da ko'pincha joy nomi
+                  // + manzil + havola BIRGALIKDA nusxalanadi ("Gondra Petrol
+                  // ул. Равнак, 2 https://..."). Bunday holatda tugma
+                  // Telegram tomonidan rad etilib, BOT UMUMAN javob
+                  // bermay qolishiga olib kelgan — shu sabab bu yerda
+                  // maydondan chiqqanda faqat haqiqiy havola qismi ajratib
+                  // qoldiriladi.
+                  const match = e.target.value.match(/https?:\/\/\S+/);
+                  if (match && match[0] !== e.target.value.trim()) setMapUrl(match[0]);
+                }}
                 placeholder="https://yandex.uz/maps/..."
                 className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
               />
