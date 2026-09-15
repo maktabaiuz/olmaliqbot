@@ -17,7 +17,9 @@ jobs:
           command_timeout: 5m
           script: |
             set -e
-            docker exec -w /app/apps/bot kimbor_bot node -e "
+            echo "--- debug: node_modules layout ---"
+            docker exec kimbor_bot sh -c "ls -la /app/node_modules/@prisma 2>&1; echo ---; ls -la /app/apps/bot/node_modules/@prisma 2>&1; echo ---; find /app -maxdepth 1 -type d; echo ---; find /app/apps -maxdepth 1 -type d"
+            docker exec -w /app kimbor_bot node -e "
             const { PrismaClient } = require('@prisma/client');
             const db = new PrismaClient();
             (async () => {
