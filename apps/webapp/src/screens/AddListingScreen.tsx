@@ -297,8 +297,13 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     if (step === 1) {
       if (!name.trim()) errors.name = 'Ism majburiy';
       if (!category.trim()) errors.category = 'Kasb/soha majburiy';
+      // Telefon raqam IXTIYORIY (barcha turlarda, Zapravka ham) — faqat admin
+      // biror narsa yoza boshlagan-u, lekin to'liq kiritmagan bo'lsa (masalan
+      // "+998 90 12" kabi yarim), noto'g'ri/chala format haqida ogohlantiramiz.
+      // Butunlay bo'sh qoldirilsa (yoki faqat standart "+998 " prefiksi) — bu
+      // "kiritmadim" degani, xatolik emas.
       const cleanPhone = phone.replace(/\D/g, '');
-      if (listingType === 'ZAPRAVKA' && cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
+      if (cleanPhone.length > 3 && cleanPhone.length < 9) errors.phone = "Telefon raqam to'liq emas";
       if (!primaryLandmarkId) errors.landmark = "Manzilni ro'yxatdan tanlash (yoki yangi qo'shish) majburiy";
 
       if (Object.keys(errors).length > 0) {
@@ -632,7 +637,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami{listingType === 'ZAPRAVKA' ? ' *' : ''}</label>
+            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami</label>
             <input
               type="text"
               value={phone}

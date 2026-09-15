@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LandmarkPicker } from '../components/LandmarkPicker';
+import { avatarColorForName } from '../utils/avatarColor';
 
 export interface ListingDetailScreenProps {
   listingId: string;
@@ -27,6 +28,33 @@ interface HistoryItem {
   createdAt: string;
   snapshot: any;
 }
+
+const IOS_FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+const HAIRLINE = '0.5px solid rgba(60,60,67,0.29)';
+const IOS_BLUE = '#007AFF';
+const IOS_GREEN = '#34C759';
+const IOS_ORANGE = '#FF9500';
+const IOS_GRAY = '#8E8E93';
+
+// Grouped-inset-list bo'lim sarlavhasi — UISettings.app'dagi kabi kichik,
+// katta harfli, kulrang label.
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide px-1">{children}</span>
+);
+
+// Bitta qator: chapda label, o'ngda tahrirlanadigan qiymat (iOS Settings
+// "Nomi"/"Telefon" qatorlari kabi).
+const FieldRow: React.FC<{
+  label: string;
+  children: React.ReactNode;
+  hairlineTop?: boolean;
+}> = ({ label, children, hairlineTop }) => (
+  <div className="flex items-center px-3.5 py-2.5 gap-3" style={hairlineTop ? { borderTop: HAIRLINE } : undefined}>
+    <span className="text-[15px] text-on-surface dark:text-white w-[104px] shrink-0">{label}</span>
+    {children}
+  </div>
+);
 
 export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   listingId,
@@ -153,7 +181,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         mapUrl !== (originalData.mapUrl || ''))
   );
 
-  // Save changes
+  // Save changes — muvaffaqiyatli saqlangach DARHOL serverdan qayta
+  // yuklaymiz (loadDetail), shunda ekrandagi HAR BIR maydon serverda
+  // haqiqatan ham nima saqlanganini aniq aks ettiradi (real vaqtda,
+  // taxmin qilingan lokal holat emas).
   const handleSave = async () => {
     if (!hasChanges) return;
     setSaving(true);
@@ -182,11 +213,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        showToast('✅ O\'zgarishlar muvaffaqiyatli saqlandi!');
-        loadDetail();
+        showToast("✅ O'zgarishlar saqlandi");
+        await loadDetail();
       } else {
         showToast('❌ Xatolik yuz berdi');
       }
+    } catch {
+      showToast('❌ Aloqa xatoligi');
     } finally {
       setSaving(false);
     }
@@ -202,7 +235,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       headers,
       body: JSON.stringify({ status: nextStatus }),
     });
-    showToast(nextStatus === 'PAUSED' ? '⏸️ Yozuv pauzaga qo\'yildi' : '🟢 Yozuv faollashtirildi');
+    showToast(nextStatus === 'PAUSED' ? "⏸️ Yozuv pauzaga qo'yildi" : '🟢 Yozuv faollashtirildi');
   };
 
   // Toggle Verification status
@@ -214,7 +247,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       headers,
       body: JSON.stringify({ verification: nextVerif }),
     });
-    showToast(nextVerif === 'VERIFIED' ? '✅ Tasdiqlandi!' : '⚠️ Xalq aytgan holatiga o\'tkazildi');
+    showToast(nextVerif === 'VERIFIED' ? '✅ Tasdiqlandi!' : "⚠️ Xalq aytgan holatiga o'tkazildi");
   };
 
   // Delete listing
@@ -233,7 +266,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     setShowMenu(false);
     const copyText = `${name}\n📞 ${phone}\n📍 ${landmarkName}\n🏷 ${badges.join(', ')}`;
     navigator.clipboard.writeText(copyText);
-    showToast('📋 Ma\'lumot nusxalandi!');
+    showToast("📋 Ma'lumot nusxalandi!");
   };
 
   const handleAddBadge = () => {
@@ -301,448 +334,433 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#121417] text-white flex items-center justify-center p-6 font-sans">
+      <div
+        className="min-h-screen bg-background dark:bg-[#121417] flex items-center justify-center p-6"
+        style={{ fontFamily: IOS_FONT }}
+      >
         <div className="animate-pulse flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-800" />
-          <div className="h-4 w-32 bg-slate-800 rounded" />
+          <div className="w-[72px] h-[72px] rounded-full bg-[#8E8E93]/20" />
+          <div className="h-3.5 w-32 bg-[#8E8E93]/20 rounded-full" />
         </div>
       </div>
     );
   }
 
+  const isZapravka = originalData?.type === 'ZAPRAVKA';
+
   return (
-    <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 font-sans flex flex-col pb-24 relative">
+    <div className="animate-fade-in -mx-4 -mt-2 pb-24 relative" style={{ fontFamily: IOS_FONT }}>
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-full shadow-2xl border border-slate-700 animate-fade-in">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1C1C1E] text-white text-[13px] font-medium px-4 py-2.5 rounded-full shadow-2xl animate-fade-in">
           {toastMessage}
         </div>
       )}
 
-      {/* HEADER BAR */}
-      <header className="sticky top-0 z-30 bg-surface/95 dark:bg-[#17212B]/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={onBack}
-            className="p-1.5 rounded-xl hover:bg-surface-container-low dark:hover:bg-slate-800 text-on-surface-variant dark:text-slate-300 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
-          </button>
-          <div className="min-w-0">
-            <h1 className="font-bold text-base text-on-surface dark:text-slate-100 truncate">
-              {name || 'Yozuv'} — {categoryName || 'Kasb'}
-            </h1>
-            <p className="text-[11px] text-on-surface-variant dark:text-slate-400 truncate">
-              {landmarkName || 'Olmaliq'} {addedByUser?.firstName ? `· ${addedByUser.firstName} qo'shgan` : ''}
-            </p>
-          </div>
-        </div>
-
-        {/* ⋯ MENU BUTTON */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-xl text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[20px]">more_vert</span>
-          </button>
-
-          {showMenu && (
-            <div className="absolute right-0 top-10 bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-2xl z-40 w-56 py-1.5 animate-fadeIn">
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  setShowBotModal(true);
-                }}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center gap-2.5 text-primary dark:text-sky-400"
-              >
-                <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-                Bot javobini ko'rish
-              </button>
-
-              <button
-                onClick={handleToggleStatus}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center gap-2.5 text-amber-600 dark:text-amber-400"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
-                </span>
-                {status === 'ACTIVE' ? 'Pauzaga qo\'yish' : 'Faollashtirish'}
-              </button>
-
-              <button
-                onClick={handleCopyDetails}
-                className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-surface-container-low dark:hover:bg-slate-800 transition-colors flex items-center gap-2.5 text-on-surface dark:text-slate-200"
-              >
-                <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                Nusxa olish
-              </button>
-
-              <div className="border-t border-outline-variant/20 dark:border-slate-800 my-1" />
-
-              <button
-                onClick={handleDelete}
-                className="w-full text-left px-4 py-2.5 text-xs font-bold text-error dark:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2.5"
-              >
-                <span className="material-symbols-outlined text-[18px]">delete</span>
-                O'chirish
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* TAB NAVIGATION (MA'LUMOT / TARIX) */}
-      <div className="bg-surface dark:bg-[#17212B] border-b border-outline-variant/30 dark:border-slate-800 px-4 flex">
+      {/* NAV BAR — "‹ Orqaga" + "⋯" menyu + "Saqlash" */}
+      <div className="px-4 pt-1 pb-2 flex items-center justify-between relative">
         <button
-          onClick={() => setActiveTab('info')}
-          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
-            activeTab === 'info'
-              ? 'border-primary text-primary dark:text-sky-400'
-              : 'border-transparent text-on-surface-variant dark:text-slate-400 hover:text-on-surface'
-          }`}
+          onClick={onBack}
+          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal -ml-1.5 active:opacity-40"
         >
-          <span className="material-symbols-outlined text-[18px]">badge</span>
-          Ma'lumot
+          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+          Baza
+        </button>
+
+        <div className="flex items-center gap-3.5">
+          <button
+            onClick={() => setShowMenu((v) => !v)}
+            className="text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 p-0.5"
+          >
+            <span className="material-symbols-outlined text-[22px]">more_horiz</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || saving}
+            className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 disabled:opacity-30"
+          >
+            {saving ? 'Saqlanmoqda...' : 'Saqlash'}
+          </button>
+        </div>
+
+        {/* MENU dropdown — iOS action-sheet uslubida */}
+        {showMenu && (
+          <div className="absolute right-4 top-11 bg-white dark:bg-[#1C1C1E] rounded-[14px] shadow-2xl z-40 w-60 overflow-hidden animate-fadeIn">
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                setShowBotModal(true);
+              }}
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-[#007AFF] dark:text-[#0A84FF] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+            >
+              Bot javobini ko'rish
+              <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+            </button>
+            <button
+              onClick={handleToggleStatus}
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-on-surface dark:text-white active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              style={{ borderTop: HAIRLINE }}
+            >
+              {status === 'ACTIVE' ? "Pauzaga qo'yish" : 'Faollashtirish'}
+              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">
+                {status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
+              </span>
+            </button>
+            <button
+              onClick={handleCopyDetails}
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-on-surface dark:text-white active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              style={{ borderTop: HAIRLINE }}
+            >
+              Nusxa olish
+              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">content_copy</span>
+            </button>
+            <button
+              onClick={handleDelete}
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-[#FF3B30] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              style={{ borderTop: HAIRLINE }}
+            >
+              O'chirish
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Contacts-app uslubidagi avatar sarlavha */}
+      <div className="flex flex-col items-center gap-1.5 pt-1 pb-5">
+        <span
+          className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-white text-[28px] font-semibold shadow-sm"
+          style={{ backgroundColor: avatarColorForName(name || '?') }}
+        >
+          {name.trim()[0]?.toUpperCase() || '?'}
+        </span>
+        <h1 className="text-[20px] font-semibold text-on-surface dark:text-white text-center px-6 mt-0.5">
+          {name || 'Yozuv'}
+        </h1>
+        <p className="text-[13px] text-[#8E8E93] text-center px-6">
+          {categoryName || 'Kasb'} · {landmarkName || 'Olmaliq'}
+          {addedByUser?.firstName ? ` · ${addedByUser.firstName} qo'shgan` : ''}
+        </p>
+        {priorityRank && (
+          <div className="flex items-center gap-1 text-[#34C759] text-[12px] font-semibold mt-0.5">
+            <span className="material-symbols-outlined text-[14px]">military_tech</span>
+            Kategoriyada {priorityRank}-o'rin
+          </div>
+        )}
+      </div>
+
+      {/* TEZKOR HOLAT TUGMALARI */}
+      <div className="px-4 flex items-center gap-2 mb-5">
+        <button
+          onClick={handleToggleVerification}
+          className="flex-1 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity"
+          style={{
+            backgroundColor: verification === 'VERIFIED' ? `${IOS_GREEN}1F` : `${IOS_ORANGE}1F`,
+            color: verification === 'VERIFIED' ? IOS_GREEN : IOS_ORANGE,
+          }}
+        >
+          {verification === 'VERIFIED' ? '✅ Tasdiqlangan' : '⚠️ Xalq aytgan'}
         </button>
         <button
-          onClick={() => setActiveTab('history')}
-          className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${
-            activeTab === 'history'
-              ? 'border-primary text-primary dark:text-sky-400'
-              : 'border-transparent text-on-surface-variant dark:text-slate-400 hover:text-on-surface'
-          }`}
+          onClick={handleToggleStatus}
+          className="py-2 px-4 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity"
+          style={{
+            backgroundColor: status === 'ACTIVE' ? `${IOS_BLUE}1F` : `${IOS_GRAY}26`,
+            color: status === 'ACTIVE' ? IOS_BLUE : IOS_GRAY,
+          }}
         >
-          <span className="material-symbols-outlined text-[18px]">history</span>
-          Tarix ({history.length + reviews.length})
+          {status === 'ACTIVE' ? '🟢 Faol' : '⏸️ Pauzada'}
         </button>
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* TAB 1: MA'LUMOT (INLINE EDITABLE FIELDS) */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* iOS SEGMENTED CONTROL — Ma'lumot / Tarix */}
+      <div className="px-4 mb-5">
+        <div className="bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[9px] p-[2px] flex">
+          <button
+            onClick={() => setActiveTab('info')}
+            className={`flex-1 py-1.5 rounded-[7px] text-[13px] font-medium transition-all ${
+              activeTab === 'info'
+                ? 'bg-white dark:bg-[#3A3A3C] shadow-sm text-on-surface dark:text-white font-semibold'
+                : 'text-[#8E8E93]'
+            }`}
+          >
+            Ma'lumot
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-1.5 rounded-[7px] text-[13px] font-medium transition-all ${
+              activeTab === 'history'
+                ? 'bg-white dark:bg-[#3A3A3C] shadow-sm text-on-surface dark:text-white font-semibold'
+                : 'text-[#8E8E93]'
+            }`}
+          >
+            Tarix ({history.length + reviews.length})
+          </button>
+        </div>
+      </div>
+
+      {/* ────────────────────────────────────────────────────────────── */}
+      {/* TAB 1: MA'LUMOT */}
+      {/* ────────────────────────────────────────────────────────────── */}
       {activeTab === 'info' && (
-        <main className="p-4 space-y-4 animate-fadeIn">
-          {/* QUICK ACTION STATUS CHIPS */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleToggleVerification}
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                verification === 'VERIFIED'
-                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 shadow-sm'
-                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-              }`}
-            >
-              <span>{verification === 'VERIFIED' ? '✅' : '⚠️'}</span>
-              {verification === 'VERIFIED' ? 'Tasdiqlangan' : 'Xalq aytgan'}
-            </button>
-
-            <button
-              onClick={handleToggleStatus}
-              className={`py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all border ${
-                status === 'ACTIVE'
-                  ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}
-            >
-              <span>{status === 'ACTIVE' ? '🟢' : '⏸️'}</span>
-              {status === 'ACTIVE' ? 'Faol' : 'Pauzada'}
-            </button>
-          </div>
-
-          {/* Kategoriya ichidagi "1/2/3-o'rin" belgisi — faqat holatni
-              ko'rsatadi, o'zgartirish "Baza" ro'yxati ekranidan (1/2/3
-              tugmalari bilan) qilinadi. */}
-          {priorityRank && (
-            <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold px-3 py-2 rounded-xl">
-              <span className="material-symbols-outlined text-[16px]">military_tech</span>
-              Kategoriya ichida {priorityRank}-o'rin qilib belgilangan
-            </div>
-          )}
-
-          {/* INLINE EDITABLE FORM — aniq nomlangan bo'limlarga ajratilgan
-              (avval bitta uzun, bo'linmagan blok edi, topish qiyin bo'lardi). */}
-          <div className="space-y-4">
-            {/* BO'LIM: ASOSIY MA'LUMOT */}
-            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
-              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">badge</span>
-                Asosiy ma'lumot
-              </h2>
-
-              {/* ISM */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Ism / Nom *
-                </label>
+        <div className="px-4 space-y-6 animate-fadeIn">
+          {/* GURUH: ASOSIY MA'LUMOT */}
+          <div>
+            <SectionLabel>Asosiy ma'lumot</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              <FieldRow label="Ism / Nom">
                 <input
                   type="text"
                   value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-semibold outline-none focus:border-primary transition-colors"
+                  onChange={(e) => setName(e.target.value)}
+                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white focus:outline-none text-right"
                 />
-              </div>
-
-              {/* TELEFON */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Telefon raqam *
-                </label>
+              </FieldRow>
+              <FieldRow label="Telefon" hairlineTop>
                 <input
                   type="tel"
                   value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 font-mono font-semibold outline-none focus:border-primary transition-colors"
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="ixtiyoriy"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
                 />
-              </div>
-
-              {/* KASB / KATEGORIYA */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Kasb (Kategoriya) *
-                  </label>
-                  <input
-                    type="text"
-                    value={categoryName}
-                    onChange={e => setCategoryName(e.target.value)}
-                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-3 text-sm text-on-surface dark:text-slate-100 outline-none focus:border-primary transition-colors"
-                  />
-                </div>
-
-                {/* MANZIL */}
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Manzil *
-                  </label>
+              </FieldRow>
+              <FieldRow label="Kasb / soha" hairlineTop>
+                <input
+                  type="text"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white focus:outline-none text-right"
+                />
+              </FieldRow>
+              <div className="px-3.5 py-2.5 flex items-center gap-3" style={{ borderTop: HAIRLINE }}>
+                <span className="text-[15px] text-on-surface dark:text-white w-[104px] shrink-0">Manzil</span>
+                <div className="flex-1 min-w-0">
                   <LandmarkPicker
                     value={landmarkId || null}
                     displayName={landmarkName}
-                    onChange={(id, name) => { setLandmarkId(id); setLandmarkName(name); }}
+                    onChange={(id, nm) => {
+                      setLandmarkId(id);
+                      setLandmarkName(nm);
+                    }}
                   />
                 </div>
               </div>
-            </section>
+            </div>
+          </div>
 
-            {/* BO'LIM: ISH VAQTI VA XIZMAT TAFSILOTLARI */}
-            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
-              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">schedule</span>
-                Ish vaqti va tafsilotlar
-              </h2>
+          {/* GURUH: ISH VAQTI VA TAFSILOTLAR */}
+          <div>
+            <SectionLabel>Ish vaqti va tafsilotlar</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              <FieldRow label="Boshlanishi">
+                <input
+                  type="text"
+                  value={workFrom}
+                  onChange={(e) => setWorkFrom(e.target.value)}
+                  placeholder="08:00"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
+                />
+              </FieldRow>
+              <FieldRow label="Tugashi" hairlineTop>
+                <input
+                  type="text"
+                  value={workTo}
+                  onChange={(e) => setWorkTo(e.target.value)}
+                  placeholder="20:00"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
+                />
+              </FieldRow>
 
-              {/* ISH VAQTI */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Ish vaqti
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={workFrom}
-                    onChange={e => setWorkFrom(e.target.value)}
-                    placeholder="08:00"
-                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={workTo}
-                    onChange={e => setWorkTo(e.target.value)}
-                    placeholder="20:00"
-                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* XARITA HAVOLASI (faqat Zapravkalar) */}
-              {originalData?.type === 'ZAPRAVKA' && (
-                <div>
-                  <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Xarita havolasi (Yandex)
-                  </label>
-                  <input
-                    type="text"
-                    value={mapUrl}
-                    onChange={e => setMapUrl(e.target.value)}
-                    placeholder="https://yandex.uz/maps/..."
-                    className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.
-                  </p>
-                </div>
+              {isZapravka && (
+                <>
+                  <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
+                    <span className="text-[15px] text-on-surface dark:text-white">Xarita havolasi (Yandex)</span>
+                  </div>
+                  <div className="px-3.5 pb-3">
+                    <input
+                      type="text"
+                      value={mapUrl}
+                      onChange={(e) => setMapUrl(e.target.value)}
+                      placeholder="https://yandex.uz/maps/..."
+                      className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+                    />
+                    <p className="text-[11px] text-[#8E8E93] mt-1.5">
+                      {mapUrl.trim()
+                        ? 'Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.'
+                        : 'Havola bo\'sh bo\'lsa, bot javobida "Lokatsiya" tugmasi umuman chiqmaydi.'}
+                    </p>
+                  </div>
+                </>
               )}
 
-              {/* ANIQ XIZMATLAR */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Aniq xizmatlar
-                </label>
+              <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
+                <span className="text-[15px] text-on-surface dark:text-white">Aniq xizmatlar</span>
+              </div>
+              <div className="px-3.5 pb-3">
                 <input
                   type="text"
                   value={specificServices}
-                  onChange={e => setSpecificServices(e.target.value)}
-                  placeholder="masalan: gaz kolonka tammirlash, plita ornatish"
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  onChange={(e) => setSpecificServices(e.target.value)}
+                  placeholder="masalan: gaz kolonka ta'mirlash, plita o'rnatish"
+                  className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
                 />
               </div>
 
-              {/* TAXMINIY NARX */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Taxminiy narx
-                </label>
+              <FieldRow label="Taxminiy narx" hairlineTop>
                 <input
                   type="text"
                   value={approxPrice}
-                  onChange={e => setApproxPrice(e.target.value)}
-                  placeholder="masalan: 50,000 - 150,000 som"
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                  onChange={(e) => setApproxPrice(e.target.value)}
+                  placeholder="masalan: 50,000 so'mdan"
+                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none text-right"
                 />
-              </div>
+              </FieldRow>
 
-              {/* IZOH */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Izoh
-                </label>
+              <div className="px-3.5 pt-3 pb-3" style={{ borderTop: HAIRLINE }}>
+                <span className="text-[15px] text-on-surface dark:text-white block mb-1.5">Izoh</span>
                 <textarea
                   rows={2}
                   value={description}
-                  onChange={e => setDescription(e.target.value)}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Qo'shimcha izoh..."
-                  className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none resize-none"
+                  className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none resize-none"
                 />
               </div>
-            </section>
+            </div>
+          </div>
 
-            {/* BO'LIM: BELGILAR VA MAHALLIY ATAMALAR */}
-            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3.5 shadow-sm">
-              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">sell</span>
-                Belgilar va mahalliy atamalar
-              </h2>
-
-              {/* BELGILAR (BADGES CHIPS) */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Belgilar (Chiplar)
-                </label>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {badges.map((b) => (
-                    <span
-                      key={b}
-                      className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
-                    >
-                      🏷️ {b}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveBadge(b)}
-                        className="hover:text-red-400 font-bold"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-
-                  {showNewBadgeInput ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="text"
-                        value={newBadgeInput}
-                        onChange={e => setNewBadgeInput(e.target.value)}
-                        placeholder="belgi..."
-                        className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddBadge}
-                        className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
-                      >
-                        +
-                      </button>
-                    </div>
-                  ) : (
+          {/* GURUH: BELGILAR */}
+          <div>
+            <SectionLabel>Belgilar</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
+                {badges.length === 0 && !showNewBadgeInput && (
+                  <span className="text-[13px] text-[#8E8E93]">Hali belgi qo'shilmagan</span>
+                )}
+                {badges.map((b) => (
+                  <span
+                    key={b}
+                    className="bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                  >
+                    {b}
                     <button
-                      type="button"
-                      onClick={() => setShowNewBadgeInput(true)}
-                      className="border border-dashed border-outline-variant dark:border-slate-700 text-on-surface-variant dark:text-slate-400 text-xs font-semibold px-3 py-1 rounded-full hover:bg-surface-container-low"
+                      onClick={() => handleRemoveBadge(b)}
+                      className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
+                      aria-label={`${b}ni o'chirish`}
                     >
-                      + Qo'shish
+                      <span className="material-symbols-outlined text-[11px] leading-none">close</span>
                     </button>
-                  )}
-                </div>
-              </div>
+                  </span>
+                ))}
 
-              {/* JARGON / XALQ ATAMALARI */}
-              <div>
-                <label className="block text-[11px] font-bold text-on-surface-variant dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Jargon / xalq atamalari
-                </label>
-                <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
-                  Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
-                </p>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {jargonSynonyms.map((w) => (
-                    <span
-                      key={w}
-                      className="bg-primary/10 dark:bg-sky-500/20 text-primary dark:text-sky-300 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5"
-                    >
-                      {w}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveJargon(w)}
-                        className="hover:text-red-400 font-bold"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-
+                {showNewBadgeInput ? (
                   <div className="flex items-center gap-1">
                     <input
                       type="text"
-                      value={newJargonInput}
-                      onChange={e => setNewJargonInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddJargon();
-                        }
+                      value={newBadgeInput}
+                      onChange={(e) => setNewBadgeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddBadge();
                       }}
-                      placeholder="masalan: trubkachi"
-                      className="bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-full px-3 py-1 text-xs outline-none"
+                      placeholder="belgi..."
+                      autoFocus
+                      className="bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-full px-3 py-1 text-[13px] outline-none text-on-surface dark:text-white"
                     />
                     <button
-                      type="button"
-                      onClick={handleAddJargon}
-                      className="bg-sky-500 text-white text-xs px-2.5 py-1 rounded-full font-bold"
+                      onClick={handleAddBadge}
+                      className="text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold px-1"
                     >
-                      +
+                      Qo'shish
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <button
+                    onClick={() => setShowNewBadgeInput(true)}
+                    className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full border border-dashed border-[#007AFF]/50 dark:border-[#0A84FF]/50 text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-medium active:bg-[#007AFF]/5"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">add</span>
+                    Qo'shish
+                  </button>
+                )}
               </div>
-            </section>
+            </div>
+          </div>
 
-            {/* BO'LIM: RASMLAR */}
-            <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-2 shadow-sm">
-              <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">photo_library</span>
+          {/* GURUH: MAHALLIY ATAMALAR (JARGON) */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-1.5">
+              <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">
+                Mahalliy atamalar
+              </span>
+            </div>
+            <p className="text-[12px] text-[#8E8E93] px-1 mb-1.5">
+              Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
+            </p>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+              <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
+                {jargonSynonyms.length === 0 && (
+                  <span className="text-[13px] text-[#8E8E93]">Hali atama qo'shilmagan</span>
+                )}
+                {jargonSynonyms.map((w) => (
+                  <span
+                    key={w}
+                    className="bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                  >
+                    {w}
+                    <button
+                      onClick={() => handleRemoveJargon(w)}
+                      className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
+                      aria-label={`${w}ni o'chirish`}
+                    >
+                      <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderTop: HAIRLINE }}>
+                <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">add_circle</span>
+                <input
+                  type="text"
+                  value={newJargonInput}
+                  onChange={(e) => setNewJargonInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddJargon();
+                    }
+                  }}
+                  placeholder="masalan: trubkachi"
+                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+                />
+                <button
+                  onClick={handleAddJargon}
+                  disabled={!newJargonInput.trim()}
+                  className="text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold disabled:opacity-30"
+                >
+                  Qo'shish
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* GURUH: RASMLAR */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-1.5">
+              <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">
                 Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
-              </h2>
-              <p className="text-[10px] text-on-surface-variant dark:text-slate-500 mb-1.5">
-                Bir nechta rasm bo'lsa, bot javobida suriladigan albom sifatida ko'rsatiladi.
-              </p>
-
+              </span>
+            </div>
+            <p className="text-[12px] text-[#8E8E93] px-1 mb-1.5">
+              Bir nechta rasm bo'lsa, bot javobida suriladigan albom sifatida ko'rsatiladi.
+            </p>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden p-3.5 space-y-2.5">
               {photoUrls.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 mb-1.5">
+                <div className="flex gap-2 overflow-x-auto pb-0.5">
                   {photoUrls.map((url) => (
-                    <div key={url} className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-outline-variant/40 dark:border-slate-700">
+                    <div key={url} className="relative shrink-0 w-16 h-16 rounded-[10px] overflow-hidden">
                       <img src={url} alt="" className="w-full h-full object-cover" />
                       <button
-                        type="button"
                         onClick={() => handleRemovePhoto(url)}
                         className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none flex items-center justify-center"
                       >
@@ -754,9 +772,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
               )}
 
               {photoUrls.length < MAX_PHOTOS && (
-                <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold cursor-pointer">
+                <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[10px] border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold cursor-pointer">
                   <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
-                  {isUploadingPhoto ? 'Yuklanmoqda...' : 'Rasm qo\'shish'}
+                  {isUploadingPhoto ? 'Yuklanmoqda...' : "Rasm qo'shish"}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
@@ -770,147 +788,123 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   />
                 </label>
               )}
-              {photoUploadError && <p className="text-red-500 text-[10px] font-semibold mt-1">{photoUploadError}</p>}
-            </section>
+              {photoUploadError && <p className="text-[#FF3B30] text-[12px] font-medium">{photoUploadError}</p>}
+            </div>
           </div>
-        </main>
+        </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* TAB 2: TARIX (HISTORY & REVIEWS) */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* ────────────────────────────────────────────────────────────── */}
+      {/* TAB 2: TARIX */}
+      {/* ────────────────────────────────────────────────────────────── */}
       {activeTab === 'history' && (
-        <main className="p-4 space-y-4 animate-fadeIn">
+        <div className="px-4 space-y-6 animate-fadeIn">
           {/* BAHOLAR VA SHARHLAR */}
-          <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3">
-            <h2 className="text-xs font-bold tracking-wider text-primary dark:text-sky-400 uppercase flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[18px]">grade</span>
-              Baholar va Sharhlar ({reviews.length})
-            </h2>
-
-            {reviews.length === 0 ? (
-              <p className="text-xs text-on-surface-variant dark:text-slate-400">Hali baholar berilmagan</p>
-            ) : (
-              <div className="space-y-2">
-                {reviews.map(r => (
+          <div>
+            <SectionLabel>Baholar va sharhlar ({reviews.length})</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              {reviews.length === 0 ? (
+                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">Hali baholar berilmagan</p>
+              ) : (
+                reviews.map((r, i) => (
                   <div
                     key={r.id}
-                    className="p-3 rounded-xl bg-surface-container-low dark:bg-[#1C2733] flex items-start gap-3 border border-outline-variant/20 dark:border-slate-800"
+                    className="px-3.5 py-3 flex items-start gap-3"
+                    style={i > 0 ? { borderTop: HAIRLINE } : undefined}
                   >
-                    <span className="text-lg">{r.isPositive ? '👍' : '👎'}</span>
+                    <span className="text-[17px] leading-none mt-0.5">{r.isPositive ? '👍' : '👎'}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-on-surface dark:text-slate-100">
+                      <p className="text-[14px] font-medium text-on-surface dark:text-white">
                         {r.isPositive ? 'Ijobiy tavsiya' : 'Salbiy sharh'}
                       </p>
-                      {r.comment && (
-                        <p className="text-xs text-on-surface-variant dark:text-slate-300 mt-0.5">{r.comment}</p>
-                      )}
-                      <span className="text-[10px] text-slate-500 block mt-1">
+                      {r.comment && <p className="text-[13px] text-[#8E8E93] mt-0.5">{r.comment}</p>}
+                      <span className="text-[11px] text-[#8E8E93] block mt-1">
                         {new Date(r.createdAt).toLocaleString()}
                       </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                ))
+              )}
+            </div>
+          </div>
 
           {/* TUZATISHLAR */}
-          <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3">
-            <h2 className="text-xs font-bold tracking-wider text-amber-500 uppercase flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[18px]">build</span>
-              Tuzatishlar ({corrections.length})
-            </h2>
-
-            {corrections.length === 0 ? (
-              <p className="text-xs text-on-surface-variant dark:text-slate-400">Tuzatish takliflari yo'q</p>
-            ) : (
-              <div className="space-y-2">
-                {corrections.map(c => (
-                  <div key={c.id} className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
-                    <p className="font-semibold text-amber-300">{c.message}</p>
-                    <span className="text-[10px] text-slate-400 block mt-1">
-                      {new Date(c.createdAt).toLocaleString()} · Status: {c.status}
+          <div>
+            <SectionLabel>Tuzatishlar ({corrections.length})</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              {corrections.length === 0 ? (
+                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">Tuzatish takliflari yo'q</p>
+              ) : (
+                corrections.map((c, i) => (
+                  <div key={c.id} className="px-3.5 py-3" style={i > 0 ? { borderTop: HAIRLINE } : undefined}>
+                    <p className="text-[13px] font-medium text-[#FF9500]">{c.message}</p>
+                    <span className="text-[11px] text-[#8E8E93] block mt-1">
+                      {new Date(c.createdAt).toLocaleString()} · {c.status}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                ))
+              )}
+            </div>
+          </div>
 
-          {/* O'ZGARISHLAR TARIXI (SNAPSHOT HISTORY) */}
-          <section className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3">
-            <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[18px]">history</span>
-              O'zgarishlar tarixi ({history.length})
-            </h2>
-
-            {history.length === 0 ? (
-              <p className="text-xs text-on-surface-variant dark:text-slate-400">O'zgarishlar tarixi hali saqlanmagan</p>
-            ) : (
-              <div className="space-y-2.5 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
-                {history.map(h => (
-                  <div key={h.id} className="relative pl-7 text-xs">
-                    <div className="absolute left-1.5 top-1.5 w-3 h-3 rounded-full bg-sky-500 border-2 border-[#17212B]" />
-                    <p className="font-semibold text-slate-200">
-                      Tahrir qilindi ({h.changedBy || 'Admin'})
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      {new Date(h.createdAt).toLocaleString()}
-                    </p>
+          {/* O'ZGARISHLAR TARIXI */}
+          <div>
+            <SectionLabel>O'zgarishlar tarixi ({history.length})</SectionLabel>
+            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+              {history.length === 0 ? (
+                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">O'zgarishlar tarixi hali saqlanmagan</p>
+              ) : (
+                history.map((h, i) => (
+                  <div
+                    key={h.id}
+                    className="px-3.5 py-3 flex items-center gap-2.5"
+                    style={i > 0 ? { borderTop: HAIRLINE } : undefined}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: IOS_BLUE }} />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-on-surface dark:text-white">
+                        Tahrir qilindi ({h.changedBy || 'Admin'})
+                      </p>
+                      <p className="text-[11px] text-[#8E8E93]">{new Date(h.createdAt).toLocaleString()}</p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </main>
-      )}
-
-      {/* FLOATING "SAQLASH" BUTTON (Appears ONLY if hasChanges === true) */}
-      {hasChanges && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-container-max mx-auto animate-slide-up">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full h-14 bg-gradient-to-r from-primary to-secondary text-white font-bold text-base rounded-2xl shadow-2xl flex items-center justify-center gap-2 active:scale-98 transition-all disabled:opacity-50 border border-white/20"
-          >
-            <span className="material-symbols-outlined text-[22px]">save</span>
-            {saving ? 'Saqlanmoqda...' : 'O\'zgarishlarni Saqlash'}
-          </button>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* ────────────────────────────────────────────────────────────── */}
       {/* MODAL: BOT JAVOBINI KO'RISH */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
+      {/* ────────────────────────────────────────────────────────────── */}
       {showBotModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
-                <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                Bot Javobi Ko'rinishi
-              </div>
+        <div
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center animate-fadeIn"
+          style={{ fontFamily: IOS_FONT }}
+        >
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-t-[20px] sm:rounded-[20px] p-4 w-full sm:max-w-sm space-y-3.5 shadow-2xl">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[15px] font-semibold text-on-surface dark:text-white">Bot javobi ko'rinishi</span>
               <button
                 onClick={() => setShowBotModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400"
+                className="w-7 h-7 rounded-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center text-[#8E8E93]"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
 
-            {/* Telegram Message Bubble */}
-            <div className="bg-[#182533] rounded-2xl p-4 text-xs font-sans text-slate-100 shadow-md border border-slate-800/80 whitespace-pre-wrap leading-relaxed">
+            <div className="bg-[#182533] rounded-[14px] p-4 text-[13px] font-sans text-slate-100 whitespace-pre-wrap leading-relaxed">
               {botPreviewText}
             </div>
 
-            <p className="text-[11px] text-slate-500 text-center">
+            <p className="text-[12px] text-[#8E8E93] text-center px-2">
               Foydalanuvchi botga "{categoryName}" deb so'raganda guruhda aynan shu xabar ko'rinadi.
             </p>
 
             <button
               onClick={() => setShowBotModal(false)}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-xl text-xs transition-colors"
+              className="w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white font-semibold py-2.5 rounded-[10px] text-[15px]"
             >
               Yopish
             </button>

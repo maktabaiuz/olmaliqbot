@@ -651,9 +651,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (!name || !categoryName) {
         return reply.status(400).send({ error: "Ism va Kategoriya majburiy!" });
       }
-      if (type === ListingType.ZAPRAVKA && !phone) {
-        return reply.status(400).send({ error: "Telefon raqam majburiy!" });
-      }
 
       const VALID_LISTING_TYPES = [ListingType.USTA, ListingType.DOKON_OBYEKT, ListingType.MUASSASA, ListingType.TRANSPORT, ListingType.ARENDA, ListingType.ZAPRAVKA];
       const listingType = VALID_LISTING_TYPES.includes(type) ? type : ListingType.USTA;
