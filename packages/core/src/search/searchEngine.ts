@@ -123,11 +123,21 @@ function hasWordLevelJargonMatch(
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
   if (jargonWords.length === 0) return false;
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 6-qatlam): avval
+  // Levenshtein chegarasi so'z uzunligiga nisbatan biroz "bo'sh" edi
+  // (~har 5 harfga 1 xato) — bu qisqa so'zlar uchun (typo tuzatish uchun
+  // mo'ljallangan) maqbul, lekin UZUN so'zlar uchun juda KENG bo'lib
+  // chiqdi: "teradiganlar" va "biladiganlar" (ikkalasi ham 12 harf, lekin
+  // MA'NOSI BUTUNLAY BOSHQA) atigi 3 ta harf farq qilib, "yaqin" deb
+  // hisoblanib qolgan edi. Endi chegara ANCHA qattiqroq (~har 8 harfga
+  // 1 xato) — qisqa so'zlar uchun (masalan "beshbirdagi" kabi) hali ham
+  // 1 ta yozilish xatosiga chidamli, lekin uzun so'zlarda faqat DEYARLI
+  // bir xil so'zlarnigina "mos" deb hisoblaydi.
   return jargonWords.some((jw) =>
     msgWords.some((mw) => {
       if (jw === mw) return true;
       if (Math.abs(jw.length - mw.length) > 2) return false;
-      const threshold = Math.max(1, Math.round(jw.length / 5));
+      const threshold = Math.max(1, Math.floor(jw.length / 8));
       return levenshteinDistance(jw, mw) <= threshold;
     })
   );
