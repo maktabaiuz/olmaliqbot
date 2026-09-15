@@ -1,0 +1,60 @@
+name: One-off - trace exact jargon word causing false match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+              const q = 'Akalar fartunani nomeri bormi';
+              const msgWords = core.normalizeText(q).split(/\s+/).filter(w => w.length >= 5);
+              console.log('MSG_WORDS_RAW (before generic filter):', JSON.stringify(msgWords));
+
+              const n1 = await db.listing.findFirst({ where: { cityId, name: { contains: 'N1', mode: 'insensitive' } } });
+              console.log('N1_CHOYXONA_JARGON:', JSON.stringify(n1 ? n1.jargonSynonyms : 'NOT FOUND'));
+
+              const ismoil = await db.listing.findMany({ where: { cityId, name: { contains: 'Ismoil', mode: 'insensitive' } } });
+              console.log('ISMOIL_JARGON:', JSON.stringify(ismoil.map(l => l.jargonSynonyms)));
+
+              // Barcha jargon kandidatlarini yigib, har biri uchun MSG so'zlari bilan
+              // taqqoslab, aynan qaysi so'z mos kelayotganini korsatamiz.
+              const jargonCandidates = await db.listing.findMany({ where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } }, select: { id: true, name: true, jargonSynonyms: true } });
+
+              // Sozlarning necha xil yozuvda uchrashini hisoblaymiz (bizning tuzatish qilgan narsamiz)
+              const freq = new Map();
+              for (const l of jargonCandidates) {
+                const wordsInThis = new Set();
+                for (const j of l.jargonSynonyms) {
+                  for (const w of core.normalizeText(j).split(/\s+/)) {
+                    if (w.length >= 5) wordsInThis.add(w);
+                  }
+                }
+                for (const w of wordsInThis) freq.set(w, (freq.get(w)||0)+1);
+              }
+
+              for (const w of msgWords) {
+                console.log('WORD', JSON.stringify(w), 'FREQUENCY_ACROSS_LISTINGS:', freq.get(w) || 0);
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
