@@ -1,0 +1,52 @@
+name: One-off - differentiate zapravka landmark narrowing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+
+              const queries = [
+                'deskadagi zaprafka ochiqmi',
+                'deska zaprafka ochiqmi',
+                'gondra zaprafka ochiqmi',
+                'beshbirdagi zaprafka ochiqmi',
+                'karvon zaprafka ochiqmi',
+                'yaqin atrofda zaprafka bormi',
+              ];
+              for (const q of queries) {
+                const classification = await classifyQuery(q, cityId, BigInt(999999));
+                const isSeeking = classification.intent !== 'NOT_RELEVANT';
+                const searchResult = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? classification.category : null,
+                  landmarkName: isSeeking ? classification.landmark : null,
+                  rawMessage: q,
+                });
+                console.log('QUERY:', JSON.stringify(q), 'CATEGORY:', classification.category, 'LANDMARK:', classification.landmark, 'MATCHED:', searchResult ? searchResult.listing.name : 'NONE');
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
