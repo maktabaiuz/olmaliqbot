@@ -1,0 +1,104 @@
+name: One-off - verify phone-optional and lokatsiya button
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const cityId = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              const zapCategoryId = 'd4364137-3bd1-462c-900c-92c4b753f6ce';
+              const landmark = await db.landmark.findFirst({ where: { cityId } });
+              if (!landmark) throw new Error('no landmark');
+
+              // TEST A: bo'sh telefon bilan yozuv (USTA turi)
+              const ustaCategory = await db.category.findFirst({ where: { objectType: 'USTA' } });
+              if (!ustaCategory) throw new Error('no USTA category');
+              const testA = await db.listing.create({
+                data: {
+                  city: { connect: { id: cityId } },
+                  category: { connect: { id: ustaCategory.id } },
+                  primaryLandmark: { connect: { id: landmark.id } },
+                  type: 'USTA',
+                  name: 'TEST-bosh-telefon',
+                  phone: '',
+                  status: 'ACTIVE',
+                  workFrom: '08:00',
+                  workTo: '20:00',
+                  consentGiven: true,
+                  badges: [],
+                },
+              });
+              console.log('TEST_A_CREATED_WITH_EMPTY_PHONE:', testA.id, 'phone=' + JSON.stringify(testA.phone));
+              await db.listing.delete({ where: { id: testA.id } });
+              const checkA = await db.listing.findUnique({ where: { id: testA.id } });
+              console.log('TEST_A_DELETED_CONFIRMED:', checkA === null);
+
+              // TEST B: Lokatsiya tugmasi mapUrl bo'lsa/bo'lmasa
+              const { buildResultKeyboard } = require('/app/apps/bot/dist/utils/listingReply.js');
+              const withMap = await db.listing.create({
+                data: {
+                  city: { connect: { id: cityId } },
+                  category: { connect: { id: zapCategoryId } },
+                  primaryLandmark: { connect: { id: landmark.id } },
+                  type: 'ZAPRAVKA',
+                  name: 'TEST-mapurl-bor',
+                  phone: '+998901234567',
+                  status: 'ACTIVE',
+                  workFrom: '08:00',
+                  workTo: '22:00',
+                  mapUrl: 'https://yandex.uz/maps/-/test-with-map',
+                  consentGiven: true,
+                  badges: [],
+                },
+              });
+              const withoutMap = await db.listing.create({
+                data: {
+                  city: { connect: { id: cityId } },
+                  category: { connect: { id: zapCategoryId } },
+                  primaryLandmark: { connect: { id: landmark.id } },
+                  type: 'ZAPRAVKA',
+                  name: 'TEST-mapurl-yoq',
+                  phone: '+998901234567',
+                  status: 'ACTIVE',
+                  workFrom: '08:00',
+                  workTo: '22:00',
+                  mapUrl: null,
+                  consentGiven: true,
+                  badges: [],
+                },
+              });
+
+              const kbWith = await buildResultKeyboard(0, withMap.id, withMap.mapUrl);
+              const kbWithout = await buildResultKeyboard(0, withoutMap.id, withoutMap.mapUrl);
+              console.log('KEYBOARD_WITH_MAPURL:', JSON.stringify(kbWith.inline_keyboard));
+              console.log('KEYBOARD_WITHOUT_MAPURL:', JSON.stringify(kbWithout.inline_keyboard));
+
+              const hasLokatsiya = (kb) => kb.inline_keyboard.some(row => row.some(btn => btn.text === '📍 Lokatsiya'));
+              console.log('WITH_MAPURL_HAS_BUTTON:', hasLokatsiya(kbWith));
+              console.log('WITHOUT_MAPURL_HAS_BUTTON:', hasLokatsiya(kbWithout));
+
+              await db.listing.delete({ where: { id: withMap.id } });
+              await db.listing.delete({ where: { id: withoutMap.id } });
+              const checkWith = await db.listing.findUnique({ where: { id: withMap.id } });
+              const checkWithout = await db.listing.findUnique({ where: { id: withoutMap.id } });
+              console.log('TEST_B_BOTH_DELETED_CONFIRMED:', checkWith === null && checkWithout === null);
+
+              await db.\$disconnect();
+            })().catch(e => { console.error('VERIFY_ERROR:', e); process.exit(1); });
+            "
