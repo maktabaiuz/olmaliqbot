@@ -1,0 +1,22 @@
+name: One-off - verify zapravka search live
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+            echo "--- find @kimbor/core compiled entry ---"
+            docker exec kimbor_bot sh -c "find / -maxdepth 6 -type d -path '*@kimbor/core' 2>/dev/null"
+            docker exec kimbor_bot sh -c "find / -maxdepth 8 -type d -path '*packages/core/dist' 2>/dev/null"
