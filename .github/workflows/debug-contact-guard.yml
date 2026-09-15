@@ -1,0 +1,41 @@
+name: One-off - diagnose CONTACT guard not triggering
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            echo "--- deployed dist file check for CONTACT guard ---"
+            docker exec kimbor_bot sh -c "grep -n 'CONTACT' /app/packages/core/dist/search/searchEngine.js | head -10"
+            echo "--- direct isolated call: intent=CONTACT, category=null, landmark=null, no jargon match expected ---"
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+              const sr = await core.searchListings({
+                cityId,
+                categoryName: 'totally_made_up_nonexistent_category_xyz',
+                landmarkName: null,
+                rawMessage: 'this is a totally unrelated made up gibberish message xyz123',
+                intent: 'CONTACT',
+              });
+              console.log('DIRECT_CONTACT_TEST_RESULT:', sr ? sr.listing.name : 'NONE (correct)');
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
