@@ -1,7 +1,7 @@
 import { Context } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -34,7 +34,12 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // 2b. E'lon vs so'rov. "menda labo bor / yo'lga chiqaman" — odam O'ZIDA
   // bor narsani taklif qiladi, qidirmaydi. Gemini SERVICE deb xato qilsa ham,
   // bazadan kartochka yuborilmaydi.
-  if (classification.intent !== 'EMERGENCY' && isSelfOffer(messageText)) {
+  // 2c. Ish e'loni ("podsobnik kerak", "ishchi kerak, oylik yaxshi") —
+  // katalogimizga aloqasi yo'q: bu odam O'ZIGA xodim qidiryapti, bizdan
+  // usta so'ramayapti. AI buni ishonch bilan "SERVICE" deb xato baholagani
+  // (va bot aloqasiz "Kafelchi"ni yuborgani) real skrinshot bilan
+  // tasdiqlangan, shuning uchun bu yerda AI dan QAT'I NAZAR to'xtatiladi.
+  if (classification.intent !== 'EMERGENCY' && (isSelfOffer(messageText) || isJobVacancy(messageText))) {
     db.queryLog.create({
       data: {
         cityId,

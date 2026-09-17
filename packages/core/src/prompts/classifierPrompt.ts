@@ -155,6 +155,25 @@ OFFERER / SELLER / ADVERTISER — always NOT_RELEVANT, regardless of topic:
   "... kerak/bormi" (I need/is there X) is a request — the verb PERSON
   and DIRECTION is the only reliable signal, the topic word is identical.
 
+JOB VACANCIES ARE NOT REQUESTS EITHER — always NOT_RELEVANT.
+A very common message type is someone HIRING LABOUR: "Shlakablok terishga
+podsobnik yordamchi kerak ... 779758180", "qurilishga ishchi kerak kunlik
+ish", "yordamchi kerak ishga, oylik yaxshi", "sotuvchi kerak, smena".
+The direction is reversed: this person is looking for an EMPLOYEE, not for
+a business to hire. The directory contains tradespeople, shops and
+institutions — it never contains generic labour, so answering with any
+listing is always wrong.
+
+Tell the two apart by WHAT is being asked for, not by the word "kerak":
+- A named TRADE ("santexnik kerak", "kafelchi kerak", "kafel teradigan
+  usta kerak") -> a real request, SERVICE.
+- GENERIC LABOUR ("podsobnik", "ishchi", "mardikor", "yordamchi",
+  "rabochiy", "gruzchik", "sotuvchi", "ofitsiant") -> job vacancy,
+  NOT_RELEVANT.
+Employment words ("oylik", "maosh", "ish haqi", "smena", "kunlik ish",
+"vakansiya") and the poster leaving their OWN phone number both confirm
+it is a vacancy. Never invent a category such as "yordamchi" for these.
+
 The one exception that stays a real request even though it mentions
 price/selling-adjacent words: someone asking what something WOULD cost
 if they bought/hired it. "Kvartira narxi qancha?" or "bir xonali kvartira
@@ -369,6 +388,18 @@ EXAMPLES
 "sariq bola pizza nomeri bormi"
 {"intent":"CONTACT","object_type":"DOKON_OBYEKT","category":null,"name":"sariq bola pizza",
  "landmark":null,"urgency":"low","confidence":0.92}
+
+"Shlakablok terishga podsobnik yordamchi kerak qanaqa ish bo'lsa yordam qilishi kerak 779758180"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.95}
+
+"qurilishga ishchi kerak kunlik ish haqi yaxshi"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.95}
+
+"kafel teradigan usta kerak"
+{"intent":"SERVICE","object_type":"USTA","category":"kafelchi","name":null,
+ "landmark":null,"urgency":"medium","confidence":0.94}
 
 "elektrika ishlarini qilamiz, murojaat +998939240897"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,

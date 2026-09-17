@@ -2,6 +2,7 @@ import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
 import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
+import { isJobVacancy } from '../intent/isJobVacancy';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
@@ -121,11 +122,25 @@ type JargonMatchStrength = 'strong' | 'weak' | null;
 const CATEGORY_VOCAB_TTL_MS = 5 * 60 * 1000;
 let categoryVocabCache: { words: Set<string>; expiresAt: number } | null = null;
 
+// Adminlar ba'zan butun bir E'LON MATNINI kategoriya nomi maydoniga
+// joylashtirib yuboradi (production'da 4 ta shunday yozuv topildi, masalan
+// "ARENDAGA BERILADI\nAPALAVKA\nMISHALKA..." va "...сантехник 7 24
+// хизматини таклиф"). Bunday "kategoriya" o'nlab tasodifiy so'zni lug'atga
+// olib kiradi va qidiruv aniqligini buzadi. Mavjudlari tozalandi, lekin
+// yangisi yana paydo bo'lishi mumkin — shuning uchun kod ham himoyalangan.
+function isMalformedCategoryName(name: string): boolean {
+  if (/[\n\r]/.test(name)) return true;
+  if (name.length > 40) return true;
+  if (/\+998|\d{3}[-\s]\d{2}[-\s]\d{2}|@\w+/.test(name)) return true;
+  return false;
+}
+
 async function getCategoryVocabulary(): Promise<Set<string>> {
   if (categoryVocabCache && categoryVocabCache.expiresAt > Date.now()) {
     return categoryVocabCache.words;
   }
-  const cats = await db.category.findMany({ select: { name: true, synonyms: true } });
+  const allCats = await db.category.findMany({ select: { name: true, synonyms: true } });
+  const cats = allCats.filter((c) => !isMalformedCategoryName(c.name));
   const words = new Set<string>();
   for (const c of cats) {
     for (const phrase of [c.name, ...c.synonyms]) {
@@ -554,6 +569,13 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   if (!cityId) return null;
   if (!categoryName && !landmarkName && !rawMessage) return null;
 
+  // Ish e'loni ("podsobnik kerak", "ishchi kerak oylik yaxshi") — katalogda
+  // bunday narsa yo'q va bo'lmaydi (biz usta/do'kon/muassasa ko'rsatamiz,
+  // ishchi kuchi emas). groupHandler buni allaqachon to'xtatadi; bu yerda
+  // ham tekshiriladi, shunda shaxsiy chat va boshqa chaqiruv joylari ham
+  // himoyalanadi.
+  if (rawMessage && isJobVacancy(rawMessage)) return null;
+
   // 0. Jargon so'zni to'g'ridan-to'g'ri xabar matnidan qidirish. Admin bazaga
   // qo'shganda odamlar shu narsani qanday so'rashini oldindan yozib qo'ygan
   // bo'ladi (masalan "oydindagi evosni nomeri") — shu orqali AI klassifikator
@@ -641,6 +663,20 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     }
   }
 
+  // MUHIM (2026-09, "yordamchi kerak ishga oylik yaxshi" sinovida topilgan
+  // xato): AI xabarni NOT_RELEVANT deb baholagan bo'lsa ham, bot baribir
+  // javob berib yuborardi — chunki jargon moslik AI xulosasidan ustun deb
+  // hisoblanadi (bu ATAYIN shunday: admin yozgan aniq ibora AI xatosidan
+  // ishonchliroq). Lekin bu ustunlik faqat KUCHLI dalil uchun o'rinli.
+  // ZAIF dalil (soha so'zi yoki qo'shimchali taxminiy o'xshashlik) AI
+  // "bu umuman so'rov emas" degan xulosani bekor qilishga yetarli emas —
+  // aks holda oddiy suhbat ham tasodifiy kartochka ochib yuborardi.
+  if (options.intent === 'NOT_RELEVANT') {
+    for (const weakId of weakOnlyJargon.keys()) {
+      jargonMatchedIds.delete(weakId);
+    }
+  }
+
   // Mo'ljal (landmark) BOR-U, kategoriya yoki jargon signali YO'Q holat —
   // bu YETARLI EMAS. Landmark faqat "QAYERDA" ekanini bildiradi, "NIMA
   // kerak"ligini emas. Bu tekshiruv bo'lmasa, tuman/mavze nomi tilga
@@ -705,14 +741,16 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
-    let categories = await db.category.findMany({
-      where: {
-        OR: [
-          { name: { contains: cleanCat, mode: 'insensitive' } },
-          { synonyms: { has: cleanCat } },
-        ],
-      },
-    });
+    let categories = (
+      await db.category.findMany({
+        where: {
+          OR: [
+            { name: { contains: cleanCat, mode: 'insensitive' } },
+            { synonyms: { has: cleanCat } },
+          ],
+        },
+      })
+    ).filter((c) => !isMalformedCategoryName(c.name));
 
     // MUHIM (2026-09 topilgan xato): yuqoridagi `synonyms: { has: cleanCat } }`
     // FAQAT massivning BITTA elementi cleanCat bilan AYNAN bir xil bo'lsagina
@@ -734,6 +772,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
           select: { id: true, name: true, synonyms: true },
         });
         const wordMatches = allCategoriesForWordMatch.filter((c) => {
+          if (isMalformedCategoryName(c.name)) return false;
           const targetWords = new Set(
             [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/))
           );
