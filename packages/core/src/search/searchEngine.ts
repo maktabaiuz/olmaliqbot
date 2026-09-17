@@ -82,7 +82,17 @@ const GENERIC_JARGON_WORDS = new Set([
 // biri "kam takrorlangan" bo'lib chiqdi, garchi tushuncha sifatida
 // ikkalasi ham juda keng tarqalgan bo'lsa ham.
 const GENERIC_ACTION_STEMS = ['remont', 'tamir', 'tuzat'];
-const GENERIC_NOUN_STEMS = ['mashin', 'moshin'];
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, davomi): "gaz
+// plitani remont qiladigan USTALAR nomeri" so'roviga endi aloqasiz
+// betonchi (Shohjahon) chiqdi, chunki uning jargonida "...ustalar nomeri
+// bormi" iborasi bor edi. Bu "usta/ustasi" bilan bo'lgan kategoriya
+// darajasidagi xatoning JARGON darajasidagi ko'rinishi: "ustalar" (ko'plik)
+// "ustasi" (birlik)dan FARQLI so'z sifatida sanaladi, shuning uchun
+// avvalgi kategoriya-chastota tuzatishi buni ushlay olmadi. "usta" o'zagi
+// juda qisqa (4 harf) bo'lgani uchun umumiy wordsShareStem (5 harfdan
+// boshlab) uni ham ushlay olmaydi — shu sabab alohida, aniq ro'yxatga
+// qo'shildi.
+const GENERIC_NOUN_STEMS = ['mashin', 'moshin', 'usta'];
 function isGenericFillerWord(word: string): boolean {
   if (word.startsWith('ishla')) return true;
   if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
@@ -1382,7 +1392,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const sameCategoryIds = new Set(
       missingListingsCategoryCheck.filter((l) => resolvedCategoryIds.has(l.categoryId)).map((l) => l.id)
     );
-    missingJargonIds = missingJargonIds.filter((id) => sameCategoryIds.has(id));
+    // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "moshina moyi
+    // almashtirish kerak" (moy shoxobchasi — Dilshod) so'roviga AI ba'zan
+    // aloqasiz, lekin HAQIQIY (haqiqatan mavjud, yozuvlari bor) "taksi"
+    // kategoriyasini taxmin qildi. Bu holatda "resolved kategoriya" bo'sh
+    // EMAS (taksi haydovchilari mavjud), shuning uchun yuqoridagi chegara
+    // ishlaydi va Dilshodning ANIQ, o'ziga xos jargon moslik ("moshina
+    // moyi" — butun ibora darajasida KUCHLI moslik) faqat "boshqa
+    // kategoriya" ekani uchun bekor qilinardi — garchi AI ning "taksi"
+    // taxmini bu holatda mutlaqo aloqasiz bo'lsa ham.
+    //
+    // KUCHLI (`strong`) moslik — atoqli nom yoki butun ibora darajasidagi
+    // aniq moslik — bu ENG ISHONCHLI signal, hatto AI HAQIQIY kategoriyani
+    // aniqlagan taqdirda ham. Faqat ZAIF/SOHA darajasidagi moslik
+    // kategoriya chegarasiga bo'ysunishi kerak; kuchli moslik esa har doim
+    // o'tishga haqli — xuddi kategoriya UMUMAN aniqlanmagan holatdagidek.
+    missingJargonIds = missingJargonIds.filter((id) => sameCategoryIds.has(id) || !conditionalJargon.has(id));
   }
   if (missingJargonIds.length > 0) {
     const extraJargonListings = await db.listing.findMany({
