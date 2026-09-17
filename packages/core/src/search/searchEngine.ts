@@ -282,7 +282,6 @@ function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[]
 function extractDistinctiveWords(
   phrase: string,
   wordFrequency: Map<string, number>,
-  categoryVocab: Set<string>,
   cityWords: string[]
 ): string[] {
   return normalizeText(phrase)
@@ -302,10 +301,10 @@ function wordLevelJargonMatchStrength(
   msgWords: string[],
   jargonPhrase: string,
   wordFrequency: Map<string, number>,
-  categoryVocab: Set<string>,
+  categoryWordFrequency: Map<string, number>,
   cityWords: string[]
 ): JargonMatchStrength {
-  const jargonWords = extractDistinctiveWords(jargonPhrase, wordFrequency, categoryVocab, cityWords);
+  const jargonWords = extractDistinctiveWords(jargonPhrase, wordFrequency, cityWords);
   if (jargonWords.length === 0) return null;
   // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 7-qatlam,
   // OXIRGI): oldingi 2 ta urinish (chegarani ~5dan ~8 harfga toraytirish)
@@ -339,11 +338,28 @@ function wordLevelJargonMatchStrength(
       if (mw === jw) {
         // ANIQ, harfma-harf moslik. Agar so'z kategoriyalar lug'atida
         // BO'LMASA — bu atoqli nom ("gondra", "beshbirdagi"), eng ishonchli
-        // signal. Lug'atdagi so'z ("balon", "arendaga") esa oddiy SOHA
-        // so'zi: u aynan shu bizneslni ajratmaydi, lekin QAYSI SOHA
-        // kerakligini aniq ko'rsatadi — shuning uchun alohida daraja.
-        if (!categoryVocab.has(jw)) return 'strong';
-        if (best !== 'category') best = 'category';
+        // signal.
+        //
+        // MUHIM (2026-09, "арендага механика мошин керак" xatosi bilan
+        // tasdiqlangan): so'z kategoriyalar lug'atida BOR bo'lsa ham, buni
+        // yagona mezon sifatida ishlatib bo'lmaydi — "balon" faqat BITTA
+        // kategoriyaga (shina) tegishli bo'lib, "qaysi soha kerakligini"
+        // aniq ko'rsatadi, lekin "arendaga" TO'RTTA turli kategoriyaga
+        // (umumiy arenda, mashina arendasi, asbob-uskuna arendasi, uy
+        // arendasi) baravar tegishli — u soha haqida ham HECH NARSA
+        // aniqlashtirmaydi. Shu sabab endi so'zning KATEGORIYALAR ORASIDAGI
+        // chastotasiga qaraladi: faqat BITTA kategoriyaga xos so'z "soha
+        // ko'rsatkichi" (`category`) darajasiga ko'tariladi; bir nechta
+        // kategoriyaga baravar tegishli so'z esa "zaif" (`weak`) darajada
+        // qoladi — u AI xulosasini (NOT_RELEVANT yoki boshqa kategoriya)
+        // bekor qilishga yoki kategoriya chegarasidan chiqishga yetarli emas.
+        const categoryFrequency = categoryWordFrequency.get(jw) || 0;
+        if (categoryFrequency === 0) return 'strong';
+        if (categoryFrequency === 1) {
+          if (best !== 'category') best = 'category';
+        } else if (best === null) {
+          best = 'weak';
+        }
       } else if (wordsShareStem(mw, jw)) {
         // Qo'shimchali (taxminiy) moslik — "beshbir"~"beshbirdagi" kabi
         // to'g'ri holatlar ham, "moshin"~"moshinam" kabi tasodifiy
@@ -784,7 +800,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       select: { id: true, categoryId: true, jargonSynonyms: true },
     });
     const wordFrequency = computeJargonWordFrequency(jargonCandidates);
-    const categoryVocab = await getCategoryVocabulary();
+    const categoryWordFrequency = await getCategoryWordFrequency();
     for (const cand of jargonCandidates) {
       let strength: JargonMatchStrength = null;
       for (const j of cand.jargonSynonyms) {
@@ -810,7 +826,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
           // so'z darajasidagi moslikda ("qiladiganlar"/"biladiganlar"
           // xatosidan keyin) qo'llanilgan bir xil mezon bilan.
           const msgDistinct = msgWords.join('');
-          const jargonDistinctWords = extractDistinctiveWords(j, wordFrequency, categoryVocab, cityWords);
+          const jargonDistinctWords = extractDistinctiveWords(j, wordFrequency, cityWords);
           const jargonDistinct = jargonDistinctWords.join('');
           if (
             msgDistinct.length >= MIN_JARGON_PHRASE_LENGTH &&
@@ -824,7 +840,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             }
           }
         }
-        const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryVocab, cityWords);
+        const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryWordFrequency, cityWords);
         if (wordStrength === 'strong') {
           strength = 'strong';
           break;
