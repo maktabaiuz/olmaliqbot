@@ -46,6 +46,21 @@ const GENERIC_JARGON_WORDS = new Set([
   'ochiq', 'ochiqmi', 'yopiq', 'yopiqmi', 'ishlaydi', 'ishlaydimi',
   'ishlayapti', 'ishlayaptimi', 'ishlayabdi', 'ishlayabdimi', 'kerak',
   'bormi', 'ekan', 'hozir', 'nechigacha', 'nechida', 'qancha',
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "Matiz 35talik
+  // propan BILAN qancha yuradi" (mashinaning yoqilg'i sarfi haqidagi
+  // savol) so'roviga bot aloqasiz "Bahtiyor" (uy/kvartira arendaga)ni
+  // ko'rsatdi — sabab uning jargonidagi "oylam BILAN turishga kvartira
+  // kerak" iborasi bilan "bilan" so'zi ANIQ mos kelgan. "bilan" — o'zbek
+  // tilining KO'MAKCHISI ("with"), grammatik yordamchi so'z, umuman
+  // biror mavzuga xos emas — u har qanday gapda uchrashi mumkin. Bunday
+  // ko'makchi/bog'lovchi so'zlar CHEKLANGAN, sanoqli to'plamni tashkil
+  // qiladi (domen otlaridan farqli o'laroq), shu sabab to'liq sanab
+  // chiqish xavfsiz — "remont"/"mashina" kabi har safar bittalab
+  // topiladigan alohida so'zlarni kutish o'rniga.
+  'bilan', 'uchun', 'lekin', 'ammo', 'balki', 'albatta', 'chunki',
+  'garchi', 'hamda', 'shuning', 'boshqa', 'barcha', 'hamma', 'doimo',
+  'doim', 'faqat', 'unda', 'bunda', 'qaysi', 'necha', 'nima', 'qanaqa',
+  'qanday', 'keyin', 'oldin', 'endi', 'hali', 'yana',
 ]);
 
 // "ishla..." o'zagidan yasalgan barcha fe'l shakllari ("ishlaydi",

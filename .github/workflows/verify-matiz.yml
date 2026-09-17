@@ -1,0 +1,100 @@
+name: One-off - verify Matiz fix and full regression
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              const g = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = g.cityId;
+              let pass = 0; const failures = [];
+
+              async function run(label, q, userId, expectFn) {
+                const c = await classifyQuery(q, cityId, BigInt(userId));
+                if (c.intent !== 'EMERGENCY' && (core.isSelfOffer(q) || core.isJobVacancy(q) || core.isUtilityStatusQuestion(q))) {
+                  const ok0 = expectFn('NONE');
+                  if (ok0) pass++; else failures.push(label + ' -> NONE (deterministik)');
+                  console.log((ok0 ? 'PASS' : 'FAIL'), label, '| DETERMINISTIK | MATCHED: NONE');
+                  return;
+                }
+                const seek = c.intent !== 'NOT_RELEVANT';
+                const sr = await core.searchListings({
+                  cityId, categoryName: seek ? c.category : null, landmarkName: seek ? c.landmark : null,
+                  rawMessage: q, intent: c.intent, name: seek ? c.name : null,
+                });
+                const m = sr ? sr.listing.name.trim() : 'NONE';
+                const ok = expectFn(m);
+                if (ok) pass++; else failures.push(label + ' -> ' + m);
+                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| cat:', JSON.stringify(c.category), '| MATCHED:', m);
+              }
+              const SILENT = (m) => m === 'NONE';
+              const ANSWER = (m) => m !== 'NONE';
+              const IS = (s) => (m) => m.toLowerCase().includes(s);
+
+              console.log('=== 0. YANGI: MATIZ/PROPAN -> JIM (8 marta) ===');
+              let allSilent = true;
+              for (let i = 0; i < 8; i++) {
+                const c = await classifyQuery('Matiz 35talik propan bilan qancha yuradi', cityId, BigInt(9840001 + i));
+                const seek = c.intent !== 'NOT_RELEVANT';
+                const sr = await core.searchListings({
+                  cityId, categoryName: seek ? c.category : null, landmarkName: seek ? c.landmark : null,
+                  rawMessage: 'Matiz 35talik propan bilan qancha yuradi', intent: c.intent, name: seek ? c.name : null,
+                });
+                const m = sr ? sr.listing.name.trim() : 'NONE';
+                console.log('  run', i, '| cat:', JSON.stringify(c.category), '| MATCHED:', m);
+                if (m !== 'NONE') allSilent = false;
+              }
+              if (allSilent) pass++; else failures.push('MATIZ_STABILITY -> aloqasiz javob berdi');
+              console.log((allSilent ? 'PASS' : 'FAIL'), 'MATIZ_STABILITY');
+
+              console.log('=== 0b. HAQIQIY UY ARENDA SOROVLARI HALI HAM ISHLASHI KERAK ===');
+              await run('ARENDA_REAL_1', 'ijaraga kvartira kerak edi oylik tolab turaman', 9840020, ANSWER);
+              await run('ARENDA_REAL_2', 'studentlarga kvartira kerak', 9840021, ANSWER);
+              await run('ARENDA_REAL_3', 'kvartira kerak edi ijaraga', 9840022, ANSWER);
+
+              console.log('=== 1. OLDINGI TUZATISHLAR (regressiya) ===');
+              await run('PEREKRUTEL', 'Assalomu aleykum mashina ochib qolgan kimda perekrutel bor', 9820001, SILENT);
+              await run('GAZ_PLITA', 'Уйдаги газ плитани ремонт киладиган усталар номери кимда бор ёзиб юборинглар илтимос', 9999001, IS('sardor'));
+              await run('MOYXONA_REAL', 'moshina moyi almashtirish kerak', 9800030, IS('dilshod'));
+              await run('GAS_NEWS', 'Акалар газ качон беришидан хабарилар борми?', 9800101, SILENT);
+              await run('EV_1', 'Elektra mabil zaprafka qata bor', 9700101, ANSWER);
+              await run('SANTEXNIK_USTA', 'santexnik usta kerak edi shoshilinch', 9999002, IS('akrom'));
+              await run('JOB_ORIGINAL', \"Shlakablok terishga podsobnik yordamchi kerak qanaqa ish bo'lsa yordam qilishi kerak 779758180\", 9900001, SILENT);
+              await run('AD_MAKLER', \"Kimga maklersiz Olmaliqda uy kerak bo'lsa profilga o'ting\", 9910001, SILENT);
+              await run('MIB', 'Olmaliq mib nechigacha ishlaydi', 9900030, SILENT);
+              await run('LADA_SERVICE', 'sariq bola pizza oldida LADA magazin bor, u yerda shina bormi', 9900034, SILENT);
+              await run('FORTUNA_1', 'akalar fartunani nomeri bormi', 9900036, SILENT);
+              await run('BESHBIR_1', 'beshbirdagi zaprafka ochiqmi', 9900040, IS('carvon'));
+              await run('GONDRA', 'gondra zaprafka ochiqmi', 9900043, IS('gondra'));
+              await run('ARENDA_CAR_CYR', 'арендага механика мошин керак', 9900020, SILENT);
+              await run('ARENDA_LESA', 'lesa arenda kerak', 9900022, IS('lesa'));
+              await run('KVARTIRA', 'ijaraga 1 xonali kvartira kerak edi', 9900051, ANSWER);
+              await run('BALON', 'balon kerak', 9900047, ANSWER);
+              await run('TOY_TEPA', 'toy tepada balon kerak', 9900050, ANSWER);
+              await run('QULF_REAL', 'mashinamni qulfi buzilgan, kimda qulf ustasi bor', 9820020, IS('jamshid'));
+
+              console.log('---');
+              console.log('RESULT: PASS=' + pass + ' FAIL=' + failures.length);
+              for (const f of failures) console.log('FAILED:', f);
+              await db.\$disconnect();
+              process.exit(failures.length > 0 ? 1 : 0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
