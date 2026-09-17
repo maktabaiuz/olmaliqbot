@@ -22,7 +22,7 @@ export interface SearchOptions {
   rawMessage?: string | null;
   /** AI klassifikatorning "intent" bahosi (masalan "CONTACT", "SERVICE",
    * "HOURS") — "CONTACT" uchun maxsus, qattiqroq mantiq qo'llanadi (pastga
-   * qarang: hasWordLevelJargonMatch yaqinidagi izohga). */
+   * qarang: wordLevelJargonMatchStrength yaqinidagi izohga). */
   intent?: string | null;
   /** AI klassifikatorning "name" maydoni — foydalanuvchi ANIQ SO'RAGAN
    * narsaning nomi (masalan "LADA magazin"), "landmark"dan (yo'l-yo'riq
@@ -35,7 +35,7 @@ export interface SearchOptions {
 const MIN_JARGON_PHRASE_LENGTH = 4;
 
 // Ko'p kategoriyalarda takrorlanadigan, "identifying" (o'ziga xos) BO'LMAGAN
-// umumiy so'zlar — so'z darajasidagi jargon moslikda (hasWordLevelJargonMatch)
+// umumiy so'zlar — so'z darajasidagi jargon moslikda (wordLevelJargonMatchStrength)
 // bular hisobga OLINMAYDI, aks holda deyarli har qanday shu turdagi so'rov
 // "mos keladi" deb topilib qolar edi (masalan "zaprafka" so'zining o'zi HAR
 // QANDAY zaprafka bilan mos kelib, aniqlashtirish vazifasini bajarmaydi).
@@ -108,6 +108,16 @@ const WORD_FREQUENCY_THRESHOLD = 2;
 // hech qachon aynan bitta bizneslni ajratuvchi nom emas. Bunday yozuv
 // baribir O'Z KATEGORIYASI orqali topiladi — jargon esa faqat ATOQLI
 // nomlar ("gondra", "karvon", "deska") uchun qoladi.
+// Jargon moslikning ISHONCHLILIK darajasi. Bu farq MUHIM: "kuchli" moslik
+// (atoqli nomning aniq mosligi) AI aniqlagan kategoriya chegarasidan chiqib,
+// boshqa sohadagi yozuvni ham ko'rsatishga haqli. "Zaif" moslik esa —
+// oddiy soha so'zi ("balon") yoki qo'shimchali taxminiy moslik
+// ("moshin"~"moshinam") — buning uchun yetarli dalil emas: u faqat
+// ALLAQACHON to'g'ri deb topilgan kategoriya ICHIDA aniqlashtirish uchun
+// ishlatiladi, yoki kategoriya umuman aniqlanmagan bo'lsa (AI xato qilgan,
+// zaxira sifatida) qabul qilinadi.
+type JargonMatchStrength = 'strong' | 'weak' | null;
+
 const CATEGORY_VOCAB_TTL_MS = 5 * 60 * 1000;
 let categoryVocabCache: { words: Set<string>; expiresAt: number } | null = null;
 
@@ -151,12 +161,12 @@ function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[]
  * "Beshbirdagi zaprafka ochiqmi" — "karvon" so'zi yo'q, lekin
  * "beshbirdagi" ikkalasida ham bor (va faqat shu bitta yozuvga xos).
  */
-function hasWordLevelJargonMatch(
+function wordLevelJargonMatchStrength(
   msgWords: string[],
   jargonPhrase: string,
   wordFrequency: Map<string, number>,
   categoryVocab: Set<string>
-): boolean {
+): JargonMatchStrength {
   const jargonWords = normalizeText(jargonPhrase)
     .split(/\s+/)
     .filter(
@@ -165,10 +175,9 @@ function hasWordLevelJargonMatch(
         !GENERIC_JARGON_WORDS.has(w) &&
         !isGenericVerbForm(w) &&
         !isGenericContactWord(w) &&
-        !categoryVocab.has(w) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
-  if (jargonWords.length === 0) return false;
+  if (jargonWords.length === 0) return null;
   // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 7-qatlam,
   // OXIRGI): oldingi 2 ta urinish (chegarani ~5dan ~8 harfga toraytirish)
   // baribir YETARLI bo'lmadi — "qiladiganlar" (qil-, "qilmoq" fe'lidan)
@@ -195,7 +204,26 @@ function hasWordLevelJargonMatch(
   // xavfsiz — yuqorida sanab o'tilgan xatolar ("qiladiganlar" va
   // "biladiganlar") BIRINCHI harfdanoq farq qiladi, ya'ni hech qachon
   // bir-biriga prefiks bo'lmaydi.
-  return jargonWords.some((jw) => msgWords.some((mw) => wordsShareStem(mw, jw)));
+  let best: JargonMatchStrength = null;
+  for (const jw of jargonWords) {
+    for (const mw of msgWords) {
+      if (mw === jw) {
+        // ANIQ, harfma-harf moslik. Agar so'z kategoriyalar lug'atida
+        // BO'LMASA — bu atoqli nom ("gondra", "beshbirdagi"), eng ishonchli
+        // signal. Lug'atdagi so'z ("balon", "arendaga") esa oddiy soha
+        // so'zi — moslik bor, lekin u aynan SHU bizneslni ajratmaydi.
+        if (!categoryVocab.has(jw)) return 'strong';
+        best = 'weak';
+      } else if (wordsShareStem(mw, jw)) {
+        // Qo'shimchali (taxminiy) moslik — "beshbir"~"beshbirdagi" kabi
+        // to'g'ri holatlar ham, "moshin"~"moshinam" kabi tasodifiy
+        // holatlar ham shu yerga tushadi, shuning uchun hech qachon
+        // "kuchli" deb hisoblanmaydi.
+        best = 'weak';
+      }
+    }
+  }
+  return best;
 }
 
 /**
@@ -538,6 +566,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // moslashadi. Yozilish farqiga (masalan "baliq haus"/"baliqhaus") ham
   // chidamli, chunki bo'shliqlar allaqachon olib tashlangan.
   let jargonMatchedIds = new Set<string>();
+  // Faqat ZAIF dalil bilan topilgan yozuvlar (id -> categoryId). Bular
+  // kategoriya aniqlangandan keyin qayta ko'rib chiqiladi: agar AI ishonchli
+  // kategoriyani topgan bo'lsa-yu, bu yozuv BOSHQA kategoriyada bo'lsa —
+  // zaif dalil uni ko'rsatish uchun yetarli emas.
+  const weakOnlyJargon = new Map<string, string | null>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     const msgCore = coreMatchText(rawMessage);
     // MUHIM (2026-09 topilgan JIDDIY xato): yuqoridagi moslik BUTUN iborani
@@ -567,26 +600,44 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w) && !isGenericContactWord(w));
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
-      select: { id: true, jargonSynonyms: true },
+      select: { id: true, categoryId: true, jargonSynonyms: true },
     });
     const wordFrequency = computeJargonWordFrequency(jargonCandidates);
     const categoryVocab = await getCategoryVocabulary();
     for (const cand of jargonCandidates) {
-      const hit = cand.jargonSynonyms.some((j) => {
+      let strength: JargonMatchStrength = null;
+      for (const j of cand.jargonSynonyms) {
         const jargonCore = coreMatchText(j);
         if (jargonCore.length >= MIN_JARGON_PHRASE_LENGTH && msgCore.length >= MIN_JARGON_PHRASE_LENGTH) {
           // Ikki tomonlama qamrash: xabar jargon "yadrosi"ni o'z ichiga oladimi,
-          // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa)
-          if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) return true;
+          // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa). BUTUN ibora
+          // mos kelishi — eng ishonchli dalil.
+          if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) {
+            strength = 'strong';
+            break;
+          }
           // Kichik yozilish xatosiga chidamli oxirgi tekshiruv (uzunliklari yaqin bo'lsa)
           if (Math.abs(msgCore.length - jargonCore.length) <= 3) {
             const threshold = Math.max(1, Math.floor(Math.max(msgCore.length, jargonCore.length) / 6));
-            if (levenshteinDistance(msgCore, jargonCore) <= threshold) return true;
+            if (levenshteinDistance(msgCore, jargonCore) <= threshold) {
+              strength = 'strong';
+              break;
+            }
           }
         }
-        return hasWordLevelJargonMatch(msgWords, j, wordFrequency, categoryVocab);
-      });
-      if (hit) jargonMatchedIds.add(cand.id);
+        const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryVocab);
+        if (wordStrength === 'strong') {
+          strength = 'strong';
+          break;
+        }
+        if (wordStrength === 'weak') strength = 'weak';
+      }
+      if (strength === 'strong') {
+        jargonMatchedIds.add(cand.id);
+      } else if (strength === 'weak') {
+        jargonMatchedIds.add(cand.id);
+        weakOnlyJargon.set(cand.id, cand.categoryId);
+      }
     }
   }
 
@@ -731,6 +782,19 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // farqlash uchun).
       categoryHasAnyListings =
         (await db.listing.count({ where: { cityId, status: 'ACTIVE', categoryId: { in: categoryIds } } })) > 0;
+      // MUHIM (2026-09, "arendaga mexanika moshin kerak" xatosi): AI ANIQ,
+      // bazada haqiqatan mavjud kategoriyani topgan bo'lsa — faqat ZAIF
+      // dalil bilan topilgan BOSHQA sohadagi yozuvlar chiqarib tashlanadi.
+      // Aks holda "mashina arendasi" so'roviga "moshin"~"moshinam" degan
+      // tasodifiy o'xshashlik orqali avtoelektrik yoki tuning ustasi
+      // ko'rsatilardi. Kuchli moslik (atoqli nomning aniq mosligi) esa
+      // kategoriya chegarasidan chiqishga haqli bo'lib qoladi.
+      const allowedCategoryIds = new Set(categoryIds);
+      for (const [weakId, weakCategoryId] of weakOnlyJargon) {
+        if (!weakCategoryId || !allowedCategoryIds.has(weakCategoryId)) {
+          jargonMatchedIds.delete(weakId);
+        }
+      }
       for (const c of categories as Array<{ name: string; synonyms?: string[] }>) {
         for (const phrase of [c.name, ...(c.synonyms || [])]) {
           for (const w of normalizeText(phrase).split(/\s+/)) {
