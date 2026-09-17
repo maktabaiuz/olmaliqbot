@@ -961,15 +961,40 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         const allCategoriesForWordMatch = await db.category.findMany({
           select: { id: true, name: true, synonyms: true },
         });
-        const wordMatches = allCategoriesForWordMatch.filter((c) => {
-          if (isMalformedCategoryName(c.name)) return false;
-          const targetWords = new Set(
-            [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/))
-          );
-          return catWords.some((w) => targetWords.has(w));
-        });
-        if (wordMatches.length > 0) {
-          categories = wordMatches as any;
+        // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato):
+        // "elektromobil zapravka" (AI to'g'ri taxmini — elektromobil
+        // zaryadlash stansiyasi) so'zlarga bo'linganda ["elektromobil",
+        // "zapravka"] hosil bo'ladi. "Elektr zaryadlash shoxobchasi"
+        // kategoriyasi ikkala so'zga ham mos keladi (sinonimida
+        // "elektromobil zaryadlash" bor), lekin oddiy BENZIN "Avtomobil
+        // zapravkasi" kategoriyasi ham FAQAT "zapravka" so'zi orqali
+        // (uning sinonimlaridan biri aynan shu so'z) qisman mos keladi.
+        // Avvalgi qoida — "istalgan BITTA so'z mos kelsa yetarli" — bu
+        // ikkalasini ham "topilgan" deb belgilab, benzin zapravkalari
+        // (Gondra, CARVON...) elektromobil so'roviga "Yana ko'rish"
+        // ro'yxatida aralashib chiqishiga olib keldi.
+        //
+        // Tuzatildi: endi FAQAT eng KO'P so'zga mos kelgan kategoriya(lar)
+        // tanlanadi — "Elektr zaryadlash shoxobchasi" (2 ta so'z) "Avtomobil
+        // zapravkasi" (1 ta so'z)dan ustun turadi va yagona natija bo'lib
+        // qoladi. Agar bir nechta kategoriya BIR XIL (masalan, ikkalasi ham
+        // bittadan) sonda mos kelsa, hammasi saqlanadi — bu avvalgi xulq-
+        // atvorni ("avtoelektirik" kabi bitta so'zli taxminlar uchun)
+        // buzmaydi, chunki bunday holatlarda odatda faqat bitta kategoriya
+        // haqiqatan mos keladi.
+        const scored = allCategoriesForWordMatch
+          .filter((c) => !isMalformedCategoryName(c.name))
+          .map((c) => {
+            const targetWords = new Set(
+              [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/))
+            );
+            const overlapCount = catWords.filter((w) => targetWords.has(w)).length;
+            return { category: c, overlapCount };
+          })
+          .filter((x) => x.overlapCount > 0);
+        if (scored.length > 0) {
+          const maxOverlap = Math.max(...scored.map((x) => x.overlapCount));
+          categories = scored.filter((x) => x.overlapCount === maxOverlap).map((x) => x.category) as any;
         }
       }
     }
