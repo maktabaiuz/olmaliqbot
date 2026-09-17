@@ -24,6 +24,11 @@ export interface SearchOptions {
    * "HOURS") — "CONTACT" uchun maxsus, qattiqroq mantiq qo'llanadi (pastga
    * qarang: hasWordLevelJargonMatch yaqinidagi izohga). */
   intent?: string | null;
+  /** AI klassifikatorning "name" maydoni — foydalanuvchi ANIQ SO'RAGAN
+   * narsaning nomi (masalan "LADA magazin"), "landmark"dan (yo'l-yo'riq
+   * uchun tilga olingan, lekin so'ralayotgan narsa EMAS) farqli. CONTACT
+   * intent uchun ishlatiladi — pastga qarang. */
+  name?: string | null;
 }
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
@@ -497,6 +502,48 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // UMUMAN e'tiborga olinmaydi.
   if (options.intent === 'CONTACT' && jargonMatchedIds.size === 0) {
     return null;
+  }
+
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan YANGI xato): yuqoridagi
+  // tekshiruv "jargonMatchedIds bo'sh emasmi" deb so'raydi — lekin bu jargon
+  // moslik BUTUN xabar matnidan (rawMessage) hisoblanadi, va xabarda
+  // FOYDALANUVCHI SO'RAGAN narsadan TASHQARI, faqat YO'L-YO'RIQ uchun tilga
+  // olingan boshqa (haqiqiy, jargon bilan ro'yxatdan o'tgan) biznes nomi ham
+  // bo'lishi mumkin — masalan "5/3 Sariq bola pizza oldida LADA magazin
+  // nomerini bering" — bu yerda "Sariq bola pizza" FAQAT mo'ljal, so'ralgan
+  // narsa esa "LADA magazin" (bizda yo'q). Avvalgi tekshiruv "Sariq bola
+  // pizza" jargon bilan mos kelgani uchun (u haqiqatan bor, ro'yxatdan
+  // o'tgan) himoyani noto'g'ri o'tkazib yuborardi — garchi foydalanuvchi
+  // ASLIDA boshqa narsa haqida so'ragan bo'lsa ham.
+  //
+  // Tuzatildi: AI "name" maydonini (aynan SO'RALGAN narsaning nomi,
+  // "landmark"dan farqli) chiqargan bo'lsa, endi FAQAT jargonMatchedIds
+  // ichidagi yozuvlar ORASIDA aynan shu "name"ga mos keladigan birortasi
+  // bor-yo'qligi tekshiriladi — agar yo'q bo'lsa (ya'ni topilgan jargon
+  // moslik faqat YO'L-YO'RIQ uchun tilga olingan boshqa biznesga tegishli
+  // bo'lib chiqsa), bot baribir JIM turadi.
+  if (options.intent === 'CONTACT' && options.name && jargonMatchedIds.size > 0) {
+    const matchedCandidates = await db.listing.findMany({
+      where: { id: { in: [...jargonMatchedIds] } },
+      select: { id: true, jargonSynonyms: true },
+    });
+    const nameCore = coreMatchText(options.name);
+    const nameWords = normalizeText(options.name)
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w) && !isGenericContactWord(w));
+    const nameFrequency = computeJargonWordFrequency(matchedCandidates);
+    const nameActuallyMatchesSomething = matchedCandidates.some((cand) =>
+      cand.jargonSynonyms.some((j) => {
+        const jargonCore = coreMatchText(j);
+        if (jargonCore.length >= MIN_JARGON_PHRASE_LENGTH && nameCore.length >= MIN_JARGON_PHRASE_LENGTH) {
+          if (nameCore.includes(jargonCore) || jargonCore.includes(nameCore)) return true;
+        }
+        return hasWordLevelJargonMatch(nameWords, j, nameFrequency);
+      })
+    );
+    if (!nameActuallyMatchesSomething) {
+      return null;
+    }
   }
 
   // Query ACTIVE listings strictly scoped by cityId

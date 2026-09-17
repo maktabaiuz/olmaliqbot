@@ -254,6 +254,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     rawMessage: messageText,
     intent: classification.intent,
     confidence: classification.confidence,
+    name: isSeeking ? classification.name : null,
   });
 }
 
@@ -267,6 +268,7 @@ async function runPrivateSearch(
     rawMessage: string;
     intent?: IntentType;
     confidence?: number;
+    name?: string | null;
   }
 ) {
   const searchResult = await searchListings({
@@ -275,6 +277,7 @@ async function runPrivateSearch(
     landmarkName: opts.landmarkName,
     rawMessage: opts.rawMessage,
     intent: opts.intent,
+    name: opts.name,
   });
 
   if (!searchResult) {
