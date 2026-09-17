@@ -1,0 +1,74 @@
+name: One-off - trace which jargon word caused each match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 6m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const g = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = g.cityId;
+              const N = core.normalizeText;
+
+              const cats = await db.category.findMany({ select: { name: true, synonyms: true } });
+              const vocab = new Set();
+              for (const c of cats) for (const p of [c.name, ...c.synonyms]) for (const w of N(p).split(/\\s+/)) if (w.length >= 4) vocab.add(w);
+              console.log('VOCAB_HAS: arenda=', vocab.has('arenda'), 'arendaga=', vocab.has('arendaga'), 'mexanik=', vocab.has('mexanik'), 'mexanika=', vocab.has('mexanika'), 'balon=', vocab.has('balon'), 'moshin=', vocab.has('moshin'));
+
+              const listings = await db.listing.findMany({
+                where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
+                select: { name: true, jargonSynonyms: true, category: { select: { name: true } } },
+              });
+
+              function shareStem(a, b) {
+                if (a === b) return true;
+                const s = a.length <= b.length ? a : b, l = a.length <= b.length ? b : a;
+                return s.length >= 5 && l.startsWith(s);
+              }
+
+              function trace(label, msg) {
+                console.log('--- ' + label + ': ' + JSON.stringify(msg));
+                const msgWords = N(msg).split(/\\s+/).filter(w => w.length >= 5);
+                console.log('    MSG_WORDS:', JSON.stringify(msgWords));
+                for (const l of listings) {
+                  for (const j of l.jargonSynonyms) {
+                    const jws = N(j).split(/\\s+/).filter(w => w.length >= 5);
+                    for (const jw of jws) {
+                      for (const mw of msgWords) {
+                        if (shareStem(mw, jw)) {
+                          console.log('    HIT:', l.name.trim(), '[' + (l.category ? l.category.name : '?') + ']', '| jargon:', JSON.stringify(j), '| ' + mw + ' ~ ' + jw, '| vocab(' + jw + ')=', vocab.has(jw));
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              trace('ARENDA_CAR', 'arendaga mexanika moshin kerak');
+              trace('TOY_TEPA', 'toy tepada balon kerak');
+
+              for (const nm of ['Ulug', 'SIroj', 'Largo']) {
+                const l = await db.listing.findFirst({ where: { cityId, name: { contains: nm, mode: 'insensitive' } }, include: { category: true } });
+                if (l) console.log('LISTING', nm, '=>', JSON.stringify({ name: l.name, cat: l.category && l.category.name, jargon: l.jargonSynonyms }));
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
