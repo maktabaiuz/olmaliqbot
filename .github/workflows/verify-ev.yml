@@ -78,6 +78,30 @@ jobs:
                 console.log('FAIL EV_NO_GAS_LEAK | natija yoq');
               }
 
+              // ARENDA_CAR_CYR uchun AI intent BA'ZAN NOT_RELEVANT, ba'zan
+              // SERVICE deb qaytaradi (beqaror) - shu sabab 8 marta qayta
+              // ishga tushirib, HAR SAFAR to'g'ri (NONE) natija berishini
+              // tekshiramiz - bitta o'tish yetarli emas.
+              console.log('=== ARENDA_CAR_CYR BARQARORLIGI (8 marta) ===');
+              let arendaOk = true;
+              for (let i = 0; i < 8; i++) {
+                const ci = await classifyQuery('арендага механика мошин керак', cityId, BigInt(9700200 + i));
+                const seeki = ci.intent !== 'NOT_RELEVANT';
+                const sri = await core.searchListings({
+                  cityId,
+                  categoryName: seeki ? ci.category : null,
+                  landmarkName: seeki ? ci.landmark : null,
+                  rawMessage: 'арендага механика мошин керак',
+                  intent: ci.intent,
+                  name: seeki ? ci.name : null,
+                });
+                const mi = sri ? sri.listing.name.trim() : 'NONE';
+                console.log('  run', i, '| intent:', ci.intent, '| cat:', JSON.stringify(ci.category), '| MATCHED:', mi);
+                if (mi !== 'NONE') arendaOk = false;
+              }
+              if (arendaOk) pass++; else failures.push('ARENDA_CAR_STABILITY -> ba\\'zan aloqasiz javob berdi');
+              console.log((arendaOk ? 'PASS' : 'FAIL'), 'ARENDA_CAR_STABILITY');
+
               console.log('=== 1. REGRESSIYA ===');
               await run('GAZ_PLITA', 'Уйдаги газ плитани ремонт киладиган усталар номери кимда бор ёзиб юборинглар илтимос', 9999001, IS('sardor'));
               await run('SANTEXNIK_USTA', 'santexnik usta kerak edi shoshilinch', 9999002, IS('akrom'));
