@@ -26,8 +26,9 @@ export interface SearchOptions {
   intent?: string | null;
   /** AI klassifikatorning "name" maydoni — foydalanuvchi ANIQ SO'RAGAN
    * narsaning nomi (masalan "LADA magazin"), "landmark"dan (yo'l-yo'riq
-   * uchun tilga olingan, lekin so'ralayotgan narsa EMAS) farqli. CONTACT
-   * intent uchun ishlatiladi — pastga qarang. */
+   * uchun tilga olingan, lekin so'ralayotgan narsa EMAS) farqli. BARCHA
+   * intentlarda "nomlangan ob'ekt himoyasi" uchun ishlatiladi — pastga
+   * qarang. */
   name?: string | null;
 }
 
@@ -393,6 +394,58 @@ async function buildListingCard(
   return `${rankPrefix}${rendered}`;
 }
 
+// MUHIM (2026-09, production'da kuzatilgan): AI ba'zan "name" maydoniga
+// haqiqiy nom o'rniga null-o'rnini bosuvchi MATN ("NONE", "null", "-")
+// qaytaradi — JSON schema "bo'sh satr" deb ko'rsatilgan bo'lsa ham. Bunday
+// qiymat ANIQ NOM emas; uni nom deb qabul qilish pastdagi "nomlangan
+// ob'ekt" himoyasini yolg'on ravishda ishga tushirib, to'g'ri javoblarni
+// ham to'sib qo'yardi. Shu sabab bu yerda bir joyda tozalanadi.
+const NAME_NULL_PLACEHOLDERS = new Set([
+  'none', 'null', 'nil', 'undefined', 'nomalum', "noma'lum", 'yoq', "yo'q", 'n/a', 'na', '-', '?',
+]);
+function sanitizeAiName(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (NAME_NULL_PLACEHOLDERS.has(normalizeText(trimmed))) return null;
+  return trimmed;
+}
+
+/**
+ * Foydalanuvchi ANIQ nomlagan ob'ekt (AI "name" maydoni) bazadagi shu
+ * yozuvga (uning haqiqiy NOMI yoki jargon iboralaridan biriga) tegishlimi.
+ *
+ * MUHIM: bu yerda Levenshtein "fuzzy" solishtirish ATAYIN ishlatilmaydi —
+ * u avval "qiladiganlar"/"biladiganlar" kabi MA'NOSI butunlay boshqa
+ * so'zlarni chalkashtirib, botni aloqasiz javob berishga majbur qilgan edi.
+ * Uning o'rniga o'zbek tilining AGGLUTINATIV tabiatiga mos, ANIQ qoida
+ * ishlatiladi: qo'shimchali shakl ("beshbirdagi") o'zakdan ("beshbir")
+ * faqat OXIRIGA qo'shilish bilan farq qiladi — ya'ni biri ikkinchisining
+ * PREFIKSI bo'ladi. Prefiks sifatida kamida 5 harf talab qilinadi, shunda
+ * qisqa, tasodifiy ustma-tushishlar o'tib ketmaydi.
+ */
+function nameRelatesToTarget(nameCore: string, nameWords: string[], target: string): boolean {
+  const targetCore = coreMatchText(target);
+  // Butun ibora darajasida qamrash — faqat YETARLICHA uzun (>=5) yadro
+  // uchun, aks holda 4 harfli bo'lak ("lada") tasodifan boshqa uzun
+  // so'zning ichidan topilib qolishi mumkin.
+  if (targetCore.length >= 5 && nameCore.length >= 5) {
+    if (nameCore.includes(targetCore) || targetCore.includes(nameCore)) return true;
+  }
+  const targetWords = normalizeText(target)
+    .split(/\s+/)
+    .filter((w) => w.length >= 4);
+  for (const nw of nameWords) {
+    for (const tw of targetWords) {
+      if (nw === tw) return true;
+      const shorter = nw.length <= tw.length ? nw : tw;
+      const longer = nw.length <= tw.length ? tw : nw;
+      if (shorter.length >= 5 && longer.startsWith(shorter)) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Core Search & Ranking Engine for "Kim bor?"
  * Strictly scoped by cityId.
@@ -504,62 +557,6 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     return null;
   }
 
-  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan YANGI xato): yuqoridagi
-  // tekshiruv "jargonMatchedIds bo'sh emasmi" deb so'raydi — lekin bu jargon
-  // moslik BUTUN xabar matnidan (rawMessage) hisoblanadi, va xabarda
-  // FOYDALANUVCHI SO'RAGAN narsadan TASHQARI, faqat YO'L-YO'RIQ uchun tilga
-  // olingan boshqa (haqiqiy, jargon bilan ro'yxatdan o'tgan) biznes nomi ham
-  // bo'lishi mumkin — masalan "5/3 Sariq bola pizza oldida LADA magazin
-  // nomerini bering" — bu yerda "Sariq bola pizza" FAQAT mo'ljal, so'ralgan
-  // narsa esa "LADA magazin" (bizda yo'q). Avvalgi tekshiruv "Sariq bola
-  // pizza" jargon bilan mos kelgani uchun (u haqiqatan bor, ro'yxatdan
-  // o'tgan) himoyani noto'g'ri o'tkazib yuborardi — garchi foydalanuvchi
-  // ASLIDA boshqa narsa haqida so'ragan bo'lsa ham.
-  //
-  // Tuzatildi: AI "name" maydonini (aynan SO'RALGAN narsaning nomi,
-  // "landmark"dan farqli) chiqargan bo'lsa, endi FAQAT jargonMatchedIds
-  // ichidagi yozuvlar ORASIDA aynan shu "name"ga mos keladigan birortasi
-  // bor-yo'qligi tekshiriladi — agar yo'q bo'lsa (ya'ni topilgan jargon
-  // moslik faqat YO'L-YO'RIQ uchun tilga olingan boshqa biznesga tegishli
-  // bo'lib chiqsa), bot baribir JIM turadi.
-  //
-  // UMUMLASHTIRILDI (2026-09, foydalanuvchi so'rovi: "bu xato ni topdin
-  // tuzatgan narsang bacha qidiruvlarda ham ishlasin"): boshlanishida bu
-  // tekshiruv faqat CONTACT intentga tegishli edi. Lekin sinovda AYNAN
-  // SHU "mo'ljal aslida boshqa haqiqiy biznes, lekin so'ralgan narsa u
-  // emas" xatosi SERVICE va PRICE intentlarda ham qayta hosil qilindi
-  // (masalan "...oldida LADA magazin bor, shina bormi" — "Largo" degan
-  // ALOQASIZ shinachi ko'rsatilardi; "...LADA magazinda narxlar qancha"
-  // — "Sariq Bola Pizza"ning O'ZI ko'rsatilardi). Shu sabab bu tekshiruv
-  // endi intentdan qat'i nazar ishlaydi — CONTACT bo'lish shart emas,
-  // faqat AI "name" (aniq so'ralgan narsa) ajratib bergan bo'lsa yetarli.
-  // Umumiy toifa-qidiruvlarda ("santexnik kerak") odatda "name" bo'sh
-  // bo'lgani uchun bu tekshiruv o'z-o'zidan ishga tushmaydi — faqat
-  // foydalanuvchi ANIQ bir nomni tilga olgandagina faollashadi.
-  if (options.name && jargonMatchedIds.size > 0) {
-    const matchedCandidates = await db.listing.findMany({
-      where: { id: { in: [...jargonMatchedIds] } },
-      select: { id: true, jargonSynonyms: true },
-    });
-    const nameCore = coreMatchText(options.name);
-    const nameWords = normalizeText(options.name)
-      .split(/\s+/)
-      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w) && !isGenericContactWord(w));
-    const nameFrequency = computeJargonWordFrequency(matchedCandidates);
-    const nameActuallyMatchesSomething = matchedCandidates.some((cand) =>
-      cand.jargonSynonyms.some((j) => {
-        const jargonCore = coreMatchText(j);
-        if (jargonCore.length >= MIN_JARGON_PHRASE_LENGTH && nameCore.length >= MIN_JARGON_PHRASE_LENGTH) {
-          if (nameCore.includes(jargonCore) || jargonCore.includes(nameCore)) return true;
-        }
-        return hasWordLevelJargonMatch(nameWords, j, nameFrequency);
-      })
-    );
-    if (!nameActuallyMatchesSomething) {
-      return null;
-    }
-  }
-
   // Query ACTIVE listings strictly scoped by cityId
   const whereCondition: any = {
     cityId,
@@ -575,6 +572,15 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // (pastdagi jiddiy xato tuzatilishiga qarang).
   let hasResolvedCategory = false;
   let categoryHasAnyListings = false;
+  // Aniqlangan kategoriyaning O'Z lug'ati (nomi + sinonimlari) — pastdagi
+  // "nomlangan ob'ekt" himoyasida kerak: AI ba'zan "name" maydoniga aslida
+  // TOIFA so'zini ("balon", "shina") qo'yib yuboradi. Agar shu so'z bazada
+  // HAQIQATAN mavjud kategoriyaga tegishli bo'lsa — u ANIQ NOM emas, oddiy
+  // toifa so'zi, va himoya ishga tushmasligi kerak. Aksincha, AI o'ylab
+  // topgan soxta kategoriya ("mib") bazadagi hech narsaga to'g'ri
+  // kelmagani uchun bu ro'yxatga TUSHMAYDI — demak "MIB" haqiqiy nom deb
+  // qoladi va himoya to'g'ri ishlaydi.
+  const resolvedCategoryWords = new Set<string>();
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
@@ -655,6 +661,13 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // farqlash uchun).
       categoryHasAnyListings =
         (await db.listing.count({ where: { cityId, status: 'ACTIVE', categoryId: { in: categoryIds } } })) > 0;
+      for (const c of categories as Array<{ name: string; synonyms?: string[] }>) {
+        for (const phrase of [c.name, ...(c.synonyms || [])]) {
+          for (const w of normalizeText(phrase).split(/\s+/)) {
+            if (w) resolvedCategoryWords.add(w);
+          }
+        }
+      }
     } else {
       // If Category table didn't match directly, search Listing name, jargonSynonyms, or specificServices
       whereCondition.OR = [
@@ -662,6 +675,98 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         { jargonSynonyms: { has: cleanCat } },
         { specificServices: { contains: cleanCat, mode: 'insensitive' } },
       ];
+    }
+  }
+
+  // ===========================================================
+  // NOMLANGAN OB'EKT HIMOYASI — "bizda yo'q nomga JIM turamiz"
+  // ===========================================================
+  // MUHIM (2026-09, uchta alohida real skrinshot bilan tasdiqlangan):
+  // foydalanuvchi ANIQ BIR NOMNI aytganda ("LADA magazin", "Fartuna",
+  // "Olmaliq MIB"), lekin bizda o'sha nom ro'yxatdan o'tmagan bo'lsa —
+  // bot MUTLAQO jim turishi kerak. Avval bunday holatlarda tizim nomni
+  // e'tiborsiz qoldirib, AI taxmin qilgan KATEGORIYA bo'yicha "eng yaxshi"
+  // yozuvni ko'rsatib yuborardi — natijada:
+  //   • "…LADA magazin bor, shina bormi"  -> aloqasiz "Largo" (shinachi)
+  //   • "…LADA magazinda narxlar qancha"  -> mo'ljal sifatida aytilgan
+  //     "Sariq Bola Pizza"ning O'ZI
+  //   • "Olmaliq mib nechigacha ishlaydi" -> umuman aloqasiz "Dilfuza"
+  // Uchalasida ham foydalanuvchiga BIZDA YO'Q narsa haqida ISHONCH bilan
+  // NOTO'G'RI ma'lumot berilgan.
+  //
+  // Avvalgi (torroq) himoya faqat `jargonMatchedIds` bo'sh bo'lmaganda va
+  // faqat CONTACT intentda ishlardi — shu sabab yuqoridagi uchta holatning
+  // hech biri ushlanmasdi, chunki ularda noto'g'ri javob JARGON orqali
+  // emas, KATEGORIYA orqali kelardi. Endi tekshiruv kategoriya aniqlangandan
+  // KEYIN, intentdan QAT'I NAZAR bajariladi.
+  //
+  // Himoya ATAYIN faqat foydalanuvchi HAQIQATAN yangi nom aytganda ishga
+  // tushadi: nomdagi so'zlardan mo'ljal so'zlari, aniqlangan kategoriya
+  // so'zlari va umumiy filler so'zlar chiqarib tashlanadi. Agar hech narsa
+  // qolmasa (masalan name="beshbir zaprafka" — bu aslida mo'ljal+toifa,
+  // yangi nom EMAS), himoya umuman ishlamaydi va oddiy toifa qidiruvi
+  // davom etadi. Shu bilan "santexnik kerak" kabi oddiy so'rovlar
+  // hech qachon noto'g'ri to'silib qolmaydi.
+  const askedName = sanitizeAiName(options.name);
+  if (askedName) {
+    const landmarkWords = new Set(
+      normalizeText(landmarkName || '')
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+    const distinctiveNameWords = normalizeText(askedName)
+      .split(/\s+/)
+      .filter(
+        (w) =>
+          w.length >= 3 &&
+          !landmarkWords.has(w) &&
+          !resolvedCategoryWords.has(w) &&
+          !GENERIC_JARGON_WORDS.has(w) &&
+          !isGenericVerbForm(w) &&
+          !isGenericContactWord(w)
+      );
+
+    if (distinctiveNameWords.length > 0) {
+      const allListings = await db.listing.findMany({
+        where: { cityId, status: 'ACTIVE' },
+        select: { id: true, name: true, jargonSynonyms: true },
+      });
+      // So'z darajasidagi solishtirishda, bazadagi KO'P yozuvda uchraydigan
+      // so'zlar ("magazin", "dokon" kabi) o'ziga xos identifikator emas —
+      // ular orqali moslik topilsa, bu "biz bu nomni bilamiz" degani emas.
+      const jargonFrequency = computeJargonWordFrequency(allListings);
+      const nameCore = coreMatchText(askedName);
+      const nameWords = distinctiveNameWords.filter(
+        (w) => w.length >= 4 && (jargonFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
+      );
+
+      const nameMatchedIds = new Set<string>();
+      for (const l of allListings) {
+        const relates =
+          nameRelatesToTarget(nameCore, nameWords, l.name) ||
+          l.jargonSynonyms.some((j) => nameRelatesToTarget(nameCore, nameWords, j));
+        if (relates) nameMatchedIds.add(l.id);
+      }
+
+      // (1) Bu nom bazada UMUMAN yo'q — javob berishga asos yo'q.
+      if (nameMatchedIds.size === 0) {
+        return null;
+      }
+
+      // (2) Nom bazada bor-u, lekin xabar matnidan topilgan jargon
+      // mosliklari BOSHQA yozuvlarga tegishli bo'lsa (ya'ni ular faqat
+      // mo'ljal sifatida tilga olingan) — o'sha begona yozuvni ko'rsatish
+      // xato bo'lardi.
+      if (jargonMatchedIds.size > 0) {
+        let overlapsAskedName = false;
+        for (const id of jargonMatchedIds) {
+          if (nameMatchedIds.has(id)) {
+            overlapsAskedName = true;
+            break;
+          }
+        }
+        if (!overlapsAskedName) return null;
+      }
     }
   }
 

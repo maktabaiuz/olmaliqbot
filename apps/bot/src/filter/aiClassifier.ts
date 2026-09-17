@@ -150,9 +150,21 @@ const CLASSIFY_RESPONSE_SCHEMA = {
       type: 'STRING',
       enum: ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'NONE'],
     },
-    category: { type: 'STRING', description: 'lowercase Latin, normalized, yoki bo\'sh satr' },
-    name: { type: 'STRING', description: 'person or place name, yoki bo\'sh satr' },
-    landmark: { type: 'STRING', description: 'landmark as the person said it, yoki bo\'sh satr' },
+    category: {
+      type: 'STRING',
+      description:
+        'Kind of trade/business (lowercase Latin, normalized), e.g. "santexnik", "zapravka". Never a proper name, never an acronym echoed back. Empty string if none.',
+    },
+    name: {
+      type: 'STRING',
+      description:
+        'Proper name of the ONE specific business/person/institution being asked about, e.g. "LADA magazin", "MIB". Never a category word, never a landmark+category phrase. Empty string if none — never the text "NONE" or "null".',
+    },
+    landmark: {
+      type: 'STRING',
+      description:
+        'Place mentioned only to say WHERE something is (not the thing being asked about), as the person said it. Empty string if none.',
+    },
     urgency: { type: 'STRING', enum: ['low', 'medium', 'high'] },
     confidence: { type: 'NUMBER' },
   },

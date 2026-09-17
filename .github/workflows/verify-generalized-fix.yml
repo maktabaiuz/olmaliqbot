@@ -1,4 +1,4 @@
-name: One-off - verify generalized landmark-vs-name fix across all intents
+name: One-off - verify named-entity protection across all intents
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           timeout: 60s
-          command_timeout: 4m
+          command_timeout: 6m
           script: |
             set -e
             docker exec -w /app/apps/bot kimbor_bot node -e "
@@ -25,7 +25,7 @@ jobs:
             (async () => {
               const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
               const cityId = gondra.cityId;
-              let pass = 0, fail = 0;
+              let pass = 0; const failures = [];
 
               async function run(label, q, userId, expectFn) {
                 const c = await classifyQuery(q, cityId, BigInt(userId));
@@ -39,41 +39,53 @@ jobs:
                   name: isSeeking ? c.name : null,
                 });
                 const matched = sr ? sr.listing.name.trim() : 'NONE';
-                const ok = expectFn(matched, c);
-                if (ok) pass++; else fail++;
-                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| name:', c.name, '| landmark:', c.landmark, '| MATCHED:', matched);
+                const ok = expectFn(matched);
+                if (ok) pass++; else failures.push(label + ' -> ' + matched);
+                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| cat:', JSON.stringify(c.category), '| name:', JSON.stringify(c.name), '| lm:', JSON.stringify(c.landmark), '| MATCHED:', matched);
               }
+              const SILENT = (m) => m === 'NONE';
+              const ANSWER = (m) => m !== 'NONE';
+              const IS = (s) => (m) => m.toLowerCase().includes(s);
 
-              // === YANGI: umumlashtirish sinovlari (SERVICE/PRICE/HOURS/LOCATION) ===
-              await run('HOURS_LADA', 'sariq bola pizza oldidagi LADA magazin ochiqmi', 9300001, (m) => m === 'NONE');
-              await run('SERVICE_LADA', 'sariq bola pizza oldida LADA magazin bor, u yerda shina bormi', 9300002, (m) => m === 'NONE');
-              await run('LOCATION_LADA', 'sariq bola pizza oldidagi LADA magazin qayerda joylashgan', 9300003, (m) => m === 'NONE');
-              await run('PRICE_LADA', 'sariq bola pizza oldidagi LADA magazinda narxlar qancha', 9300004, (m) => m === 'NONE');
+              console.log('=== A. BIZDA YO\\'Q NOM -> JIM TURISH SHART ===');
+              await run('MIB_HOURS', 'Olmaliq mib nechigacha ishlaydi', 9500001, SILENT);
+              await run('MIB_ALT', 'mib bugun ishlaydimi', 9500002, SILENT);
+              await run('HOKIMIYAT', 'hokimiyat nechigacha ishlaydi', 9500003, SILENT);
+              await run('MRU', 'bugun mru ishlaydimi nomer olishga', 9500004, SILENT);
 
-              // === Asosiy LADA / CONTACT holat (regressiya) ===
-              await run('CONTACT_LADA', 'assalomualekum akalar 5/3 sariq bola pizza oldgai LADA magazin nomerini tashab berilar iltmos', 9300005, (m) => m === 'NONE');
-              await run('SARIQ_BOLA_DIRECT', 'sariq bola pizza nomeri bormi', 9300006, (m) => m.toLowerCase().includes('sariq bola'));
+              console.log('=== B. LADA: mo\\'ljal boshqa, so\\'ralgan narsa boshqa ===');
+              await run('LADA_CONTACT', 'assalomualekum akalar 5/3 sariq bola pizza oldgai LADA magazin nomerini tashab berilar iltmos', 9500010, SILENT);
+              await run('LADA_SERVICE', 'sariq bola pizza oldida LADA magazin bor, u yerda shina bormi', 9500011, SILENT);
+              await run('LADA_PRICE', 'sariq bola pizza oldidagi LADA magazinda narxlar qancha', 9500012, SILENT);
+              await run('LADA_HOURS', 'sariq bola pizza oldidagi LADA magazin ochiqmi', 9500013, SILENT);
+              await run('LADA_LOCATION', 'sariq bola pizza oldidagi LADA magazin qayerda joylashgan', 9500014, SILENT);
 
-              // === Fortuna 6 ta shakl (regressiya) ===
-              await run('FORTUNA_1', 'akalar fartunani nomeri bormi', 9300007, (m) => m === 'NONE');
-              await run('FORTUNA_2', 'fartuna kafeni raqami bormi', 9300008, (m) => m === 'NONE');
-              await run('FORTUNA_3', 'fartuna telefoni bormi', 9300009, (m) => m === 'NONE');
-              await run('FORTUNA_4', 'kimda fartunani nomeri bor', 9300010, (m) => m === 'NONE');
-              await run('FORTUNA_5', 'fartuna nemeri kerak edi', 9300011, (m) => m === 'NONE');
-              await run('FORTUNA_6', 'fartuna qayerda joylashganini biladiganlar bormi', 9300012, (m) => m === 'NONE');
+              console.log('=== C. FARTUNA (ro\\'yxatdan o\\'tmagan) ===');
+              await run('FORTUNA_1', 'akalar fartunani nomeri bormi', 9500020, SILENT);
+              await run('FORTUNA_2', 'fartuna kafeni raqami bormi', 9500021, SILENT);
+              await run('FORTUNA_3', 'fartuna telefoni bormi', 9500022, SILENT);
+              await run('FORTUNA_4', 'kimda fartunani nomeri bor', 9500023, SILENT);
+              await run('FORTUNA_5', 'fartuna nemeri kerak edi', 9500024, SILENT);
+              await run('FORTUNA_6', 'fartuna qayerda joylashganini biladiganlar bormi', 9500025, SILENT);
 
-              // === Boshqa eski regressiyalar ===
-              await run('AVTOELEKTIRIK_TYPO', 'avtoelektirik kerak', 9300013, () => true);
-              await run('TOY_TEPA', 'toy tepada balon kerak', 9300014, () => true);
-              await run('YAQIN_ATROF', 'yaqin atrofda zapravka bormi', 9300015, () => true);
-              await run('BESHBIR_CARVON', 'beshbirdagi zaprafka ochiqmi', 9300016, (m) => m.toLowerCase().includes('carvon'));
-              await run('DESKA', 'deska zaprafka ishlayabdimi', 9300017, () => true);
-              await run('GONDRA', 'gondra zaprafka ochiqmi', 9300018, (m) => m.toLowerCase().includes('gondra'));
-              await run('BALON', 'balon kerak', 9300019, () => true);
+              console.log('=== D. HAQIQIY SO\\'ROVLAR -> JAVOB BERISH SHART ===');
+              await run('BESHBIR_1', 'beshbirdagi zaprafka ochiqmi', 9500030, IS('carvon'));
+              await run('BESHBIR_2', 'beshbirdagi zaprafka ishlayaptimi hozir', 9500031, IS('carvon'));
+              await run('BESHBIR_3', 'beshbir zaprafka nechigacha ishlaydi', 9500032, IS('carvon'));
+              await run('GONDRA', 'gondra zaprafka ochiqmi', 9500033, IS('gondra'));
+              await run('DESKA', 'deska zaprafka ishlayabdimi', 9500034, IS('deska'));
+              await run('SARIQ_BOLA_DIRECT', 'sariq bola pizza nomeri bormi', 9500035, IS('sariq bola'));
+              await run('SANTEXNIK', 'santexnik kerak', 9500036, ANSWER);
+              await run('AVTOELEKTIRIK_TYPO', 'avtoelektirik kerak', 9500037, ANSWER);
+              await run('BALON', 'balon kerak', 9500038, ANSWER);
+              await run('LABO', 'labo kerak edi yuk tashish uchun', 9500039, ANSWER);
+              await run('YAQIN_ATROF', 'yaqin atrofda zapravka bormi', 9500040, ANSWER);
+              await run('TOY_TEPA', 'toy tepada balon kerak', 9500041, ANSWER);
 
               console.log('---');
-              console.log('RESULT: PASS=' + pass + ' FAIL=' + fail);
+              console.log('RESULT: PASS=' + pass + ' FAIL=' + failures.length);
+              for (const f of failures) console.log('FAILED:', f);
               await db.\$disconnect();
-              process.exit(fail > 0 ? 1 : 0);
+              process.exit(failures.length > 0 ? 1 : 0);
             })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
             "

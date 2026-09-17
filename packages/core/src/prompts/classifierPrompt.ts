@@ -44,6 +44,40 @@ no text before or after the JSON.
   not a genuine request for a local trade/shop/service/place/transport.
 
 ===========================================================
+1b) "name" vs "category" vs "landmark" — keep them strictly separate
+===========================================================
+These three fields are used by different parts of the system and mixing
+them up makes the bot answer with the WRONG business. Be precise:
+
+- "name" = the PROPER NAME of the ONE specific thing the person is asking
+  about — a business, person, or institution they could point at and say
+  "that one". Examples: "Fortuna", "LADA magazin", "Sariq bola pizza",
+  "MIB", "Hokimiyat", "Bahrom aka".
+- "category" = the KIND of thing (a trade or business type), never a
+  proper name: "santexnik", "zapravka", "shina", "kafelchi".
+- "landmark" = a place mentioned only to say WHERE something is. It is
+  NOT what the person wants. In "Sariq bola pizza oldidagi LADA magazin",
+  the person wants LADA magazin; "Sariq bola pizza" is only directions.
+
+Hard rules for "name":
+- NEVER put a plain category word in "name". "shina bormi" has
+  name=null, category="shina" — "shina" is a kind of thing, not a name.
+- NEVER combine a landmark with a category and call it a name.
+  "Beshbirdagi zaprafka ochiqmi" -> name=null, category="zapravka",
+  landmark="beshbir". There is NO proper name in that sentence. Writing
+  name="beshbir zaprafka" is WRONG.
+- NEVER put the landmark in "name" when the person is asking about a
+  DIFFERENT thing located near it.
+- Use null when there is no proper name. Do NOT write the text "NONE",
+  "null", "-", or "noma'lum" — those are treated as real names and will
+  make the bot answer incorrectly. An actual null (or empty) is correct.
+- If a proper name IS present, always fill it in — even if you have never
+  heard of that business and cannot guess its category. The system checks
+  the name against the real database and stays silent when it is unknown,
+  which is exactly the desired behaviour. Guessing a category to seem
+  helpful, while leaving "name" empty, causes a WRONG answer.
+
+===========================================================
 2) LANGUAGE AND REAL-WORLD MESSY TEXT
 ===========================================================
 Messages arrive in Uzbek Latin, Uzbek Cyrillic, Russian, or a mix of all
@@ -69,6 +103,8 @@ the institution's name in "name" or "landmark":
 - МЧС / MCHS — Ministry of Emergency Situations
 - Водоканал / Suv kanal / suvokova — city water utility office
 - МРУ / MRU — local district government service office (queue, documents)
+- МИБ / MIB — local district/city administrative office people visit for
+  documents and official business
 - Хокимият / hokimiyat — city/district administration
 - Солик, soliq boshqarmasi — tax office
 - Почта, pochta — post office
@@ -77,6 +113,13 @@ the institution's name in "name" or "landmark":
 - Kadastr, notarius, sud, prokuratura, IIB/politsiya (non-emergency
   administrative questions, e.g. "pasport bo'limi qachon ishlaydi") —
   all MUASSASA, never a fabricated trade category
+
+Any OTHER short acronym or office name you do not recognise (3-5 capital
+letters, or a local office name) follows the same rule: put it in "name",
+leave "category" null, and do NOT invent a trade category that merely
+sounds plausible. Echoing the acronym itself back as the "category"
+("category":"mib") is also wrong — category must be a real kind of
+trade/business or null.
 
 ===========================================================
 4) OFFERS AND ADS ARE NEVER REQUESTS — the single most important rule
@@ -306,6 +349,26 @@ EXAMPLES
 "bugun mru ishlaydimi, nomer olishga"
 {"intent":"HOURS","object_type":"MUASSASA","category":null,"name":"MRU",
  "landmark":null,"urgency":"low","confidence":0.82}
+
+"Olmaliq mib nechigacha ishlaydi"
+{"intent":"HOURS","object_type":"MUASSASA","category":null,"name":"MIB",
+ "landmark":"olmaliq","urgency":"low","confidence":0.9}
+
+"assalomualekum akalar 5/3 sariq bola pizza oldgai LADA magazin nomerini tashab berilar"
+{"intent":"CONTACT","object_type":"DOKON_OBYEKT","category":null,"name":"LADA magazin",
+ "landmark":"sariq bola pizza oldi","urgency":"low","confidence":0.9}
+
+"sariq bola pizza oldidagi LADA magazinda narxlar qancha"
+{"intent":"PRICE","object_type":"DOKON_OBYEKT","category":null,"name":"LADA magazin",
+ "landmark":"sariq bola pizza","urgency":"low","confidence":0.88}
+
+"Beshbirdagi zaprafka ochiqmi"
+{"intent":"HOURS","object_type":"DOKON_OBYEKT","category":"zapravka","name":null,
+ "landmark":"beshbir","urgency":"low","confidence":0.9}
+
+"sariq bola pizza nomeri bormi"
+{"intent":"CONTACT","object_type":"DOKON_OBYEKT","category":null,"name":"sariq bola pizza",
+ "landmark":null,"urgency":"low","confidence":0.92}
 
 "elektrika ishlarini qilamiz, murojaat +998939240897"
 {"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
