@@ -1,0 +1,79 @@
+name: One-off - verify generalized landmark-vs-name fix across all intents
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 4m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
+            const db = new PrismaClient();
+            (async () => {
+              const gondra = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = gondra.cityId;
+              let pass = 0, fail = 0;
+
+              async function run(label, q, userId, expectFn) {
+                const c = await classifyQuery(q, cityId, BigInt(userId));
+                const isSeeking = c.intent !== 'NOT_RELEVANT';
+                const sr = await core.searchListings({
+                  cityId,
+                  categoryName: isSeeking ? c.category : null,
+                  landmarkName: isSeeking ? c.landmark : null,
+                  rawMessage: q,
+                  intent: c.intent,
+                  name: isSeeking ? c.name : null,
+                });
+                const matched = sr ? sr.listing.name.trim() : 'NONE';
+                const ok = expectFn(matched, c);
+                if (ok) pass++; else fail++;
+                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| name:', c.name, '| landmark:', c.landmark, '| MATCHED:', matched);
+              }
+
+              // === YANGI: umumlashtirish sinovlari (SERVICE/PRICE/HOURS/LOCATION) ===
+              await run('HOURS_LADA', 'sariq bola pizza oldidagi LADA magazin ochiqmi', 9300001, (m) => m === 'NONE');
+              await run('SERVICE_LADA', 'sariq bola pizza oldida LADA magazin bor, u yerda shina bormi', 9300002, (m) => m === 'NONE');
+              await run('LOCATION_LADA', 'sariq bola pizza oldidagi LADA magazin qayerda joylashgan', 9300003, (m) => m === 'NONE');
+              await run('PRICE_LADA', 'sariq bola pizza oldidagi LADA magazinda narxlar qancha', 9300004, (m) => m === 'NONE');
+
+              // === Asosiy LADA / CONTACT holat (regressiya) ===
+              await run('CONTACT_LADA', 'assalomualekum akalar 5/3 sariq bola pizza oldgai LADA magazin nomerini tashab berilar iltmos', 9300005, (m) => m === 'NONE');
+              await run('SARIQ_BOLA_DIRECT', 'sariq bola pizza nomeri bormi', 9300006, (m) => m.toLowerCase().includes('sariq bola'));
+
+              // === Fortuna 6 ta shakl (regressiya) ===
+              await run('FORTUNA_1', 'akalar fartunani nomeri bormi', 9300007, (m) => m === 'NONE');
+              await run('FORTUNA_2', 'fartuna kafeni raqami bormi', 9300008, (m) => m === 'NONE');
+              await run('FORTUNA_3', 'fartuna telefoni bormi', 9300009, (m) => m === 'NONE');
+              await run('FORTUNA_4', 'kimda fartunani nomeri bor', 9300010, (m) => m === 'NONE');
+              await run('FORTUNA_5', 'fartuna nemeri kerak edi', 9300011, (m) => m === 'NONE');
+              await run('FORTUNA_6', 'fartuna qayerda joylashganini biladiganlar bormi', 9300012, (m) => m === 'NONE');
+
+              // === Boshqa eski regressiyalar ===
+              await run('AVTOELEKTIRIK_TYPO', 'avtoelektirik kerak', 9300013, () => true);
+              await run('TOY_TEPA', 'toy tepada balon kerak', 9300014, () => true);
+              await run('YAQIN_ATROF', 'yaqin atrofda zapravka bormi', 9300015, () => true);
+              await run('BESHBIR_CARVON', 'beshbirdagi zaprafka ochiqmi', 9300016, (m) => m.toLowerCase().includes('carvon'));
+              await run('DESKA', 'deska zaprafka ishlayabdimi', 9300017, () => true);
+              await run('GONDRA', 'gondra zaprafka ochiqmi', 9300018, (m) => m.toLowerCase().includes('gondra'));
+              await run('BALON', 'balon kerak', 9300019, () => true);
+
+              console.log('---');
+              console.log('RESULT: PASS=' + pass + ' FAIL=' + fail);
+              await db.\$disconnect();
+              process.exit(fail > 0 ? 1 : 0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
