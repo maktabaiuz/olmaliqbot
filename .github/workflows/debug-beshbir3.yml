@@ -1,0 +1,60 @@
+name: One-off - diagnose BESHBIR_3 ranking
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 6m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const core = require('/app/packages/core/dist/index.js');
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const g = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = g.cityId;
+              const N = core.normalizeText;
+
+              for (const nm of ['CARVON', 'Deska']) {
+                const l = await db.listing.findFirst({
+                  where: { cityId, name: { contains: nm, mode: 'insensitive' } },
+                  include: { category: true, reviews: true },
+                });
+                if (!l) { console.log(nm, 'TOPILMADI'); continue; }
+                console.log(JSON.stringify({
+                  name: l.name, verification: l.verification, categoryId: l.categoryId,
+                  categoryName: l.category && l.category.name,
+                  jargon: l.jargonSynonyms,
+                  reviews: l.reviews.length, thumbsUp: l.thumbsUpCount, thumbsDown: l.thumbsDownCount,
+                  lastVerifiedAt: l.lastVerifiedAt, completenessScore: l.completenessScore,
+                }));
+              }
+
+              // 5 marta ketma-ket ishga tushirib, natija barqarormi tekshiramiz
+              for (let i = 0; i < 5; i++) {
+                const sr = await core.searchListings({
+                  cityId,
+                  categoryName: 'avtomobil zapravkasi',
+                  landmarkName: null,
+                  rawMessage: 'beshbir zaprafka nechigacha ishlaydi',
+                  intent: 'HOURS',
+                  name: null,
+                });
+                console.log('RUN', i, '-> MATCHED:', sr ? sr.listing.name.trim() : 'NONE');
+              }
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "
