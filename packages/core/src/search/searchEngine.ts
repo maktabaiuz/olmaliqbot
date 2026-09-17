@@ -522,7 +522,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // bor-yo'qligi tekshiriladi — agar yo'q bo'lsa (ya'ni topilgan jargon
   // moslik faqat YO'L-YO'RIQ uchun tilga olingan boshqa biznesga tegishli
   // bo'lib chiqsa), bot baribir JIM turadi.
-  if (options.intent === 'CONTACT' && options.name && jargonMatchedIds.size > 0) {
+  //
+  // UMUMLASHTIRILDI (2026-09, foydalanuvchi so'rovi: "bu xato ni topdin
+  // tuzatgan narsang bacha qidiruvlarda ham ishlasin"): boshlanishida bu
+  // tekshiruv faqat CONTACT intentga tegishli edi. Lekin sinovda AYNAN
+  // SHU "mo'ljal aslida boshqa haqiqiy biznes, lekin so'ralgan narsa u
+  // emas" xatosi SERVICE va PRICE intentlarda ham qayta hosil qilindi
+  // (masalan "...oldida LADA magazin bor, shina bormi" — "Largo" degan
+  // ALOQASIZ shinachi ko'rsatilardi; "...LADA magazinda narxlar qancha"
+  // — "Sariq Bola Pizza"ning O'ZI ko'rsatilardi). Shu sabab bu tekshiruv
+  // endi intentdan qat'i nazar ishlaydi — CONTACT bo'lish shart emas,
+  // faqat AI "name" (aniq so'ralgan narsa) ajratib bergan bo'lsa yetarli.
+  // Umumiy toifa-qidiruvlarda ("santexnik kerak") odatda "name" bo'sh
+  // bo'lgani uchun bu tekshiruv o'z-o'zidan ishga tushmaydi — faqat
+  // foydalanuvchi ANIQ bir nomni tilga olgandagina faollashadi.
+  if (options.name && jargonMatchedIds.size > 0) {
     const matchedCandidates = await db.listing.findMany({
       where: { id: { in: [...jargonMatchedIds] } },
       select: { id: true, jargonSynonyms: true },
