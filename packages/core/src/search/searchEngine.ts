@@ -67,9 +67,25 @@ const GENERIC_JARGON_WORDS = new Set([
 // kelindi. Xuddi "ishla-" fe'l shakllari singari, umumiy ta'mirlash-
 // fe'llari ham yozilishidan qat'iy nazar (imlo xatosiga chidamli) doim
 // "umumiy" deb belgilanadi.
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "mashina ochib
+// qolgan, kimda perekrutel bor" (aftomobil bilan bog'liq noma'lum xizmat
+// so'ralgan, "perekrutel" hech qanday kategoriyaga mos kelmadi) so'roviga
+// bot aloqasiz "Avto Elektr zaryadlash" (elektromobil zaryadlash
+// shoxobchasi)ni ko'rsatdi. Sabab — bitta EV-zaryadlash yozuvining
+// jargonida "...mashinalarni qata zaryad qilsa bo'ladi" iborasi bor edi,
+// va "mashina" so'zi "mashinalarni" bilan O'ZAK darajasida mos kelib
+// qoldi. "Mashina"/"moshina" (imlo farqi — ikkalasi ham keng
+// qo'llaniladi) o'zbek tilida deyarli HAR QANDAY avtomobilga oid
+// yozuvda uchraydigan, HECH BIR bizneslni ajratmaydigan so'z — xuddi
+// "remont" kabi. CHASTOTA usuli buni ushlay olmadi, chunki imlo farqi
+// tufayli ("mashina" va "moshina" alohida so'z sifatida sanaladi) har
+// biri "kam takrorlangan" bo'lib chiqdi, garchi tushuncha sifatida
+// ikkalasi ham juda keng tarqalgan bo'lsa ham.
 const GENERIC_ACTION_STEMS = ['remont', 'tamir', 'tuzat'];
-function isGenericVerbForm(word: string): boolean {
+const GENERIC_NOUN_STEMS = ['mashin', 'moshin'];
+function isGenericFillerWord(word: string): boolean {
   if (word.startsWith('ishla')) return true;
+  if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
   const bare = word.replace(/'/g, '');
   return GENERIC_ACTION_STEMS.some((stem) => {
     if (bare.length < stem.length - 1) return false;
@@ -291,7 +307,7 @@ function extractDistinctiveWords(
       (w) =>
         w.length >= 5 &&
         !GENERIC_JARGON_WORDS.has(w) &&
-        !isGenericVerbForm(w) &&
+        !isGenericFillerWord(w) &&
         !isGenericContactWord(w) &&
         !isCityWord(w, cityWords) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
@@ -719,7 +735,7 @@ function deriveTargetAfterLandmark(rawMessage: string | null | undefined): strin
       (w) =>
         w.length >= 3 &&
         !GENERIC_JARGON_WORDS.has(w) &&
-        !isGenericVerbForm(w) &&
+        !isGenericFillerWord(w) &&
         !isGenericContactWord(w)
     )
     .slice(0, 3);
@@ -797,7 +813,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         (w) =>
           w.length >= 5 &&
           !GENERIC_JARGON_WORDS.has(w) &&
-          !isGenericVerbForm(w) &&
+          !isGenericFillerWord(w) &&
           !isGenericContactWord(w) &&
           !isCityWord(w, cityWords)
       );
@@ -1141,7 +1157,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
           !landmarkWords.has(w) &&
           !resolvedCategoryWords.has(w) &&
           !GENERIC_JARGON_WORDS.has(w) &&
-          !isGenericVerbForm(w) &&
+          !isGenericFillerWord(w) &&
           !isGenericContactWord(w)
       );
 
@@ -1340,6 +1356,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // biror yozuv "botqoqlab" chiqib qolishi mumkin edi.
   const candidateIds = new Set(candidateListings.map((l) => l.id));
   let missingJargonIds = [...jargonMatchedIds].filter((id) => !candidateIds.has(id));
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): AI kategoriyani
+  // UMUMAN ANIQLAY OLMAGANDA (masalan "perekrutel" — hech qanday haqiqiy
+  // kategoriyaga mos kelmaydigan so'z), kategoriya chegarasi tekshiruvi
+  // (yuqoridagi shart) UMUMAN ISHLAMAYDI — chunki tekshirish uchun
+  // "resolved kategoriya" yo'q. Bu holatda ZAIF yoki SOHA darajasidagi
+  // jargon moslik HECH QANDAY tekshiruvsiz o'tib ketardi: "mashina ochib
+  // qolgan, kimda perekrutel bor" so'rovida "mashina" so'zi (o'ta umumiy)
+  // bitta EV-zaryadlash yozuvining "...mashinalarni..." jargoniga
+  // o'zak darajasida mos kelib, aloqasiz elektromobil zaryadlash
+  // ko'rsatilgan edi. Endi: kategoriya UMUMAN aniqlanmagan holatda, faqat
+  // KUCHLI (aniq, o'ziga xos) moslik qutqarishga haqli — zaif/soha
+  // darajasidagi moslik uchun "resolved kategoriya"siz ishonch yetarli emas.
+  if (missingJargonIds.length > 0 && !hasResolvedCategory) {
+    missingJargonIds = missingJargonIds.filter((id) => !conditionalJargon.has(id));
+  }
   if (missingJargonIds.length > 0 && hasResolvedCategory && categoryHasAnyListings) {
     const resolvedCategoryIds = new Set(
       (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
