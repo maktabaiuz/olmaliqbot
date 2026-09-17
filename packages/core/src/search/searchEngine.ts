@@ -145,7 +145,31 @@ function hasWordLevelJargonMatch(
   // sabab endi so'z darajasidagi moslik FAQAT ANIQ (harfma-harf) bir xil
   // so'zlarga cheklanadi — yozilish xatosiga chidamlilik esa yuqoridagi
   // BUTUN-IBORA darajasidagi tekshiruvda (kichik farqlarda) allaqachon bor.
-  return jargonWords.some((jw) => msgWords.includes(jw));
+  //
+  // QO'SHIMCHA (2026-09, sinovda topilgan xato): ANIQ moslik talabi bitta
+  // haqiqiy holatni noto'g'ri rad etardi — jargonda "beshbirdagi", xabarda
+  // esa "beshbir zaprafka nechigacha ishlaydi" (qo'shimchasiz o'zak). Bu
+  // Levenshtein kabi TAXMINIY o'xshashlik emas, balki o'zbek tilining
+  // AGGLUTINATIV qoidasi: qo'shimcha faqat OXIRIGA qo'shiladi, o'zak
+  // o'zgarmaydi. Shu sabab "biri ikkinchisining prefiksi" tekshiruvi
+  // xavfsiz — yuqorida sanab o'tilgan xatolar ("qiladiganlar" va
+  // "biladiganlar") BIRINCHI harfdanoq farq qiladi, ya'ni hech qachon
+  // bir-biriga prefiks bo'lmaydi.
+  return jargonWords.some((jw) => msgWords.some((mw) => wordsShareStem(mw, jw)));
+}
+
+/**
+ * Ikki so'z bir xil o'zakdanmi — ya'ni biri ikkinchisining faqat
+ * qo'shimcha bilan farq qiluvchi shaklimi ("beshbir" / "beshbirdagi").
+ * O'zbek tili agglutinativ: qo'shimcha SO'Z OXIRIGA qo'shiladi, shuning
+ * uchun prefiks tekshiruvi kifoya. Umumiy o'zak kamida 5 harf bo'lishi
+ * shart — aks holda qisqa, tasodifiy ustma-tushishlar o'tib ketardi.
+ */
+function wordsShareStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return shorter.length >= 5 && longer.startsWith(shorter);
 }
 
 // So'rov ko'rinishidagi xabar signalini tekshiradi. MUHIM (2026-09 topilgan
@@ -177,6 +201,14 @@ function looksLikeSearchRequest(rawMessage: string): boolean {
   // to'qnashib, xato ijobiy natija berardi (aynan shu turdagi xato tufayli
   // "labo bilan hech qayerga bormadim" degan HIKOYA botni xato uyg'otgan
   // edi). "bormi" so'zining o'zi (to'liq) xavfsiz — qo'shimchalanmaydi.
+  // MUHIM (2026-09, sinovda topilgan xato): "ishlayaptimi", "ishlaydimi",
+  // "ishlayabdimi" — "ochiqmi" bilan bir xil ma'nodagi, guruhlarda ENG KENG
+  // TARQALGAN so'rash shakli — bu ro'yxatda YO'Q edi. Natijada "beshbirdagi
+  // zaprafka ishlayaptimi hozir" kabi mutlaqo oddiy so'rov uchun jargon
+  // qidiruvi UMUMAN ishga tushmasdi va bot butunlay boshqa zaprafkani
+  // ko'rsatib yuborardi. So'roq qo'shimchasi "-mi" TALAB QILINADI — shunda
+  // oddiy hikoya gap ("u yerda ishlayapti") xato uyg'otmaydi.
+  if (/\bishla\w*mi\b/.test(n)) return true;
   return /\b(kerak|bormi|raqam|nomer|telefon|qayerd|kimda|qanaqa|qancha|narx|qanday|ochiqm|nechida|nechigacha|manzil)/.test(n);
 }
 
@@ -437,10 +469,7 @@ function nameRelatesToTarget(nameCore: string, nameWords: string[], target: stri
     .filter((w) => w.length >= 4);
   for (const nw of nameWords) {
     for (const tw of targetWords) {
-      if (nw === tw) return true;
-      const shorter = nw.length <= tw.length ? nw : tw;
-      const longer = nw.length <= tw.length ? tw : nw;
-      if (shorter.length >= 5 && longer.startsWith(shorter)) return true;
+      if (wordsShareStem(nw, tw)) return true;
     }
   }
   return false;
