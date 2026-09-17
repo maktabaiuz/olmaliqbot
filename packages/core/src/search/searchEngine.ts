@@ -117,7 +117,36 @@ const WORD_FREQUENCY_THRESHOLD = 2;
 // ALLAQACHON to'g'ri deb topilgan kategoriya ICHIDA aniqlashtirish uchun
 // ishlatiladi, yoki kategoriya umuman aniqlanmagan bo'lsa (AI xato qilgan,
 // zaxira sifatida) qabul qilinadi.
-type JargonMatchStrength = 'strong' | 'weak' | null;
+type JargonMatchStrength = 'strong' | 'category' | 'weak' | null;
+
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan JIDDIY xato): SHAHAR
+// NOMI ("Olmaliq") jargon identifikatori sifatida ishlatilib kelingan.
+// Bu eng katta xato: bot BUTUNLAY shu shaharga tegishli (cityId bo'yicha
+// qat'iy chegaralangan), ya'ni "olmaliqda" so'zi HECH QANDAY yozuvni
+// boshqasidan ajratmaydi — u hamma uchun bir xil. Lekin bitta admin o'z
+// jargoniga "yaxshi balon lar qata sotadi olmaliqda" deb yozgani uchun,
+// "Kimga maklersiz Olmaliqda uy kerak bo'lsa profilga o'ting" degan
+// KO'CHMAS MULK e'loniga bot SHINA do'konini (Largo) ko'rsatib yuborgan.
+const CITY_NAME_TTL_MS = 5 * 60 * 1000;
+const cityNameCache = new Map<string, { words: string[]; expiresAt: number }>();
+
+async function getCityNameWords(cityId: string): Promise<string[]> {
+  const cached = cityNameCache.get(cityId);
+  if (cached && cached.expiresAt > Date.now()) return cached.words;
+  const city = await db.city.findUnique({ where: { id: cityId }, select: { name: true } });
+  const words = city
+    ? normalizeText(city.name)
+        .split(/\s+/)
+        .filter((w) => w.length >= 4)
+    : [];
+  cityNameCache.set(cityId, { words, expiresAt: Date.now() + CITY_NAME_TTL_MS });
+  return words;
+}
+
+/** So'z shahar nomining o'zi (yoki qo'shimchali shakli: "olmaliqda")mi. */
+function isCityWord(word: string, cityWords: string[]): boolean {
+  return cityWords.some((cw) => wordsShareStem(word, cw));
+}
 
 const CATEGORY_VOCAB_TTL_MS = 5 * 60 * 1000;
 let categoryVocabCache: { words: Set<string>; expiresAt: number } | null = null;
@@ -180,7 +209,8 @@ function wordLevelJargonMatchStrength(
   msgWords: string[],
   jargonPhrase: string,
   wordFrequency: Map<string, number>,
-  categoryVocab: Set<string>
+  categoryVocab: Set<string>,
+  cityWords: string[]
 ): JargonMatchStrength {
   const jargonWords = normalizeText(jargonPhrase)
     .split(/\s+/)
@@ -190,6 +220,7 @@ function wordLevelJargonMatchStrength(
         !GENERIC_JARGON_WORDS.has(w) &&
         !isGenericVerbForm(w) &&
         !isGenericContactWord(w) &&
+        !isCityWord(w, cityWords) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
   if (jargonWords.length === 0) return null;
@@ -225,16 +256,17 @@ function wordLevelJargonMatchStrength(
       if (mw === jw) {
         // ANIQ, harfma-harf moslik. Agar so'z kategoriyalar lug'atida
         // BO'LMASA — bu atoqli nom ("gondra", "beshbirdagi"), eng ishonchli
-        // signal. Lug'atdagi so'z ("balon", "arendaga") esa oddiy soha
-        // so'zi — moslik bor, lekin u aynan SHU bizneslni ajratmaydi.
+        // signal. Lug'atdagi so'z ("balon", "arendaga") esa oddiy SOHA
+        // so'zi: u aynan shu bizneslni ajratmaydi, lekin QAYSI SOHA
+        // kerakligini aniq ko'rsatadi — shuning uchun alohida daraja.
         if (!categoryVocab.has(jw)) return 'strong';
-        best = 'weak';
+        if (best !== 'category') best = 'category';
       } else if (wordsShareStem(mw, jw)) {
         // Qo'shimchali (taxminiy) moslik — "beshbir"~"beshbirdagi" kabi
         // to'g'ri holatlar ham, "moshin"~"moshinam" kabi tasodifiy
         // holatlar ham shu yerga tushadi, shuning uchun hech qachon
         // "kuchli" deb hisoblanmaydi.
-        best = 'weak';
+        if (best === null) best = 'weak';
       }
     }
   }
@@ -559,6 +591,42 @@ function nameRelatesToTarget(nameCore: string, nameWords: string[], target: stri
 }
 
 /**
+ * "<MO'LJAL> oldida <MAQSAD>" tuzilmasidan MAQSADNI ajratib olish.
+ *
+ * MUHIM (2026-09): "nomlangan ob'ekt himoyasi" AI ning "name" maydoniga
+ * tayanadi — lekin AI uni ba'zan to'ldiradi, ba'zan yo'q (bir xil xabar
+ * uchun har safar boshqacha). Aynan shu beqarorlik sabab "sariq bola
+ * pizza oldidagi LADA magazin" so'rovi ba'zan yana "Sariq Bola Pizza"ni
+ * ochib yuborardi. O'zbek tilida bu tuzilma QAT'IY: mo'ljal HAR DOIM
+ * "oldida/yonida/ro'parasida" so'zidan OLDIN, so'ralayotgan narsa esa
+ * KEYIN keladi. Bu grammatik qoida AI dan ko'ra ishonchliroq.
+ *
+ * Yozilish xatosiga chidamli: "oldgai", "oldida", "oldidagi" — hammasi
+ * "old" o'zagi bo'yicha tanib olinadi.
+ */
+const LANDMARK_POSTPOSITION_STEMS = ['old', 'yon', 'ropara', 'orqasi', 'tepasi', 'yaqini', 'qarshisi'];
+
+function deriveTargetAfterLandmark(rawMessage: string | null | undefined): string | null {
+  if (!rawMessage) return null;
+  const words = normalizeText(rawMessage).split(/\s+/).filter(Boolean);
+  const idx = words.findIndex(
+    (w) => w.length >= 4 && w.length <= 9 && LANDMARK_POSTPOSITION_STEMS.some((s) => w.startsWith(s))
+  );
+  if (idx === -1 || idx === words.length - 1) return null;
+  const target = words
+    .slice(idx + 1)
+    .filter(
+      (w) =>
+        w.length >= 3 &&
+        !GENERIC_JARGON_WORDS.has(w) &&
+        !isGenericVerbForm(w) &&
+        !isGenericContactWord(w)
+    )
+    .slice(0, 3);
+  return target.length > 0 ? target.join(' ') : null;
+}
+
+/**
  * Core Search & Ranking Engine for "Kim bor?"
  * Strictly scoped by cityId.
  */
@@ -592,7 +660,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // kategoriya aniqlangandan keyin qayta ko'rib chiqiladi: agar AI ishonchli
   // kategoriyani topgan bo'lsa-yu, bu yozuv BOSHQA kategoriyada bo'lsa —
   // zaif dalil uni ko'rsatish uchun yetarli emas.
-  const weakOnlyJargon = new Map<string, string | null>();
+  const conditionalJargon = new Map<string, { categoryId: string | null; strength: 'category' | 'weak' }>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     const msgCore = coreMatchText(rawMessage);
     // MUHIM (2026-09 topilgan JIDDIY xato): yuqoridagi moslik BUTUN iborani
@@ -617,9 +685,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // (tartib/qo'shimcha) farq qilsa ham, to'g'ri yozuv +2000 ustuvorlik
     // bilan (pastdagi directJargonBonus) g'olib chiqadi — tasodifiylik
     // o'rniga.
+    const cityWords = await getCityNameWords(cityId);
     const msgWords = normalizeText(rawMessage)
       .split(/\s+/)
-      .filter((w) => w.length >= 5 && !GENERIC_JARGON_WORDS.has(w) && !isGenericVerbForm(w) && !isGenericContactWord(w));
+      .filter(
+        (w) =>
+          w.length >= 5 &&
+          !GENERIC_JARGON_WORDS.has(w) &&
+          !isGenericVerbForm(w) &&
+          !isGenericContactWord(w) &&
+          !isCityWord(w, cityWords)
+      );
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, categoryId: true, jargonSynonyms: true },
@@ -647,18 +723,19 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             }
           }
         }
-        const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryVocab);
+        const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryVocab, cityWords);
         if (wordStrength === 'strong') {
           strength = 'strong';
           break;
         }
-        if (wordStrength === 'weak') strength = 'weak';
+        if (wordStrength === 'category' && strength !== 'category') strength = 'category';
+        else if (wordStrength === 'weak' && strength === null) strength = 'weak';
       }
       if (strength === 'strong') {
         jargonMatchedIds.add(cand.id);
-      } else if (strength === 'weak') {
+      } else if (strength === 'category' || strength === 'weak') {
         jargonMatchedIds.add(cand.id);
-        weakOnlyJargon.set(cand.id, cand.categoryId);
+        conditionalJargon.set(cand.id, { categoryId: cand.categoryId, strength });
       }
     }
   }
@@ -671,9 +748,16 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // ZAIF dalil (soha so'zi yoki qo'shimchali taxminiy o'xshashlik) AI
   // "bu umuman so'rov emas" degan xulosani bekor qilishga yetarli emas —
   // aks holda oddiy suhbat ham tasodifiy kartochka ochib yuborardi.
+  //
+  // ANIQLASHTIRILDI: "zaif" dalilning ikki turi bor va ular teng emas.
+  // Qo'shimchali tasodifiy o'xshashlik ("moshin"~"moshinam") — haqiqiy
+  // shovqin, u AI xulosasini bekor qila olmaydi. Soha so'zining ANIQ
+  // mosligi ("balon") esa boshqacha: AI "toy tepada balon kerak" ni xato
+  // ravishda NOT_RELEVANT desa ham, "balon" so'zi qaysi soha kerakligini
+  // aniq ko'rsatib turibdi — bu holatda javob berish to'g'ri.
   if (options.intent === 'NOT_RELEVANT') {
-    for (const weakId of weakOnlyJargon.keys()) {
-      jargonMatchedIds.delete(weakId);
+    for (const [id, info] of conditionalJargon) {
+      if (info.strength === 'weak') jargonMatchedIds.delete(id);
     }
   }
 
@@ -829,9 +913,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // ko'rsatilardi. Kuchli moslik (atoqli nomning aniq mosligi) esa
       // kategoriya chegarasidan chiqishga haqli bo'lib qoladi.
       const allowedCategoryIds = new Set(categoryIds);
-      for (const [weakId, weakCategoryId] of weakOnlyJargon) {
-        if (!weakCategoryId || !allowedCategoryIds.has(weakCategoryId)) {
-          jargonMatchedIds.delete(weakId);
+      for (const [condId, info] of conditionalJargon) {
+        if (!info.categoryId || !allowedCategoryIds.has(info.categoryId)) {
+          jargonMatchedIds.delete(condId);
         }
       }
       for (const c of categories as Array<{ name: string; synonyms?: string[] }>) {
@@ -880,7 +964,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // yangi nom EMAS), himoya umuman ishlamaydi va oddiy toifa qidiruvi
   // davom etadi. Shu bilan "santexnik kerak" kabi oddiy so'rovlar
   // hech qachon noto'g'ri to'silib qolmaydi.
-  const askedName = sanitizeAiName(options.name);
+  const askedName = sanitizeAiName(options.name) || deriveTargetAfterLandmark(rawMessage);
   if (askedName) {
     const landmarkWords = new Set(
       normalizeText(landmarkName || '')
@@ -1213,9 +1297,25 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // bosilganda ENDI mavjud xabarga qo'shib qo'yish O'RNIGA, har biri
   // O'ZINING alohida, to'liq postida yuboriladi — matn/rasmlar
   // aralashib ketmasligi uchun (1-o'rin formattedText'da allaqachon bor).
+  //
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): avval bu yerda
+  // HAR BIR qo'shimcha natijaga BIRINCHI yozuvning kategoriyasi va ikonkasi
+  // yopishtirilardi. Natijada butunlay boshqa sohadagi yozuvlar (masalan
+  // "Dilfuza — Tahriyat", "Evos — Fast Food") foydalanuvchiga
+  // "🏢 Avtomobil Shinalari" deb ko'rsatilgan — bot buzuq ishlayotgandek
+  // ko'rinib, noto'g'ri ma'lumot bergan. Endi har bir yozuv O'Z
+  // kategoriyasi va ikonkasi bilan ko'rsatiladi.
   const otherMatches: OtherMatch[] = await Promise.all(
     rankedTop.slice(1).map(async (s, i) => ({
-      formattedText: await buildListingCard(s.listing, s.bayesianRating, i + 2, categoryEmoji, categoryDisplayName),
+      formattedText: await buildListingCard(
+        s.listing,
+        s.bayesianRating,
+        i + 2,
+        s.listing.category?.emoji ||
+          DEFAULT_EMOJI_BY_OBJECT_TYPE[s.listing.category?.objectType || ''] ||
+          categoryEmoji,
+        s.listing.category?.name || categoryDisplayName
+      ),
       photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
       mapUrl: s.listing.mapUrl || null,
     }))

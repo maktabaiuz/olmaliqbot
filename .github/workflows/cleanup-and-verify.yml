@@ -26,24 +26,6 @@ jobs:
               const g = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
               const cityId = g.cityId;
 
-              console.log('=== 0. BUZUQ KATEGORIYALARNI TOZALASH ===');
-              const JUNK_IDS = [
-                '3960e237-7d43-44ff-be30-af5279924dd9',
-                'db92b2ac-1ed9-4d8b-ad19-cccf005a6291',
-                '02381b9d-81a9-489b-bb8f-deb6650d40eb',
-                'bdb2cb87-691f-4fbd-9d23-d434e10c370b',
-              ];
-              for (const id of JUNK_IDS) {
-                const cat = await db.category.findUnique({ where: { id } });
-                if (!cat) { console.log('  SKIP (topilmadi):', id); continue; }
-                // XAVFSIZLIK: faqat HECH QANDAY yozuv bog'lanmagan bo'lsa o'chiriladi
-                const cnt = await db.listing.count({ where: { categoryId: id } });
-                if (cnt > 0) { console.log('  SKIP (yozuvlari bor:', cnt + '):', cat.name.slice(0, 50)); continue; }
-                await db.category.delete({ where: { id } });
-                console.log('  O\\'CHIRILDI:', JSON.stringify(cat.name.slice(0, 60)));
-              }
-              console.log('  QOLGAN KATEGORIYALAR:', await db.category.count());
-
               let pass = 0; const failures = [];
               async function run(label, q, userId, expectFn) {
                 const c = await classifyQuery(q, cityId, BigInt(userId));
@@ -59,7 +41,7 @@ jobs:
                 const m = sr ? sr.listing.name.trim() : 'NONE';
                 const ok = expectFn(m);
                 if (ok) pass++; else failures.push(label + ' -> ' + m);
-                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| cat:', JSON.stringify(c.category), '| MATCHED:', m);
+                console.log((ok ? 'PASS' : 'FAIL'), label, '| intent:', c.intent, '| cat:', JSON.stringify(c.category), '| name:', JSON.stringify(c.name), '| MATCHED:', m);
               }
               const SILENT = (m) => m === 'NONE';
               const ANSWER = (m) => m !== 'NONE';
@@ -71,6 +53,11 @@ jobs:
               await run('JOB_ISHCHI', 'qurilishga ishchi kerak kunlik ish 900 ming 901234567', 9900003, SILENT);
               await run('JOB_YORDAMCHI', 'yordamchi kerak ishga oylik yaxshi', 9900004, SILENT);
               await run('JOB_SOTUVCHI', 'dokonga sotuvchi qiz kerak smena 12 soat', 9900005, SILENT);
+
+              console.log('=== 1b. REKLAMA ELONLARI -> JIM ===');
+              await run('AD_MAKLER', \"Kimga maklersiz Olmaliqda uy kerak bo'lsa profilga o'ting\", 9910001, SILENT);
+              await run('AD_PROFIL', \"uy kerak bo'lsa profilimga o'ting arzon\", 9910002, SILENT);
+              await run('CITY_NAME_ONLY', \"Olmaliqda yaxshi joy bormi\", 9910003, SILENT);
 
               console.log('=== 2. KASB SO_ROVLARI -> JAVOB SHART ===');
               await run('REAL_KAFEL', 'kafel teradigan usta kerak', 9900010, IS('ismoil'));

@@ -27,6 +27,17 @@ export function isSelfOffer(text: string): boolean {
   if (/\b(menga|bizga)\s+qo'?ng'?iroq\b/.test(n)) return true;
   if (/\b(xizmat ko'?rsataman|ishlayman murojaat|murojaat qiling)\b/.test(n)) return true;
 
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): reklama
+  // e'lonlarining eng keng tarqalgan yakuni — odamni O'Z profiliga/
+  // kanaliga yo'naltirish: "Kimga maklersiz Olmaliqda uy kerak bo'lsa
+  // PROFILGA O'TING". Bu shakl "kerak" so'zi borligi uchun so'rovdek
+  // ko'rinadi, lekin aslida sof reklama — bot bunga javob berib, mutlaqo
+  // aloqasiz yozuvni ko'rsatib yuborgan edi.
+  if (/\b(profilga|profilimga|akkauntga|akkauntimga|kanalimga|kanalga|bioda|biomda|havolada|linkda)\b/.test(n)) {
+    return true;
+  }
+  if (/\b(dm|lichkaga|shaxsiyga)\s+(yozing|yozin|murojaat)\b/.test(n)) return true;
+
   // Birinchi shaxsda o'z xizmatini reklama qilish: "elektrika ishlarini
   // qilamiz", "santexnika xizmatlarini ko'rsatamiz", "eshikni tuzataman" +
   // odatda telefon raqami bilan. Bu haqiqiy so'rov ("elektrik kerak") bilan
