@@ -29,6 +29,14 @@ jobs:
               let pass = 0; const failures = [];
               async function run(label, q, userId, expectFn) {
                 const c = await classifyQuery(q, cityId, BigInt(userId));
+                // groupHandler bilan BIR XIL tartib: e'lon/ish e'loni bo'lsa
+                // bot umuman qidirmaydi.
+                if (c.intent !== 'EMERGENCY' && (core.isSelfOffer(q) || core.isJobVacancy(q))) {
+                  const ok0 = expectFn('NONE');
+                  if (ok0) pass++; else failures.push(label + ' -> NONE (elon deb toxtatildi)');
+                  console.log((ok0 ? 'PASS' : 'FAIL'), label, '| E\'LON deb to\'xtatildi | MATCHED: NONE');
+                  return;
+                }
                 const seek = c.intent !== 'NOT_RELEVANT';
                 const sr = await core.searchListings({
                   cityId,
