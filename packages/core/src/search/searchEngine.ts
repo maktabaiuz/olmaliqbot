@@ -1449,7 +1449,30 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // aniqlagan taqdirda ham. Faqat ZAIF/SOHA darajasidagi moslik
     // kategoriya chegarasiga bo'ysunishi kerak; kuchli moslik esa har doim
     // o'tishga haqli — xuddi kategoriya UMUMAN aniqlanmagan holatdagidek.
-    missingJargonIds = missingJargonIds.filter((id) => sameCategoryIds.has(id) || !conditionalJargon.has(id));
+    //
+    // MUHIM (2026-09, real skrinshot bilan tasdiqlangan YANGI xato): yuqoridagi
+    // qoida juda KENG bo'lib chiqdi. "deska zaprafka ishlayabdimi" so'roviga
+    // to'g'ri kategoriya ("avtomobil zapravkasi") ICHIDA allaqachon aniq,
+    // kuchli moslik (Deska ichidagi Zaprafka — "deska" o'zi shu yozuvning
+    // nomida) bor edi. Lekin "Deska" — Olmaliqdagi MAHALLA nomi ham, shu
+    // sabab BOSHQA kategoriyadagi "Jahongir" (mahalla vakili, jargonida
+    // "deska mahala nomeri kerak") ham xuddi shu so'z orqali "kuchli"
+    // moslik oldi va yuqoridagi qoida bo'yicha kategoriya chegarasidan
+    // o'tib, ikkalasi teng huquqli nomzod bo'lib qoldi — keyin reyting
+    // tasodifiy hal qildi.
+    //
+    // Farq MOYXONA holatidan: u yerda "resolved kategoriya" (taksi)
+    // ICHIDA UMUMAN hech qanday jargon moslik yo'q edi — chegaradan
+    // chiqish YAGONA chora edi. Bu yerda esa to'g'ri kategoriya ICHIDA
+    // ALLAQACHON kuchli moslik bor — demak chegaradan chiqishga ehtiyoj
+    // yo'q, aksincha bu ZARARLI (aloqasiz raqobatchi qo'shadi). Qoida
+    // endi shunga qarab aniqlashtirildi: kuchli moslik faqat kategoriya
+    // ICHIDA hech qanday jargon moslik topilmagandagina chegaradan chiqa
+    // oladi.
+    const categoryHasOwnJargonMatch = candidateListings.some((l) => jargonMatchedIds.has(l.id));
+    missingJargonIds = missingJargonIds.filter(
+      (id) => sameCategoryIds.has(id) || (!categoryHasOwnJargonMatch && !conditionalJargon.has(id))
+    );
   }
   if (missingJargonIds.length > 0) {
     const extraJargonListings = await db.listing.findMany({
