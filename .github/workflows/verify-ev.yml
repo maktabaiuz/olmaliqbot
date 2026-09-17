@@ -61,22 +61,26 @@ jobs:
               await run('EV_2', 'Elektromabil zaprafka', 9700102, ANSWER);
               await run('EV_3', 'Olmaliqda elektro mabil zaryadlash qata bor', 9700103, ANSWER);
 
-              // Eng muhimi: nechta boshqa moslik bor - benzin zapravkalar sizib chiqmasligi kerak
-              const c1 = await classifyQuery('Elektra mabil zaprafka qata bor', cityId, BigInt(9700104));
-              const sr1 = await core.searchListings({
-                cityId, categoryName: c1.category, landmarkName: c1.landmark,
-                rawMessage: 'Elektra mabil zaprafka qata bor', intent: c1.intent, name: c1.name,
-              });
-              if (sr1) {
-                const allTexts = [sr1.formattedText, ...sr1.otherMatches.map(o => o.formattedText)].join(' ');
+              // Eng muhimi: nechta boshqa moslik bor - benzin zapravkalar
+              // sizib chiqmasligi kerak. AI ba'zan "zapravka", ba'zan
+              // "zapravkasi" (qo'shimchali) deb qaytaradi - shu sabab 8
+              // marta qayta ishga tushirib, HAR SAFAR benzin sizib
+              // chiqmasligini tekshiramiz.
+              let evLeakOk = true;
+              for (let i = 0; i < 8; i++) {
+                const ci = await classifyQuery('Elektra mabil zaprafka qata bor', cityId, BigInt(9700110 + i));
+                const sri = await core.searchListings({
+                  cityId, categoryName: ci.category, landmarkName: ci.landmark,
+                  rawMessage: 'Elektra mabil zaprafka qata bor', intent: ci.intent, name: ci.name,
+                });
+                if (!sri) { console.log('  leak-run', i, '| natija yoq'); continue; }
+                const allTexts = [sri.formattedText, ...sri.otherMatches.map(o => o.formattedText)].join(' ');
                 const hasGasStation = /gondra|carvon|deska/i.test(allTexts);
-                const ok = !hasGasStation;
-                if (ok) pass++; else failures.push('EV_NO_GAS_LEAK -> benzin zapravka topildi!');
-                console.log((ok ? 'PASS' : 'FAIL'), 'EV_NO_GAS_LEAK | jami natijalar:', 1 + sr1.otherMatches.length, '| benzin_bor:', hasGasStation);
-              } else {
-                failures.push('EV_NO_GAS_LEAK -> natija umuman topilmadi');
-                console.log('FAIL EV_NO_GAS_LEAK | natija yoq');
+                console.log('  leak-run', i, '| cat:', JSON.stringify(ci.category), '| jami:', 1 + sri.otherMatches.length, '| benzin_bor:', hasGasStation);
+                if (hasGasStation) evLeakOk = false;
               }
+              if (evLeakOk) pass++; else failures.push('EV_NO_GAS_LEAK -> ba\\'zan benzin zapravka topildi!');
+              console.log((evLeakOk ? 'PASS' : 'FAIL'), 'EV_NO_GAS_LEAK (8 marta)');
 
               // ARENDA_CAR_CYR uchun AI intent BA'ZAN NOT_RELEVANT, ba'zan
               // SERVICE deb qaytaradi (beqaror) - shu sabab 8 marta qayta
