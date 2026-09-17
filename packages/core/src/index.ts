@@ -8,6 +8,7 @@ export * from './search';
 export * from './transliteration';
 export * from './intent/isSelfOffer';
 export * from './intent/isJobVacancy';
+export * from './intent/isUtilityStatusQuestion';
 export * from './requests/queryLoop';
 export * from './moderation/moderationFilter';
 

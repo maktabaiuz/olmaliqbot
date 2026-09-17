@@ -3,6 +3,7 @@ import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
 import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
+import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
@@ -742,6 +743,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // ham tekshiriladi, shunda shaxsiy chat va boshqa chaqiruv joylari ham
   // himoyalanadi.
   if (rawMessage && isJobVacancy(rawMessage)) return null;
+
+  // Kommunal xizmat holati haqidagi jamoat savoli ("gaz qachon beriladi")
+  // — usta so'rovi emas. AI buni "HOURS + gaz" deb xato baholab, aloqasiz
+  // gaz ustasining kontaktini yuborishi real skrinshot bilan tasdiqlangan.
+  if (rawMessage && isUtilityStatusQuestion(rawMessage)) return null;
 
   // 0. Jargon so'zni to'g'ridan-to'g'ri xabar matnidan qidirish. Admin bazaga
   // qo'shganda odamlar shu narsani qanday so'rashini oldindan yozib qo'ygan

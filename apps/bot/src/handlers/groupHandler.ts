@@ -1,7 +1,7 @@
 import { Context } from 'grammy';
 import { zeroLayerFilter } from '../filter/zeroLayerFilter';
 import { classifyQuery } from '../filter/aiClassifier';
-import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy } from '@kimbor/core';
+import { renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -39,7 +39,10 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // usta so'ramayapti. AI buni ishonch bilan "SERVICE" deb xato baholagani
   // (va bot aloqasiz "Kafelchi"ni yuborgani) real skrinshot bilan
   // tasdiqlangan, shuning uchun bu yerda AI dan QAT'I NAZAR to'xtatiladi.
-  if (classification.intent !== 'EMERGENCY' && (isSelfOffer(messageText) || isJobVacancy(messageText))) {
+  if (
+    classification.intent !== 'EMERGENCY' &&
+    (isSelfOffer(messageText) || isJobVacancy(messageText) || isUtilityStatusQuestion(messageText))
+  ) {
     db.queryLog.create({
       data: {
         cityId,

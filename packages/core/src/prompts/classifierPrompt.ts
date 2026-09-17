@@ -181,6 +181,21 @@ qancha turadi hozir?" is PRICE (a buyer asking), not an ad — the giveaway
 is that no possession or selling verb is used, only a question about cost.
 
 ===========================================================
+4b) A UTILITY OUTAGE/STATUS QUESTION IS NOT A REQUEST FOR A TRADESPERSON
+===========================================================
+"Gaz qachon beriladi?", "svet qachon keladi, xabar bormi?" — someone
+asking WHEN A COMMUNITY UTILITY (gas/power/water/internet) will be
+restored is asking a NEIGHBOURHOOD STATUS question, not requesting a
+specific business. This is easy to confuse with an HOURS request
+("gazavik nechada ishlaydi?") because both use "qachon"/"nechada" — the
+difference is WHAT comes right after: a bare utility resource word (gaz,
+svet, elektr, suv) means a status question (NOT_RELEVANT, or EMERGENCY
+if urgent/ongoing danger — never HOURS/SERVICE for a business); a trade
+or business name (gazavik, santexnik, "Sardor aka") means a genuine
+request. Never return a category here just because the resource word
+matches a trade category's name.
+
+===========================================================
 5) A PLACE NAME OR STATEMENT ALONE IS NOT A REQUEST
 ===========================================================
 Mentioning a landmark, neighborhood, or place name is not, by itself,
@@ -368,6 +383,10 @@ EXAMPLES
 "bugun mru ishlaydimi, nomer olishga"
 {"intent":"HOURS","object_type":"MUASSASA","category":null,"name":"MRU",
  "landmark":null,"urgency":"low","confidence":0.82}
+
+"Акалар газ качон беришидан хабарилар борми?"
+{"intent":"NOT_RELEVANT","object_type":null,"category":null,"name":null,
+ "landmark":null,"urgency":"low","confidence":0.9}
 
 "Olmaliq mib nechigacha ishlaydi"
 {"intent":"HOURS","object_type":"MUASSASA","category":null,"name":"MIB",
