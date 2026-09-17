@@ -998,13 +998,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         // atvorni ("avtoelektirik" kabi bitta so'zli taxminlar uchun)
         // buzmaydi, chunki bunday holatlarda odatda faqat bitta kategoriya
         // haqiqatan mos keladi.
+        // MUHIM (2026-09, tepadagi tuzatishdan KEYIN topilgan qo'shimcha
+        // xato): AI ba'zan "zapravka", ba'zan "zapravkasi" (qo'shimchali
+        // shakl) deb qaytaradi. Qattiq (`Set.has`) solishtiruv bularni
+        // IKKI XIL so'z deb hisoblardi — natijada "elektromobil zapravkasi"
+        // so'ralganda "zapravkasi" so'zi FAQAT "Avtomobil zapravkasi"ning
+        // O'Z NOMIDA (qo'shimchasiz "zapravka" emas, aynan "zapravkasi")
+        // topilib, ikkala kategoriya ham "bittadan so'z mos" bo'lib
+        // TENGLASHIB qolardi — yuqoridagi "eng ko'p mos kelgan" tuzatish
+        // buni ajrata olmasdi. Endi bu yerda ham o'zbek tilining
+        // qo'shimchali tabiatiga mos "umumiy o'zak" tekshiruvi
+        // (wordsShareStem) ishlatiladi — aniq so'z emas.
         const scored = allCategoriesForWordMatch
           .filter((c) => !isMalformedCategoryName(c.name))
           .map((c) => {
-            const targetWords = new Set(
-              [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/))
-            );
-            const overlapCount = catWords.filter((w) => targetWords.has(w)).length;
+            const targetWords = [c.name, ...c.synonyms].flatMap((s) => s.toLowerCase().split(/\s+/));
+            const overlapCount = catWords.filter((w) => targetWords.some((tw) => wordsShareStem(w, tw))).length;
             return { category: c, overlapCount };
           })
           .filter((x) => x.overlapCount > 0);
