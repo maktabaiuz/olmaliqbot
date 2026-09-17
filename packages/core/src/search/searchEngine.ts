@@ -4,6 +4,7 @@ import { calculateBayesianRating } from '../index';
 import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
+import { UZBEK_STOPWORDS } from './uzbekStopwords';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
@@ -46,21 +47,6 @@ const GENERIC_JARGON_WORDS = new Set([
   'ochiq', 'ochiqmi', 'yopiq', 'yopiqmi', 'ishlaydi', 'ishlaydimi',
   'ishlayapti', 'ishlayaptimi', 'ishlayabdi', 'ishlayabdimi', 'kerak',
   'bormi', 'ekan', 'hozir', 'nechigacha', 'nechida', 'qancha',
-  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "Matiz 35talik
-  // propan BILAN qancha yuradi" (mashinaning yoqilg'i sarfi haqidagi
-  // savol) so'roviga bot aloqasiz "Bahtiyor" (uy/kvartira arendaga)ni
-  // ko'rsatdi — sabab uning jargonidagi "oylam BILAN turishga kvartira
-  // kerak" iborasi bilan "bilan" so'zi ANIQ mos kelgan. "bilan" — o'zbek
-  // tilining KO'MAKCHISI ("with"), grammatik yordamchi so'z, umuman
-  // biror mavzuga xos emas — u har qanday gapda uchrashi mumkin. Bunday
-  // ko'makchi/bog'lovchi so'zlar CHEKLANGAN, sanoqli to'plamni tashkil
-  // qiladi (domen otlaridan farqli o'laroq), shu sabab to'liq sanab
-  // chiqish xavfsiz — "remont"/"mashina" kabi har safar bittalab
-  // topiladigan alohida so'zlarni kutish o'rniga.
-  'bilan', 'uchun', 'lekin', 'ammo', 'balki', 'albatta', 'chunki',
-  'garchi', 'hamda', 'shuning', 'boshqa', 'barcha', 'hamma', 'doimo',
-  'doim', 'faqat', 'unda', 'bunda', 'qaysi', 'necha', 'nima', 'qanaqa',
-  'qanday', 'keyin', 'oldin', 'endi', 'hali', 'yana',
 ]);
 
 // "ishla..." o'zagidan yasalgan barcha fe'l shakllari ("ishlaydi",
@@ -108,7 +94,22 @@ const GENERIC_ACTION_STEMS = ['remont', 'tamir', 'tuzat'];
 // boshlab) uni ham ushlay olmaydi — shu sabab alohida, aniq ro'yxatga
 // qo'shildi.
 const GENERIC_NOUN_STEMS = ['mashin', 'moshin', 'usta'];
+// MUHIM (2026-09, tub yechim): yuqoridagilarning barchasi ("remont",
+// "mashina", "usta"...) bitta ILDIZ muammoning turli ko'rinishlari edi —
+// bizning KICHIK bazamizda kam takrorlangani uchun o'zbek tilining ODDIY,
+// keng tarqalgan so'zlari "o'ziga xos identifikator" deb noto'g'ri
+// baholanardi. Har safar YANGI so'z chiqqanda uni qo'lda qo'shish
+// (yuqoridagi kabi) CHEKSIZ davom etadigan yondashuv edi. Shu sabab endi
+// birinchi, asosiy himoya sifatida akademik manbadan olingan, 5000+
+// so'zli o'zbek tilining umumiy so'zlar (stop-words) lug'ati tekshiriladi
+// (qarang: uzbekStopwords.ts) — bu BUTUN shu SINFDAGI xatoni (keyingi
+// "yangi umumiy so'z"larni ham) oldindan yopadi, chastota bizning
+// bazamiz hajmiga emas, tilning o'ziga tayanadi. Yuqoridagi qo'lda
+// ro'yxatlar (GENERIC_ACTION_STEMS, GENERIC_NOUN_STEMS) endi ZAXIRA —
+// ular DOMENGA XOS (santexnik/mashina ta'mirlash sohasi), lug'atda
+// yo'q so'zlar uchun qoladi.
 function isGenericFillerWord(word: string): boolean {
+  if (UZBEK_STOPWORDS.has(word)) return true;
   if (word.startsWith('ishla')) return true;
   if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
   const bare = word.replace(/'/g, '');
