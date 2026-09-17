@@ -921,31 +921,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     return null;
   }
 
-  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "CONTACT"
-  // intent — foydalanuvchi ANIQ NOMLANGAN biror narsaning kontaktini
-  // so'ragani ("Fartunani nomeri bormi", "Hasan ustaning raqami bormi")
-  // — "santexnik kerak" kabi UMUMIY xizmat so'rovidan TUBDAN farq qiladi.
-  // Bunday so'rovda, hech qanday jargon moslik (bizning aniq, admin
-  // ro'yxatdan o'tkazgan ma'lumotimiz) TOPILMASA — demak biz aynan SHU
-  // nomdagi narsani bilmaymiz.
-  //
-  // MUHIM (2026-09, birinchi urinish YETARLI bo'lmadi): dastlab bu shart
-  // qo'shimcha ravishda "va aniq mo'ljal berilmagan bo'lsa" (`!landmarkName`)
-  // talab qilardi. Lekin AI klassifikatorning "landmark" maydoni ham
-  // ISHONCHSIZ ekani (avvalgi "to'ytepa/beshbир" xatolarida ham
-  // ko'rilgan) yana bir bor tasdiqlandi: sinov paytida AI hatto oddiy
-  // raqamni ("fartuna 3") "3-mavze" mo'ljal deb NOTO'G'RI talqin qildi —
-  // bu esa `!landmarkName` shartini yolg'on ravishda buzib, himoyani
-  // ishlamay qoldirardi. CONTACT intent uchun "landmark" maydoni UMUMAN
-  // ahamiyatsiz — muhimi FAQAT bitta narsa: bizda bu ANIQ nom (jargon)
-  // ro'yxatdan o'tganmi yoki yo'qmi. AI ning "category"/"landmark"
-  // taxminlari (ular ISHONCHSIZ, production'da tasdiqlandi: bir xil
-  // "fartuna"ga har safar boshqa-boshqa kategoriya/mo'ljal — "taksi",
-  // "transport", "3-mavze" — taxmin qilib berardi) bunday holatda
-  // UMUMAN e'tiborga olinmaydi.
-  if (options.intent === 'CONTACT' && jargonMatchedIds.size === 0) {
-    return null;
-  }
+  // CONTACT intentga oid qat'iy qoida (options.name bo'lmaganda kategoriya
+  // holatiga bog'liq) pastda, kategoriya TO'LIQ aniqlangandan (hasResolvedCategory
+  // / categoryHasAnyListings hisoblanganidan) KEYIN joylashgan — qarang.
 
   // Query ACTIVE listings strictly scoped by cityId
   const whereCondition: any = {
@@ -1121,6 +1099,54 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         { specificServices: { contains: cleanCat, mode: 'insensitive' } },
       ];
     }
+  }
+
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "CONTACT"
+  // intent — foydalanuvchi ANIQ NOMLANGAN biror narsaning kontaktini
+  // so'ragani ("Fartunani nomeri bormi", "Hasan ustaning raqami bormi")
+  // — "santexnik kerak" kabi UMUMIY xizmat so'rovidan TUBDAN farq qiladi.
+  // Bunday so'rovda, hech qanday jargon moslik (bizning aniq, admin
+  // ro'yxatdan o'tkazgan ma'lumotimiz) TOPILMASA — demak biz aynan SHU
+  // nomdagi narsani bilmaymiz.
+  //
+  // MUHIM (2026-09, birinchi urinish YETARLI bo'lmadi): dastlab bu shart
+  // qo'shimcha ravishda "va aniq mo'ljal berilmagan bo'lsa" (`!landmarkName`)
+  // talab qilardi. Lekin AI klassifikatorning "landmark" maydoni ham
+  // ISHONCHSIZ ekani (avvalgi "to'ytepa/beshbир" xatolarida ham
+  // ko'rilgan) yana bir bor tasdiqlandi: sinov paytida AI hatto oddiy
+  // raqamni ("fartuna 3") "3-mavze" mo'ljal deb NOTO'G'RI talqin qildi —
+  // bu esa `!landmarkName` shartini yolg'on ravishda buzib, himoyani
+  // ishlamay qoldirardi. CONTACT intent uchun "landmark" maydoni UMUMAN
+  // ahamiyatsiz — muhimi FAQAT bitta narsa: bizda bu ANIQ nom (jargon)
+  // ro'yxatdan o'tganmi yoki yo'qmi. AI ning "category"/"landmark"
+  // taxminlari (ular ISHONCHSIZ, production'da tasdiqlandi: bir xil
+  // "fartuna"ga har safar boshqa-boshqa kategoriya/mo'ljal — "taksi",
+  // "transport", "3-mavze" — taxmin qilib berardi) bunday holatda
+  // UMUMAN e'tiborga olinmaydi.
+  //
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, davomi): bu
+  // qat'iy qoida "Uydagi gaz plitani remont qiladigan ustalar nomeri
+  // kimda bor" kabi so'rovni ham noto'g'ri to'sib qo'ydi — garchi AI
+  // kategoriyani ("gaz plita ustasi" -> Gazavik) TO'G'RI va ANIQ topgan,
+  // va bu kategoriyada HAQIQIY, yagona yozuv (Sardor) bo'lsa ham. Sabab:
+  // foydalanuvchi kasbni TAVSIFLAB so'ragan ("gaz plitani remont
+  // qiladigan"), aniq ISM aytmagan — admin esa jargoniga rasmiy so'zni
+  // ("gazavik") yozgan, tavsifiy so'zlarni emas. Bu "Fartunani nomeri
+  // bormi" bilan TUBDAN farq qiladi: u yerda foydalanuvchi ANIQ NOM
+  // aytgan va bizda mos kategoriya ham, jargon ham UMUMAN topilmagan edi.
+  // Bu yerda esa ANIQ ISM YO'Q (options.name bo'sh) — bu oddiy, umumiy
+  // kasb so'rovi, "santexnik nomeri bormi" bilan bir xil turkumga
+  // kiradi, va kategoriya HAQIQIY, yozuvli bo'lsa, SERVICE kabi
+  // ishonilishi kerak. Himoya faqat ikkala holatda ham kuchini saqlaydi:
+  // (1) kategoriya UMUMAN aniqlanmagan/bo'sh bo'lsa, YOKI (2) foydalanuvchi
+  // ANIQ bir nom aytgan bo'lsa (bu holda pastdagi alohida "nomlangan
+  // ob'ekt himoyasi" o'sha nomni tekshiradi).
+  if (
+    options.intent === 'CONTACT' &&
+    jargonMatchedIds.size === 0 &&
+    (!categoryHasAnyListings || !!sanitizeAiName(options.name))
+  ) {
+    return null;
   }
 
   // ===========================================================
