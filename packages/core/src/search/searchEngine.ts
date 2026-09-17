@@ -205,14 +205,22 @@ function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[]
  * "Beshbirdagi zaprafka ochiqmi" — "karvon" so'zi yo'q, lekin
  * "beshbirdagi" ikkalasida ham bor (va faqat shu bitta yozuvga xos).
  */
-function wordLevelJargonMatchStrength(
-  msgWords: string[],
-  jargonPhrase: string,
+/**
+ * Iboradan FAQAT o'ziga xos (umumiy bo'lmagan) so'zlarni ajratib oladi —
+ * "zaprafka", "nechigacha", "ishlaydi" kabi filler so'zlar, shahar nomi va
+ * ko'p yozuvda takrorlanadigan so'zlar chiqarib tashlanadi. Ham so'z
+ * darajasidagi, ham butun-ibora darajasidagi moslikda BIR XIL mezon
+ * ishlatilishi uchun umumiy funksiyaga chiqarilgan (pastga qarang: ikkala
+ * daraja ham xuddi shu turdagi xatoga — filler so'zlar bilan "yashiringan"
+ * turli atoqli nomlarni farqlay olmaslikka — moyil edi).
+ */
+function extractDistinctiveWords(
+  phrase: string,
   wordFrequency: Map<string, number>,
   categoryVocab: Set<string>,
   cityWords: string[]
-): JargonMatchStrength {
-  const jargonWords = normalizeText(jargonPhrase)
+): string[] {
+  return normalizeText(phrase)
     .split(/\s+/)
     .filter(
       (w) =>
@@ -223,6 +231,16 @@ function wordLevelJargonMatchStrength(
         !isCityWord(w, cityWords) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
+}
+
+function wordLevelJargonMatchStrength(
+  msgWords: string[],
+  jargonPhrase: string,
+  wordFrequency: Map<string, number>,
+  categoryVocab: Set<string>,
+  cityWords: string[]
+): JargonMatchStrength {
+  const jargonWords = extractDistinctiveWords(jargonPhrase, wordFrequency, categoryVocab, cityWords);
   if (jargonWords.length === 0) return null;
   // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 7-qatlam,
   // OXIRGI): oldingi 2 ta urinish (chegarani ~5dan ~8 harfga toraytirish)
@@ -714,10 +732,28 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             strength = 'strong';
             break;
           }
-          // Kichik yozilish xatosiga chidamli oxirgi tekshiruv (uzunliklari yaqin bo'lsa)
-          if (Math.abs(msgCore.length - jargonCore.length) <= 3) {
-            const threshold = Math.max(1, Math.floor(Math.max(msgCore.length, jargonCore.length) / 6));
-            if (levenshteinDistance(msgCore, jargonCore) <= threshold) {
+          // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): oxirgi,
+          // yozilish xatosiga chidamli Levenshtein tekshiruvi avval BUTUN,
+          // filtrlanmagan "yadro" satrni solishtirar edi. Bu XAVFLI bo'lib
+          // chiqdi: Deska'ning jargoni "deska zaprafka nechigacha ishlaydi"
+          // va "beshbir zaprafka nechigacha ishlaydi" degan so'rov FAQAT
+          // "beshbir"/"deska" bilan farq qiladi — qolgan hammasi bir xil
+          // umumiy (filler) so'zlar. Natijada bu ikki MUTLAQO BOSHQA
+          // mo'ljalning nomi bir-birining "yozilish xatosi" deb noto'g'ri
+          // qabul qilinardi. Endi solishtirish FAQAT har ikkala tarafning
+          // O'ZIGA XOS (filler bo'lmagan) so'zlari ustida bajariladi — xuddi
+          // so'z darajasidagi moslikda ("qiladiganlar"/"biladiganlar"
+          // xatosidan keyin) qo'llanilgan bir xil mezon bilan.
+          const msgDistinct = msgWords.join('');
+          const jargonDistinctWords = extractDistinctiveWords(j, wordFrequency, categoryVocab, cityWords);
+          const jargonDistinct = jargonDistinctWords.join('');
+          if (
+            msgDistinct.length >= MIN_JARGON_PHRASE_LENGTH &&
+            jargonDistinct.length >= MIN_JARGON_PHRASE_LENGTH &&
+            Math.abs(msgDistinct.length - jargonDistinct.length) <= 3
+          ) {
+            const threshold = Math.max(1, Math.floor(Math.max(msgDistinct.length, jargonDistinct.length) / 6));
+            if (levenshteinDistance(msgDistinct, jargonDistinct) <= threshold) {
               strength = 'strong';
               break;
             }
