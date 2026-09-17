@@ -21,8 +21,15 @@ import { normalizeText } from '../transliteration';
 const LABOR_NOUNS =
   /\b(podsobnik|podsobnigi|podsobnich|ishchi|ishchilar|ishchilarni|mardikor|mardikorlar|yordamchi|yordamchilar|rabochiy|raznorabochiy|gruzchik|yuk tashuvchi|ofitsiant|ofitsant|sotuvchi|sotuvchilar)\b/;
 
+// MUHIM (2026-09, sinovda topilgan xato): "oylik"/"oyligi" ("maosh" ma'nosida)
+// avval shu ro'yxatda edi, lekin bu so'z IKKI XIL ma'noda ishlatiladi —
+// "oylik yaxshi" (ish haqi) ish e'lonida, "oylik to'lab turaman" (har oy
+// to'lov) esa IJARA so'rovida ("ijaraga kvartira kerak, oylik to'lab
+// turaman"). Bu ikkinchisini xato ravishda ish e'loni deb belgilab,
+// haqiqiy uy-arenda so'rovini jim qoldirardi. "oylik" o'zi YETARLI ANIQ
+// EMAS — faqat aniq, boshqa ma'nosi bo'lmagan ish-atamalari qoldirildi.
 const EMPLOYMENT_MARKERS =
-  /\b(oylik|oyligi|maosh|maoshi|ish haqi|ish xaqi|kunlik ish|smena|smenaga|vakansiya|ishga olinadi|ishga kerak|ishga taklif|ish beriladi)\b/;
+  /\b(maosh|maoshi|ish haqi|ish xaqi|kunlik ish|smena|smenaga|vakansiya|ishga olinadi|ishga kerak|ishga taklif|ish beriladi)\b/;
 
 const NEED_WORDS = /\b(kerak|kere|kk|izlayapman|izlanmoqda|qidiryapman)\b/;
 
