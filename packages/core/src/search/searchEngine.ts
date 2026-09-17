@@ -90,6 +90,44 @@ function isGenericContactWord(word: string): boolean {
 // haqiqiy identifikator hisoblanadi.
 const WORD_FREQUENCY_THRESHOLD = 2;
 
+// MUHIM (2026-09, "arendaga mexanika moshin kerak" xatosi bilan tasdiqlangan
+// ILDIZ SABAB): yuqoridagi CHASTOTA usuli noto'g'ri savolga javob beradi.
+// U "bu so'z bazada kam uchraydimi?" deb so'raydi — lekin haqiqiy savol
+// "bu so'z BIZNES NOMImi yoki oddiy til so'zimi?" bo'lishi kerak.
+// "arendaga", "kerak", "nomeri" kabi ODDIY so'zlar tasodifan atigi bitta-
+// ikkita adminning jargon yozuvida uchrasa, chastota ularni "o'ziga xos
+// identifikator" deb baholab qo'yardi. Natijada "arendaga MOSHIN kerak"
+// (mashina arendasi) so'rovi "lesa arendaga bormi" (asbob arendasi)
+// jargoniga FAQAT "arendaga" so'zi orqali mos kelib, butunlay boshqa
+// soha yozuvi ko'rsatilgan.
+//
+// Yechim — qo'lda "yomon so'zlar" ro'yxati emas (u hech qachon tugamaydi,
+// har safar yangi so'z chiqadi), balki ALLAQACHON BIZDA BOR ma'lumot:
+// kategoriyalar lug'ati (nomi + sinonimlari). Agar so'z shu lug'atda
+// bo'lsa — u SOHA so'zi ("arenda", "lesa", "zapravka", "santexnik"),
+// hech qachon aynan bitta bizneslni ajratuvchi nom emas. Bunday yozuv
+// baribir O'Z KATEGORIYASI orqali topiladi — jargon esa faqat ATOQLI
+// nomlar ("gondra", "karvon", "deska") uchun qoladi.
+const CATEGORY_VOCAB_TTL_MS = 5 * 60 * 1000;
+let categoryVocabCache: { words: Set<string>; expiresAt: number } | null = null;
+
+async function getCategoryVocabulary(): Promise<Set<string>> {
+  if (categoryVocabCache && categoryVocabCache.expiresAt > Date.now()) {
+    return categoryVocabCache.words;
+  }
+  const cats = await db.category.findMany({ select: { name: true, synonyms: true } });
+  const words = new Set<string>();
+  for (const c of cats) {
+    for (const phrase of [c.name, ...c.synonyms]) {
+      for (const w of normalizeText(phrase).split(/\s+/)) {
+        if (w.length >= 4) words.add(w);
+      }
+    }
+  }
+  categoryVocabCache = { words, expiresAt: Date.now() + CATEGORY_VOCAB_TTL_MS };
+  return words;
+}
+
 function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[] }[]): Map<string, number> {
   const freq = new Map<string, number>();
   for (const cand of jargonCandidates) {
@@ -116,7 +154,8 @@ function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[]
 function hasWordLevelJargonMatch(
   msgWords: string[],
   jargonPhrase: string,
-  wordFrequency: Map<string, number>
+  wordFrequency: Map<string, number>,
+  categoryVocab: Set<string>
 ): boolean {
   const jargonWords = normalizeText(jargonPhrase)
     .split(/\s+/)
@@ -126,6 +165,7 @@ function hasWordLevelJargonMatch(
         !GENERIC_JARGON_WORDS.has(w) &&
         !isGenericVerbForm(w) &&
         !isGenericContactWord(w) &&
+        !categoryVocab.has(w) &&
         (wordFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
     );
   if (jargonWords.length === 0) return false;
@@ -530,6 +570,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       select: { id: true, jargonSynonyms: true },
     });
     const wordFrequency = computeJargonWordFrequency(jargonCandidates);
+    const categoryVocab = await getCategoryVocabulary();
     for (const cand of jargonCandidates) {
       const hit = cand.jargonSynonyms.some((j) => {
         const jargonCore = coreMatchText(j);
@@ -543,7 +584,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             if (levenshteinDistance(msgCore, jargonCore) <= threshold) return true;
           }
         }
-        return hasWordLevelJargonMatch(msgWords, j, wordFrequency);
+        return hasWordLevelJargonMatch(msgWords, j, wordFrequency, categoryVocab);
       });
       if (hit) jargonMatchedIds.add(cand.id);
     }
@@ -764,9 +805,13 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // so'zlar ("magazin", "dokon" kabi) o'ziga xos identifikator emas —
       // ular orqali moslik topilsa, bu "biz bu nomni bilamiz" degani emas.
       const jargonFrequency = computeJargonWordFrequency(allListings);
+      const nameVocab = await getCategoryVocabulary();
       const nameCore = coreMatchText(askedName);
       const nameWords = distinctiveNameWords.filter(
-        (w) => w.length >= 4 && (jargonFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
+        (w) =>
+          w.length >= 4 &&
+          !nameVocab.has(w) &&
+          (jargonFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
       );
 
       const nameMatchedIds = new Set<string>();
