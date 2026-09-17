@@ -186,6 +186,49 @@ function isMalformedCategoryName(name: string): boolean {
   return false;
 }
 
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan, juda KENG QAMROVLI
+// xato): "gaz plitani remont qiladigan usta" so'roviga AI category="gaz
+// plita ustasi" deb chiqardi — bu o'zi TO'G'RI, lekin so'z darajasidagi
+// kategoriya-moslashtiruvchi (pastga qarang) "ustasi" so'zini ("usta" =
+// hunarmand/mutaxassis, o'zbek tilida DEYARLI HAR BIR kasb nomiga
+// qo'shiladigan eng keng tarqalgan qo'shimcha so'z) ajratib oldi va bu
+// so'z orqali BIRDANIGA 31 TA (!) turli kasb kategoriyasini (Malyar,
+// Santexnik, Elektrik, Avtomexanik va h.k.) "mos keldi" deb belgiladi —
+// chunki ularning deyarli barchasining sinonimida "...ustasi" bor. Shu
+// sabab butunlay aloqasiz "Malyar" (Bekzod) haqiqiy "Gazavik" (Sardor)
+// bilan bir xil "resolved kategoriya" to'plamiga tushib, keyingi
+// bosqichda reyting/jargon signallariga qarab tasodifan tanlanardi.
+//
+// Bu — xuddi jargon so'zlarda "nomeri"/"arendaga" bilan bo'lgan xato
+// bilan bir xil turdagi muammo, faqat KATEGORIYA darajasida: bitta so'z
+// juda ko'p turli yozuvda (bu yerda — kategoriyada) uchrasa, u ajratib
+// bera olmaydi. Yechim bir xil: qo'lda "usta"/"ustasi"ni taqiqlash
+// o'rniga, CHASTOTAGA qaraymiz — agar so'z bir nechta TURLI
+// kategoriyaning lug'atida uchrasa, u kategoriya-ajratuvchi so'z sifatida
+// e'tiborga olinmaydi.
+const CATEGORY_WORD_FREQUENCY_THRESHOLD = 3;
+let categoryWordFrequencyCache: { freq: Map<string, number>; expiresAt: number } | null = null;
+
+async function getCategoryWordFrequency(): Promise<Map<string, number>> {
+  if (categoryWordFrequencyCache && categoryWordFrequencyCache.expiresAt > Date.now()) {
+    return categoryWordFrequencyCache.freq;
+  }
+  const allCats = await db.category.findMany({ select: { name: true, synonyms: true } });
+  const cats = allCats.filter((c) => !isMalformedCategoryName(c.name));
+  const freq = new Map<string, number>();
+  for (const c of cats) {
+    const wordsInThisCategory = new Set<string>();
+    for (const phrase of [c.name, ...c.synonyms]) {
+      for (const w of phrase.toLowerCase().split(/\s+/)) {
+        if (w) wordsInThisCategory.add(w);
+      }
+    }
+    for (const w of wordsInThisCategory) freq.set(w, (freq.get(w) || 0) + 1);
+  }
+  categoryWordFrequencyCache = { freq, expiresAt: Date.now() + CATEGORY_VOCAB_TTL_MS };
+  return freq;
+}
+
 async function getCategoryVocabulary(): Promise<Set<string>> {
   if (categoryVocabCache && categoryVocabCache.expiresAt > Date.now()) {
     return categoryVocabCache.words;
@@ -908,7 +951,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // nomi so'z(lar)idan biri categoryName so'z(lar)idan biriga ustma-ust
     // tushsa, shu kategoriya ham nomzod hisoblanadi.
     if (categories.length === 0) {
-      const catWords = cleanCat.split(/\s+/).filter((w) => w.length >= 4);
+      const categoryWordFrequency = await getCategoryWordFrequency();
+      // "usta"/"ustasi" kabi 31+ turli kasbda takrorlanadigan so'zlar bu
+      // yerda chiqarib tashlanadi — ular hech qaysi bitta kasbga xos emas.
+      const catWords = cleanCat
+        .split(/\s+/)
+        .filter((w) => w.length >= 4 && (categoryWordFrequency.get(w) || 0) <= CATEGORY_WORD_FREQUENCY_THRESHOLD);
       if (catWords.length > 0) {
         const allCategoriesForWordMatch = await db.category.findMany({
           select: { id: true, name: true, synonyms: true },
