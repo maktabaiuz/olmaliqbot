@@ -1,0 +1,53 @@
+name: One-off - check if we truly have zero gas-technician listings
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const g = await db.listing.findFirst({ where: { name: { contains: 'Gondra', mode: 'insensitive' } } });
+              const cityId = g.cityId;
+
+              const gazavik = await db.category.findFirst({ where: { name: 'Gazavik' } });
+              const cnt = await db.listing.count({ where: { cityId, categoryId: gazavik.id } });
+              console.log('GAZAVIK_LISTING_COUNT (barchasi, statusidan qatiy nazar):', cnt);
+              const cntActive = await db.listing.count({ where: { cityId, categoryId: gazavik.id, status: 'ACTIVE' } });
+              console.log('GAZAVIK_ACTIVE_COUNT:', cntActive);
+
+              const all = await db.listing.findMany({ where: { cityId, categoryId: gazavik.id }, select: { name: true, status: true, jargonSynonyms: true } });
+              console.log('GAZAVIK_ALL:', JSON.stringify(all));
+
+              // 'gaz' yoki 'plita' so'zi ISTALGAN kategoriyadagi jargonda uchraydimi?
+              const anyGasJargon = await db.listing.findMany({
+                where: { cityId, status: 'ACTIVE', OR: [
+                  { jargonSynonyms: { hasSome: ['gaz ustasi', 'plita ustasi', 'gaz plita', 'kolonka ustasi'] } },
+                ] },
+                select: { name: true, jargonSynonyms: true, category: { select: { name: true } } },
+              });
+              console.log('ANY_GAS_JARGON_ELSEWHERE:', JSON.stringify(anyGasJargon));
+
+              // Santexnik ro'yxatlarida gaz bilan bogliq xizmat borми?
+              const santex = await db.category.findFirst({ where: { name: 'Santexnik' } });
+              const santexListings = await db.listing.findMany({ where: { cityId, categoryId: santex.id, status: 'ACTIVE' }, select: { name: true, specificServices: true, jargonSynonyms: true } });
+              console.log('SANTEXNIK_LISTINGS:', JSON.stringify(santexListings));
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('DEBUG_ERROR:', e); process.exit(1); });
+            "

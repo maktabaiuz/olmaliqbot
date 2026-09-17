@@ -52,8 +52,30 @@ const GENERIC_JARGON_WORDS = new Set([
 // bo'lishi mumkin) — har birini alohida ro'yxatga yozish o'rniga, o'zak
 // bo'yicha tekshiramiz, shunda yangi imlo variantlari ham avtomatik
 // "umumiy" hisoblanadi.
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "gaz plitani
+// REMONT qiladigan usta" so'roviga bot aloqasiz bo'yoqchini (Bekzod)
+// ko'rsatdi. Sabab — "remont" (ta'mirlash) so'zi Bekzodning jargoniga
+// yozilgan ("uyni remont qiladigan usta kerak") va SO'Z DARAJASIDA aniq
+// mos kelgan. Lekin "remont"/"ta'mirlash" — o'zbek tilida deyarli HAR
+// QANDAY usta (santexnik, elektrik, bo'yoqchi, gaz ustasi, mebelchi...)
+// o'z jargoniga yozadigan, kasbga umuman xos BO'LMAGAN so'z. Uni
+// CHASTOTA (computeJargonWordFrequency) orqali avtomatik aniqlash
+// YETARLI emas edi: bu holatda "remont" FAQAT bitta admin — Bekzod —
+// jargoniga yozilgan bo'lib chiqdi (boshqa hech kim ishlatmagan), shuning
+// uchun "kam chastotali, demak o'ziga xos" deb NOTO'G'RI xulosaga
+// kelindi. Xuddi "ishla-" fe'l shakllari singari, umumiy ta'mirlash-
+// fe'llari ham yozilishidan qat'iy nazar (imlo xatosiga chidamli) doim
+// "umumiy" deb belgilanadi.
+const GENERIC_ACTION_STEMS = ['remont', 'tamir', 'tuzat'];
 function isGenericVerbForm(word: string): boolean {
-  return word.startsWith('ishla');
+  if (word.startsWith('ishla')) return true;
+  const bare = word.replace(/'/g, '');
+  return GENERIC_ACTION_STEMS.some((stem) => {
+    if (bare.length < stem.length - 1) return false;
+    const prefix = bare.slice(0, stem.length);
+    if (Math.abs(prefix.length - stem.length) > 1) return false;
+    return levenshteinDistance(prefix, stem) <= 1;
+  });
 }
 
 // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato, 4-qatlam): faqat
