@@ -1,0 +1,76 @@
+name: One-off - full database completeness audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              console.log('=== SHAHARLAR ===');
+              const cities = await db.city.findMany({ select: { name: true, slug: true, isActive: true, planType: true, subscriptionEnd: true } });
+              console.log(JSON.stringify(cities));
+
+              console.log('=== UMUMIY SONLAR ===');
+              console.log('Categories:', await db.category.count());
+              console.log('Landmarks:', await db.landmark.count());
+              console.log('Listings (all):', await db.listing.count());
+              console.log('Listings (ACTIVE):', await db.listing.count({ where: { status: 'ACTIVE' } }));
+              console.log('Listings (PENDING):', await db.listing.count({ where: { status: 'PENDING' } }).catch(() => 'N/A'));
+              console.log('Users:', await db.user.count());
+              console.log('Users by role:', JSON.stringify(await db.user.groupBy({ by: ['role'], _count: true })));
+              console.log('CityGroups:', await db.cityGroup.count());
+              console.log('QueryLog total:', await db.queryLog.count());
+              console.log('QueryLog resolved:', await db.queryLog.count({ where: { isResolved: true } }));
+              console.log('QueryLog unresolved:', await db.queryLog.count({ where: { isResolved: false } }));
+
+              console.log('=== KATEGORIYALAR - BOSH YOZUVLI (0 ta yozuv) ===');
+              const allCats = await db.category.findMany({ select: { id: true, name: true } });
+              const emptyCats = [];
+              for (const c of allCats) {
+                const cnt = await db.listing.count({ where: { categoryId: c.id, status: 'ACTIVE' } });
+                if (cnt === 0) emptyCats.push(c.name);
+              }
+              console.log('Bosh kategoriyalar soni:', emptyCats.length, '/', allCats.length);
+              console.log(JSON.stringify(emptyCats));
+
+              console.log('=== TELEFONSIZ / RASMSIZ YOZUVLAR ===');
+              const noPhone = await db.listing.count({ where: { status: 'ACTIVE', OR: [{ phone: null }, { phone: '' }] } });
+              const noPhotos = await db.listing.count({ where: { status: 'ACTIVE', photoUrls: { isEmpty: true } } });
+              console.log('Telefonsiz faol yozuvlar:', noPhone);
+              console.log('Rasmsiz faol yozuvlar:', noPhotos);
+
+              console.log('=== ENG KO_P SORALGAN LEKIN TOPILMAGAN (top 10 unresolved) ===');
+              const unresolvedTop = await db.queryLog.groupBy({
+                by: ['rawMessage'],
+                where: { isResolved: false },
+                _count: true,
+                orderBy: { _count: { rawMessage: 'desc' } },
+                take: 10,
+              }).catch(e => 'ERR: ' + e.message);
+              console.log(JSON.stringify(unresolvedTop));
+
+              console.log('=== SO_NGGI FAOLLIK ===');
+              const since24h = new Date(Date.now() - 24*60*60*1000);
+              const since7d = new Date(Date.now() - 7*24*60*60*1000);
+              console.log('QueryLog so\\'nggi 24 soat:', await db.queryLog.count({ where: { createdAt: { gte: since24h } } }));
+              console.log('QueryLog so\\'nggi 7 kun:', await db.queryLog.count({ where: { createdAt: { gte: since7d } } }));
+
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('AUDIT_ERROR:', e); process.exit(1); });
+            "
