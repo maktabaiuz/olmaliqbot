@@ -158,6 +158,33 @@ async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
   return true;
 }
 
+// MUHIM (2026-09, professional audit orqali topilgan KRITIK xato):
+// yozuvlar/kategoriyalar/so'rovlar bilan ishlaydigan asosiy CRUD
+// route'larning HECH BIRIDA autentifikatsiya tekshiruvi YO'Q edi —
+// login qilmagan HAR QANDAY kishi (internetdagi istalgan odam, chunki
+// /api/* Caddy orqali to'liq ochiq) yozuvlarni o'chira, tahrirlashi
+// (masalan ustaning telefon raqamini o'zinikiga almashtirib qo'yishi —
+// firibgarlik xavfi) yoki yangi axlat yozuv qo'sha olardi. Bu — real,
+// hoziroq ishlaydigan teshik edi (kod o'qib tasdiqlangan).
+//
+// `requireSuperAdmin`dan farqli o'laroq, bu tekshiruv istalgan ADMIN
+// rolini (CITY_ADMIN ham, SUPER_ADMIN ham) qabul qiladi — chunki
+// yozuv/kategoriya boshqaruvi shahar administratorining kundalik ishi,
+// faqat Super-Adminga xos emas (broadcast/bot-xabar shabloni kabi
+// butun tizimga ta'sir qiluvchi amallardan farqli).
+async function requireAdmin(req: any, reply: any): Promise<boolean> {
+  const { user, error } = await authenticateRequest(req);
+  if (error) {
+    reply.status(error.status).send(error.body);
+    return false;
+  }
+  if (user.role === 'USER') {
+    reply.status(403).send({ success: false, message: 'Faqat administratorlar uchun 🔒' });
+    return false;
+  }
+  return true;
+}
+
 // Login bloklanish muddatini o'qishga qulay shaklga o'tkazadi (masalan "2 kun 5 soat")
 function formatRemainingTime(until: Date): string {
   const ms = until.getTime() - Date.now();
@@ -597,6 +624,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // qabul qiladi, diskka saqlaydi va ommaviy URL qaytaradi — bu URL keyin
   // POST/PUT /admin/listings'ga photoUrls massivi ichida yuboriladi.
   fastify.post('/admin/listings/upload-photo', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     try {
       const file = await req.file();
       if (!file) {
@@ -621,6 +649,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/listings', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     try {
       const cityId = await getCityId(req);
       const {
@@ -802,6 +831,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.put('/admin/listings/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { id } = req.params;
     const {
       name,
@@ -941,6 +971,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.delete('/admin/listings/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { id } = req.params;
     await db.listing.delete({ where: { id } });
     return { success: true };
@@ -981,6 +1012,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/requests/bind-synonym', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { categoryId, synonym } = req.body;
 
     if (!categoryId || !synonym) {
@@ -1010,6 +1042,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // yozuvlarini isResolved=true qilib belgilaydi — shu bilan Dashboard'dagi
   // "Javobsiz" hisobi ham to'g'ri kamayadi.
   fastify.post('/admin/requests/dismiss', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { queryLogIds } = req.body;
     if (!Array.isArray(queryLogIds) || queryLogIds.length === 0) {
       return reply.status(400).send({ success: false, message: 'queryLogIds massiv bo\'lishi kerak' });
@@ -1083,6 +1116,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/categories', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { name, objectType, group, synonyms } = req.body;
 
     if (!name || !name.trim()) {
@@ -1108,6 +1142,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.put('/admin/categories/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { id } = req.params;
     const { name, synonyms, objectType, group } = req.body;
 
@@ -1797,6 +1832,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.put('/admin/settings/:key', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { key } = req.params;
     const { value } = req.body;
     if (typeof value !== 'string') {
@@ -2041,6 +2077,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // uchun). Avval UsersScreen'dagi "Blok" tugmasi soxta edi (faqat alert
   // chiqarardi, hech narsa saqlamasdi) — endi haqiqiy ishlaydi.
   fastify.put('/admin/users/:id/suspend', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
     const { id } = req.params;
     const { suspend } = req.body as { suspend: boolean };
 
@@ -2074,6 +2111,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/chats/:telegramUserId/messages', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { telegramUserId } = req.params;
     const { text } = req.body;
     if (!text) return reply.status(400).send({ success: false, message: 'Message text is required' });
@@ -2123,6 +2161,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/users/:telegramUserId/reply', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
     const { telegramUserId } = req.params;
     const { text } = req.body;
     if (!text) return reply.status(400).send({ success: false, message: 'Message text is required' });
