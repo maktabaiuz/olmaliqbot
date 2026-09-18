@@ -49,7 +49,7 @@ jobs:
               console.log(JSON.stringify(emptyCats));
 
               console.log('=== TELEFONSIZ / RASMSIZ YOZUVLAR ===');
-              const noPhone = await db.listing.count({ where: { status: 'ACTIVE', OR: [{ phone: null }, { phone: '' }] } });
+              const noPhone = await db.listing.count({ where: { status: 'ACTIVE', phone: '' } });
               const noPhotos = await db.listing.count({ where: { status: 'ACTIVE', photoUrls: { isEmpty: true } } });
               console.log('Telefonsiz faol yozuvlar:', noPhone);
               console.log('Rasmsiz faol yozuvlar:', noPhotos);
