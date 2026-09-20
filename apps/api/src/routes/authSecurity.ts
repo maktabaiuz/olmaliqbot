@@ -9,10 +9,18 @@ export function hashPassword(password: string): string {
   return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
 }
 
+// MUHIM (2026-09, professional audit orqali topilgan xato): avval bu yerda
+// "if (hash === password) return true" degan zaxira qator bor edi — u
+// "legacy plain hashes during migration" (eski, xeshlanmagan parollar
+// uchun) deb izohlangan edi. Tekshirilganda bu FAQAT nazariy emasligi
+// aniqlandi: production bazasida 2 ta HAQIQIY hisob (1 SUPER_ADMIN, 1
+// CITY_ADMIN) parolini AYNAN OCHIQ MATNDA saqlab kelayotgan edi — agar
+// baza qandaydir yo'l bilan sizib chiqsa (masalan zaxira nusxa orqali),
+// bu ikkala parol darhol o'qilishi mumkin edi. Ikkala hisob ham to'g'ri
+// PBKDF2 xeshga o'tkazildi (bir martalik migratsiya skripti orqali),
+// shundan keyingina bu zaxira qator xavfsiz olib tashlandi.
 export function verifyPassword(password: string, hash: string): boolean {
   if (!password || !hash) return false;
-  // Fallback for legacy plain hashes during migration
-  if (hash === password) return true;
   return hashPassword(password) === hash;
 }
 
