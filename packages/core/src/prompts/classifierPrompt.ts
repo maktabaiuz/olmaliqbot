@@ -103,6 +103,24 @@ never pick the closest-SOUNDING option just to have something to say.
 "NONE" for category does not mean the whole message is irrelevant: keep
 classifying intent/name/landmark normally, just leave category as "NONE".
 
+MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): bu cheklov
+qo'shilgandan keyin AI endi "perekrutel" kabi so'zni o'ylab topa
+OLMAYDI — lekin buning o'rniga ba'zan RO'YXATDAGI eng yaqin tovushli
+narsani ("avto usta") tanlab, NONE o'rniga NOTO'G'RI-lekin-HAQIQIY
+kategoriya qaytarardi. Bu XUDDI oldingi xato kabi zararli — foydalanuvchi
+so'ramagan xizmat egasiga ulanib qoladi. Qat'iy qoida: kategoriyani
+FAQAT foydalanuvchining O'Z SO'ZI shu kasb/xizmat turini TO'G'RIDAN-
+TO'G'RI nomlaganda tanlang (masalan "santexnik" so'zi aytilsa ->
+category="santexnik"). Agar siz shunchaki RO'YXATDAGI eng yaqin
+tovushdosh yoki mavzudosh variantni "taxmin qilayotgan" bo'lsangiz —
+bu HAM soxta kategoriya o'ylab topishning bir shakli, garchi natija
+texnik jihatdan ro'yxatda mavjud bo'lsa ham. Masalan: "kimda perekrutel
+bor" -> category="NONE" (bu so'z RO'YXATDA yo'q va "avto usta" ham
+uni ANIQ nomlamaydi, faqat ikkalasi ham mashina bilan bog'liq xolos);
+"Matizga gaz o'rnatish qancha" -> agar ro'yxatda aynan avtomobilga gaz
+o'rnatish xizmati bo'lmasa, uni oddiy uy-gaz ustasi ("gazavik") bilan
+TENGLASHTIRMANG — ular boshqa-boshqa mutaxassislik, category="NONE".
+
 ===========================================================
 3) LOCAL GLOSSARY — real institutions, not trade categories
 ===========================================================
@@ -295,6 +313,20 @@ EXAMPLES
 "karzinka oldida gazavik bormi?"
 {"intent":"SERVICE","object_type":"USTA","category":"gazavik","name":null,
  "landmark":"karzinka","urgency":"medium","confidence":0.95}
+
+"mashina ochib qolgan, kimda perekrutel bor"
+{"intent":"SERVICE","object_type":null,"category":"NONE","name":null,
+ "landmark":null,"urgency":"low","confidence":0.4}
+(NOT "avto usta" — "perekrutel" is not in the category list, and no
+listed category names this specific word. Picking the nearest-sounding
+real category would still be a wrong answer.)
+
+"Matizga gaz o'rnatish qancha"
+{"intent":"PRICE","object_type":null,"category":"NONE","name":null,
+ "landmark":null,"urgency":"low","confidence":0.45}
+(NOT "gazavik" — installing a gas system in a CAR is a different trade
+from a household gas technician; do not merge them just because both
+say "gaz".)
 
 "Bahromni nomeri nechi edi"
 {"intent":"CONTACT","object_type":"USTA","category":null,"name":"Bahrom",
