@@ -1,0 +1,36 @@
+name: One-off - list all categories with listing counts for review
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 3m
+          script: |
+            set -e
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+            const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+            const db = new PrismaClient();
+            (async () => {
+              const cats = await db.category.findMany({ select: { id: true, name: true, synonyms: true, objectType: true, group: true } });
+              const rows = [];
+              for (const c of cats) {
+                const cnt = await db.listing.count({ where: { categoryId: c.id, status: 'ACTIVE' } });
+                rows.push({ id: c.id, name: c.name, count: cnt, group: c.group, objectType: c.objectType, synonymCount: c.synonyms.length });
+              }
+              rows.sort((a, b) => a.count - b.count || a.name.localeCompare(b.name));
+              console.log('TOTAL:', rows.length);
+              console.log(JSON.stringify(rows));
+              await db.\$disconnect();
+              process.exit(0);
+            })().catch(e => { console.error('AUDIT_ERROR:', e); process.exit(1); });
+            "
