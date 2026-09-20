@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useFeedback } from '../context/FeedbackContext';
+import { IosHeader } from '../components/ios/IosHeader';
 
 interface CategoryDetailScreenProps {
   categoryId: string;
@@ -6,15 +8,18 @@ interface CategoryDetailScreenProps {
   onBack: () => void;
 }
 
+const HAIRLINE = { borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
+
 export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
   categoryId,
   categoryName,
   onBack,
 }) => {
+  const { showToast } = useFeedback();
   const [name, setName] = useState(categoryName);
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [passThroughWords, setPassThroughWords] = useState<string[]>([]);
-  
+
   const [newSynonym, setNewSynonym] = useState('');
   const [newPassWord, setNewPassWord] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +47,7 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
 
   useEffect(() => {
     fetchCategoryDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId]);
 
   const handleAddSynonym = () => {
@@ -77,108 +83,133 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
         }),
       });
       if (response.ok) {
-        alert("Kategoriya muvaffaqiyatli saqlandi! ✅");
+        showToast('Kategoriya muvaffaqiyatli saqlandi!', 'success');
         onBack();
       } else {
-        alert("Kategoriyani saqlashda xatolik yuz berdi.");
+        showToast('Kategoriyani saqlashda xatolik yuz berdi.', 'error');
       }
     } catch {
-      alert("Aloqa xatosi.");
+      showToast('Aloqa xatosi.', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-5 animate-fade-in pb-16">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-on-surface dark:text-slate-100 font-bold active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-        </button>
+    <div className="flex flex-col gap-5 animate-fade-in pb-16 -mx-4 -mt-2 px-4 pt-1">
+      <IosHeader title="Kategoriya" subtitle={categoryName} onBack={onBack} />
+
+      <div className="flex flex-col gap-5">
+        {/* Nomi */}
         <div>
-          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Kategoriya Detali</h1>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tahrirlash & Sinonimlar</p>
-        </div>
-      </div>
-
-      <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
-        {/* Name input */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Kategoriya Nomi</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
-          />
-        </div>
-
-        {/* Synonyms list */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Sinonimlar (Qidiruv so'zlari)</label>
-          <div className="flex flex-wrap gap-1.5">
-            {synonyms.map(syn => (
-              <span key={syn} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                {syn}
-                <button
-                  onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
-                  className="hover:text-red-500 text-[14px] leading-none"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
+          <h3 className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5">
+            Kategoriya nomi
+          </h3>
+          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
             <input
               type="text"
-              value={newSynonym}
-              onChange={(e) => setNewSynonym(e.target.value)}
-              placeholder="Yangi sinonim..."
-              className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-transparent px-4 py-3 text-[15px] text-ios-label focus:outline-none"
             />
-            <button
-              onClick={handleAddSynonym}
-              className="bg-primary dark:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
-            >
-              Qo'shish
-            </button>
           </div>
         </div>
 
-        {/* Pass through words list */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">O'tkazish so'zlar (Keywords)</label>
-          <div className="flex flex-wrap gap-1.5">
-            {passThroughWords.map(word => (
-              <span key={word} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                {word}
-                <button
-                  onClick={() => setPassThroughWords(passThroughWords.filter(w => w !== word))}
-                  className="hover:text-red-500 text-[14px] leading-none"
+        {/* Sinonimlar */}
+        <div>
+          <h3 className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5">
+            Sinonimlar (qidiruv so'zlari)
+          </h3>
+          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+            <div className="px-4 py-3 flex flex-wrap gap-1.5">
+              {synonyms.length === 0 && (
+                <span className="text-[13px] text-ios-label-secondary/70">Hali sinonim qo'shilmagan</span>
+              )}
+              {synonyms.map((syn) => (
+                <span
+                  key={syn}
+                  className="bg-ios-blue/10 text-ios-blue pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  {syn}
+                  <button
+                    onClick={() => setSynonyms(synonyms.filter((s) => s !== syn))}
+                    className="w-4 h-4 rounded-full bg-ios-blue/20 flex items-center justify-center active:bg-ios-red active:text-white transition-colors"
+                    aria-label={`${syn}ni o'chirish`}
+                  >
+                    <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5" style={HAIRLINE}>
+              <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">add_circle</span>
+              <input
+                type="text"
+                value={newSynonym}
+                onChange={(e) => setNewSynonym(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddSynonym();
+                }}
+                placeholder="Yangi sinonim..."
+                className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+              />
+              <button
+                onClick={handleAddSynonym}
+                disabled={!newSynonym.trim()}
+                className="text-ios-blue text-[13px] font-semibold disabled:opacity-30"
+              >
+                Qo'shish
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newPassWord}
-              onChange={(e) => setNewPassWord(e.target.value)}
-              placeholder="Yangi so'z..."
-              className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
-            />
-            <button
-              onClick={handleAddPassWord}
-              className="bg-slate-200 dark:bg-slate-800 text-on-surface dark:text-slate-100 px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
-            >
-              Qo'shish
-            </button>
+        </div>
+
+        {/* O'tkazish so'zlar */}
+        <div>
+          <h3 className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5">
+            O'tkazish so'zlar (keywords)
+          </h3>
+          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+            <div className="px-4 py-3 flex flex-wrap gap-1.5">
+              {passThroughWords.length === 0 && (
+                <span className="text-[13px] text-ios-label-secondary/70">Hali so'z qo'shilmagan</span>
+              )}
+              {passThroughWords.map((word) => (
+                <span
+                  key={word}
+                  className="bg-ios-fill/[0.12] text-ios-label pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                >
+                  {word}
+                  <button
+                    onClick={() => setPassThroughWords(passThroughWords.filter((w) => w !== word))}
+                    className="w-4 h-4 rounded-full bg-ios-fill/20 flex items-center justify-center active:bg-ios-red active:text-white transition-colors"
+                    aria-label={`${word}ni o'chirish`}
+                  >
+                    <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5" style={HAIRLINE}>
+              <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">add_circle</span>
+              <input
+                type="text"
+                value={newPassWord}
+                onChange={(e) => setNewPassWord(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddPassWord();
+                }}
+                placeholder="Yangi so'z..."
+                className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+              />
+              <button
+                onClick={handleAddPassWord}
+                disabled={!newPassWord.trim()}
+                className="text-ios-blue text-[13px] font-semibold disabled:opacity-30"
+              >
+                Qo'shish
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -186,7 +217,7 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
       <button
         onClick={handleSave}
         disabled={isSaving}
-        className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all"
+        className="w-full bg-ios-blue active:opacity-70 text-white font-medium py-3.5 rounded-ios text-[16px] transition-opacity disabled:opacity-40"
       >
         {isSaving ? 'Saqlanmoqda...' : 'Saqlash & Yangilash'}
       </button>

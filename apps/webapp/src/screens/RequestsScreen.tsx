@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { CategoryPicker } from '../components/CategoryPicker';
+import { IosHeader } from '../components/ios/IosHeader';
 
 export interface UnresolvedCluster {
   id: string;
@@ -20,9 +21,6 @@ export interface RequestsScreenProps {
   onNavigateTab: (tab: 'home' | 'add' | 'requests' | 'database' | 'more') => void;
   onSelectCategoryToAdd: (categoryName: string) => void;
 }
-
-const IOS_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 export const RequestsScreen: React.FC<RequestsScreenProps> = ({
   onNavigateTab,
@@ -145,46 +143,44 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
   ];
 
   return (
-    <div className="animate-fade-in -mx-4 -mt-2 pb-20" style={{ fontFamily: IOS_FONT }}>
+    <div className="animate-fade-in -mx-4 -mt-2 pb-20">
       {/* iOS Large Title header */}
       <div className="px-4 pt-1 pb-3">
-        <div className="flex items-end justify-between">
-          <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
-            So'rovlar
-          </h1>
-          <div className="flex items-center gap-3 mb-1.5">
-            <span className="text-[13px] text-[#8E8E93] font-normal">{clusters.length} ta</span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsMultiSelectMode(!isMultiSelectMode);
-                setSelectedIds([]);
-              }}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                isMultiSelectMode ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white' : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-[#007AFF] dark:text-[#0A84FF]'
-              }`}
-              title="Bir nechtasini tanlash"
-            >
-              <span className="material-symbols-outlined text-[18px]">checklist</span>
-            </button>
-          </div>
-        </div>
-        <p className="text-[13px] text-[#8E8E93] leading-snug mt-0.5">
-          Foydalanuvchilar qidirgan, lekin bazada topilmagan so'rovlar — o'xshashlari birlashtirilgan.
-        </p>
+        <IosHeader
+          title="So'rovlar"
+          subtitle="Foydalanuvchilar qidirgan, lekin bazada topilmagan so'rovlar — o'xshashlari birlashtirilgan."
+          trailing={
+            <div className="flex items-center gap-3">
+              <span className="text-[13px] text-ios-label-secondary/70 font-normal">{clusters.length} ta</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMultiSelectMode(!isMultiSelectMode);
+                  setSelectedIds([]);
+                }}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  isMultiSelectMode ? 'bg-ios-blue text-white' : 'bg-ios-fill/[0.12] text-ios-blue'
+                }`}
+                title="Bir nechtasini tanlash"
+              >
+                <span className="material-symbols-outlined text-[18px]">checklist</span>
+              </button>
+            </div>
+          }
+        />
       </div>
 
       <div className="px-4 space-y-3">
         {/* iOS segmented control */}
-        <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
+        <div className="flex bg-ios-fill/[0.12] rounded-ios p-[2px]">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setActiveFilter(f.key)}
               className={`flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-colors ${
                 activeFilter === f.key
-                  ? 'bg-white dark:bg-[#3A3A3C] text-on-surface dark:text-white shadow-sm'
-                  : 'text-[#8E8E93]'
+                  ? 'bg-ios-card text-ios-label shadow-sm'
+                  : 'text-ios-label-secondary/70'
               }`}
             >
               {f.label}
@@ -195,18 +191,18 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
         {/* QUERY CLUSTER LIST */}
         {isLoading ? (
           <div className="space-y-3">
-            <div className="h-24 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] animate-pulse rounded-[14px]" />
-            <div className="h-24 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] animate-pulse rounded-[14px]" />
+            <div className="h-24 bg-ios-fill/20 animate-pulse rounded-ios-lg" />
+            <div className="h-24 bg-ios-fill/20 animate-pulse rounded-ios-lg" />
           </div>
         ) : filteredClusters.length === 0 ? (
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[14px] p-8 flex flex-col items-center justify-center text-center shadow-sm">
-            <div className="w-14 h-14 rounded-full bg-[#34C759]/15 text-[#34C759] flex items-center justify-center mb-3">
+          <div className="bg-ios-card rounded-ios-lg p-8 flex flex-col items-center justify-center text-center shadow-sm">
+            <div className="w-14 h-14 rounded-full bg-ios-green/15 text-ios-green flex items-center justify-center mb-3">
               <span className="material-symbols-outlined text-[32px]">task_alt</span>
             </div>
-            <h3 className="font-semibold text-[16px] text-on-surface dark:text-white mb-1">
+            <h3 className="font-semibold text-[16px] text-ios-label mb-1">
               Barcha so'rovlar hal qilingan
             </h3>
-            <p className="text-[13px] text-[#8E8E93]">
+            <p className="text-[13px] text-ios-label-secondary/70">
               Hozircha topilmagan so'rovlar klasteri mavjud emas.
             </p>
           </div>
@@ -223,44 +219,42 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
               return (
                 <div
                   key={clusterId}
-                  className="rounded-[14px] shadow-sm overflow-hidden"
+                  className="rounded-ios-lg shadow-sm overflow-hidden"
                   style={{ opacity: cluster.isStale ? 0.55 : 1 }}
                 >
-                  <div className="bg-white dark:bg-[#1C1C1E] p-3.5 flex items-start gap-3">
+                  <div className="bg-ios-card p-3.5 flex items-start gap-3">
                     {isMultiSelectMode && (
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(clusterId)}
-                        className="w-5 h-5 mt-0.5 rounded border-[#8E8E93] accent-[#007AFF] shrink-0"
+                        className="w-5 h-5 mt-0.5 rounded accent-ios-blue shrink-0"
                       />
                     )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <h2 className="font-semibold text-[15px] text-on-surface dark:text-white capitalize truncate">
+                          <h2 className="font-semibold text-[15px] text-ios-label capitalize truncate">
                             {cluster.canonicalName}
                           </h2>
                           <span
-                            className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{
-                              backgroundColor: cluster.isExistingCategory ? 'rgba(255,149,0,0.15)' : 'rgba(255,59,48,0.12)',
-                              color: cluster.isExistingCategory ? '#FF9500' : '#FF3B30',
-                            }}
+                            className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                              cluster.isExistingCategory ? 'bg-ios-orange/15 text-ios-orange' : 'bg-ios-red/[0.12] text-ios-red'
+                            }`}
                           >
                             {cluster.isExistingCategory ? 'bazada bor' : "bazada yo'q"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF]">
+                          <span className="text-[15px] font-semibold text-ios-blue">
                             {cluster.count}
                           </span>
                           {!isMultiSelectMode && (
                             <button
                               type="button"
                               onClick={() => handleDismissCluster(clusterId)}
-                              className="text-[#8E8E93] active:opacity-50"
+                              className="text-ios-label-secondary/70 active:opacity-50"
                               title="O'chirish"
                             >
                               <span className="material-symbols-outlined text-[18px]">close</span>
@@ -269,12 +263,12 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
                         </div>
                       </div>
 
-                      <p className="text-[13px] text-on-surface-variant dark:text-slate-300 italic mb-2 truncate">
+                      <p className="text-[13px] text-ios-label-secondary/70 italic mb-2 truncate">
                         "{exampleText}"
                       </p>
 
                       {cluster.isExistingCategory && (
-                        <p className="text-[12px] text-[#FF9500] font-medium mb-2 flex items-center gap-1">
+                        <p className="text-[12px] text-ios-orange font-medium mb-2 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px]">info</span>
                           taxminiy mos: {cluster.matchedCategoryName}
                         </p>
@@ -286,7 +280,7 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
                             <button
                               type="button"
                               onClick={() => setPickerOpenFor(isPickerOpen ? null : clusterId)}
-                              className="bg-[#007AFF] dark:bg-[#0A84FF] text-white rounded-full px-3.5 py-1.5 text-[12px] font-semibold active:opacity-70"
+                              className="bg-ios-blue text-white rounded-full px-3.5 py-1.5 text-[12px] font-semibold active:opacity-70"
                             >
                               Bog'lash
                             </button>
@@ -296,12 +290,12 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
                                 onSelectCategoryToAdd(cluster.canonicalName);
                                 onNavigateTab('add');
                               }}
-                              className="bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white rounded-full px-3.5 py-1.5 text-[12px] font-semibold active:opacity-70"
+                              className="bg-ios-fill/[0.12] text-ios-label rounded-full px-3.5 py-1.5 text-[12px] font-semibold active:opacity-70"
                             >
                               + Qo'shish
                             </button>
                           </div>
-                          <span className="text-[11px] text-[#8E8E93] flex items-center gap-1">
+                          <span className="text-[11px] text-ios-label-secondary/70 flex items-center gap-1">
                             <span className="material-symbols-outlined text-[13px]">schedule</span>
                             {cluster.timeAgo || '10 min oldin'}
                           </span>
@@ -326,12 +320,12 @@ export const RequestsScreen: React.FC<RequestsScreenProps> = ({
 
       {/* BATCH ACTION FLOATING BAR */}
       {isMultiSelectMode && selectedIds.length > 0 && (
-        <div className="fixed bottom-20 left-4 right-4 max-w-container-max mx-auto bg-[#1C1C1E] text-white p-3.5 rounded-[14px] shadow-2xl z-50 flex items-center justify-between animate-slide-up">
+        <div className="fixed bottom-20 left-4 right-4 max-w-container-max mx-auto bg-[#1C1C1E] text-white p-3.5 rounded-ios-lg shadow-2xl z-50 flex items-center justify-between animate-slide-up">
           <span className="text-[13px] font-medium">{selectedIds.length} ta so'rov tanlandi</span>
           <button
             type="button"
             onClick={handleBatchClose}
-            className="bg-[#FF3B30] text-white text-[13px] font-semibold px-4 py-2 rounded-[10px] active:opacity-70"
+            className="bg-ios-red text-white text-[13px] font-semibold px-4 py-2 rounded-ios active:opacity-70"
           >
             Yopish (O'chirish)
           </button>

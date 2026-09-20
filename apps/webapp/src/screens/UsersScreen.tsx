@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { IosHeader } from '../components/ios/IosHeader';
+import { IosSearchBar } from '../components/ios/IosSearchBar';
 
 interface UserItem {
   id: string;
@@ -147,10 +149,10 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
     <div className="flex flex-col gap-4 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col gap-3">
-        <h1 className="text-2xl font-bold text-on-surface dark:text-slate-100 px-1">Userlar</h1>
+        <IosHeader title="Userlar" />
 
         {/* Jonli statistika kartasi */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-4 rounded-2xl shadow-md">
+        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-4 rounded-ios-lg shadow-sm">
           <div className="absolute right-0 top-0 w-28 h-28 bg-white/10 rounded-full blur-2xl -mr-6 -mt-6" />
           <div className="relative flex items-center justify-between">
             <div>
@@ -169,7 +171,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
               </div>
             </div>
             {newUsersToday > 0 && (
-              <div className="bg-white/15 backdrop-blur rounded-xl px-3 py-2 text-center">
+              <div className="bg-white/15 backdrop-blur rounded-ios px-3 py-2 text-center">
                 <div className="text-lg font-black leading-none">+{newUsersToday}</div>
                 <div className="text-[9px] font-bold uppercase text-white/80 mt-0.5">bugun</div>
               </div>
@@ -183,18 +185,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[20px] text-slate-500">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Ism, username yoki telefon..."
-            className="w-full bg-surface-container-low dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary dark:focus:border-sky-500 transition-colors shadow-sm"
-          />
-        </div>
+        <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Ism, username yoki telefon..." />
 
         {/* Filter Chips */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
@@ -209,10 +200,10 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
               onClick={() => {
                 setActiveFilter(chip.id as any);
               }}
-              className={`flex-shrink-0 min-w-max px-4 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 ${
+              className={`flex-shrink-0 min-w-max px-4 py-1.5 rounded-full text-[13px] font-bold transition-all active:scale-95 ${
                 activeFilter === chip.id
-                  ? 'bg-primary dark:bg-sky-500 text-white shadow-sm'
-                  : 'bg-surface-container-high dark:bg-[#1C2733] text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-highest dark:hover:bg-slate-700'
+                  ? 'bg-ios-blue text-white shadow-sm'
+                  : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
               }`}
             >
               {chip.label}
@@ -224,29 +215,31 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
       {/* List Container */}
       <div className="flex flex-col gap-2">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-2">
+          <div className="flex flex-col items-center justify-center py-12 text-ios-label-secondary/70 gap-2">
             <span className="material-symbols-outlined text-[32px] animate-spin">sync</span>
-            <span className="text-xs">Yuklanmoqda...</span>
+            <span className="text-[13px]">Yuklanmoqda...</span>
           </div>
         ) : users.length === 0 ? (
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center text-center shadow-sm">
-            <span className="material-symbols-outlined text-[36px] text-slate-600 mb-2">group</span>
-            <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Foydalanuvchilar yo'q</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Ushbu filtr bo'yicha hech kim topilmadi.</p>
+          <div className="bg-ios-card rounded-ios-lg p-8 flex flex-col items-center justify-center text-center shadow-sm">
+            <span className="material-symbols-outlined text-[36px] text-ios-label-secondary/50 mb-2">group</span>
+            <h3 className="font-semibold text-[15px] text-ios-label">Foydalanuvchilar yo'q</h3>
+            <p className="text-[13px] text-ios-label-secondary/70 mt-0.5">Ushbu filtr bo'yicha hech kim topilmadi.</p>
           </div>
         ) : (
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 overflow-hidden shadow-sm divide-y divide-outline-variant/20 dark:divide-slate-800/80">
-            {users.map((u) => {
+          <div className="bg-ios-card rounded-ios-lg overflow-hidden shadow-sm">
+            {users.map((u, idx) => {
               const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Mijoz';
               const isSwiped = swipedRowId === u.id;
+              const isLast = idx === users.length - 1;
 
               return (
                 <div
                   key={u.id}
-                  className="relative overflow-hidden w-full h-[72px] bg-slate-900/10"
+                  className="relative overflow-hidden w-full h-[72px]"
                   onTouchStart={(e) => handleTouchStart(e, u.id)}
                   onTouchMove={(e) => handleTouchMove(e, u.id)}
                   onTouchEnd={handleTouchEnd}
+                  style={isLast ? undefined : { borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}
                 >
                   {/* Swipe Actions Behind — Blok tugmasi faqat oddiy (rol=USER)
                       foydalanuvchilar uchun (admin/moderatorlarni bu yerdan
@@ -254,7 +247,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                   <div className="absolute inset-y-0 right-0 flex items-center z-0">
                     <button
                       onClick={() => onSelectUser(u.telegramId, fullName, u.username)}
-                      className="h-full w-[64px] bg-sky-500 hover:bg-sky-400 text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors"
+                      className="h-full w-[64px] bg-ios-blue text-white font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 transition-colors"
                     >
                       <span className="material-symbols-outlined text-[18px]">chat</span>
                       Javob
@@ -263,8 +256,8 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       <button
                         onClick={() => handleToggleSuspend(u)}
                         disabled={busyUserId === u.id}
-                        className={`h-full w-[64px] text-white font-bold text-xs flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
-                          u.isSuspended ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
+                        className={`h-full w-[64px] text-white font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
+                          u.isSuspended ? 'bg-ios-green' : 'bg-ios-red'
                         }`}
                       >
                         <span className="material-symbols-outlined text-[18px]">
@@ -284,49 +277,49 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                         onSelectUser(u.telegramId, fullName, u.username);
                       }
                     }}
-                    className="absolute inset-0 bg-surface dark:bg-[#17212B] p-3 flex items-center gap-3 transition-transform duration-300 z-10 cursor-pointer"
+                    className="absolute inset-0 bg-ios-card p-3 flex items-center gap-3 transition-transform duration-300 z-10 cursor-pointer"
                     style={{ transform: isSwiped ? `translateX(-${u.role === 'USER' ? 128 : 64}px)` : 'translateX(0)' }}
                   >
                     {/* Avatar with red dot complaint indicator */}
                     <div className="relative">
                       <div
                         className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0 ${
-                          u.isSuspended ? 'bg-slate-500' : 'bg-gradient-to-tr from-sky-400 to-blue-500'
+                          u.isSuspended ? 'bg-ios-label-secondary' : 'bg-gradient-to-tr from-sky-400 to-blue-500'
                         }`}
                       >
                         {u.firstName ? u.firstName[0].toUpperCase() : 'U'}
                       </div>
                       {u.hasComplaints && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-surface dark:border-[#17212B]" />
+                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-ios-red border-2 border-ios-card" />
                       )}
                     </div>
 
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1.5">
-                        <h4 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate flex items-center gap-1.5">
+                        <h4 className="font-semibold text-[13px] text-ios-label truncate flex items-center gap-1.5">
                           {fullName}
                           {ROLE_LABELS[u.role] && (
-                            <span className="text-[9px] font-bold bg-violet-500/15 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded-full shrink-0">
+                            <span className="text-[9px] font-bold bg-ios-purple/15 text-ios-purple px-1.5 py-0.5 rounded-full shrink-0">
                               {ROLE_LABELS[u.role]}
                             </span>
                           )}
                           {u.isSuspended && (
-                            <span className="text-[9px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded-full shrink-0">
+                            <span className="text-[9px] font-bold bg-ios-red/15 text-ios-red px-1.5 py-0.5 rounded-full shrink-0">
                               Bloklangan
                             </span>
                           )}
                         </h4>
-                        <span className="text-[9px] text-slate-500 shrink-0">
+                        <span className="text-[9px] text-ios-label-secondary/70 shrink-0">
                           {formatActivityTime(u.lastActivity)}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between mt-1">
-                        <p className="text-[11px] text-sky-500 dark:text-sky-400 font-medium truncate">
+                        <p className="text-[11px] text-ios-blue font-medium truncate">
                           {u.username ? `@${u.username}` : `ID: ${u.telegramId}`}
                         </p>
-                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-semibold shrink-0">
+                        <span className="text-[10px] bg-ios-fill/[0.12] text-ios-label-secondary/70 px-2 py-0.5 rounded-full font-semibold shrink-0">
                           Limit: {u.queryCountToday}/20
                         </span>
                       </div>

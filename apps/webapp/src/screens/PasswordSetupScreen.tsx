@@ -43,74 +43,65 @@ export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-8 max-w-sm w-full shadow-2xl backdrop-blur-md">
-        <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto mb-5 text-amber-400 text-2xl">
-          🛡️
+    <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="w-16 h-16 bg-ios-orange/10 rounded-full flex items-center justify-center mx-auto mb-5 text-ios-orange">
+          <span className="material-symbols-outlined text-[30px]">shield</span>
         </div>
 
-        <h1 className="text-xl font-bold mb-1 text-slate-100 text-center">
+        <h1 className="text-[22px] font-semibold mb-1 text-ios-label text-center">
           Birinchi kirish, {adminName}
         </h1>
-        <p className="text-slate-400 text-xs mb-6 text-center">
-          Berilgan bir martalik parolni kiriting va o'zingizning shaxsiy parolingizni o'rnating
+        <p className="text-ios-label-secondary/70 text-[15px] mb-6 text-center">
+          Berilgan bir martalik parolni kiriting va shaxsiy parolingizni o'rnating
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs text-center">
+          <div className="mb-4 px-3.5 py-3 bg-ios-red/10 rounded-ios text-ios-red text-[13px] text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Bir martalik berilgan parol
-            </label>
-            <input
-              type="password"
-              value={oneTimePass}
-              onChange={(e) => setOneTimePass(e.target.value)}
-              placeholder="Sizga berilgan parol"
-              required
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Yangi shaxsiy parol
-            </label>
-            <input
-              type="password"
-              value={newPass}
-              onChange={(e) => setNewPass(e.target.value)}
-              placeholder="Kamida 6 belgi"
-              required
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Yangi parolni takrorlang
-            </label>
-            <input
-              type="password"
-              value={confirmPass}
-              onChange={(e) => setConfirmPass(e.target.value)}
-              placeholder="Parolni qayta kiriting"
-              required
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
-            />
+          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+            <div className="px-4" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+              <input
+                type="password"
+                value={oneTimePass}
+                onChange={(e) => setOneTimePass(e.target.value)}
+                placeholder="Bir martalik parol"
+                required
+                className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
+              />
+            </div>
+            <div className="px-4" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+              <input
+                type="password"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                placeholder="Yangi parol (kamida 6 belgi)"
+                required
+                className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
+              />
+            </div>
+            <div className="px-4">
+              <input
+                type="password"
+                value={confirmPass}
+                onChange={(e) => setConfirmPass(e.target.value)}
+                placeholder="Yangi parolni takrorlang"
+                required
+                className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !oneTimePass || !newPass}
-            className="w-full bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-ios-blue active:opacity-70 text-white font-medium py-3.5 rounded-ios text-[16px] transition-opacity disabled:opacity-40"
           >
-            {isSubmitting ? "Saqlanmoqda..." : "Parolni o'rnatish va kirish"}
+            {isSubmitting ? "Saqlanmoqda…" : "Parolni o'rnatish va kirish"}
           </button>
         </form>
       </div>

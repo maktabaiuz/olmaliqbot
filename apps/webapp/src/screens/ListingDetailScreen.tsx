@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LandmarkPicker } from '../components/LandmarkPicker';
 import { avatarColorForName } from '../utils/avatarColor';
+import { useFeedback } from '../context/FeedbackContext';
 
 export interface ListingDetailScreenProps {
   listingId: string;
@@ -29,18 +30,12 @@ interface HistoryItem {
   snapshot: any;
 }
 
-const IOS_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
-const HAIRLINE = '0.5px solid rgba(60,60,67,0.29)';
-const IOS_BLUE = '#007AFF';
-const IOS_GREEN = '#34C759';
-const IOS_ORANGE = '#FF9500';
-const IOS_GRAY = '#8E8E93';
+const HAIRLINE = '0.5px solid rgb(var(--ios-separator) / 0.29)';
 
 // Grouped-inset-list bo'lim sarlavhasi — UISettings.app'dagi kabi kichik,
 // katta harfli, kulrang label.
 const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide px-1">{children}</span>
+  <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1">{children}</span>
 );
 
 // Bitta qator: chapda label, o'ngda tahrirlanadigan qiymat (iOS Settings
@@ -51,7 +46,7 @@ const FieldRow: React.FC<{
   hairlineTop?: boolean;
 }> = ({ label, children, hairlineTop }) => (
   <div className="flex items-center px-3.5 py-2.5 gap-3" style={hairlineTop ? { borderTop: HAIRLINE } : undefined}>
-    <span className="text-[15px] text-on-surface dark:text-white w-[104px] shrink-0">{label}</span>
+    <span className="text-[15px] text-ios-label w-[104px] shrink-0">{label}</span>
     {children}
   </div>
 );
@@ -105,16 +100,11 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [newBadgeInput, setNewBadgeInput] = useState('');
   const [showNewBadgeInput, setShowNewBadgeInput] = useState(false);
   const [newJargonInput, setNewJargonInput] = useState('');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { showToast, confirm } = useFeedback();
 
   const headers = {
     'Content-Type': 'application/json',
     'x-init-data': initData,
-  };
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Fetch listing detail
@@ -213,13 +203,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       });
       const data = await res.json();
       if (data.success) {
-        showToast("✅ O'zgarishlar saqlandi");
+        showToast("O'zgarishlar saqlandi", 'success');
         await loadDetail();
       } else {
-        showToast('❌ Xatolik yuz berdi');
+        showToast('Xatolik yuz berdi', 'error');
       }
     } catch {
-      showToast('❌ Aloqa xatoligi');
+      showToast('Aloqa xatoligi', 'error');
     } finally {
       setSaving(false);
     }
@@ -235,7 +225,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       headers,
       body: JSON.stringify({ status: nextStatus }),
     });
-    showToast(nextStatus === 'PAUSED' ? "⏸️ Yozuv pauzaga qo'yildi" : '🟢 Yozuv faollashtirildi');
+    showToast(nextStatus === 'PAUSED' ? "Yozuv pauzaga qo'yildi" : 'Yozuv faollashtirildi');
   };
 
   // Toggle Verification status
@@ -247,13 +237,19 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       headers,
       body: JSON.stringify({ verification: nextVerif }),
     });
-    showToast(nextVerif === 'VERIFIED' ? '✅ Tasdiqlandi!' : "⚠️ Xalq aytgan holatiga o'tkazildi");
+    showToast(nextVerif === 'VERIFIED' ? 'Tasdiqlandi!' : "Xalq aytgan holatiga o'tkazildi", nextVerif === 'VERIFIED' ? 'success' : undefined);
   };
 
   // Delete listing
   const handleDelete = async () => {
     setShowMenu(false);
-    if (!window.confirm(`"${name}" yozuvini bazadan butunlay o'chirmoqchimisiz?`)) return;
+    const ok = await confirm({
+      title: `"${name}" yozuvini bazadan butunlay o'chirmoqchimisiz?`,
+      message: 'Bu amalni ortga qaytarib bo\'lmaydi.',
+      confirmLabel: "O'chirish",
+      destructive: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/admin/listings/${listingId}`, { method: 'DELETE', headers });
     const data = await res.json();
     if (data.success) {
@@ -266,7 +262,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     setShowMenu(false);
     const copyText = `${name}\n📞 ${phone}\n📍 ${landmarkName}\n🏷 ${badges.join(', ')}`;
     navigator.clipboard.writeText(copyText);
-    showToast("📋 Ma'lumot nusxalandi!");
+    showToast("Ma'lumot nusxalandi!", 'success');
   };
 
   const handleAddBadge = () => {
@@ -334,13 +330,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
   if (loading) {
     return (
-      <div
-        className="min-h-screen bg-background dark:bg-[#121417] flex items-center justify-center p-6"
-        style={{ fontFamily: IOS_FONT }}
-      >
+      <div className="min-h-screen bg-ios-bg flex items-center justify-center p-6">
         <div className="animate-pulse flex flex-col items-center gap-3">
-          <div className="w-[72px] h-[72px] rounded-full bg-[#8E8E93]/20" />
-          <div className="h-3.5 w-32 bg-[#8E8E93]/20 rounded-full" />
+          <div className="w-[72px] h-[72px] rounded-full bg-ios-fill/20" />
+          <div className="h-3.5 w-32 bg-ios-fill/20 rounded-full" />
         </div>
       </div>
     );
@@ -349,19 +342,12 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const isZapravka = originalData?.type === 'ZAPRAVKA';
 
   return (
-    <div className="animate-fade-in -mx-4 -mt-2 pb-24 relative" style={{ fontFamily: IOS_FONT }}>
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1C1C1E] text-white text-[13px] font-medium px-4 py-2.5 rounded-full shadow-2xl animate-fade-in">
-          {toastMessage}
-        </div>
-      )}
-
+    <div className="animate-fade-in -mx-4 -mt-2 pb-24 relative">
       {/* NAV BAR — "‹ Orqaga" + "⋯" menyu + "Saqlash" */}
       <div className="px-4 pt-1 pb-2 flex items-center justify-between relative">
         <button
           onClick={onBack}
-          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal -ml-1.5 active:opacity-40"
+          className="flex items-center gap-0.5 text-ios-blue text-[15px] font-normal -ml-1.5 active:opacity-40"
         >
           <span className="material-symbols-outlined text-[22px]">chevron_left</span>
           Baza
@@ -370,14 +356,14 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         <div className="flex items-center gap-3.5">
           <button
             onClick={() => setShowMenu((v) => !v)}
-            className="text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 p-0.5"
+            className="text-ios-blue active:opacity-40 p-0.5"
           >
             <span className="material-symbols-outlined text-[22px]">more_horiz</span>
           </button>
           <button
             onClick={handleSave}
             disabled={!hasChanges || saving}
-            className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 disabled:opacity-30"
+            className="text-[15px] font-semibold text-ios-blue active:opacity-40 disabled:opacity-30"
           >
             {saving ? 'Saqlanmoqda...' : 'Saqlash'}
           </button>
@@ -385,38 +371,38 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
         {/* MENU dropdown — iOS action-sheet uslubida */}
         {showMenu && (
-          <div className="absolute right-4 top-11 bg-white dark:bg-[#1C1C1E] rounded-[14px] shadow-2xl z-40 w-60 overflow-hidden animate-fadeIn">
+          <div className="absolute right-4 top-11 bg-ios-card rounded-ios-lg shadow-2xl z-40 w-60 overflow-hidden animate-fadeIn">
             <button
               onClick={() => {
                 setShowMenu(false);
                 setShowBotModal(true);
               }}
-              className="w-full text-left px-4 py-3 text-[15px] font-normal text-[#007AFF] dark:text-[#0A84FF] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-ios-blue active:bg-ios-fill/10 flex items-center justify-between"
             >
               Bot javobini ko'rish
               <span className="material-symbols-outlined text-[18px]">smart_toy</span>
             </button>
             <button
               onClick={handleToggleStatus}
-              className="w-full text-left px-4 py-3 text-[15px] font-normal text-on-surface dark:text-white active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-ios-label active:bg-ios-fill/10 flex items-center justify-between"
               style={{ borderTop: HAIRLINE }}
             >
               {status === 'ACTIVE' ? "Pauzaga qo'yish" : 'Faollashtirish'}
-              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">
+              <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">
                 {status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
               </span>
             </button>
             <button
               onClick={handleCopyDetails}
-              className="w-full text-left px-4 py-3 text-[15px] font-normal text-on-surface dark:text-white active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-ios-label active:bg-ios-fill/10 flex items-center justify-between"
               style={{ borderTop: HAIRLINE }}
             >
               Nusxa olish
-              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">content_copy</span>
+              <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">content_copy</span>
             </button>
             <button
               onClick={handleDelete}
-              className="w-full text-left px-4 py-3 text-[15px] font-normal text-[#FF3B30] active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E] flex items-center justify-between"
+              className="w-full text-left px-4 py-3 text-[15px] font-normal text-ios-red active:bg-ios-fill/10 flex items-center justify-between"
               style={{ borderTop: HAIRLINE }}
             >
               O'chirish
@@ -434,15 +420,15 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         >
           {name.trim()[0]?.toUpperCase() || '?'}
         </span>
-        <h1 className="text-[20px] font-semibold text-on-surface dark:text-white text-center px-6 mt-0.5">
+        <h1 className="text-[20px] font-semibold text-ios-label text-center px-6 mt-0.5">
           {name || 'Yozuv'}
         </h1>
-        <p className="text-[13px] text-[#8E8E93] text-center px-6">
+        <p className="text-[13px] text-ios-label-secondary/70 text-center px-6">
           {categoryName || 'Kasb'} · {landmarkName || 'Olmaliq'}
           {addedByUser?.firstName ? ` · ${addedByUser.firstName} qo'shgan` : ''}
         </p>
         {priorityRank && (
-          <div className="flex items-center gap-1 text-[#34C759] text-[12px] font-semibold mt-0.5">
+          <div className="flex items-center gap-1 text-ios-green text-[12px] font-semibold mt-0.5">
             <span className="material-symbols-outlined text-[14px]">military_tech</span>
             Kategoriyada {priorityRank}-o'rin
           </div>
@@ -453,21 +439,17 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       <div className="px-4 flex items-center gap-2 mb-5">
         <button
           onClick={handleToggleVerification}
-          className="flex-1 py-2 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity"
-          style={{
-            backgroundColor: verification === 'VERIFIED' ? `${IOS_GREEN}1F` : `${IOS_ORANGE}1F`,
-            color: verification === 'VERIFIED' ? IOS_GREEN : IOS_ORANGE,
-          }}
+          className={`flex-1 py-2 rounded-ios text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity ${
+            verification === 'VERIFIED' ? 'bg-ios-green/[0.12] text-ios-green' : 'bg-ios-orange/[0.12] text-ios-orange'
+          }`}
         >
           {verification === 'VERIFIED' ? '✅ Tasdiqlangan' : '⚠️ Xalq aytgan'}
         </button>
         <button
           onClick={handleToggleStatus}
-          className="py-2 px-4 rounded-[10px] text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity"
-          style={{
-            backgroundColor: status === 'ACTIVE' ? `${IOS_BLUE}1F` : `${IOS_GRAY}26`,
-            color: status === 'ACTIVE' ? IOS_BLUE : IOS_GRAY,
-          }}
+          className={`py-2 px-4 rounded-ios text-[13px] font-semibold flex items-center justify-center gap-1.5 active:opacity-70 transition-opacity ${
+            status === 'ACTIVE' ? 'bg-ios-blue/[0.12] text-ios-blue' : 'bg-ios-fill/[0.15] text-ios-label-secondary/70'
+          }`}
         >
           {status === 'ACTIVE' ? '🟢 Faol' : '⏸️ Pauzada'}
         </button>
@@ -475,13 +457,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
 
       {/* iOS SEGMENTED CONTROL — Ma'lumot / Tarix */}
       <div className="px-4 mb-5">
-        <div className="bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[9px] p-[2px] flex">
+        <div className="bg-ios-fill/[0.12] rounded-ios p-[2px] flex">
           <button
             onClick={() => setActiveTab('info')}
             className={`flex-1 py-1.5 rounded-[7px] text-[13px] font-medium transition-all ${
               activeTab === 'info'
-                ? 'bg-white dark:bg-[#3A3A3C] shadow-sm text-on-surface dark:text-white font-semibold'
-                : 'text-[#8E8E93]'
+                ? 'bg-ios-card shadow-sm text-ios-label font-semibold'
+                : 'text-ios-label-secondary/70'
             }`}
           >
             Ma'lumot
@@ -490,8 +472,8 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
             onClick={() => setActiveTab('history')}
             className={`flex-1 py-1.5 rounded-[7px] text-[13px] font-medium transition-all ${
               activeTab === 'history'
-                ? 'bg-white dark:bg-[#3A3A3C] shadow-sm text-on-surface dark:text-white font-semibold'
-                : 'text-[#8E8E93]'
+                ? 'bg-ios-card shadow-sm text-ios-label font-semibold'
+                : 'text-ios-label-secondary/70'
             }`}
           >
             Tarix ({history.length + reviews.length})
@@ -507,13 +489,13 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* GURUH: ASOSIY MA'LUMOT */}
           <div>
             <SectionLabel>Asosiy ma'lumot</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               <FieldRow label="Ism / Nom">
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] text-ios-label focus:outline-none text-right"
                 />
               </FieldRow>
               <FieldRow label="Telefon" hairlineTop>
@@ -522,7 +504,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="ixtiyoriy"
-                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-ios-label placeholder:text-ios-label-secondary/70 placeholder:font-sans focus:outline-none text-right"
                 />
               </FieldRow>
               <FieldRow label="Kasb / soha" hairlineTop>
@@ -530,11 +512,11 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   type="text"
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
-                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] text-ios-label focus:outline-none text-right"
                 />
               </FieldRow>
               <div className="px-3.5 py-2.5 flex items-center gap-3" style={{ borderTop: HAIRLINE }}>
-                <span className="text-[15px] text-on-surface dark:text-white w-[104px] shrink-0">Manzil</span>
+                <span className="text-[15px] text-ios-label w-[104px] shrink-0">Manzil</span>
                 <div className="flex-1 min-w-0">
                   <LandmarkPicker
                     value={landmarkId || null}
@@ -552,14 +534,14 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* GURUH: ISH VAQTI VA TAFSILOTLAR */}
           <div>
             <SectionLabel>Ish vaqti va tafsilotlar</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               <FieldRow label="Boshlanishi">
                 <input
                   type="text"
                   value={workFrom}
                   onChange={(e) => setWorkFrom(e.target.value)}
                   placeholder="08:00"
-                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-ios-label placeholder:text-ios-label-secondary/70 placeholder:font-sans focus:outline-none text-right"
                 />
               </FieldRow>
               <FieldRow label="Tugashi" hairlineTop>
@@ -568,14 +550,14 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   value={workTo}
                   onChange={(e) => setWorkTo(e.target.value)}
                   placeholder="20:00"
-                  className="flex-1 bg-transparent text-[15px] font-mono text-on-surface dark:text-white placeholder:text-[#8E8E93] placeholder:font-sans focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] font-mono text-ios-label placeholder:text-ios-label-secondary/70 placeholder:font-sans focus:outline-none text-right"
                 />
               </FieldRow>
 
               {isZapravka && (
                 <>
                   <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
-                    <span className="text-[15px] text-on-surface dark:text-white">Xarita havolasi (Yandex)</span>
+                    <span className="text-[15px] text-ios-label">Xarita havolasi (Yandex)</span>
                   </div>
                   <div className="px-3.5 pb-3">
                     <input
@@ -593,9 +575,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                         if (match && match[0] !== e.target.value.trim()) setMapUrl(match[0]);
                       }}
                       placeholder="https://yandex.uz/maps/..."
-                      className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+                      className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
                     />
-                    <p className="text-[11px] text-[#8E8E93] mt-1.5">
+                    <p className="text-[11px] text-ios-label-secondary/70 mt-1.5">
                       {mapUrl.trim()
                         ? 'Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.'
                         : 'Havola bo\'sh bo\'lsa, bot javobida "Lokatsiya" tugmasi umuman chiqmaydi.'}
@@ -605,7 +587,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
               )}
 
               <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
-                <span className="text-[15px] text-on-surface dark:text-white">Aniq xizmatlar</span>
+                <span className="text-[15px] text-ios-label">Aniq xizmatlar</span>
               </div>
               <div className="px-3.5 pb-3">
                 <input
@@ -613,7 +595,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   value={specificServices}
                   onChange={(e) => setSpecificServices(e.target.value)}
                   placeholder="masalan: gaz kolonka ta'mirlash, plita o'rnatish"
-                  className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+                  className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
                 />
               </div>
 
@@ -623,18 +605,18 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   value={approxPrice}
                   onChange={(e) => setApproxPrice(e.target.value)}
                   placeholder="masalan: 50,000 so'mdan"
-                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none text-right"
+                  className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none text-right"
                 />
               </FieldRow>
 
               <div className="px-3.5 pt-3 pb-3" style={{ borderTop: HAIRLINE }}>
-                <span className="text-[15px] text-on-surface dark:text-white block mb-1.5">Izoh</span>
+                <span className="text-[15px] text-ios-label block mb-1.5">Izoh</span>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Qo'shimcha izoh..."
-                  className="w-full bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[8px] px-3 py-2 text-[13px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none resize-none"
+                  className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none resize-none"
                 />
               </div>
             </div>
@@ -643,20 +625,20 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* GURUH: BELGILAR */}
           <div>
             <SectionLabel>Belgilar</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
                 {badges.length === 0 && !showNewBadgeInput && (
-                  <span className="text-[13px] text-[#8E8E93]">Hali belgi qo'shilmagan</span>
+                  <span className="text-[13px] text-ios-label-secondary/70">Hali belgi qo'shilmagan</span>
                 )}
                 {badges.map((b) => (
                   <span
                     key={b}
-                    className="bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                    className="bg-ios-blue/10 text-ios-blue pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
                   >
                     {b}
                     <button
                       onClick={() => handleRemoveBadge(b)}
-                      className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
+                      className="w-4 h-4 rounded-full bg-ios-blue/20 flex items-center justify-center hover:bg-ios-red hover:text-white transition-colors"
                       aria-label={`${b}ni o'chirish`}
                     >
                       <span className="material-symbols-outlined text-[11px] leading-none">close</span>
@@ -675,11 +657,11 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                       }}
                       placeholder="belgi..."
                       autoFocus
-                      className="bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-full px-3 py-1 text-[13px] outline-none text-on-surface dark:text-white"
+                      className="bg-ios-fill/[0.12] rounded-full px-3 py-1 text-[13px] outline-none text-ios-label"
                     />
                     <button
                       onClick={handleAddBadge}
-                      className="text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold px-1"
+                      className="text-ios-blue text-[13px] font-semibold px-1"
                     >
                       Qo'shish
                     </button>
@@ -687,7 +669,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 ) : (
                   <button
                     onClick={() => setShowNewBadgeInput(true)}
-                    className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full border border-dashed border-[#007AFF]/50 dark:border-[#0A84FF]/50 text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-medium active:bg-[#007AFF]/5"
+                    className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full border border-dashed border-ios-blue/50 text-ios-blue text-[13px] font-medium active:bg-ios-blue/5"
                   >
                     <span className="material-symbols-outlined text-[13px]">add</span>
                     Qo'shish
@@ -700,27 +682,27 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* GURUH: MAHALLIY ATAMALAR (JARGON) */}
           <div>
             <div className="flex items-center justify-between px-1 mb-1.5">
-              <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">
                 Mahalliy atamalar
               </span>
             </div>
-            <p className="text-[12px] text-[#8E8E93] px-1 mb-1.5">
+            <p className="text-[12px] text-ios-label-secondary/70 px-1 mb-1.5">
               Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.
             </p>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
               <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
                 {jargonSynonyms.length === 0 && (
-                  <span className="text-[13px] text-[#8E8E93]">Hali atama qo'shilmagan</span>
+                  <span className="text-[13px] text-ios-label-secondary/70">Hali atama qo'shilmagan</span>
                 )}
                 {jargonSynonyms.map((w) => (
                   <span
                     key={w}
-                    className="bg-[#007AFF]/10 dark:bg-[#0A84FF]/15 text-[#007AFF] dark:text-[#0A84FF] pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                    className="bg-ios-blue/10 text-ios-blue pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
                   >
                     {w}
                     <button
                       onClick={() => handleRemoveJargon(w)}
-                      className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
+                      className="w-4 h-4 rounded-full bg-ios-blue/20 flex items-center justify-center hover:bg-ios-red hover:text-white transition-colors"
                       aria-label={`${w}ni o'chirish`}
                     >
                       <span className="material-symbols-outlined text-[11px] leading-none">close</span>
@@ -729,7 +711,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 ))}
               </div>
               <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderTop: HAIRLINE }}>
-                <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">add_circle</span>
+                <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">add_circle</span>
                 <input
                   type="text"
                   value={newJargonInput}
@@ -741,12 +723,12 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                     }
                   }}
                   placeholder="masalan: trubkachi"
-                  className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
+                  className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
                 />
                 <button
                   onClick={handleAddJargon}
                   disabled={!newJargonInput.trim()}
-                  className="text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold disabled:opacity-30"
+                  className="text-ios-blue text-[13px] font-semibold disabled:opacity-30"
                 >
                   Qo'shish
                 </button>
@@ -757,18 +739,18 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* GURUH: RASMLAR */}
           <div>
             <div className="flex items-center justify-between px-1 mb-1.5">
-              <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">
                 Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
               </span>
             </div>
-            <p className="text-[12px] text-[#8E8E93] px-1 mb-1.5">
+            <p className="text-[12px] text-ios-label-secondary/70 px-1 mb-1.5">
               Bir nechta rasm bo'lsa, bot javobida suriladigan albom sifatida ko'rsatiladi.
             </p>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden p-3.5 space-y-2.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden p-3.5 space-y-2.5">
               {photoUrls.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-0.5">
                   {photoUrls.map((url) => (
-                    <div key={url} className="relative shrink-0 w-16 h-16 rounded-[10px] overflow-hidden">
+                    <div key={url} className="relative shrink-0 w-16 h-16 rounded-ios overflow-hidden">
                       <img src={url} alt="" className="w-full h-full object-cover" />
                       <button
                         onClick={() => handleRemovePhoto(url)}
@@ -782,7 +764,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
               )}
 
               {photoUrls.length < MAX_PHOTOS && (
-                <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-[10px] border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] text-[13px] font-semibold cursor-pointer">
+                <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-ios border border-dashed border-ios-blue/40 text-ios-blue text-[13px] font-semibold cursor-pointer">
                   <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
                   {isUploadingPhoto ? 'Yuklanmoqda...' : "Rasm qo'shish"}
                   <input
@@ -798,7 +780,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   />
                 </label>
               )}
-              {photoUploadError && <p className="text-[#FF3B30] text-[12px] font-medium">{photoUploadError}</p>}
+              {photoUploadError && <p className="text-ios-red text-[12px] font-medium">{photoUploadError}</p>}
             </div>
           </div>
         </div>
@@ -812,9 +794,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* BAHOLAR VA SHARHLAR */}
           <div>
             <SectionLabel>Baholar va sharhlar ({reviews.length})</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               {reviews.length === 0 ? (
-                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">Hali baholar berilmagan</p>
+                <p className="px-3.5 py-3 text-[13px] text-ios-label-secondary/70">Hali baholar berilmagan</p>
               ) : (
                 reviews.map((r, i) => (
                   <div
@@ -824,11 +806,11 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   >
                     <span className="text-[17px] leading-none mt-0.5">{r.isPositive ? '👍' : '👎'}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-medium text-on-surface dark:text-white">
+                      <p className="text-[14px] font-medium text-ios-label">
                         {r.isPositive ? 'Ijobiy tavsiya' : 'Salbiy sharh'}
                       </p>
-                      {r.comment && <p className="text-[13px] text-[#8E8E93] mt-0.5">{r.comment}</p>}
-                      <span className="text-[11px] text-[#8E8E93] block mt-1">
+                      {r.comment && <p className="text-[13px] text-ios-label-secondary/70 mt-0.5">{r.comment}</p>}
+                      <span className="text-[11px] text-ios-label-secondary/70 block mt-1">
                         {new Date(r.createdAt).toLocaleString()}
                       </span>
                     </div>
@@ -841,14 +823,14 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* TUZATISHLAR */}
           <div>
             <SectionLabel>Tuzatishlar ({corrections.length})</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               {corrections.length === 0 ? (
-                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">Tuzatish takliflari yo'q</p>
+                <p className="px-3.5 py-3 text-[13px] text-ios-label-secondary/70">Tuzatish takliflari yo'q</p>
               ) : (
                 corrections.map((c, i) => (
                   <div key={c.id} className="px-3.5 py-3" style={i > 0 ? { borderTop: HAIRLINE } : undefined}>
-                    <p className="text-[13px] font-medium text-[#FF9500]">{c.message}</p>
-                    <span className="text-[11px] text-[#8E8E93] block mt-1">
+                    <p className="text-[13px] font-medium text-ios-orange">{c.message}</p>
+                    <span className="text-[11px] text-ios-label-secondary/70 block mt-1">
                       {new Date(c.createdAt).toLocaleString()} · {c.status}
                     </span>
                   </div>
@@ -860,9 +842,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           {/* O'ZGARISHLAR TARIXI */}
           <div>
             <SectionLabel>O'zgarishlar tarixi ({history.length})</SectionLabel>
-            <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden mt-1.5">
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               {history.length === 0 ? (
-                <p className="px-3.5 py-3 text-[13px] text-[#8E8E93]">O'zgarishlar tarixi hali saqlanmagan</p>
+                <p className="px-3.5 py-3 text-[13px] text-ios-label-secondary/70">O'zgarishlar tarixi hali saqlanmagan</p>
               ) : (
                 history.map((h, i) => (
                   <div
@@ -870,12 +852,12 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                     className="px-3.5 py-3 flex items-center gap-2.5"
                     style={i > 0 ? { borderTop: HAIRLINE } : undefined}
                   >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: IOS_BLUE }} />
+                    <span className="w-2 h-2 rounded-full shrink-0 bg-ios-blue" />
                     <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-on-surface dark:text-white">
+                      <p className="text-[13px] font-medium text-ios-label">
                         Tahrir qilindi ({h.changedBy || 'Admin'})
                       </p>
-                      <p className="text-[11px] text-[#8E8E93]">{new Date(h.createdAt).toLocaleString()}</p>
+                      <p className="text-[11px] text-ios-label-secondary/70">{new Date(h.createdAt).toLocaleString()}</p>
                     </div>
                   </div>
                 ))
@@ -889,32 +871,29 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       {/* MODAL: BOT JAVOBINI KO'RISH */}
       {/* ────────────────────────────────────────────────────────────── */}
       {showBotModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center animate-fadeIn"
-          style={{ fontFamily: IOS_FONT }}
-        >
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-t-[20px] sm:rounded-[20px] p-4 w-full sm:max-w-sm space-y-3.5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center animate-fadeIn">
+          <div className="bg-ios-card rounded-t-ios-lg sm:rounded-ios-lg p-4 w-full sm:max-w-sm space-y-3.5 shadow-2xl">
             <div className="flex items-center justify-between px-1">
-              <span className="text-[15px] font-semibold text-on-surface dark:text-white">Bot javobi ko'rinishi</span>
+              <span className="text-[15px] font-semibold text-ios-label">Bot javobi ko'rinishi</span>
               <button
                 onClick={() => setShowBotModal(false)}
-                className="w-7 h-7 rounded-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] flex items-center justify-center text-[#8E8E93]"
+                className="w-7 h-7 rounded-full bg-ios-fill/[0.12] flex items-center justify-center text-ios-label-secondary/70"
               >
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
 
-            <div className="bg-[#182533] rounded-[14px] p-4 text-[13px] font-sans text-slate-100 whitespace-pre-wrap leading-relaxed">
+            <div className="bg-[#182533] rounded-ios-lg p-4 text-[13px] font-sans text-slate-100 whitespace-pre-wrap leading-relaxed">
               {botPreviewText}
             </div>
 
-            <p className="text-[12px] text-[#8E8E93] text-center px-2">
+            <p className="text-[12px] text-ios-label-secondary/70 text-center px-2">
               Foydalanuvchi botga "{categoryName}" deb so'raganda guruhda aynan shu xabar ko'rinadi.
             </p>
 
             <button
               onClick={() => setShowBotModal(false)}
-              className="w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white font-semibold py-2.5 rounded-[10px] text-[15px]"
+              className="w-full bg-ios-fill/[0.12] text-ios-label font-semibold py-2.5 rounded-ios text-[15px]"
             >
               Yopish
             </button>

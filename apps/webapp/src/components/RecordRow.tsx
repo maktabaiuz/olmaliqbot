@@ -1,4 +1,5 @@
 import React from 'react';
+import { avatarColorForName } from '../utils/avatarColor';
 
 // Yulduzcha (reyting) o'rniga: admin kategoriya ichida eng ko'pi bilan 3 ta
 // yozuvni "1/2/3-o'rin" deb belgilay oladi (kelajakda pullik "top
@@ -31,25 +32,28 @@ export const RecordRow: React.FC<RecordRowProps> = ({
   onSetPriority,
 }) => {
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-outline-variant/20 dark:border-slate-800 last:border-0 hover:bg-surface-container-low/50 dark:hover:bg-slate-800/40 px-2 rounded-lg transition-colors">
-      <div className="w-10 h-10 rounded-full bg-primary-container/15 dark:bg-sky-900/30 text-primary dark:text-sky-400 flex items-center justify-center font-bold text-sm shrink-0">
-        {name.charAt(0)}
+    <div className="flex items-center gap-3 py-3 px-2 rounded-ios border-b-[0.5px] border-ios-separator/[0.29] last:border-b-0 active:bg-ios-fill/10 transition-colors">
+      <div
+        className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-[14px] text-white shrink-0"
+        style={{ backgroundColor: avatarColorForName(name || '?') }}
+      >
+        {name.charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <h4 className="font-semibold text-sm text-on-surface dark:text-slate-100 truncate">{name}</h4>
+          <h4 className="font-semibold text-[14px] text-ios-label truncate">{name}</h4>
           {isVerified ? (
-            <span className="text-emerald-500 text-xs font-bold" title="Tasdiqlangan">✅</span>
+            <span className="text-ios-green text-[12px] font-bold" title="Tasdiqlangan">✅</span>
           ) : (
-            <span className="text-amber-500 text-xs font-bold" title="Norasmiy">⚠️</span>
+            <span className="text-ios-orange text-[12px] font-bold" title="Norasmiy">⚠️</span>
           )}
           {priorityRank && (
-            <span className="text-xs font-bold flex items-center gap-0.5" title={`${priorityRank}-o'rin`}>
+            <span className="text-[12px] font-bold flex items-center gap-0.5" title={`${priorityRank}-o'rin`}>
               {PRIORITY_BADGE[priorityRank]} {priorityRank}-o'rin
             </span>
           )}
         </div>
-        <p className="text-xs text-on-surface-variant dark:text-slate-400 truncate">
+        <p className="text-[12px] text-ios-label-secondary/70 truncate">
           {category} {landmark ? `· 📍 ${landmark}` : ''} {phone ? `· 📞 ${phone}` : ''}
         </p>
       </div>
@@ -62,8 +66,8 @@ export const RecordRow: React.FC<RecordRowProps> = ({
               title={priorityRank === rank ? `${rank}-o'rinni bekor qilish` : `${rank}-o'rin qilib belgilash`}
               className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center transition-all active:scale-90 ${
                 priorityRank === rank
-                  ? 'bg-emerald-500 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-ios-green text-white shadow-sm'
+                  : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
               }`}
             >
               {rank}
@@ -74,7 +78,7 @@ export const RecordRow: React.FC<RecordRowProps> = ({
       {onEdit && (
         <button
           onClick={onEdit}
-          className="p-1.5 text-on-surface-variant hover:text-primary dark:text-slate-400 dark:hover:text-sky-400 rounded-full hover:bg-surface-container-high dark:hover:bg-slate-700 transition-colors shrink-0"
+          className="p-1.5 text-ios-label-secondary/70 active:text-ios-blue rounded-full transition-colors shrink-0"
         >
           <span className="material-symbols-outlined text-[18px]">edit</span>
         </button>

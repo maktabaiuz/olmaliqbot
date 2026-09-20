@@ -46,6 +46,21 @@ export default {
           bgLight: '#FFFFFF',
           cardLight: '#F7F9FB',
         },
+        // iOS/Apple token'lari — src/index.css'dagi CSS custom property'larga
+        // bog'langan, shuning uchun .dark klassi bilan avtomatik moslashadi
+        // (har joyda alohida dark: variant yozish shart emas).
+        'ios-blue': 'rgb(var(--ios-blue) / <alpha-value>)',
+        'ios-red': 'rgb(var(--ios-red) / <alpha-value>)',
+        'ios-green': 'rgb(var(--ios-green) / <alpha-value>)',
+        'ios-orange': 'rgb(var(--ios-orange) / <alpha-value>)',
+        'ios-purple': 'rgb(var(--ios-purple) / <alpha-value>)',
+        'ios-bg': 'rgb(var(--ios-bg) / <alpha-value>)',
+        'ios-card': 'rgb(var(--ios-card) / <alpha-value>)',
+        'ios-card-alt': 'rgb(var(--ios-card-alt) / <alpha-value>)',
+        'ios-label': 'rgb(var(--ios-label) / <alpha-value>)',
+        'ios-label-secondary': 'rgb(var(--ios-label-secondary) / <alpha-value>)',
+        'ios-fill': 'rgb(var(--ios-fill) / <alpha-value>)',
+        'ios-separator': 'rgb(var(--ios-separator) / <alpha-value>)',
       },
       borderRadius: {
         DEFAULT: '0.25rem',
@@ -53,6 +68,8 @@ export default {
         xl: '0.75rem',
         tg: '16px',
         full: '9999px',
+        ios: '10px',
+        'ios-lg': '14px',
       },
       spacing: {
         'edge-margin': '16px',

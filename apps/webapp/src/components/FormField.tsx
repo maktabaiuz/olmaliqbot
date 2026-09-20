@@ -15,25 +15,25 @@ export const FormField: React.FC<FormFieldProps> = ({
 }) => {
   return (
     <div className="mb-4">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-outline dark:text-slate-400 mb-1.5">
+      <label className="block text-[13px] font-medium text-ios-label-secondary/70 mb-1.5">
         {label}
       </label>
-      <div className="relative flex items-center">
+      <div className="relative flex items-center bg-ios-fill/[0.12] rounded-ios">
         {iconName && (
-          <span className="material-symbols-outlined absolute left-3 text-outline dark:text-slate-400 text-[20px] pointer-events-none">
+          <span className="material-symbols-outlined absolute left-3 text-ios-label-secondary/70 text-[18px] pointer-events-none">
             {iconName}
           </span>
         )}
         <input
-          className={`w-full bg-surface-container-low dark:bg-slate-800/80 border border-outline-variant/60 dark:border-slate-700 rounded-lg py-2.5 ${
+          className={`w-full bg-transparent py-2.5 ${
             iconName ? 'pl-10' : 'pl-3.5'
-          } pr-3.5 text-sm text-on-surface dark:text-slate-100 placeholder:text-outline-variant focus:outline-none focus:border-primary dark:focus:border-sky-500 focus:ring-1 focus:ring-primary dark:focus:ring-sky-500 transition-all ${
-            error ? 'border-error dark:border-red-500' : ''
+          } pr-3.5 text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none ${
+            error ? 'ring-1 ring-ios-red rounded-ios' : ''
           } ${className}`}
           {...props}
         />
       </div>
-      {error && <p className="text-xs text-error dark:text-red-400 mt-1">{error}</p>}
+      {error && <p className="text-[12px] text-ios-red mt-1">{error}</p>}
     </div>
   );
 };

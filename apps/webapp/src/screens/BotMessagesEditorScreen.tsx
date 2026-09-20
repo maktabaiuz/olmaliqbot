@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { IosHeader } from '../components/ios/IosHeader';
+import { useFeedback } from '../context/FeedbackContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export interface BotMessagesEditorScreenProps {
   onBack: () => void;
@@ -18,9 +21,6 @@ interface BotMessageRow {
   textRussian: string;
   updatedAt: string;
 }
-
-const IOS_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, sans-serif';
 
 const LANG_FIELD: Record<Lang, keyof BotMessageRow> = {
   lotin: 'textLatin',
@@ -87,12 +87,13 @@ const FORMAT_BUTTONS: { label: string; icon: string; open: string; close: string
 ];
 
 export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = ({ onBack }) => {
+  const { showToast } = useFeedback();
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<BotMessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category>('REPLY');
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [activeLang, setActiveLang] = useState<Lang>('lotin');
-  const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [emojiId, setEmojiId] = useState('');
@@ -116,11 +117,6 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
   useEffect(() => {
     load();
   }, []);
-
-  const showToastMsg = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const currentMessage = messages.find((m) => m.key === selectedKey) || null;
   const inCategory = messages.filter((m) => m.category === activeCategory);
@@ -173,7 +169,7 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
     const id = emojiId.trim();
     const fallback = emojiFallback.trim() || '⭐';
     if (!id) {
-      showToastMsg("Avval emoji ID kiriting");
+      showToast('Avval emoji ID kiriting', 'error');
       return;
     }
     insertAtCursor(`<tg-emoji emoji-id="${id}">${fallback}</tg-emoji>`);
@@ -203,7 +199,7 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToastMsg('✅ Saqlandi — bot endi shu matnni ishlatadi');
+        showToast('Saqlandi — bot endi shu matnni ishlatadi', 'success');
       } else {
         setSaveError(data.message || "Saqlashda xatolik yuz berdi");
       }
@@ -217,49 +213,32 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
   const CATEGORIES: Category[] = ['REPLY', 'EMERGENCY', 'OTHER'];
 
   return (
-    <div className="animate-fade-in -mx-4 -mt-2 pb-16" style={{ fontFamily: IOS_FONT }}>
-      {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#1C1C1E] text-white font-medium text-[13px] px-4 py-2.5 rounded-full shadow-2xl">
-          {toast}
-        </div>
-      )}
-
-      {/* Nav bar */}
-      <div className="px-4 pt-1 pb-2 flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal -ml-1.5 active:opacity-40"
-        >
-          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
-          Orqaga
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving || !currentMessage}
-          className="text-[15px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-40 disabled:opacity-40"
-        >
-          {saving ? 'Saqlanmoqda...' : 'Saqlash'}
-        </button>
-      </div>
-
-      <div className="px-4 pb-3">
-        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
-          Bot Matnlari
-        </h1>
-        <p className="text-[13px] text-[#8E8E93] leading-snug mt-0.5">
-          Bu yerdagi matn botning haqiqiy javobida ishlatiladi.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4 -mx-4 px-4 pt-1 pb-16">
+      <IosHeader
+        title="Bot Matnlari"
+        subtitle="Bu yerdagi matn botning haqiqiy javobida ishlatiladi."
+        onBack={onBack}
+        backLabel={t('action_back')}
+        trailing={
+          <button
+            onClick={handleSave}
+            disabled={saving || !currentMessage}
+            className="text-[15px] font-semibold text-ios-blue active:opacity-40 disabled:opacity-40 transition-opacity"
+          >
+            {saving ? 'Saqlanmoqda...' : t('action_save')}
+          </button>
+        }
+      />
 
       {loading ? (
-        <div className="px-4 space-y-3">
-          <div className="h-10 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] animate-pulse" />
-          <div className="h-40 bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] animate-pulse" />
+        <div className="space-y-3">
+          <div className="h-10 bg-ios-fill/[0.12] rounded-ios animate-pulse" />
+          <div className="h-40 bg-ios-fill/[0.12] rounded-ios animate-pulse" />
         </div>
       ) : (
-        <div className="px-4 space-y-4">
+        <div className="flex flex-col gap-4">
           {/* 1-qadam: qaysi turdagi xabar */}
-          <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[10px] p-[2px]">
+          <div className="flex bg-ios-fill/[0.12] rounded-ios p-[2px]">
             {CATEGORIES.map((c) => (
               <button
                 key={c}
@@ -270,8 +249,8 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                 }}
                 className={`flex-1 py-1.5 rounded-[8px] text-[13px] font-medium transition-colors ${
                   activeCategory === c
-                    ? 'bg-white dark:bg-[#3A3A3C] text-on-surface dark:text-white shadow-sm'
-                    : 'text-[#8E8E93]'
+                    ? 'bg-ios-card text-ios-label shadow-sm'
+                    : 'text-ios-label-secondary/70'
                 }`}
               >
                 {CATEGORY_LABEL[c]}
@@ -288,8 +267,8 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                   onClick={() => setSelectedKey(m.key)}
                   className={`px-3 py-1.5 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
                     selectedKey === m.key
-                      ? 'bg-[#007AFF] dark:bg-[#0A84FF] text-white'
-                      : 'bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] text-on-surface dark:text-white'
+                      ? 'bg-ios-blue text-white'
+                      : 'bg-ios-fill/[0.12] text-ios-label'
                   }`}
                 >
                   {m.title}
@@ -301,13 +280,13 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
           {currentMessage && (
             <>
               {/* 3-qadam: yagona tahrirlash kartasi — til, vositalar, matn hammasi bitta joyda */}
-              <div className="bg-white dark:bg-[#1C1C1E] rounded-[14px] shadow-sm overflow-hidden">
-                <h2 className="px-3.5 pt-3 text-[15px] font-semibold text-on-surface dark:text-white">
+              <div className="bg-ios-card rounded-ios-lg shadow-sm overflow-hidden">
+                <h2 className="px-3.5 pt-3 text-[15px] font-semibold text-ios-label">
                   {currentMessage.title}
                 </h2>
 
                 {/* Til */}
-                <div className="flex gap-4 px-3.5 pt-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+                <div className="flex gap-4 px-3.5 pt-2.5" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.2)' }}>
                   {([
                     { id: 'lotin', label: 'Lotin' },
                     { id: 'kirill', label: 'Кирилл' },
@@ -316,27 +295,28 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                     <button
                       key={lang.id}
                       onClick={() => setActiveLang(lang.id)}
-                      className="pb-2 text-[13px] font-medium relative"
-                      style={{ color: activeLang === lang.id ? '#007AFF' : '#8E8E93' }}
+                      className={`pb-2 text-[13px] font-medium relative ${
+                        activeLang === lang.id ? 'text-ios-blue' : 'text-ios-label-secondary/70'
+                      }`}
                     >
                       {lang.label}
                       {activeLang === lang.id && (
-                        <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-[#007AFF] dark:bg-[#0A84FF] rounded-full" />
+                        <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-ios-blue rounded-full" />
                       )}
                     </button>
                   ))}
                 </div>
 
                 {/* Vositalar: formatlash + tokenlar bitta qatorda */}
-                <div className="flex flex-wrap items-center gap-1.5 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+                <div className="flex flex-wrap items-center gap-1.5 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.2)' }}>
                   {FORMAT_BUTTONS.map((f) => (
                     <button
                       key={f.label}
                       title={f.label}
                       onClick={() => wrapSelection(f.open, f.close)}
-                      className="w-8 h-8 rounded-[7px] bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] flex items-center justify-center active:opacity-60"
+                      className="w-8 h-8 rounded-[7px] bg-ios-fill/[0.10] flex items-center justify-center active:opacity-60"
                     >
-                      <span className="material-symbols-outlined text-[16px] text-on-surface dark:text-white">{f.icon}</span>
+                      <span className="material-symbols-outlined text-[16px] text-ios-label">{f.icon}</span>
                     </button>
                   ))}
                   <button
@@ -345,15 +325,15 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                       const url = window.prompt('Havola manzili (URL):', 'https://');
                       if (url) wrapSelection(`<a href="${url}">`, '</a>');
                     }}
-                    className="w-8 h-8 rounded-[7px] bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] flex items-center justify-center active:opacity-60"
+                    className="w-8 h-8 rounded-[7px] bg-ios-fill/[0.10] flex items-center justify-center active:opacity-60"
                   >
-                    <span className="material-symbols-outlined text-[16px] text-on-surface dark:text-white">link</span>
+                    <span className="material-symbols-outlined text-[16px] text-ios-label">link</span>
                   </button>
                   <button
                     title="Premium emoji"
                     onClick={() => setShowEmojiHelp((v) => !v)}
                     className={`w-8 h-8 rounded-[7px] flex items-center justify-center active:opacity-60 ${
-                      showEmojiHelp ? 'bg-[#FF9500] text-white' : 'bg-[#767680]/[0.10] dark:bg-[#767680]/[0.20] text-on-surface dark:text-white'
+                      showEmojiHelp ? 'bg-ios-orange text-white' : 'bg-ios-fill/[0.10] text-ios-label'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]">mood</span>
@@ -361,12 +341,12 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
 
                   {currentMessage.tokens.length > 0 && (
                     <>
-                      <span className="w-[1px] h-5 bg-[#767680]/[0.25] mx-0.5" />
+                      <span className="w-[1px] h-5 bg-ios-fill/[0.25] mx-0.5" />
                       {currentMessage.tokens.map((tok) => (
                         <button
                           key={tok}
                           onClick={() => insertToken(tok)}
-                          className="bg-[#AF52DE]/12 text-[#AF52DE] text-[11px] font-mono px-2 py-1.5 rounded-[7px] active:opacity-60"
+                          className="bg-ios-purple/[0.12] text-ios-purple text-[11px] font-mono px-2 py-1.5 rounded-[7px] active:opacity-60"
                         >
                           {`{${tok}}`}
                         </button>
@@ -376,22 +356,22 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                 </div>
 
                 {showEmojiHelp && (
-                  <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+                  <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.2)' }}>
                     <input
                       value={emojiId}
                       onChange={(e) => setEmojiId(e.target.value)}
                       placeholder="Emoji ID (Telegram'dan olinadi)"
-                      className="flex-1 bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[7px] px-2.5 py-2 text-[12px] outline-none"
+                      className="flex-1 bg-ios-fill/[0.08] rounded-[7px] px-2.5 py-2 text-[12px] text-ios-label outline-none"
                     />
                     <input
                       value={emojiFallback}
                       onChange={(e) => setEmojiFallback(e.target.value)}
                       placeholder="⭐"
-                      className="w-14 bg-[#767680]/[0.08] dark:bg-[#767680]/[0.16] rounded-[7px] px-2.5 py-2 text-[12px] outline-none text-center"
+                      className="w-14 bg-ios-fill/[0.08] rounded-[7px] px-2.5 py-2 text-[12px] text-ios-label outline-none text-center"
                     />
                     <button
                       onClick={insertCustomEmoji}
-                      className="bg-[#FF9500] text-white text-[12px] font-semibold px-3 py-2 rounded-[7px]"
+                      className="bg-ios-orange text-white text-[12px] font-semibold px-3 py-2 rounded-[7px]"
                     >
                       Qo'sh
                     </button>
@@ -404,29 +384,30 @@ export const BotMessagesEditorScreen: React.FC<BotMessagesEditorScreenProps> = (
                   rows={9}
                   value={currentTextValue}
                   onChange={(e) => handleUpdateText(e.target.value)}
-                  className="w-full bg-transparent p-3.5 text-[13px] text-on-surface dark:text-white font-mono outline-none resize-none leading-relaxed"
+                  className="w-full bg-transparent p-3.5 text-[13px] text-ios-label font-mono outline-none resize-none leading-relaxed"
                 />
               </div>
 
-              <p className="text-[11px] text-[#8E8E93] leading-snug px-0.5">
+              <p className="text-[11px] text-ios-label-secondary/70 leading-snug px-0.5">
                 {activeCategory === 'REPLY'
                   ? "\"Yana ko'rish\" tugmasi va tartib-belgilar (🥈🥉) shu yerda tahrirlanmaydi — bot ularni avtomatik qo'shadi."
                   : "O'zgarish botga ~1 daqiqada yetib boradi."}
               </p>
 
               {saveError && (
-                <div className="bg-[#FF3B30]/10 rounded-[10px] p-3">
-                  <p className="text-[12px] text-[#FF3B30] font-medium">{saveError}</p>
+                <div className="bg-ios-red/10 rounded-ios p-3">
+                  <p className="text-[12px] text-ios-red font-medium">{saveError}</p>
                 </div>
               )}
 
-              {/* Ko'rinishi */}
+              {/* Ko'rinishi — Telegram chat ko'rinishini simulyatsiya qiladi, shuning
+                  uchun qasddan haqiqiy Telegram tungi mavzu foniga ega */}
               <div className="space-y-1.5">
-                <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">visibility</span>
                   Ko'rinishi
                 </span>
-                <div className="bg-[#182533] rounded-[14px] p-4 text-[12px] font-sans text-slate-100 shadow-md whitespace-pre-wrap leading-relaxed">
+                <div className="bg-[#182533] rounded-ios-lg p-4 text-[12px] text-slate-100 shadow-md whitespace-pre-wrap leading-relaxed">
                   {livePreview}
                 </div>
               </div>

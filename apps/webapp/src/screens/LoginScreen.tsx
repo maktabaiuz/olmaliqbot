@@ -33,47 +33,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
-      <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-7 max-w-sm w-full shadow-2xl backdrop-blur-md">
-        <div className="w-14 h-14 bg-brand-500/10 border border-brand-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-brand-400 text-2xl shadow-inner">
-          🔐
+    <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="w-16 h-16 bg-ios-blue/10 rounded-full flex items-center justify-center mx-auto mb-5 text-ios-blue text-[28px]">
+          <span className="material-symbols-outlined text-[30px]">lock</span>
         </div>
 
-        <h1 className="text-xl font-bold mb-1 text-slate-100 text-center">
+        <h1 className="text-[22px] font-semibold mb-1 text-ios-label text-center">
           Xush kelibsiz, {adminName}
         </h1>
-        <p className="text-slate-400 text-xs mb-5 text-center">
+        <p className="text-ios-label-secondary/70 text-[15px] mb-6 text-center">
           Davom etish uchun parolni kiriting
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs text-center">
+          <div className="mb-4 px-3.5 py-3 bg-ios-red/10 rounded-ios text-ios-red text-[13px] text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Parol
-            </label>
+          <div className="bg-ios-card rounded-ios shadow-sm px-4">
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin parolini kiriting"
+              placeholder="Parol"
               required
               autoFocus
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+              className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !password.trim()}
-            className="w-full bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-semibold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-ios-blue active:opacity-70 text-white font-medium py-3.5 rounded-ios text-[16px] transition-opacity disabled:opacity-40"
           >
-            {isSubmitting ? 'Tekshirilmoqda...' : '🔐 Panelga kirish'}
+            {isSubmitting ? 'Tekshirilmoqda…' : 'Kirish'}
           </button>
         </form>
       </div>

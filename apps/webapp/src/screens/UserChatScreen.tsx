@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useFeedback } from '../context/FeedbackContext';
 
 interface ChatMessage {
   id: string;
@@ -16,12 +17,15 @@ interface UserChatScreenProps {
   onBack: () => void;
 }
 
+const HAIRLINE = { borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
+
 export const UserChatScreen: React.FC<UserChatScreenProps> = ({
   telegramUserId,
   userFullName,
   userUsername,
   onBack,
 }) => {
+  const { showToast } = useFeedback();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -81,6 +85,7 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
     fetchUserStats();
     const interval = setInterval(() => fetchMessages(true), 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telegramUserId]);
 
   useEffect(() => {
@@ -112,7 +117,7 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
           setMessages((prev) => [...prev, resData.message]);
         }
       } else {
-        alert('Xabar yuborishda xatolik yuz berdi ❌');
+        showToast('Xabar yuborishda xatolik yuz berdi', 'error');
         setInputText(textToSend);
       }
     } catch (err) {
@@ -125,27 +130,27 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(telegramUserId);
-    alert("Telegram ID nusxalandi! 📋");
+    showToast('Telegram ID nusxalandi', 'success');
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] bg-slate-900/5 rounded-3xl overflow-hidden border border-outline-variant/20 dark:border-slate-800 shadow-xl backdrop-blur-md relative">
-      
+    <div className="flex flex-col h-[calc(100vh-140px)] bg-ios-bg rounded-ios-lg overflow-hidden shadow-sm relative">
+
       {/* Header */}
-      <div className="px-4 py-3 bg-surface dark:bg-[#17212B] border-b border-outline-variant/30 dark:border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="px-4 py-3 bg-ios-card flex items-center justify-between" style={HAIRLINE}>
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
-            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center text-on-surface dark:text-slate-200 active:scale-90"
+            className="flex items-center gap-0.5 text-ios-blue text-[15px] font-normal -ml-1 active:opacity-50 transition-opacity shrink-0"
           >
-            <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+            <span className="material-symbols-outlined text-[22px]">chevron_left</span>
           </button>
 
           <div className="min-w-0">
-            <h2 className="font-bold text-xs text-on-surface dark:text-slate-100 truncate">
+            <h2 className="font-semibold text-[15px] text-ios-label truncate">
               {userFullName}
             </h2>
-            <p className="text-[10px] text-sky-500 dark:text-sky-400 font-semibold truncate">
+            <p className="text-[12px] text-ios-label-secondary/70 truncate">
               {userUsername ? `@${userUsername}` : `ID: ${telegramUserId}`}
             </p>
           </div>
@@ -154,40 +159,40 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
         {/* Info button */}
         <button
           onClick={() => setShowInfoModal(!showInfoModal)}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center text-on-surface dark:text-slate-200"
+          className="w-8 h-8 rounded-full bg-ios-fill/[0.12] flex items-center justify-center text-ios-blue active:opacity-60 transition-opacity shrink-0"
         >
-          <span className="material-symbols-outlined text-[20px]">info</span>
+          <span className="material-symbols-outlined text-[18px]">info</span>
         </button>
       </div>
 
       {/* Query Limit Bar */}
-      <div className="px-4 py-2 bg-slate-100 dark:bg-[#1C2733] border-b border-outline-variant/20 dark:border-slate-800/80 flex items-center justify-between">
-        <span className="text-[10px] text-slate-500 font-bold uppercase">Bugungi limit</span>
+      <div className="px-4 py-2 bg-ios-card-alt flex items-center justify-between" style={HAIRLINE}>
+        <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Bugungi limit</span>
         <div className="flex items-center gap-3 flex-1 max-w-[200px] ml-4">
-          <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-ios-fill/[0.16] rounded-full overflow-hidden">
             <div
-              className="h-full bg-sky-500 transition-all"
+              className="h-full bg-ios-blue transition-all"
               style={{ width: `${Math.min(100, (userStats.queryCountToday / 20) * 100)}%` }}
             />
           </div>
-          <span className="text-[10px] font-bold text-sky-500 whitespace-nowrap">
+          <span className="text-[11px] font-semibold text-ios-blue whitespace-nowrap">
             {userStats.queryCountToday}/20
           </span>
         </div>
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900/5 dark:bg-[#0E141B]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-ios-bg">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-ios-label-secondary/70 gap-2">
             <span className="material-symbols-outlined text-[32px] animate-spin">sync</span>
-            <span className="text-xs">Yuklanmoqda...</span>
+            <span className="text-[13px]">Yuklanmoqda...</span>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500 text-center px-6">
-            <span className="material-symbols-outlined text-[40px] text-slate-600 mb-2">forum</span>
-            <h3 className="font-bold text-sm text-slate-400">Suhbat boshlanmagan</h3>
-            <p className="text-xs text-slate-500 max-w-xs mt-1">
+          <div className="flex flex-col items-center justify-center h-full text-ios-label-secondary/70 text-center px-6">
+            <span className="material-symbols-outlined text-[40px] mb-2">forum</span>
+            <h3 className="font-semibold text-[15px] text-ios-label">Suhbat boshlanmagan</h3>
+            <p className="text-[13px] text-ios-label-secondary/70 max-w-xs mt-1">
               Foydalanuvchi botda faollik ko'rsatishi bilan bu yerda xabarlar paydo bo'ladi.
             </p>
           </div>
@@ -204,27 +209,27 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
               >
                 {/* Bubble styling based on type */}
                 <div
-                  className={`max-w-[80%] rounded-[18px] px-3.5 py-2.5 shadow-sm text-xs leading-relaxed relative overflow-hidden ${
+                  className={`max-w-[80%] rounded-[18px] px-3.5 py-2.5 shadow-sm text-[13px] leading-relaxed relative overflow-hidden ${
                     m.isComplaint
-                      ? 'bg-red-500/20 border border-red-500/40 text-red-700 dark:text-red-300 rounded-tl-sm'
+                      ? 'bg-ios-red/15 text-ios-red rounded-tl-sm'
                       : isUser
-                      ? 'bg-slate-200 dark:bg-[#1C2733] text-on-surface dark:text-slate-100 rounded-tl-sm'
+                      ? 'bg-ios-fill/[0.12] text-ios-label rounded-tl-sm'
                       : isAdmin
-                      ? 'bg-emerald-600 text-white rounded-tr-sm'
-                      : 'bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white rounded-tr-sm'
+                      ? 'bg-ios-green text-white rounded-tr-sm'
+                      : 'bg-ios-blue text-white rounded-tr-sm'
                   }`}
                 >
                   {/* Sender Prefix */}
                   {!isUser && (
-                    <span className="block text-[8px] font-bold uppercase tracking-wider text-white/70 mb-1">
-                      {isAdmin ? '👤 Admin' : isBot && m.senderType === 'BOT_AI' ? '🤖 Bot AI' : '🤖 Bot Search'}
+                    <span className="block text-[9px] font-semibold uppercase tracking-wider text-white/70 mb-1">
+                      {isAdmin ? 'Admin' : isBot && m.senderType === 'BOT_AI' ? 'Bot AI' : 'Bot Search'}
                     </span>
                   )}
 
                   <p className="whitespace-pre-wrap">{m.text}</p>
-                  
-                  <span className={`text-[8px] block text-right mt-1.5 font-bold ${
-                    isUser ? 'text-slate-500' : 'text-white/60'
+
+                  <span className={`text-[10px] block text-right mt-1.5 font-medium ${
+                    isUser ? 'text-ios-label-secondary/60' : 'text-white/60'
                   }`}>
                     {new Date(m.createdAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -240,27 +245,27 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
       {showInfoModal && (
         <div className="absolute inset-0 bg-black/40 z-50 flex justify-end animate-fade-in" onClick={() => setShowInfoModal(false)}>
           <div
-            className="w-72 bg-surface dark:bg-[#1C2733] h-full shadow-2xl p-5 flex flex-col gap-4 animate-slide-left"
+            className="w-72 bg-ios-card h-full shadow-2xl p-5 flex flex-col gap-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-extrabold text-sm text-on-surface dark:text-slate-100">Foydalanuvchi Profili</h3>
-              <button onClick={() => setShowInfoModal(false)} className="text-slate-400 hover:text-on-surface">
+            <div className="flex items-center justify-between pb-3" style={HAIRLINE}>
+              <h3 className="font-semibold text-[15px] text-ios-label">Foydalanuvchi profili</h3>
+              <button onClick={() => setShowInfoModal(false)} className="text-ios-label-secondary/70 active:opacity-50">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="space-y-3.5 text-xs">
+            <div className="flex flex-col gap-3.5 text-[13px]">
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">Mijoz Ismi</span>
-                <span className="font-bold text-on-surface dark:text-slate-100">{userFullName}</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Mijoz ismi</span>
+                <span className="font-medium text-ios-label">{userFullName}</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">Telegram ID</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Telegram ID</span>
                 <button
                   onClick={handleCopyId}
-                  className="flex items-center gap-1.5 font-mono text-[11px] text-sky-500 dark:text-sky-400 hover:underline text-left"
+                  className="flex items-center gap-1.5 font-mono text-[12px] text-ios-blue text-left active:opacity-60"
                 >
                   <span>{telegramUserId}</span>
                   <span className="material-symbols-outlined text-[14px]">content_copy</span>
@@ -268,18 +273,18 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">Shahar</span>
-                <span className="font-bold text-on-surface dark:text-slate-100">{userStats.cityName}</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Shahar</span>
+                <span className="font-medium text-ios-label">{userStats.cityName}</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">Jami so'rovlari</span>
-                <span className="font-bold text-on-surface dark:text-slate-100">{userStats.queryCountTotal} ta</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Jami so'rovlari</span>
+                <span className="font-medium text-ios-label">{userStats.queryCountTotal} ta</span>
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] text-slate-500 font-bold uppercase">Shikoyatlari</span>
-                <span className="font-bold text-rose-500">{userStats.complaintCount} ta</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Shikoyatlari</span>
+                <span className="font-medium text-ios-red">{userStats.complaintCount} ta</span>
               </div>
             </div>
           </div>
@@ -289,19 +294,20 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
       {/* Reply Form */}
       <form
         onSubmit={handleSendMessage}
-        className="p-3 bg-surface dark:bg-[#17212B] border-t border-outline-variant/30 dark:border-slate-800 flex gap-2"
+        className="p-3 bg-ios-card flex gap-2"
+        style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}
       >
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Mijozga Telegram orqali javob yozing..."
-          className="flex-1 bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+          className="flex-1 bg-ios-fill/[0.12] rounded-ios px-4 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!inputText.trim() || isSending}
-          className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#2AABEE] to-[#0088CC] text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md disabled:opacity-50"
+          className="w-10 h-10 rounded-ios bg-ios-blue text-white flex items-center justify-center active:opacity-70 transition-opacity disabled:opacity-40 shrink-0"
         >
           <span className="material-symbols-outlined text-[18px]">send</span>
         </button>

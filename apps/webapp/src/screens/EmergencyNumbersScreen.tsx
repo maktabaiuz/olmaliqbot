@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { IosHeader } from '../components/ios/IosHeader';
 
 export interface EmergencyNumbersScreenProps {
   cityName?: string;
   onBack: () => void;
 }
+
+const HAIRLINE = { borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
 
 // Har bir maydon botning shablon matnidagi {mahalliy_...} o'rniga aynan
 // shu tartibda qo'yiladi — kalitlar backend (AppSetting) va bot
@@ -85,48 +88,39 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-5 animate-fade-in pb-16">
-
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-on-surface dark:text-slate-100 font-bold active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">{cityName} — Mahalliy xizmat raqamlari</h1>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Favqulodda javoblarda ko'rsatiladi</p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-5 animate-fade-in pb-16 -mx-4 -mt-2 px-4 pt-1">
+      <IosHeader
+        title="Mahalliy raqamlar"
+        subtitle={`${cityName} — favqulodda javoblarda ko'rsatiladi`}
+        onBack={onBack}
+      />
 
       {/* Tushuntirish banneri */}
-      <div className="bg-sky-500/10 border border-sky-500/20 rounded-2xl p-3.5 flex items-start gap-2.5">
-        <span className="material-symbols-outlined text-[18px] text-sky-500 shrink-0 mt-0.5">info</span>
-        <p className="text-[11px] text-sky-700 dark:text-sky-300 leading-relaxed">
+      <div className="bg-ios-blue/10 rounded-ios-lg p-3.5 flex items-start gap-2.5">
+        <span className="material-symbols-outlined text-[18px] text-ios-blue shrink-0 mt-0.5">info</span>
+        <p className="text-[12px] text-ios-label-secondary/90 leading-relaxed">
           101, 102, 103, 104, 112 — butun O'zbekiston bo'yicha bir xil, doim
           avtomatik ko'rsatiladi, bu yerda o'zgartirish shart emas. Quyidagilar
-          esa <b>faqat {cityName}ga xos</b> raqamlar — favqulodda xabarda milliy
+          esa <b className="text-ios-label">faqat {cityName}ga xos</b> raqamlar — favqulodda xabarda milliy
           raqamlar bilan bir qatorda qo'shimcha ko'rsatiladi. Bo'sh qoldirilgan
           maydon shablonda umuman ko'rinmaydi.
         </p>
       </div>
 
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
-        {FIELDS.map((f) => (
-          <div key={f.key} className="p-4 space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">{f.label}</label>
-            <p className="text-[10px] text-slate-500 leading-relaxed">{f.help}</p>
+      <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+        {FIELDS.map((f, idx) => (
+          <div key={f.key} className="p-4 space-y-1.5" style={idx === 0 ? undefined : HAIRLINE}>
+            <label className="text-[13px] font-medium text-ios-label">{f.label}</label>
+            <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">{f.help}</p>
             {loading ? (
-              <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+              <div className="h-10 bg-ios-fill/20 rounded-ios animate-pulse" />
             ) : (
               <input
                 type="text"
                 value={values[f.key] || ''}
                 onChange={(e) => setValues(prev => ({ ...prev, [f.key]: e.target.value }))}
                 placeholder={f.placeholder}
-                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+                className="w-full bg-ios-fill/[0.12] rounded-ios px-3.5 py-2.5 text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none focus:ring-1 focus:ring-ios-blue"
               />
             )}
           </div>
@@ -136,9 +130,9 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
       <button
         onClick={handleSave}
         disabled={loading || saving}
-        className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all disabled:opacity-50"
+        className="w-full bg-ios-blue active:opacity-70 text-white font-medium py-3.5 rounded-ios text-[16px] transition-opacity disabled:opacity-40"
       >
-        {saving ? 'Saqlanmoqda...' : saved ? '✅ Saqlandi!' : 'Saqlash'}
+        {saving ? 'Saqlanmoqda...' : saved ? 'Saqlandi ✓' : 'Saqlash'}
       </button>
     </div>
   );

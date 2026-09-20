@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../config';
+import { IosHeader } from '../components/ios/IosHeader';
+import { IosCard } from '../components/ios/IosCard';
+import { useLanguage } from '../context/LanguageContext';
 
 export interface ModerationLogsScreenProps {
   onBack: () => void;
@@ -31,6 +34,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
  * talab bo'yicha tekshirish mumkin.
  */
 export const ModerationLogsScreen: React.FC<ModerationLogsScreenProps> = ({ onBack }) => {
+  const { t } = useLanguage();
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -74,25 +78,17 @@ export const ModerationLogsScreen: React.FC<ModerationLogsScreenProps> = ({ onBa
   };
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in pb-16">
-      <div className="flex items-center gap-2">
-        <button
-          onClick={onBack}
-          className="p-1.5 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors active:scale-95"
-        >
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-        </button>
-        <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Bloklangan xabarlar</h1>
-      </div>
+    <div className="flex flex-col gap-4 -mx-4 px-4 pt-1 pb-16">
+      <IosHeader title="Bloklangan xabarlar" onBack={onBack} backLabel={t('action_back')} />
 
       {/* Kategoriya filtri */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
         <button
           onClick={() => setCategoryFilter(null)}
           className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
             !categoryFilter
-              ? 'bg-primary dark:bg-sky-500 text-white'
-              : 'bg-surface-container-high dark:bg-[#1C2733] text-on-surface-variant dark:text-slate-300 border border-outline-variant/20'
+              ? 'bg-ios-blue text-white'
+              : 'bg-ios-fill/[0.12] text-ios-label-secondary'
           }`}
         >
           Hammasi
@@ -103,8 +99,8 @@ export const ModerationLogsScreen: React.FC<ModerationLogsScreenProps> = ({ onBa
             onClick={() => setCategoryFilter(key)}
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
               categoryFilter === key
-                ? 'bg-primary dark:bg-sky-500 text-white'
-                : 'bg-surface-container-high dark:bg-[#1C2733] text-on-surface-variant dark:text-slate-300 border border-outline-variant/20'
+                ? 'bg-ios-blue text-white'
+                : 'bg-ios-fill/[0.12] text-ios-label-secondary'
             }`}
           >
             {meta.icon} {meta.label}
@@ -113,52 +109,51 @@ export const ModerationLogsScreen: React.FC<ModerationLogsScreenProps> = ({ onBa
       </div>
 
       {loading ? (
-        <div className="text-center text-xs text-slate-500 py-8">Yuklanmoqda...</div>
+        <div className="text-center text-[13px] text-ios-label-secondary/70 py-8">Yuklanmoqda...</div>
       ) : logs.length === 0 ? (
-        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500 shadow-sm">
-          Hozircha bloklangan xabar yo'q.
-        </div>
+        <IosCard>
+          <div className="p-8 text-center text-[13px] text-ios-label-secondary/70">
+            Hozircha bloklangan xabar yo'q.
+          </div>
+        </IosCard>
       ) : (
         <div className="flex flex-col gap-2.5">
           {logs.map((log) => {
             const meta = CATEGORY_LABELS[log.category] || { label: log.category, icon: '🛡' };
             return (
-              <div
-                key={log.id}
-                className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm p-3.5"
-              >
+              <div key={log.id} className="bg-ios-card rounded-ios-lg shadow-sm p-3.5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-primary dark:text-sky-400">
+                  <span className="text-[11px] font-bold text-ios-blue">
                     {meta.icon} {meta.label}
                   </span>
-                  <span className="text-[10px] text-slate-500">
+                  <span className="text-[10px] text-ios-label-secondary/60">
                     {new Date(log.createdAt).toLocaleString('uz-UZ')}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 mb-1">
+                <p className="text-[10px] text-ios-label-secondary/70 mb-1">
                   📍 {log.groupTitle} · 👤 {log.telegramUserId}
                 </p>
-                <p className="text-xs text-on-surface dark:text-slate-200 bg-surface-container-low dark:bg-[#1C2733] rounded-xl px-3 py-2 break-words">
+                <p className="text-[13px] text-ios-label bg-ios-fill/[0.06] rounded-ios px-3 py-2 break-words">
                   {log.rawMessage}
                 </p>
 
                 {log.category === 'SPAM_LINK' && (
                   <div className="mt-2">
                     {log.aiAnalysis ? (
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-xl px-3 py-2">
+                      <p className="text-[12px] text-ios-green bg-ios-green/10 rounded-ios px-3 py-2">
                         🤖 {log.aiAnalysis}
                       </p>
                     ) : (
                       <button
                         onClick={() => analyzeLink(log)}
                         disabled={analyzingId === log.id}
-                        className="text-[11px] font-bold text-primary dark:text-sky-400 px-3 py-1.5 rounded-full border border-primary/30 dark:border-sky-500/30 hover:bg-primary/10 dark:hover:bg-sky-500/10 disabled:opacity-50"
+                        className="text-[12px] font-bold text-ios-blue px-3 py-1.5 rounded-full border border-ios-blue/30 active:bg-ios-blue/10 disabled:opacity-50 transition-colors"
                       >
                         {analyzingId === log.id ? 'Tekshirilmoqda...' : '🤖 Tahlil qil'}
                       </button>
                     )}
                     {analyzeError[log.id] && (
-                      <p className="text-[10px] text-red-500 mt-1">{analyzeError[log.id]}</p>
+                      <p className="text-[11px] text-ios-red mt-1">{analyzeError[log.id]}</p>
                     )}
                   </div>
                 )}

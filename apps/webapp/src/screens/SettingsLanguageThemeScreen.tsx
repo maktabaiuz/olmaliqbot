@@ -1,113 +1,54 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { IosHeader } from '../components/ios/IosHeader';
+import { IosSection, IosRow } from '../components/ios/IosCard';
 
 interface SettingsLanguageThemeScreenProps {
   onBack: () => void;
 }
 
+/**
+ * Faqat interfeys (admin panel) tilini va temasini boshqaradi — botning
+ * o'zi hozircha faqat o'zbek tilida javob beradi, shuning uchun "bot javob
+ * tili" bo'limi shu yerda YO'Q (soxta/tarjima qilinmagan tanlov ko'rsatish
+ * o'rniga, real ishlaydigan narsa qoldirildi).
+ */
 export const SettingsLanguageThemeScreen: React.FC<SettingsLanguageThemeScreenProps> = ({ onBack }) => {
   const { theme, setTheme } = useTheme();
-  
-  // Settings values (prefilled or dummy)
-  const [botLang, setBotLang] = useState<'uz_latin' | 'uz_cyril' | 'ru' | 'auto'>('uz_latin');
-  const [interfaceLang, setInterfaceLang] = useState<'uz' | 'ru'>('uz');
-
-  const handleSave = () => {
-    alert("Sozlamalar saqlandi! ✅");
-    onBack();
-  };
+  const { language, setLanguage, t } = useLanguage();
 
   return (
-    <div className="flex flex-col gap-5 animate-fade-in pb-16">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-on-surface dark:text-slate-100 font-bold active:scale-95 transition-all"
-        >
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Til & Mavzu</h1>
-          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Tizim tili va interfeys sozlamalari</p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6 -mx-4 px-4 pt-1 pb-16">
+      <IosHeader title={t('settings_title')} subtitle={t('settings_subtitle')} onBack={onBack} backLabel={t('action_back')} />
 
-      <div className="space-y-4">
-        {/* Bot Response Language */}
-        <section className="flex flex-col gap-2">
-          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Bot javob tili</h3>
-          <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden p-4 space-y-3">
-            {[
-              { id: 'uz_latin', label: "O'zbekcha (Lotin) 🇺🇿" },
-              { id: 'uz_cyril', label: "Ўзбекча (Кирилл) 🇺🇿" },
-              { id: 'ru', label: 'Русский 🇷🇺' },
-              { id: 'auto', label: 'Avtomatik (Mijoz tiliga mos)' },
-            ].map((opt) => (
-              <label key={opt.id} className="flex items-center justify-between cursor-pointer py-1.5">
-                <span className="text-xs text-on-surface dark:text-slate-100">{opt.label}</span>
-                <input
-                  type="radio"
-                  name="bot_lang"
-                  checked={botLang === opt.id}
-                  onChange={() => setBotLang(opt.id as any)}
-                  className="w-4 h-4 text-primary focus:ring-primary dark:bg-slate-800"
-                />
-              </label>
-            ))}
-          </div>
-        </section>
+      <IosSection title={t('settings_section_interface_lang')}>
+        <IosRow onClick={() => setLanguage('uz')}>
+          <span className="text-[15px] text-ios-label">{t('settings_lang_uz')}</span>
+          {language === 'uz' && <span className="material-symbols-outlined text-[20px] text-ios-blue">check</span>}
+        </IosRow>
+        <IosRow onClick={() => setLanguage('ru')} last>
+          <span className="text-[15px] text-ios-label">{t('settings_lang_ru')}</span>
+          {language === 'ru' && <span className="material-symbols-outlined text-[20px] text-ios-blue">check</span>}
+        </IosRow>
+      </IosSection>
 
-        {/* Interface Theme */}
-        <section className="flex flex-col gap-2">
-          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Interfeys ko'rinishi</h3>
-          <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden p-4 space-y-3">
-            {[
-              { id: 'light', label: 'Kunduzgi rejim (Light) ☀️' },
-              { id: 'dark', label: 'Tungi rejim (Dark) 🌙' },
-            ].map((opt) => (
-              <label key={opt.id} className="flex items-center justify-between cursor-pointer py-1.5">
-                <span className="text-xs text-on-surface dark:text-slate-100">{opt.label}</span>
-                <input
-                  type="radio"
-                  name="theme"
-                  checked={theme === opt.id}
-                  onChange={() => setTheme(opt.id as any)}
-                  className="w-4 h-4 text-primary focus:ring-primary dark:bg-slate-800"
-                />
-              </label>
-            ))}
-          </div>
-        </section>
-
-        {/* Panel Language */}
-        <section className="flex flex-col gap-2">
-          <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">Interfeys tili</h3>
-          <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden p-4 space-y-3">
-            {[
-              { id: 'uz', label: "O'zbekcha" },
-              { id: 'ru', label: 'Русский' },
-            ].map((opt) => (
-              <label key={opt.id} className="flex items-center justify-between cursor-pointer py-1.5">
-                <span className="text-xs text-on-surface dark:text-slate-100">{opt.label}</span>
-                <input
-                  type="radio"
-                  name="interface_lang"
-                  checked={interfaceLang === opt.id}
-                  onChange={() => setInterfaceLang(opt.id as any)}
-                  className="w-4 h-4 text-primary focus:ring-primary dark:bg-slate-800"
-                />
-              </label>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <button
-        onClick={handleSave}
-        className="w-full py-3.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl shadow-md active:scale-95 transition-all"
-      >
-        Saqlash & Yangilash
-      </button>
+      <IosSection title={t('settings_section_theme')}>
+        <IosRow onClick={() => setTheme('light')}>
+          <span className="flex items-center gap-2.5 text-[15px] text-ios-label">
+            <span className="material-symbols-outlined text-[18px] text-ios-orange">light_mode</span>
+            {t('settings_theme_light')}
+          </span>
+          {theme === 'light' && <span className="material-symbols-outlined text-[20px] text-ios-blue">check</span>}
+        </IosRow>
+        <IosRow onClick={() => setTheme('dark')} last>
+          <span className="flex items-center gap-2.5 text-[15px] text-ios-label">
+            <span className="material-symbols-outlined text-[18px] text-ios-purple">dark_mode</span>
+            {t('settings_theme_dark')}
+          </span>
+          {theme === 'dark' && <span className="material-symbols-outlined text-[20px] text-ios-blue">check</span>}
+        </IosRow>
+      </IosSection>
     </div>
   );
 };

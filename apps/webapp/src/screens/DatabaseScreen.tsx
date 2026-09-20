@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { RecordRow } from '../components/RecordRow';
 import { NavTab } from '../components/BottomNav';
 import { apiFetch } from '../config';
+import { IosHeader } from '../components/ios/IosHeader';
+import { IosSearchBar } from '../components/ios/IosSearchBar';
 
 export interface CategorySummary {
   id: string;
@@ -225,36 +227,22 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in pb-16">
-      
-      {/* 1. HEADER BAR */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {selectedCategory && (
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className="p-1.5 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-            </button>
-          )}
-          <div>
-            <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">
-              {selectedCategory ? selectedCategory.name : 'Baza'}
-            </h1>
-            <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
-              {selectedCategory ? `${filteredListings.length} ta yozuv` : `${listings.filter(l => l.type === listingType).length} ta jami`}
-            </p>
-          </div>
-        </div>
 
-        <button
-          onClick={() => onNavigateTab('add')}
-          className="bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-md hover:scale-105 active:scale-95 transition-all flex items-center gap-1"
-        >
-          <span className="material-symbols-outlined text-[16px] font-bold">add</span>
-          Qo'shish
-        </button>
-      </div>
+      {/* 1. HEADER BAR */}
+      <IosHeader
+        title={selectedCategory ? selectedCategory.name : 'Baza'}
+        subtitle={selectedCategory ? `${filteredListings.length} ta yozuv` : `${listings.filter(l => l.type === listingType).length} ta jami`}
+        onBack={selectedCategory ? () => setSelectedCategory(null) : undefined}
+        trailing={
+          <button
+            onClick={() => onNavigateTab('add')}
+            className="bg-ios-blue text-white px-4 py-1.5 rounded-full text-[13px] font-bold active:opacity-70 transition-opacity flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[16px] font-bold">add</span>
+            Qo'shish
+          </button>
+        }
+      />
 
       {/* 2. SEGMENT CONTROL (Ustalar / Do'konlar / Muassasalar / Avtomobillar) —
           AddListingScreen'dagi "Turi" tanlovi bilan bir xil 2x2 ikonkali karta
@@ -274,48 +262,29 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
               onClick={() => {
                 setListingType(seg.id as any);
               }}
-              className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+              className={`flex items-center gap-2 px-3 py-3 rounded-ios border text-left transition-all ${
                 listingType === seg.id
-                  ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400 shadow-sm'
-                  : 'bg-slate-50 dark:bg-[#1C2733] border-outline-variant/30 dark:border-slate-800 text-slate-500'
+                  ? 'bg-ios-blue/10 border-ios-blue text-ios-blue shadow-sm'
+                  : 'bg-ios-card border-transparent text-ios-label-secondary/70'
               }`}
             >
               <span className="material-symbols-outlined text-[20px] shrink-0">{seg.icon}</span>
-              <span className="text-xs font-bold truncate">{seg.label}</span>
+              <span className="text-[13px] font-bold truncate">{seg.label}</span>
             </button>
           ))}
         </div>
       )}
 
       {/* 3. SEARCH BAR */}
-      <div className="relative flex items-center w-full">
-        <span className="material-symbols-outlined absolute left-3.5 text-slate-500 pointer-events-none text-[20px]">
-          search
-        </span>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Ism, kasb, telefon yoki mo'ljal..."
-          className="w-full bg-surface-container-low dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary dark:focus:border-sky-500 transition-colors shadow-sm"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 text-slate-400 hover:text-on-surface"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        )}
-      </div>
+      <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Ism, kasb, telefon yoki mo'ljal..." />
 
       {/* 4. FILTER CHIPS (Horizontal Scroll) */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
         {[
-          { id: 'all', label: 'Hammasi', colorClass: 'bg-primary dark:bg-sky-500 text-white' },
-          { id: 'verified', label: '✅ Tasdiqlangan', colorClass: 'bg-emerald-600 text-white' },
-          { id: 'unverified', label: '⚠️ Tasdiqlanmagan', colorClass: 'bg-amber-500 text-white' },
-          { id: 'paused', label: '⏸ Pauzada', colorClass: 'bg-slate-600 text-white' },
+          { id: 'all', label: 'Hammasi', colorClass: 'bg-ios-blue text-white' },
+          { id: 'verified', label: '✅ Tasdiqlangan', colorClass: 'bg-ios-green text-white' },
+          { id: 'unverified', label: '⚠️ Tasdiqlanmagan', colorClass: 'bg-ios-orange text-white' },
+          { id: 'paused', label: '⏸ Pauzada', colorClass: 'bg-ios-label-secondary text-white' },
         ].map((chip) => (
           <button
             key={chip.id}
@@ -325,7 +294,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
               activeFilter === chip.id
                 ? chip.colorClass
-                : 'bg-surface-container-high dark:bg-[#1C2733] text-on-surface-variant dark:text-slate-300 border border-outline-variant/20'
+                : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
             }`}
           >
             {chip.label}
@@ -340,29 +309,31 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         <div className="flex flex-col gap-5 mt-1">
           {groupOrder.map((groupName) => (
             <div key={groupName} className="flex flex-col gap-1.5">
-              <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
+              <h3 className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-4">
                 {groupName} · {groupedCategories[groupName].length}
               </h3>
-              <div className="bg-surface dark:bg-[#17212B] rounded-2xl border border-outline-variant/30 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
                 {groupedCategories[groupName].map((cat, idx) => {
                   const grad = categoryGradients[idx % categoryGradients.length];
+                  const isLast = idx === groupedCategories[groupName].length - 1;
                   return (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat)}
-                      className="w-full flex items-center gap-3 px-3.5 py-2.5 border-b border-outline-variant/20 dark:border-slate-800 last:border-0 hover:bg-surface-container-low/60 dark:hover:bg-slate-800/40 active:scale-[0.99] transition-all text-left"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 active:bg-ios-fill/10 transition-colors text-left"
+                      style={isLast ? undefined : { borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}
                     >
                       {/* Colored Icon Square */}
-                      <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0`}>
+                      <div className={`w-8 h-8 rounded-ios bg-gradient-to-tr ${grad} text-white flex items-center justify-center font-bold text-[13px] shrink-0`}>
                         {cat.name[0].toUpperCase()}
                       </div>
-                      <h4 className="flex-1 font-semibold text-xs text-on-surface dark:text-slate-100 truncate">
+                      <h4 className="flex-1 font-normal text-[15px] text-ios-label truncate">
                         {cat.name}
                       </h4>
-                      <span className="text-[10px] text-slate-500 font-semibold shrink-0">
+                      <span className="text-[12px] text-ios-label-secondary/70 font-normal shrink-0">
                         {cat.count} ta yozuv
                       </span>
-                      <span className="material-symbols-outlined text-[16px] text-slate-400 shrink-0">
+                      <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/50 shrink-0">
                         chevron_right
                       </span>
                     </button>
@@ -376,7 +347,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         /* VIEW 2: LISTINGS ROWS */
         <div className="flex flex-col gap-2.5 mt-1">
           {filteredListings.length === 0 ? (
-            <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500 shadow-sm">
+            <div className="bg-ios-card rounded-ios p-8 text-center text-[13px] text-ios-label-secondary/70 shadow-sm">
               Hech qanday yozuv topilmadi.
             </div>
           ) : (

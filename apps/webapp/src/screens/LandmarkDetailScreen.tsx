@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { avatarColorForName } from '../utils/avatarColor';
+import { useFeedback } from '../context/FeedbackContext';
 
 interface LandmarkDetailScreenProps {
   landmarkId: string;
@@ -16,6 +17,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   landmarkName,
   onBack,
 }) => {
+  const { showToast, confirm } = useFeedback();
   const [name, setName] = useState(landmarkName);
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [newSynonym, setNewSynonym] = useState('');
@@ -37,10 +39,10 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         setSynonyms(data.synonyms || []);
         setListingCount(typeof data.listingCount === 'number' ? data.listingCount : null);
       } else {
-        alert("Manzil ma'lumotlarini yuklab bo'lmadi.");
+        showToast("Manzil ma'lumotlarini yuklab bo'lmadi.", 'error');
       }
     } catch {
-      alert("Aloqa xatosi — manzil ma'lumotlari yuklanmadi.");
+      showToast("Aloqa xatosi — manzil ma'lumotlari yuklanmadi.", 'error');
     }
   };
 
@@ -100,17 +102,23 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
       if (response.ok) {
         onBack();
       } else {
-        alert("Saqlashda xatolik yuz berdi.");
+        showToast("Saqlashda xatolik yuz berdi.", 'error');
       }
     } catch {
-      alert("Aloqa xatosi.");
+      showToast("Aloqa xatosi.", 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`"${name}" manzilini butunlay o'chirmoqchimisiz?`)) return;
+    const ok = await confirm({
+      title: `"${name}" o'chirilsinmi?`,
+      message: "Bu amalni ortga qaytarib bo'lmaydi.",
+      confirmLabel: "O'chirish",
+      destructive: true,
+    });
+    if (!ok) return;
     setIsDeleting(true);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
@@ -122,10 +130,10 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
       if (response.ok && data.success) {
         onBack();
       } else {
-        alert(data.message || "O'chirishda xatolik yuz berdi.");
+        showToast(data.message || "O'chirishda xatolik yuz berdi.", 'error');
       }
     } catch {
-      alert('Aloqa xatosi.');
+      showToast('Aloqa xatosi.', 'error');
     } finally {
       setIsDeleting(false);
     }

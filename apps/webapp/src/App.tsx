@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { FeedbackProvider, useFeedback } from './context/FeedbackContext';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { AuthModal } from './components/AuthModal';
+import { IosSection, IosRow } from './components/ios/IosCard';
+import { IosHeader } from './components/ios/IosHeader';
+import { IosSearchBar } from './components/ios/IosSearchBar';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { UserChatScreen } from './screens/UserChatScreen';
 import { UsersScreen } from './screens/UsersScreen';
@@ -17,15 +22,12 @@ import { PasswordSetupScreen } from './screens/PasswordSetupScreen';
 
 import { ModeratorManagementScreen } from './screens/ModeratorManagementScreen';
 import { ListingDetailScreen } from './screens/ListingDetailScreen';
-import { CitySettingsScreen } from './screens/CitySettingsScreen';
-import { CityStatisticsScreen } from './screens/CityStatisticsScreen';
 import { BotMessagesEditorScreen } from './screens/BotMessagesEditorScreen';
 import { EmergencyNumbersScreen } from './screens/EmergencyNumbersScreen';
 import { GlobalDictionaryScreen } from './screens/GlobalDictionaryScreen';
 import { CategoryDetailScreen } from './screens/CategoryDetailScreen';
 import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
 import { GroupDetailScreen } from './screens/GroupDetailScreen';
-import { SubscriptionBillingScreen } from './screens/SubscriptionBillingScreen';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
@@ -38,12 +40,34 @@ export interface AppProps {
   previewConfig?: {
     theme: 'dark' | 'light';
     role: 'SUPER_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER';
-    initialTab: 'home' | 'add' | 'requests' | 'database' | 'moderators' | 'detail' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary';
+    initialTab: 'home' | 'add' | 'requests' | 'database' | 'moderators' | 'detail' | 'bot_messages' | 'emergency' | 'dictionary';
   };
 }
 
+const MoreRow: React.FC<{ icon: string; iconColor: string; label: string; onClick: () => void; last?: boolean }> = ({
+  icon,
+  iconColor,
+  label,
+  onClick,
+  last,
+}) => (
+  <IosRow onClick={onClick} last={last}>
+    <span className="flex items-center gap-3">
+      <span
+        className="w-7 h-7 rounded-[7px] text-white flex items-center justify-center shrink-0"
+        style={{ backgroundColor: iconColor }}
+      >
+        <span className="material-symbols-outlined text-[16px]">{icon}</span>
+      </span>
+      <span className="text-[15px] text-ios-label">{label}</span>
+    </span>
+    <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/50">chevron_right</span>
+  </IosRow>
+);
+
 const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const { user, authState, banMessage, isLoading, loginWithPassword, setupPassword } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
@@ -51,7 +75,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'expired' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'subscription_billing' | 'settings_lang_theme'
+    'normal' | 'expired' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -74,8 +98,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
     if (previewConfig) {
       const { initialTab } = previewConfig;
       if (initialTab === 'moderators') setViewMode('moderators');
-      else if (initialTab === 'settings') setViewMode('settings');
-      else if (initialTab === 'statistics') setViewMode('statistics');
       else if (initialTab === 'bot_messages') setViewMode('bot_messages');
       else if (initialTab === 'emergency') setViewMode('emergency');
       else if (initialTab === 'dictionary') setViewMode('dictionary');
@@ -100,10 +122,10 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   // ----------------------------------------------------
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6 font-sans">
+      <div className="min-h-screen bg-ios-bg text-ios-label flex items-center justify-center p-6">
         <div className="animate-pulse flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-800"></div>
-          <div className="h-4 w-32 bg-slate-800 rounded"></div>
+          <div className="w-12 h-12 rounded-full bg-ios-fill/20"></div>
+          <div className="h-3.5 w-28 bg-ios-fill/20 rounded-full"></div>
         </div>
       </div>
     );
@@ -122,13 +144,13 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
   if (authState === 'BANNED') {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 font-sans">
-        <div className="bg-slate-800/90 border border-red-500/30 rounded-2xl p-7 max-w-sm w-full shadow-2xl backdrop-blur-md text-center">
-          <div className="w-14 h-14 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-red-400 text-2xl shadow-inner">
-            🚫
+      <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-sm">
+          <div className="w-16 h-16 bg-ios-red/10 rounded-full flex items-center justify-center mx-auto mb-4 text-ios-red">
+            <span className="material-symbols-outlined text-[28px]">block</span>
           </div>
-          <h1 className="text-lg font-bold mb-2 text-slate-100">Vaqtincha bloklangan</h1>
-          <p className="text-slate-400 text-xs">{banMessage || 'Ko\'p marta xato parol kiritildi.'}</p>
+          <h1 className="text-[20px] font-semibold mb-1 text-ios-label">Vaqtincha bloklangan</h1>
+          <p className="text-ios-label-secondary/70 text-[15px]">{banMessage || 'Ko\'p marta xato parol kiritildi.'}</p>
         </div>
       </div>
     );
@@ -153,31 +175,34 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const isBottomNavVisible = viewMode === 'normal';
 
   return (
-    <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 flex flex-col max-w-container-max mx-auto shadow-2xl relative pb-20 font-sans">
+    <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col max-w-container-max mx-auto relative pb-20">
       {/* Offline Status Banner */}
       <OfflineStatusBanner />
 
-      {/* Top Header Bar */}
+      {/* Top Header Bar — iOS style */}
       {viewMode === 'normal' && (
-        <header className="sticky top-0 z-30 bg-surface/95 dark:bg-[#17212B]/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+        <header className="sticky top-0 z-30 bg-ios-card/90 backdrop-blur-xl px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#2AABEE] to-[#229ED9] text-white flex items-center justify-center font-bold text-base shadow-sm">
-              K
+            <div
+              className="w-9 h-9 rounded-full text-white flex items-center justify-center font-semibold text-base"
+              style={{ backgroundColor: avatarColorForName(user?.name || 'Olmaliq') }}
+            >
+              {(user?.name || 'Olmaliq').trim()[0]?.toUpperCase() || 'O'}
             </div>
 
             <div>
-              <h1 className="font-bold text-base text-on-surface dark:text-slate-100">Olmaliq</h1>
-              <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
+              <h1 className="font-semibold text-[15px] text-ios-label leading-tight">Olmaliq</h1>
+              <p className="text-[12px] text-ios-label-secondary/70 leading-tight">
                 {user?.name || 'Bobur (Admin)'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
+              className="w-8 h-8 rounded-full text-ios-blue flex items-center justify-center active:opacity-50 transition-opacity"
               title="Mavzuni almashtirish"
             >
               <span className="material-symbols-outlined text-[20px]">
@@ -188,7 +213,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
             {/* Admin Login Button */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="p-2 rounded-full text-on-surface-variant dark:text-slate-300 hover:bg-surface-container-high dark:hover:bg-slate-800 transition-colors"
+              className="w-8 h-8 rounded-full text-ios-blue flex items-center justify-center active:opacity-50 transition-opacity"
               title="Admin hisobi"
             >
               <span className="material-symbols-outlined text-[20px]">account_circle</span>
@@ -202,26 +227,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         {viewMode === 'moderators' && isSuperAdmin && (
           <ModeratorManagementScreen
             initData={window.Telegram?.WebApp?.initData || ''}
-            onBack={() => setViewMode('normal')}
-          />
-        )}
-
-        {viewMode === 'settings' && (
-          <CitySettingsScreen
-            cityName="Olmaliq"
-            onNavigateScreen={(scr) => setViewMode(scr as any)}
-            onBack={() => setViewMode('normal')}
-          />
-        )}
-
-        {viewMode === 'statistics' && (
-          <CityStatisticsScreen
-            cityName="Olmaliq"
-            onNavigateToAddListingWithCategory={(cat) => {
-              setPrefilledCategory(cat);
-              setViewMode('normal');
-              setActiveTab('add');
-            }}
             onBack={() => setViewMode('normal')}
           />
         )}
@@ -279,10 +284,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
             groupTitle={activeGroupTitle}
             onBack={() => setViewMode('normal')}
           />
-        )}
-
-        {viewMode === 'subscription_billing' && (
-          <SubscriptionBillingScreen onBack={() => setViewMode('normal')} />
         )}
 
         {viewMode === 'settings_lang_theme' && (
@@ -357,182 +358,60 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                 {activeTab === 'more' && (
                   <div className="flex flex-col gap-4 pb-12">
                     {moreSubView === 'menu' && (
-                      <div className="space-y-4">
-                        {/* Profile Info Card */}
-                        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
-                            {user?.name ? user.name[0].toUpperCase() : 'A'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-extrabold text-xs text-on-surface dark:text-slate-100 truncate">
-                              {user?.name || 'Bobur'}
-                            </h4>
-                            <p className="text-[10px] text-slate-500 font-semibold uppercase mt-0.5">
-                              {user?.cityName || 'Olmaliq'} admini
-                            </p>
-                          </div>
-                          <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/25">
-                            Obuna faol
-                          </span>
-                        </div>
+                      <div className="flex flex-col gap-6 -mx-4 px-4 pt-1">
+                        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-ios-label -mb-2">{t('more_title')}</h1>
 
-                        {/* Bo'limlar group */}
-                        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-outline-variant/10 dark:divide-slate-800/80">
-                          {/* Kategoriyalar */}
-                          <button
-                            onClick={() => setMoreSubView('categories')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-indigo-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">category</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Kategoriyalar</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Mo'ljallar */}
-                          <button
-                            onClick={() => setMoreSubView('landmarks')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-teal-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">location_on</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Manzillar</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Guruhlar */}
-                          <button
-                            onClick={() => setMoreSubView('groups')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-sky-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">groups</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Guruhlar</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Kanal/Bot havolasi */}
-                          <button
-                            onClick={() => setMoreSubView('community_link')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">campaign</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Kanal/Bot havolasi</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Bot Matnlari */}
-                          <button
-                            onClick={() => setViewMode('bot_messages')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">smart_toy</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Bot matnlari</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Favqulodda Raqamlar */}
-                          <button
-                            onClick={() => setViewMode('emergency')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">emergency</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Favqulodda raqamlar</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-
-                          {/* Moderatorlar Boshqaruvi */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => setViewMode('moderators')}
-                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <span className="w-7 h-7 rounded-lg bg-purple-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">badge</span></span>
-                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Moderatorlar boshqaruvi</span>
+                        {/* Profil */}
+                        <IosSection>
+                          <IosRow last>
+                            <span className="flex items-center gap-3">
+                              <span
+                                className="w-11 h-11 rounded-full text-white flex items-center justify-center font-semibold text-base"
+                                style={{ backgroundColor: avatarColorForName(user?.name || 'Admin') }}
+                              >
+                                {user?.name ? user.name[0].toUpperCase() : 'A'}
                               </span>
-                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                            </button>
-                          )}
-
-                          {/* Habar yuborish (rejalashtirilgan ommaviy xabar) */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => setMoreSubView('broadcast')}
-                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <span className="w-7 h-7 rounded-lg bg-indigo-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">campaign</span></span>
-                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Habar yuborish</span>
+                              <span className="flex flex-col">
+                                <span className="text-[15px] font-medium text-ios-label">{user?.name || 'Bobur'}</span>
+                                <span className="text-[13px] text-ios-label-secondary/70">{user?.cityName || 'Olmaliq'} admini</span>
                               </span>
-                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                            </button>
-                          )}
-
-                          {/* Foydali botlar (guruh-darajasidagi xavfsizlik filtrlari) */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => setMoreSubView('useful_bots')}
-                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <span className="w-7 h-7 rounded-lg bg-teal-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">smart_toy</span></span>
-                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Foydali botlar</span>
-                              </span>
-                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                            </button>
-                          )}
-
-                          {/* Bloklangan xabarlar (moderatsiya jurnali) */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => setMoreSubView('moderation_logs')}
-                              className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <span className="w-7 h-7 rounded-lg bg-rose-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">block</span></span>
-                                <span className="text-xs font-bold text-on-surface dark:text-slate-100">Bloklangan xabarlar</span>
-                              </span>
-                              <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Hisob group */}
-                        <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-outline-variant/10 dark:divide-slate-800/80">
-                          {/* Obuna & To'lov */}
-                          <button
-                            onClick={() => setViewMode('subscription_billing')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-[#007AFF] text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">credit_card</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Obuna & to'lov</span>
                             </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
+                          </IosRow>
+                        </IosSection>
 
-                          {/* Til & Tema */}
-                          <button
-                            onClick={() => setViewMode('settings_lang_theme')}
-                            className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                          >
-                            <span className="flex items-center gap-2.5">
-                              <span className="w-7 h-7 rounded-lg bg-slate-500 text-white flex items-center justify-center"><span className="material-symbols-outlined text-[16px]">language</span></span>
-                              <span className="text-xs font-bold text-on-surface dark:text-slate-100">Til / Tema</span>
-                            </span>
-                            <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                          </button>
-                        </div>
+                        {/* Katalog */}
+                        <IosSection title={t('more_section_catalog')}>
+                          <MoreRow icon="category" iconColor="rgb(88 86 214)" label={t('more_item_categories')} onClick={() => setMoreSubView('categories')} />
+                          <MoreRow icon="location_on" iconColor="rgb(48 176 199)" label={t('more_item_landmarks')} onClick={() => setMoreSubView('landmarks')} />
+                          <MoreRow icon="groups" iconColor="rgb(0 122 255)" label={t('more_item_groups')} onClick={() => setMoreSubView('groups')} />
+                          <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} last />
+                        </IosSection>
+
+                        {/* Shahar */}
+                        <IosSection title={t('more_section_city')}>
+                          <MoreRow icon="emergency" iconColor="rgb(255 59 48)" label={t('more_item_emergency')} onClick={() => setViewMode('emergency')} last />
+                        </IosSection>
+
+                        {/* Moderatsiya (faqat SUPER_ADMIN) */}
+                        {isSuperAdmin && (
+                          <IosSection title={t('more_section_moderation')}>
+                            <MoreRow icon="badge" iconColor="rgb(175 82 222)" label={t('more_item_moderators')} onClick={() => setViewMode('moderators')} />
+                            <MoreRow icon="campaign" iconColor="rgb(88 86 214)" label={t('more_item_broadcast')} onClick={() => setMoreSubView('broadcast')} />
+                            <MoreRow icon="smart_toy" iconColor="rgb(48 176 199)" label={t('more_item_useful_bots')} onClick={() => setMoreSubView('useful_bots')} />
+                            <MoreRow icon="block" iconColor="rgb(255 45 85)" label={t('more_item_moderation_logs')} onClick={() => setMoreSubView('moderation_logs')} last />
+                          </IosSection>
+                        )}
+
+                        {/* Tizim */}
+                        <IosSection title={t('more_section_system')}>
+                          {isSuperAdmin && (
+                            <MoreRow icon="smart_toy" iconColor="rgb(255 149 0)" label={t('more_item_bot_messages')} onClick={() => setViewMode('bot_messages')} />
+                          )}
+                          {isSuperAdmin && (
+                            <MoreRow icon="menu_book" iconColor="rgb(142 142 147)" label={t('more_item_dictionary')} onClick={() => setViewMode('dictionary')} />
+                          )}
+                          <MoreRow icon="language" iconColor="rgb(0 122 255)" label={t('more_item_settings_lang_theme')} onClick={() => setViewMode('settings_lang_theme')} last />
+                        </IosSection>
                       </div>
                     )}
 
@@ -752,82 +631,63 @@ const MoreCategoriesSubView: React.FC<{
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-            <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
+    <div className="flex flex-col gap-3 -mx-4 px-4 pt-1">
+      <IosHeader
+        title="Kategoriyalar"
+        onBack={onBack}
+        trailing={
+          <button
+            onClick={() => { resetForm(); setShowAddForm(true); }}
+            className="text-ios-blue text-[15px] font-normal active:opacity-40"
+          >
+            Qo'shish
           </button>
-          <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kategoriyalar</h3>
-        </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowAddForm(true);
-          }}
-          className="bg-primary dark:bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-1"
-        >
-          <span className="material-symbols-outlined text-[16px]">add</span>
-          Qo'shish
-        </button>
-      </div>
-      <input
-        type="text"
-        placeholder="Kategoriyani qidirish..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full bg-slate-50 dark:bg-slate-900 border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none"
+        }
       />
+      <IosSearchBar value={search} onChange={setSearch} placeholder="Kategoriyani qidirish" />
 
-      <div className="space-y-3 max-h-[400px] overflow-y-auto">
+      <div className="flex flex-col gap-4 max-h-[440px] overflow-y-auto -mx-1 px-1">
         {groupOrder.map((groupName) => (
-          <div key={groupName} className="space-y-1.5">
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-1">
-              {groupName} · {groupedCats[groupName].length}
-            </p>
-            <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm divide-y divide-outline-variant/10 dark:divide-slate-800/80 overflow-hidden">
-              {groupedCats[groupName].map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => onSelectCategory(c.id, c.name)}
-                  className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-left text-xs font-bold text-on-surface dark:text-slate-100"
-                >
-                  <span className="flex items-center gap-2">
-                    {c.name}
-                    {c.objectType && (
-                      <span className="text-[9px] font-bold text-primary dark:text-sky-400 bg-primary/10 dark:bg-sky-500/10 px-1.5 py-0.5 rounded-full">
-                        {OBJECT_TYPE_LABEL[c.objectType] || c.objectType}
-                      </span>
-                    )}
-                  </span>
-                  <span className="material-symbols-outlined text-[16px] text-slate-500">chevron_right</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <IosSection key={groupName} title={`${groupName} · ${groupedCats[groupName].length}`}>
+            {groupedCats[groupName].map((c, idx) => (
+              <IosRow key={c.id} onClick={() => onSelectCategory(c.id, c.name)} last={idx === groupedCats[groupName].length - 1}>
+                <span className="flex items-center gap-2 text-[15px] text-ios-label">
+                  {c.name}
+                  {c.objectType && (
+                    <span className="text-[11px] font-medium text-ios-blue bg-ios-blue/10 px-1.5 py-0.5 rounded-full">
+                      {OBJECT_TYPE_LABEL[c.objectType] || c.objectType}
+                    </span>
+                  )}
+                </span>
+                <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/50">chevron_right</span>
+              </IosRow>
+            ))}
+          </IosSection>
         ))}
       </div>
 
       {/* MODAL: YANGI KATEGORIYA QO'SHISH */}
       {showAddForm && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
-            <h3 className="font-bold text-base text-on-surface dark:text-slate-100">Yangi kategoriya</h3>
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center animate-fade-in">
+          <div className="bg-ios-bg rounded-t-ios-lg p-5 w-full max-w-container-max space-y-4 max-h-[85vh] overflow-y-auto">
+            <h3 className="text-[17px] font-semibold text-ios-label text-center">Yangi kategoriya</h3>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nomi *</label>
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="masalan: Payvandchi"
-                className="w-full bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none focus:border-primary"
-              />
+            <div className="space-y-1.5">
+              <label className="block text-[13px] text-ios-label-secondary/70 px-1">Nomi *</label>
+              <div className="bg-ios-card rounded-ios px-3.5">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="masalan: Payvandchi"
+                  className="w-full bg-transparent py-2.5 text-[15px] text-ios-label outline-none"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Turi *</label>
-              <p className="text-[10px] text-slate-500 mb-1.5">Bu qanday narsa — usta, do'kon, muassasa yoki transport xizmatimi?</p>
+            <div className="space-y-1.5">
+              <label className="block text-[13px] text-ios-label-secondary/70 px-1">Turi *</label>
+              <p className="text-[12px] text-ios-label-secondary/60 px-1">Bu qanday narsa — usta, do'kon, muassasa yoki transport xizmatimi?</p>
               <div className="grid grid-cols-2 gap-2">
                 {([
                   { id: 'USTA', icon: '🔧' },
@@ -841,10 +701,10 @@ const MoreCategoriesSubView: React.FC<{
                     key={t.id}
                     type="button"
                     onClick={() => setNewObjectType(t.id)}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-ios text-[13px] font-medium border-2 transition-all ${
                       newObjectType === t.id
-                        ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400'
-                        : 'bg-slate-50 dark:bg-[#17212B] border-transparent text-slate-500'
+                        ? 'bg-ios-blue/10 border-ios-blue text-ios-blue'
+                        : 'bg-ios-card border-transparent text-ios-label-secondary/70'
                     }`}
                   >
                     <span>{t.icon}</span>
@@ -854,15 +714,15 @@ const MoreCategoriesSubView: React.FC<{
               </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Guruh (bo'lim)</label>
-              <p className="text-[10px] text-slate-500 mb-1.5">Yuqorida tanlangan turga mos guruhlar ko'rsatilmoqda. Mos keladigani bo'lmasa, "+ Yangi" orqali o'zingiz nom bering.</p>
+            <div className="space-y-1.5">
+              <label className="block text-[13px] text-ios-label-secondary/70 px-1">Guruh (bo'lim)</label>
+              <p className="text-[12px] text-ios-label-secondary/60 px-1">Yuqorida tanlangan turga mos guruhlar ko'rsatilmoqda. Mos keladigani bo'lmasa, "+ Yangi" orqali o'zingiz nom bering.</p>
               {!isAddingNewGroup ? (
                 <div className="flex gap-2">
                   <select
                     value={newGroup}
                     onChange={(e) => setNewGroup(e.target.value)}
-                    className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                    className="flex-1 bg-ios-card rounded-ios px-3.5 py-2.5 text-[15px] text-ios-label outline-none"
                   >
                     {groupsForType(newObjectType).map((g) => (
                       <option key={g} value={g}>{g} ({groupCountForType(g, newObjectType)})</option>
@@ -871,7 +731,7 @@ const MoreCategoriesSubView: React.FC<{
                   <button
                     type="button"
                     onClick={() => { setIsAddingNewGroup(true); setCustomGroupInput(''); }}
-                    className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap"
+                    className="bg-ios-card text-ios-blue px-3.5 py-2.5 rounded-ios text-[13px] font-medium whitespace-nowrap"
                   >
                     + Yangi
                   </button>
@@ -883,13 +743,13 @@ const MoreCategoriesSubView: React.FC<{
                     value={customGroupInput}
                     onChange={(e) => setCustomGroupInput(e.target.value)}
                     placeholder="Yangi bo'lim nomi..."
-                    className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-primary rounded-xl px-3.5 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none"
+                    className="flex-1 bg-ios-card rounded-ios px-3.5 py-2.5 text-[15px] text-ios-label outline-none"
                     autoFocus
                   />
                   <button
                     type="button"
                     onClick={() => setIsAddingNewGroup(false)}
-                    className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold"
+                    className="bg-ios-card text-ios-label-secondary/70 px-3.5 py-2.5 rounded-ios text-[13px] font-medium"
                   >
                     Ro'yxatdan
                   </button>
@@ -897,44 +757,46 @@ const MoreCategoriesSubView: React.FC<{
               )}
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sinonimlar</label>
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
+            <div className="space-y-1.5">
+              <label className="block text-[13px] text-ios-label-secondary/70 px-1">Sinonimlar</label>
+              <div className="flex flex-wrap gap-1.5">
                 {newSynonyms.map((s) => (
-                  <span key={s} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1">
+                  <span key={s} className="bg-ios-blue/10 text-ios-blue px-2.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1">
                     {s}
-                    <button type="button" onClick={() => setNewSynonyms(newSynonyms.filter(x => x !== s))} className="hover:text-red-500">×</button>
+                    <button type="button" onClick={() => setNewSynonyms(newSynonyms.filter(x => x !== s))} className="active:opacity-50">×</button>
                   </span>
                 ))}
               </div>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newSynonymInput}
-                  onChange={(e) => setNewSynonymInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSynonym(); } }}
-                  placeholder="masalan: payvandkor"
-                  className="flex-1 bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs text-on-surface dark:text-slate-100 outline-none"
-                />
-                <button type="button" onClick={handleAddSynonym} className="bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold">+</button>
+                <div className="flex-1 bg-ios-card rounded-ios px-3.5">
+                  <input
+                    type="text"
+                    value={newSynonymInput}
+                    onChange={(e) => setNewSynonymInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSynonym(); } }}
+                    placeholder="masalan: payvandkor"
+                    className="w-full bg-transparent py-2.5 text-[15px] text-ios-label outline-none"
+                  />
+                </div>
+                <button type="button" onClick={handleAddSynonym} className="bg-ios-card text-ios-blue px-4 rounded-ios text-[15px] font-medium">+</button>
               </div>
             </div>
 
-            {formError && <p className="text-red-500 text-[11px] font-semibold">{formError}</p>}
+            {formError && <p className="text-ios-red text-[13px] font-medium px-1">{formError}</p>}
 
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => setShowAddForm(false)}
-                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-on-surface dark:text-slate-300 rounded-xl text-xs font-semibold"
-              >
-                Bekor qilish
-              </button>
+            <div className="flex flex-col gap-2 pt-1">
               <button
                 onClick={handleCreateCategory}
                 disabled={isSaving}
-                className="flex-1 py-2.5 bg-primary dark:bg-sky-500 text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                className="w-full py-3.5 bg-ios-blue text-white rounded-ios text-[16px] font-medium disabled:opacity-40 active:opacity-70"
               >
-                {isSaving ? 'Saqlanmoqda...' : "Qo'shish"}
+                {isSaving ? 'Saqlanmoqda…' : "Qo'shish"}
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="w-full py-3.5 bg-ios-card text-ios-blue rounded-ios text-[16px] font-medium active:opacity-70"
+              >
+                Bekor qilish
               </button>
             </div>
           </div>
@@ -951,6 +813,7 @@ const MoreLandmarksSubView: React.FC<{
   onBack: () => void;
   onSelectLandmark: (id: string, name: string) => void;
 }> = ({ onBack, onSelectLandmark }) => {
+  const { confirm, showToast } = useFeedback();
   const [lands, setLands] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -991,7 +854,13 @@ const MoreLandmarksSubView: React.FC<{
   };
 
   const handleDelete = async (l: any) => {
-    if (!window.confirm(`"${l.name}" manzilini butunlay o'chirmoqchimisiz?`)) return;
+    const ok = await confirm({
+      title: `"${l.name}" o'chirilsinmi?`,
+      message: 'Bu amalni ortga qaytarib bo\'lmaydi.',
+      confirmLabel: "O'chirish",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(l.id);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
@@ -1003,10 +872,10 @@ const MoreLandmarksSubView: React.FC<{
       if (res.ok && data.success) {
         setLands(prev => prev.filter(x => x.id !== l.id));
       } else {
-        alert(data.message || "O'chirishda xatolik yuz berdi.");
+        showToast(data.message || "O'chirishda xatolik yuz berdi.", 'error');
       }
     } catch {
-      alert('Aloqa xatosi.');
+      showToast('Aloqa xatosi.', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -1293,60 +1162,57 @@ const CommunityLinkSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-          <span className="material-symbols-outlined text-[20px] font-bold">arrow_back</span>
-        </button>
-        <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">Kanal/Bot havolasi</h3>
-      </div>
-      <p className="text-[11px] text-slate-500 leading-relaxed">
+    <div className="flex flex-col gap-4 -mx-4 px-4 pt-1">
+      <IosHeader title="Kanal/Bot havolasi" onBack={onBack} />
+      <p className="text-[13px] text-ios-label-secondary/70 leading-relaxed">
         Bot har bir javobida ko'rsatadigan qizil tugma qayerga olib borishini
         va nima deb yozilishini shu yerdan sozlaysiz — Telegram kanal, guruh
         yoki boshqa bot havolasi bo'lishi mumkin. Havola bo'sh qoldirilsa,
         tugma umuman ko'rsatilmaydi.
       </p>
 
-      <div className="bg-surface dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm p-4 space-y-3">
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Havola (URL)</label>
+      <IosSection>
+        <div className="px-4 py-3 space-y-1.5" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+          <label className="text-[13px] text-ios-label-secondary/70">Havola (URL)</label>
           {loading ? (
-            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+            <div className="h-9 bg-ios-fill/[0.12] rounded-ios animate-pulse" />
           ) : (
             <input
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://t.me/olmaliq_kanal"
-              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+              className="w-full bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
             />
           )}
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-bold text-slate-500 uppercase">Tugma nomi (matni)</label>
+        <div className="px-4 py-3 space-y-1.5" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+          <label className="text-[13px] text-ios-label-secondary/70">Tugma nomi (matni)</label>
           {loading ? (
-            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+            <div className="h-9 bg-ios-fill/[0.12] rounded-ios animate-pulse" />
           ) : (
             <input
               type="text"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder={DEFAULT_COMMUNITY_LABEL}
-              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 outline-none focus:border-primary"
+              className="w-full bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
             />
           )}
-          <p className="text-[10px] text-slate-500">Bo'sh qoldirilsa, standart nom ishlatiladi: "{DEFAULT_COMMUNITY_LABEL}"</p>
         </div>
 
         <button
           onClick={handleSave}
           disabled={loading || saving}
-          className="w-full py-2.5 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-3.5 text-ios-blue font-medium text-[16px] disabled:opacity-40 active:opacity-60"
         >
-          {saving ? 'Saqlanmoqda...' : saved ? '✅ Saqlandi!' : 'Saqlash'}
+          {saving ? 'Saqlanmoqda…' : saved ? 'Saqlandi ✓' : 'Saqlash'}
         </button>
-      </div>
+      </IosSection>
+      <p className="text-[13px] text-ios-label-secondary/70 px-1">
+        Bo'sh qoldirilsa, standart nom ishlatiladi: "{DEFAULT_COMMUNITY_LABEL}"
+      </p>
     </div>
   );
 };
@@ -1355,9 +1221,13 @@ export default function App(props: AppProps) {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <AuthProvider>
-          <MainShell {...props} />
-        </AuthProvider>
+        <LanguageProvider>
+          <FeedbackProvider>
+            <AuthProvider>
+              <MainShell {...props} />
+            </AuthProvider>
+          </FeedbackProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

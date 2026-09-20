@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import { IosHeader } from '../components/ios/IosHeader';
+import { IosSearchBar } from '../components/ios/IosSearchBar';
+import { useFeedback } from '../context/FeedbackContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export interface GlobalDictionaryScreenProps {
   onBack: () => void;
@@ -11,10 +15,17 @@ interface DictionaryCategory {
   synonyms: string[];
 }
 
+const TABS: { id: 'categories' | 'queries' | 'suffixes'; label: (n: number) => string }[] = [
+  { id: 'categories', label: (n) => `Kategoriyalar (${n})` },
+  { id: 'queries', label: (n) => `Savol shakllari (${n})` },
+  { id: 'suffixes', label: (n) => `Mo'ljal qo'shimchalari (${n})` },
+];
+
 export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ onBack }) => {
+  const { showToast } = useFeedback();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'categories' | 'queries' | 'suffixes'>('categories');
   const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
 
   // Modal / Inputs
   const [showAddCatModal, setShowAddCatModal] = useState(false);
@@ -24,11 +35,6 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
 
   const [activeSynonymInputId, setActiveSynonymInputId] = useState<string | null>(null);
   const [newSynonymText, setNewSynonymText] = useState('');
-
-  const showToastMsg = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   // Seeded Categories & Synonyms from docs/dictionary.md
   const [categories, setCategories] = useState<DictionaryCategory[]>([
@@ -78,7 +84,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
     setNewCatName('');
     setNewCatSynonyms('');
     setShowAddCatModal(false);
-    showToastMsg(`✅ "${newCat.name}" kategoriyasi lug'atga qo'shildi`);
+    showToast(`"${newCat.name}" kategoriyasi lug'atga qo'shildi`, 'success');
   };
 
   const handleAddSynonym = (catId: string) => {
@@ -92,7 +98,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
     );
     setNewSynonymText('');
     setActiveSynonymInputId(null);
-    showToastMsg('✅ Sinonim qo\'shildi');
+    showToast('Sinonim qo\'shildi', 'success');
   };
 
   const handleRemoveSynonym = (catId: string, synToRemove: string) => {
@@ -107,7 +113,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
     if (newPhraseInput.trim() && !queryPhrases.includes(newPhraseInput.trim().toLowerCase())) {
       setQueryPhrases([...queryPhrases, newPhraseInput.trim().toLowerCase()]);
       setNewPhraseInput('');
-      showToastMsg('✅ Savol shakli qo\'shildi');
+      showToast('Savol shakli qo\'shildi', 'success');
     }
   };
 
@@ -115,7 +121,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
     if (newSuffixInput.trim() && !landmarkSuffixes.includes(newSuffixInput.trim().toLowerCase())) {
       setLandmarkSuffixes([...landmarkSuffixes, newSuffixInput.trim().toLowerCase()]);
       setNewSuffixInput('');
-      showToastMsg('✅ Mo\'jal qo\'shimchasi qo\'shildi');
+      showToast('Mo\'jal qo\'shimchasi qo\'shildi', 'success');
     }
   };
 
@@ -126,80 +132,38 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
   );
 
   return (
-    <div className="min-h-screen bg-background dark:bg-[#121417] text-on-surface dark:text-slate-100 font-sans flex flex-col relative pb-16">
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white font-semibold text-xs px-4 py-2.5 rounded-full shadow-2xl border border-slate-700">
-          {toast}
-        </div>
-      )}
+    <div className="flex flex-col gap-4 -mx-4 px-4 pt-1 pb-16">
+      <IosHeader
+        title="Global Lug'at"
+        subtitle="Super-Admin · Barcha shaharlar uchun umumiy bilimlar bazasi"
+        onBack={onBack}
+        backLabel={t('action_back')}
+        trailing={
+          activeTab === 'categories' ? (
+            <button
+              onClick={() => setShowAddCatModal(true)}
+              className="flex items-center gap-1 text-ios-blue text-[15px] font-semibold active:opacity-50 transition-opacity"
+            >
+              <span className="material-symbols-outlined text-[20px]">add_circle</span>
+              Kategoriya
+            </button>
+          ) : undefined
+        }
+      />
 
-      {/* HEADER */}
-      <header className="sticky top-0 z-30 bg-surface/95 dark:bg-[#17212B]/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-1.5 rounded-xl hover:bg-surface-container-low dark:hover:bg-slate-800 text-on-surface-variant dark:text-slate-300 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
-          </button>
-          <div>
-            <h1 className="font-bold text-base text-on-surface dark:text-slate-100 flex items-center gap-2">
-              Global Lug'at
-              <span className="bg-purple-500/20 text-purple-400 text-[10px] font-black px-2 py-0.5 rounded-full">
-                Super-Admin
-              </span>
-            </h1>
-            <p className="text-[11px] text-on-surface-variant dark:text-slate-400">
-              Barcha shaharlar uchun umumiy bilimlari bazasi
-            </p>
-          </div>
-        </div>
-
-        {activeTab === 'categories' && (
-          <button
-            onClick={() => setShowAddCatModal(true)}
-            className="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Kategoriya
-          </button>
-        )}
-      </header>
-
-      {/* SEARCH FILTER */}
-      <div className="p-4 bg-surface dark:bg-[#17212B] border-b border-outline-variant/30 dark:border-slate-800">
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3.5 top-3 text-slate-400 text-[20px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Kategoriya yoki sinonim qidirish..."
-            className="w-full bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/40 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none focus:border-primary"
-          />
-        </div>
-      </div>
+      <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Kategoriya yoki sinonim qidirish" />
 
       {/* TAB NAVIGATION */}
-      <div className="bg-surface dark:bg-[#17212B] border-b border-outline-variant/30 dark:border-slate-800 px-4 flex">
-        {[
-          { id: 'categories', label: `Kategoriyalar (${categories.length})` },
-          { id: 'queries', label: `Savol Shakllari (${queryPhrases.length})` },
-          { id: 'suffixes', label: `Mo'ljal Qo'shimchalari (${landmarkSuffixes.length})` },
-        ].map(tab => (
+      <div className="flex bg-ios-fill/[0.12] rounded-ios p-[2px]">
+        {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 py-3 text-[11px] font-bold text-center border-b-2 transition-all ${
-              activeTab === tab.id
-                ? 'border-primary text-primary dark:text-sky-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-1.5 rounded-[8px] text-[11px] font-medium text-center transition-colors ${
+              activeTab === tab.id ? 'bg-ios-card text-ios-label shadow-sm' : 'text-ios-label-secondary/70'
             }`}
           >
-            {tab.label}
+            {tab.label(tab.id === 'categories' ? categories.length : tab.id === 'queries' ? queryPhrases.length : landmarkSuffixes.length)}
           </button>
         ))}
       </div>
@@ -208,20 +172,17 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
       {/* TAB 1: KATEGORIYALAR VA SINONIMLAR */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'categories' && (
-        <main className="p-4 space-y-3 animate-fadeIn">
+        <div className="flex flex-col gap-3">
           {filteredCategories.map(cat => (
-            <div
-              key={cat.id}
-              className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-2.5 shadow-sm"
-            >
+            <div key={cat.id} className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-2.5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-sm text-on-surface dark:text-slate-100 capitalize">
+                  <h3 className="font-semibold text-[15px] text-ios-label capitalize">
                     {cat.name}
                   </h3>
-                  <span className="text-[10px] text-slate-400 font-semibold">{cat.group}</span>
+                  <span className="text-[11px] text-ios-label-secondary/70 font-medium">{cat.group}</span>
                 </div>
-                <span className="text-xs font-semibold text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-full">
+                <span className="text-[12px] font-semibold text-ios-blue bg-ios-blue/10 px-2.5 py-1 rounded-full">
                   {cat.synonyms.length} ta sinonim
                 </span>
               </div>
@@ -231,12 +192,12 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
                 {cat.synonyms.map(syn => (
                   <span
                     key={syn}
-                    className="bg-surface-container-low dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-700 text-slate-200 text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                    className="bg-ios-fill/[0.10] text-ios-label text-[12px] px-2.5 py-1 rounded-full flex items-center gap-1.5"
                   >
                     {syn}
                     <button
                       onClick={() => handleRemoveSynonym(cat.id, syn)}
-                      className="hover:text-red-400 font-bold"
+                      className="text-ios-label-secondary/50 active:text-ios-red font-bold"
                     >
                       ×
                     </button>
@@ -250,12 +211,12 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
                       value={newSynonymText}
                       onChange={e => setNewSynonymText(e.target.value)}
                       placeholder="sinonim..."
-                      className="bg-surface-container-low dark:bg-[#1C2733] border border-primary text-xs px-3 py-1 rounded-full outline-none"
+                      className="bg-ios-fill/[0.08] text-[12px] text-ios-label px-3 py-1 rounded-full outline-none"
                       autoFocus
                     />
                     <button
                       onClick={() => handleAddSynonym(cat.id)}
-                      className="bg-primary text-white text-xs px-2.5 py-1 rounded-full font-bold"
+                      className="bg-ios-blue text-white text-[12px] px-2.5 py-1 rounded-full font-bold"
                     >
                       +
                     </button>
@@ -266,7 +227,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
                       setActiveSynonymInputId(cat.id);
                       setNewSynonymText('');
                     }}
-                    className="border border-dashed border-sky-500/50 text-sky-400 text-xs px-2.5 py-1 rounded-full hover:bg-sky-500/10 transition-colors"
+                    className="border border-dashed border-ios-blue/40 text-ios-blue text-[12px] px-2.5 py-1 rounded-full active:bg-ios-blue/10 transition-colors"
                   >
                     + so'z qo'shish
                   </button>
@@ -274,117 +235,113 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
               </div>
             </div>
           ))}
-        </main>
+        </div>
       )}
 
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {/* TAB 2: SAVOL SHAKLLARI (0-QAVAT FILTRI) */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'queries' && (
-        <main className="p-4 space-y-4 animate-fadeIn">
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3 shadow-sm">
-            <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider">
-              0-Qavat Bepul Filtr O'tkazuvchi So'zlar ({queryPhrases.length})
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Xabarda ushbu so'zlardan biri bo'lsagina u AI klassifikatoriga yuboriladi (TZ 3.2 bo'limi).
-            </p>
+        <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
+          <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
+            0-Qavat bepul filtr o'tkazuvchi so'zlar ({queryPhrases.length})
+          </h3>
+          <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
+            Xabarda ushbu so'zlardan biri bo'lsagina u AI klassifikatoriga yuboriladi (TZ 3.2 bo'limi).
+          </p>
 
-            <div className="flex items-center gap-2 pt-2">
-              <input
-                type="text"
-                value={newPhraseInput}
-                onChange={e => setNewPhraseInput(e.target.value)}
-                placeholder="Yangi savol iborasi..."
-                className="flex-1 bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-primary"
-              />
-              <button
-                onClick={handleAddPhrase}
-                className="bg-primary text-white text-xs font-bold px-4 py-2 rounded-xl"
-              >
-                + Qo'shish
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              {queryPhrases.map(p => (
-                <span
-                  key={p}
-                  className="bg-purple-500/15 text-purple-300 border border-purple-500/30 text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
-                >
-                  {p}
-                  <button
-                    onClick={() => setQueryPhrases(queryPhrases.filter(q => q !== p))}
-                    className="hover:text-red-400 font-bold"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="text"
+              value={newPhraseInput}
+              onChange={e => setNewPhraseInput(e.target.value)}
+              placeholder="Yangi savol iborasi..."
+              className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
+            />
+            <button
+              onClick={handleAddPhrase}
+              className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios"
+            >
+              + Qo'shish
+            </button>
           </div>
-        </main>
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            {queryPhrases.map(p => (
+              <span
+                key={p}
+                className="bg-ios-purple/[0.12] text-ios-purple text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
+              >
+                {p}
+                <button
+                  onClick={() => setQueryPhrases(queryPhrases.filter(q => q !== p))}
+                  className="text-ios-purple/70 active:text-ios-red font-bold"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {/* TAB 3: MO'LJAL QO'SHIMCHALARI */}
       {/* ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'suffixes' && (
-        <main className="p-4 space-y-4 animate-fadeIn">
-          <div className="bg-surface-container-lowest dark:bg-[#17212B] rounded-2xl p-4 border border-outline-variant/30 dark:border-slate-800 space-y-3 shadow-sm">
-            <h3 className="font-bold text-xs text-slate-300 uppercase tracking-wider">
-              Mo'ljal Qo'shimchalari Ro'yxati ({landmarkSuffixes.length})
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Bot ushbu so'zlarni mo'ljal nomidan ajratib oladi va bitta joyga bog'laydi ("karzinka oldida" ➔ "Korzinka").
-            </p>
+        <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
+          <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
+            Mo'ljal qo'shimchalari ro'yxati ({landmarkSuffixes.length})
+          </h3>
+          <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
+            Bot ushbu so'zlarni mo'ljal nomidan ajratib oladi va bitta joyga bog'laydi ("karzinka oldida" ➔ "Korzinka").
+          </p>
 
-            <div className="flex items-center gap-2 pt-2">
-              <input
-                type="text"
-                value={newSuffixInput}
-                onChange={e => setNewSuffixInput(e.target.value)}
-                placeholder="Yangi qo'shimcha so'z..."
-                className="flex-1 bg-surface-container-low dark:bg-[#1C2733] border border-slate-700 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-primary"
-              />
-              <button
-                onClick={handleAddSuffix}
-                className="bg-primary text-white text-xs font-bold px-4 py-2 rounded-xl"
-              >
-                + Qo'shish
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              {landmarkSuffixes.map(s => (
-                <span
-                  key={s}
-                  className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs px-3 py-1.5 rounded-full flex items-center gap-2"
-                >
-                  {s}
-                  <button
-                    onClick={() => setLandmarkSuffixes(landmarkSuffixes.filter(x => x !== s))}
-                    className="hover:text-red-400 font-bold"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              type="text"
+              value={newSuffixInput}
+              onChange={e => setNewSuffixInput(e.target.value)}
+              placeholder="Yangi qo'shimcha so'z..."
+              className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
+            />
+            <button
+              onClick={handleAddSuffix}
+              className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios"
+            >
+              + Qo'shish
+            </button>
           </div>
-        </main>
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            {landmarkSuffixes.map(s => (
+              <span
+                key={s}
+                className="bg-ios-green/[0.12] text-ios-green text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
+              >
+                {s}
+                <button
+                  onClick={() => setLandmarkSuffixes(landmarkSuffixes.filter(x => x !== s))}
+                  className="text-ios-green/70 active:text-ios-red font-bold"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* MODAL: NEW CATEGORY */}
       {showAddCatModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-scale-up">
-            <h3 className="font-bold text-base text-on-surface dark:text-slate-100">
-              Yangi Global Kategoriya
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-ios-card rounded-ios-lg p-5 w-full max-w-sm space-y-4 shadow-lg animate-fade-in">
+            <h3 className="font-semibold text-[17px] text-ios-label">
+              Yangi global kategoriya
             </h3>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
                 Asosiy nom *
               </label>
               <input
@@ -392,18 +349,18 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
                 value={newCatName}
                 onChange={e => setNewCatName(e.target.value)}
                 placeholder="masalan: santexnik"
-                className="w-full bg-surface-container-low dark:bg-[#17212B] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-primary"
+                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
                 Guruh
               </label>
               <select
                 value={newCatGroup}
                 onChange={e => setNewCatGroup(e.target.value)}
-                className="w-full bg-surface-container-low dark:bg-[#17212B] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none"
+                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
               >
                 <option value="Uy-joy ustalari">Uy-joy ustalari</option>
                 <option value="Maishiy texnika">Maishiy texnika</option>
@@ -416,7 +373,7 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
                 Sinonimlar (vergul bilan)
               </label>
               <input
@@ -424,20 +381,20 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
                 value={newCatSynonyms}
                 onChange={e => setNewCatSynonyms(e.target.value)}
                 placeholder="suv ustasi, quvur ustasi, сантехник"
-                className="w-full bg-surface-container-low dark:bg-[#17212B] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 outline-none"
+                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
               />
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={() => setShowAddCatModal(false)}
-                className="flex-1 py-2.5 bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold"
+                className="flex-1 py-2.5 bg-ios-fill/[0.10] text-ios-label rounded-ios text-[13px] font-semibold active:bg-ios-fill/20 transition-colors"
               >
-                Bekor qilish
+                {t('action_cancel')}
               </button>
               <button
                 onClick={handleAddCategory}
-                className="flex-1 py-2.5 bg-primary text-white rounded-xl text-xs font-bold"
+                className="flex-1 py-2.5 bg-ios-blue text-white rounded-ios text-[13px] font-bold active:opacity-70 transition-opacity"
               >
                 Qo'shish
               </button>

@@ -92,7 +92,7 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
   return (
     <div className="relative" ref={containerRef}>
       <div className="relative">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400 pointer-events-none">search</span>
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-ios-label-secondary/70 pointer-events-none">search</span>
         <input
           type="text"
           value={query}
@@ -110,27 +110,27 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
           }}
           onFocus={() => setIsOpen(true)}
           placeholder="Manzilni qidiring..."
-          className={`w-full bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] border rounded-[10px] pl-9 pr-3.5 py-2.5 text-sm text-on-surface dark:text-white outline-none focus:border-[#007AFF] dark:focus:border-[#0A84FF] transition-colors ${
-            error ? 'border-red-500' : 'border-transparent'
+          className={`w-full bg-ios-fill/[0.12] rounded-ios pl-9 pr-3.5 py-2.5 text-[15px] text-ios-label outline-none transition-colors ${
+            error ? 'ring-1 ring-ios-red' : 'focus:ring-1 focus:ring-ios-blue'
           }`}
         />
       </div>
 
       {isOpen && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#1C1C1E] border border-outline-variant/30 dark:border-slate-800 rounded-[10px] shadow-lg max-h-52 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-ios-card rounded-ios shadow-lg max-h-52 overflow-y-auto">
           {filtered.length === 0 && !query.trim() && (
-            <div className="px-3.5 py-3 text-xs text-slate-500">Manzil nomini yozing...</div>
+            <div className="px-3.5 py-3 text-[13px] text-ios-label-secondary/70">Manzil nomini yozing...</div>
           )}
           {filtered.slice(0, 30).map((l) => (
             <button
               key={l.id}
               type="button"
               onClick={() => selectLandmark(l)}
-              className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-on-surface dark:text-slate-100 hover:bg-surface-container-low dark:hover:bg-slate-800/60 border-b border-outline-variant/10 dark:border-slate-800 last:border-0"
+              className="w-full text-left px-3.5 py-2.5 text-[13px] font-medium text-ios-label active:bg-ios-fill/10 border-b-[0.5px] border-ios-separator/[0.29] last:border-b-0"
             >
               📍 {l.name}
               {l.synonyms.length > 0 && (
-                <span className="text-[10px] text-slate-500 font-normal ml-1.5">({l.synonyms.join(', ')})</span>
+                <span className="text-[11px] text-ios-label-secondary/70 font-normal ml-1.5">({l.synonyms.join(', ')})</span>
               )}
             </button>
           ))}
@@ -140,7 +140,7 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
               type="button"
               onClick={createAndSelect}
               disabled={creating}
-              className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 dark:hover:bg-[#0A84FF]/10 disabled:opacity-50"
+              className="w-full text-left px-3.5 py-2.5 text-[13px] font-semibold text-ios-blue active:bg-ios-blue/5 disabled:opacity-50"
             >
               {creating ? 'Qo\'shilmoqda...' : `+ "${query.trim()}"ni yangi manzil sifatida qo'shish`}
             </button>
@@ -148,9 +148,9 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
         </div>
       )}
 
-      {error && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{error}</p>}
+      {error && <p className="text-ios-red text-[11px] font-medium mt-0.5">{error}</p>}
       {!value && !error && (
-        <p className="text-[10px] text-slate-500 mt-0.5">Ro'yxatdan tanlang, yoki topilmasa yangi qo'shing.</p>
+        <p className="text-[11px] text-ios-label-secondary/70 mt-0.5">Ro'yxatdan tanlang, yoki topilmasa yangi qo'shing.</p>
       )}
     </div>
   );

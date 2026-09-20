@@ -25,13 +25,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="p-6 text-center space-y-4 my-auto bg-surface dark:bg-[#1C2733] rounded-2xl border border-outline-variant/30 dark:border-slate-800 m-4">
-          <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
-            <span className="material-symbols-outlined text-[28px]">warning</span>
+        <div className="p-6 text-center space-y-4 my-auto bg-ios-card rounded-ios-lg shadow-sm m-4">
+          <div className="w-12 h-12 rounded-full bg-ios-orange/10 text-ios-orange flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-[26px]">warning</span>
           </div>
           <div>
-            <h3 className="font-bold text-base text-on-surface dark:text-slate-100">Nimadir xato ketdi</h3>
-            <p className="text-xs text-on-surface-variant dark:text-slate-400 mt-1">
+            <h3 className="font-semibold text-[16px] text-ios-label">Nimadir xato ketdi</h3>
+            <p className="text-[13px] text-ios-label-secondary/70 mt-1">
               Ma'lumotlarni yuklashda vaqtinchalik muammo yuzaga keldi. Qayta urinib ko'ring.
             </p>
           </div>
@@ -40,9 +40,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               this.setState({ hasError: false });
               window.location.reload();
             }}
-            className="px-4 py-2 bg-primary text-white font-bold text-xs rounded-xl shadow-sm hover:opacity-90 active:scale-95 transition-all"
+            className="px-4 py-2.5 bg-ios-blue text-white font-medium text-[14px] rounded-ios active:opacity-70 transition-opacity"
           >
-            Qayta yuklash 🔄
+            Qayta yuklash
           </button>
         </div>
       );
@@ -71,8 +71,8 @@ export const OfflineStatusBanner: React.FC = () => {
   if (!isOffline) return null;
 
   return (
-    <div className="sticky top-0 z-50 bg-amber-500 text-slate-950 font-bold text-xs px-4 py-2 text-center flex items-center justify-center gap-2 shadow-md animate-fadeIn">
-      <span className="material-symbols-outlined text-[18px]">wifi_off</span>
+    <div className="sticky top-0 z-50 bg-ios-orange text-white font-medium text-[13px] px-4 py-2 text-center flex items-center justify-center gap-2 animate-fade-in">
+      <span className="material-symbols-outlined text-[16px]">wifi_off</span>
       <span>Internet aloqasi uzildi. Qoralama qurilmangizda saqlanadi.</span>
     </div>
   );

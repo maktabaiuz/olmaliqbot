@@ -19,7 +19,7 @@ export const PreviewScreen: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [simulatedRole, setSimulatedRole] = useState<'SUPER_ADMIN' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER'>('SUPER_ADMIN');
   const [activeScreenTab, setActiveScreenTab] = useState<
-    'home' | 'add' | 'requests' | 'database' | 'moderators' | 'settings' | 'statistics' | 'bot_messages' | 'emergency' | 'dictionary'
+    'home' | 'add' | 'requests' | 'database' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary'
   >('home');
   const [deviceFrame, setDeviceFrame] = useState<'iphone15' | 'iphonese' | 'ipad'>('iphone15');
   const [logs, setLogs] = useState<ConsoleLog[]>([]);
@@ -233,8 +233,6 @@ export const PreviewScreen: React.FC = () => {
                 { id: 'add', label: '➕ Qo\'shish' },
                 { id: 'requests', label: '💬 So\'rovlar' },
                 { id: 'database', label: '🗄️ Baza' },
-                { id: 'settings', label: '⚙️ Sozlamalar' },
-                { id: 'statistics', label: '📊 Statistika' },
                 { id: 'emergency', label: '🚨 Favqulodda' },
                 { id: 'bot_messages', label: '🤖 Bot Matnlari' },
                 { id: 'dictionary', label: '📖 Lug\'at' },

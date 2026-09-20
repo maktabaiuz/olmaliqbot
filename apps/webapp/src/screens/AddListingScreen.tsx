@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LandmarkPicker } from '../components/LandmarkPicker';
+import { useFeedback } from '../context/FeedbackContext';
+import { IosHeader } from '../components/ios/IosHeader';
 
 export interface AddListingScreenProps {
   initialCategory?: string;
@@ -51,6 +53,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   onNavigateTab,
 }) => {
   const { user } = useAuth();
+  const { showToast } = useFeedback();
 
   // Wizard Step State
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -324,7 +327,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   const handleSubmit = async () => {
     if (!consentGiven) {
-      alert("⚠️ Iltimos, mijoz roziligini tasdiqlang!");
+      showToast("Iltimos, mijoz roziligini tasdiqlang!", 'error');
       return;
     }
 
@@ -393,11 +396,11 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         onNavigateTab('database');
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(`⚠️ Xatolik: ${errData.message || 'Saqlashda xatolik yuz berdi'}`);
+        showToast(`Xatolik: ${errData.message || 'Saqlashda xatolik yuz berdi'}`, 'error');
       }
     } catch (err) {
       console.error(err);
-      alert('Aloqa xatoligi. Qoralama qurilmangizda saqlab qolindi.');
+      showToast('Aloqa xatoligi. Qoralama qurilmangizda saqlab qolindi.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -405,17 +408,19 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in pb-16">
-      
+
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-on-surface dark:text-slate-100">Yozuv qo'shish</h1>
-        <span className="text-xs text-primary dark:text-sky-400 font-bold bg-primary/10 dark:bg-sky-500/10 px-2.5 py-1 rounded-full">
-          Completeness: {filledCount}/11
-        </span>
-      </div>
+      <IosHeader
+        title="Yozuv qo'shish"
+        trailing={
+          <span className="text-[12px] text-ios-blue font-bold bg-ios-blue/10 px-2.5 py-1 rounded-full">
+            {filledCount}/11
+          </span>
+        }
+      />
 
       {/* Progress Wizard Steps (Visual apple style steps) */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-ios-fill/[0.12] rounded-ios-lg">
         {[
           { num: 1, label: 'Asosiy' },
           { num: 2, label: 'Belgilar' },
@@ -423,17 +428,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         ].map((s) => (
           <div key={s.num} className="flex items-center gap-1.5">
             <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold transition-colors ${
                 step === s.num
-                  ? 'bg-primary dark:bg-sky-500 text-white'
+                  ? 'bg-ios-blue text-white'
                   : step > s.num
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-300 dark:bg-slate-700 text-slate-500'
+                  ? 'bg-ios-green text-white'
+                  : 'bg-ios-fill/20 text-ios-label-secondary/70'
               }`}
             >
               {step > s.num ? '✓' : s.num}
             </span>
-            <span className={`text-[11px] font-bold ${step === s.num ? 'text-on-surface dark:text-slate-100' : 'text-slate-500'}`}>
+            <span className={`text-[12px] font-bold ${step === s.num ? 'text-ios-label' : 'text-ios-label-secondary/70'}`}>
               {s.label}
             </span>
           </div>
@@ -442,7 +447,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
       {/* Duplicate Warning banner */}
       {duplicateWarning && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400 text-xs font-medium flex items-center gap-2">
+        <div className="p-3 bg-ios-orange/10 rounded-ios-lg text-ios-orange text-[13px] font-medium flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px]">warning</span>
           <span>{duplicateWarning}</span>
         </div>
@@ -450,12 +455,12 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
       {/* STEP 1 FORM */}
       {step === 1 && (
-        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+        <div className="bg-ios-card p-4 rounded-ios-lg shadow-sm space-y-4">
           {/* 1-qadam: Turi — to'rtta aniq, teng o'lchamli karta sifatida, ustma-ust
               tor ustunga siqilgan tugmalar o'rniga. Har biri ikonka + nom bilan,
               tanlangani darhol ko'zga tashlanadi. */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">1. Turi *</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">1. Turi *</label>
             <div className="grid grid-cols-2 gap-2">
               {LISTING_TYPE_OPTIONS.map((seg) => (
                 <button
@@ -465,14 +470,14 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                     setListingType(seg.id);
                     setCategory('');
                   }}
-                  className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+                  className={`flex items-center gap-2 px-3 py-3 rounded-ios border text-left transition-all ${
                     listingType === seg.id
-                      ? 'bg-primary/10 dark:bg-sky-500/15 border-primary dark:border-sky-500 text-primary dark:text-sky-400 shadow-sm'
-                      : 'bg-slate-50 dark:bg-[#1C2733] border-outline-variant/30 dark:border-slate-800 text-slate-500'
+                      ? 'bg-ios-blue/10 border-ios-blue text-ios-blue shadow-sm'
+                      : 'bg-ios-fill/[0.12] border-transparent text-ios-label-secondary/70'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[20px] shrink-0">{seg.icon}</span>
-                  <span className="text-xs font-bold truncate">{seg.label}</span>
+                  <span className="text-[13px] font-bold truncate">{seg.label}</span>
                 </button>
               ))}
             </div>
@@ -482,56 +487,56 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               guruhlangan ro'yxat bilan tanlash oynasi ochiladi — oldingi kichik
               tor ro'yxat o'rniga aniq va oson topiladigan qilib. */}
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">2. {CATEGORY_FIELD_LABEL[listingType]} *</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">2. {CATEGORY_FIELD_LABEL[listingType]} *</label>
             <button
               type="button"
               onClick={() => {
                 setCategoryPickerSearch('');
                 setShowCategoryPicker(true);
               }}
-              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-left flex items-center justify-between gap-2 focus:outline-none ${
-                fieldErrors.category ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              className={`w-full bg-ios-fill/[0.12] border rounded-ios px-3 py-2.5 text-[13px] text-left flex items-center justify-between gap-2 focus:outline-none ${
+                fieldErrors.category ? 'border-ios-red' : 'border-transparent'
               }`}
             >
-              <span className={category ? 'text-on-surface dark:text-slate-100 font-semibold truncate' : 'text-slate-500 truncate'}>
+              <span className={category ? 'text-ios-label font-semibold truncate' : 'text-ios-label-secondary/70 truncate'}>
                 {category || CATEGORY_FIELD_PLACEHOLDER[listingType]}
               </span>
-              <span className="material-symbols-outlined text-[16px] text-slate-500 shrink-0">expand_more</span>
+              <span className="material-symbols-outlined text-[16px] text-ios-label-secondary/70 shrink-0">expand_more</span>
             </button>
-            {fieldErrors.category && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.category}</p>}
+            {fieldErrors.category && <p className="text-ios-red text-[11px] font-semibold mt-0.5">{fieldErrors.category}</p>}
           </div>
 
           {/* KASB TANLASH OYNASI (to'liq ekran bosqichi) */}
           {showCategoryPicker && (
-            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center">
-              <div className="bg-surface dark:bg-[#1C2733] w-full sm:max-w-sm sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh]">
-                <div className="p-4 border-b border-outline-variant/20 dark:border-slate-800 space-y-3 shrink-0">
+            <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center">
+              <div className="bg-ios-card w-full sm:max-w-sm sm:rounded-ios-lg rounded-t-ios-lg shadow-2xl flex flex-col max-h-[85vh]">
+                <div className="p-4 space-y-3 shrink-0" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-sm text-on-surface dark:text-slate-100">{CATEGORY_FIELD_LABEL[listingType]}ni tanlang</h3>
-                    <button type="button" onClick={() => setShowCategoryPicker(false)} className="p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <h3 className="font-semibold text-[15px] text-ios-label">{CATEGORY_FIELD_LABEL[listingType]}ni tanlang</h3>
+                    <button type="button" onClick={() => setShowCategoryPicker(false)} className="p-1 text-ios-label-secondary/70 active:opacity-50 rounded-full">
                       <span className="material-symbols-outlined text-[20px]">close</span>
                     </button>
                   </div>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-500">search</span>
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-ios-label-secondary/70">search</span>
                     <input
                       type="text"
                       autoFocus
                       value={categoryPickerSearch}
                       onChange={(e) => setCategoryPickerSearch(e.target.value)}
                       placeholder="Qidirish..."
-                      className="w-full bg-slate-50 dark:bg-[#17212B] border border-outline-variant/30 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-on-surface dark:text-slate-100 outline-none focus:border-primary"
+                      className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios pl-9 pr-3 py-2.5 text-[13px] text-ios-label outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="overflow-y-auto flex-1 p-2">
                   {categoryPickerGroupOrder.length === 0 ? (
-                    <p className="px-3 py-8 text-xs text-slate-500 text-center">Mos kasb topilmadi</p>
+                    <p className="px-3 py-8 text-[13px] text-ios-label-secondary/70 text-center">Mos kasb topilmadi</p>
                   ) : (
                     categoryPickerGroupOrder.map((groupName) => (
                       <div key={groupName} className="mb-2">
-                        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-primary dark:text-sky-400 uppercase tracking-wider">
+                        <p className="px-3 pt-2 pb-1 text-[11px] font-bold text-ios-blue uppercase tracking-wider">
                           {groupName}
                         </p>
                         {groupedCategoryOptions[groupName].map((item) => (
@@ -543,10 +548,10 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                               setFieldErrors(prev => ({ ...prev, category: undefined }));
                               setShowCategoryPicker(false);
                             }}
-                            className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between ${
+                            className={`w-full text-left px-3 py-2.5 rounded-ios text-[13px] font-semibold flex items-center justify-between ${
                               category === item.name
-                                ? 'bg-primary/10 dark:bg-sky-500/15 text-primary dark:text-sky-400'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-on-surface dark:text-slate-200'
+                                ? 'bg-ios-blue/10 text-ios-blue'
+                                : 'active:bg-ios-fill/10 text-ios-label'
                             }`}
                           >
                             {item.name}
@@ -565,7 +570,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                         setFieldErrors(prev => ({ ...prev, category: undefined }));
                         setShowCategoryPicker(false);
                       }}
-                      className="w-full text-left px-3 py-2.5 mt-1 rounded-xl text-xs font-bold text-primary dark:text-sky-400 border border-dashed border-primary/40 dark:border-sky-500/40 flex items-center gap-1.5"
+                      className="w-full text-left px-3 py-2.5 mt-1 rounded-ios text-[13px] font-bold text-ios-blue border border-dashed border-ios-blue/40 flex items-center gap-1.5"
                     >
                       <span className="material-symbols-outlined text-[16px]">add</span>
                       "{categoryPickerSearch.trim()}" nomi bilan yangi kasb sifatida qo'shish
@@ -577,7 +582,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">3. {NAME_FIELD_LABEL[listingType] || 'Ismi-familiyasi'} *</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">3. {NAME_FIELD_LABEL[listingType] || 'Ismi-familiyasi'} *</label>
             <input
               type="text"
               value={name}
@@ -586,25 +591,25 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 setFieldErrors(prev => ({ ...prev, name: undefined }));
               }}
               placeholder={NAME_FIELD_PLACEHOLDER[listingType] || 'Masalan, Anvar Usta'}
-              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
-                fieldErrors.name ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              className={`w-full bg-ios-fill/[0.12] border rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none ${
+                fieldErrors.name ? 'border-ios-red' : 'border-transparent'
               }`}
             />
-            {fieldErrors.name && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.name}</p>}
+            {fieldErrors.name && <p className="text-ios-red text-[11px] font-semibold mt-0.5">{fieldErrors.name}</p>}
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">4. Jargon / xalq atamalari</label>
-            <p className="text-[10px] text-slate-500 -mt-1">Mahalliy odamlar buni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">4. Jargon / xalq atamalari</label>
+            <p className="text-[11px] text-ios-label-secondary/70 -mt-1">Mahalliy odamlar buni qanday nomlar bilan atashadi? (masalan: "trubkachi", "gazon"). Guruhda shu so'zlar bilan yozilsa, bot shu yozuvni topib javob beradi.</p>
             {jargonWords.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {jargonWords.map(word => (
-                  <span key={word} className="bg-primary/10 dark:bg-sky-500/10 text-primary dark:text-sky-400 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                  <span key={word} className="bg-ios-blue/10 text-ios-blue px-3 py-1 rounded-full text-[13px] font-bold flex items-center gap-1.5">
                     {word}
                     <button
                       type="button"
                       onClick={() => setJargonWords(jargonWords.filter(w => w !== word))}
-                      className="hover:text-red-500 text-[14px] leading-none"
+                      className="active:opacity-50 text-[14px] leading-none"
                     >
                       ×
                     </button>
@@ -624,12 +629,12 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                   }
                 }}
                 placeholder="Masalan, trubkachi"
-                className="flex-1 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+                className="flex-1 bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={handleAddJargonWord}
-                className="bg-primary dark:bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
+                className="bg-ios-blue text-white px-4 py-2 rounded-ios text-[13px] font-bold active:opacity-70"
               >
                 Qo'shish
               </button>
@@ -637,7 +642,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">5. Telefon raqami</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">5. Telefon raqami</label>
             <input
               type="text"
               value={phone}
@@ -646,15 +651,15 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 setFieldErrors(prev => ({ ...prev, phone: undefined }));
               }}
               placeholder="+998 90 123 45 67"
-              className={`w-full bg-slate-50 dark:bg-[#1C2733] border rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary ${
-                fieldErrors.phone ? 'border-red-500' : 'border-outline-variant/30 dark:border-slate-800'
+              className={`w-full bg-ios-fill/[0.12] border rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none ${
+                fieldErrors.phone ? 'border-ios-red' : 'border-transparent'
               }`}
             />
-            {fieldErrors.phone && <p className="text-red-500 text-[10px] font-semibold mt-0.5">{fieldErrors.phone}</p>}
+            {fieldErrors.phone && <p className="text-ios-red text-[11px] font-semibold mt-0.5">{fieldErrors.phone}</p>}
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">6. Manzil *</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">6. Manzil *</label>
             <LandmarkPicker
               value={primaryLandmarkId || null}
               displayName={primaryLandmark}
@@ -671,24 +676,24 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
       {/* STEP 2 FORM */}
       {step === 2 && (
-        <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+        <div className="bg-ios-card p-4 rounded-ios-lg shadow-sm space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Ish boshlanishi</label>
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Ish boshlanishi</label>
               <input
                 type="time"
                 value={workFrom}
                 onChange={(e) => setWorkFrom(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+                className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2 text-[13px] text-ios-label focus:outline-none"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Ish tugashi</label>
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Ish tugashi</label>
               <input
                 type="time"
                 value={workTo}
                 onChange={(e) => setWorkTo(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 focus:outline-none"
+                className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2 text-[13px] text-ios-label focus:outline-none"
               />
             </div>
           </div>
@@ -696,7 +701,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           {/* Zapravkalar uchun: manzil havolasi (Yandex Xarita) */}
           {listingType === 'ZAPRAVKA' && (
             <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-500 uppercase">Xarita havolasi (Yandex)</label>
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Xarita havolasi (Yandex)</label>
               <input
                 type="text"
                 value={mapUrl}
@@ -713,9 +718,9 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                   if (match && match[0] !== e.target.value.trim()) setMapUrl(match[0]);
                 }}
                 placeholder="https://yandex.uz/maps/..."
-                className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+                className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-ios-label-secondary/70 mt-0.5">
                 Yandex Xarita ilovasida joyni toping → "Ulashish" → havolani shu yerga joylashtiring. Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.
               </p>
             </div>
@@ -726,7 +731,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               umuman ko'rsatilmaydi (2026-09, kelishilgan qaror). */}
           {!(listingType === 'ZAPRAVKA' && /elektr|zaryad/i.test(category)) && (
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">
               {listingType === 'ZAPRAVKA' ? "Yoqilg'i turi" : 'Xizmat xususiyatlari (Belgilar)'}
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -740,10 +745,10 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                       if (hasBadge) setBadges(badges.filter(b => b !== badge));
                       else setBadges([...badges, badge]);
                     }}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
                       hasBadge
-                        ? 'bg-primary dark:bg-sky-500 text-white shadow-sm'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+                        ? 'bg-ios-blue text-white shadow-sm'
+                        : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
                     }`}
                   >
                     {badge}
@@ -755,23 +760,23 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Narxi (Taxminiy)</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Narxi (Taxminiy)</label>
             <input
               type="text"
               value={approxPrice}
               onChange={(e) => setApproxPrice(e.target.value)}
               placeholder="Masalan, 50,000 so'mdan boshlab"
-              className="w-full bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none"
+              className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">Tavsif / Izoh</label>
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Tavsif / Izoh</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Xizmat haqida qo'shimcha ma'lumot kiriting..."
-              className="w-full h-20 bg-slate-50 dark:bg-[#1C2733] border border-outline-variant/30 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-on-surface dark:text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
+              className="w-full h-20 bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none resize-none"
             />
           </div>
 
@@ -779,17 +784,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               foto. Mos so'rov kelganda bot buni suriladigan albom qilib
               yuboradi. */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase">
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">
               Rasmlar ({photoUrls.length}/{MAX_PHOTOS})
             </label>
-            <p className="text-[10px] text-slate-500 -mt-1">
+            <p className="text-[11px] text-ios-label-secondary/70 -mt-1">
               Masalan uy/kvartira arendaga bo'lsa, rasmlarini shu yerga yuklang — mos so'rov kelganda bot ularni suriladigan albom qilib yuboradi.
             </p>
 
             {photoUrls.length > 0 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {photoUrls.map((url) => (
-                  <div key={url} className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-outline-variant/30 dark:border-slate-800">
+                  <div key={url} className="relative shrink-0 w-16 h-16 rounded-ios overflow-hidden">
                     <img src={url} alt="" className="w-full h-full object-cover" />
                     <button
                       type="button"
@@ -804,7 +809,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
             )}
 
             {photoUrls.length < MAX_PHOTOS && (
-              <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-dashed border-primary/40 dark:border-sky-500/40 text-primary dark:text-sky-400 text-xs font-bold cursor-pointer">
+              <label className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-ios border border-dashed border-ios-blue/40 text-ios-blue text-[13px] font-bold cursor-pointer">
                 <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
                 {isUploadingPhoto ? 'Yuklanmoqda...' : 'Rasm qo\'shish'}
                 <input
@@ -820,7 +825,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 />
               </label>
             )}
-            {photoUploadError && <p className="text-red-500 text-[10px] font-semibold">{photoUploadError}</p>}
+            {photoUploadError && <p className="text-ios-red text-[11px] font-semibold">{photoUploadError}</p>}
           </div>
         </div>
       )}
@@ -828,39 +833,39 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       {/* STEP 3 REVIEW & CONFIRM */}
       {step === 3 && (
         <div className="space-y-4">
-          <div className="bg-surface dark:bg-[#17212B] p-4 border border-outline-variant/30 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
-            <h3 className="font-bold text-xs text-slate-500 uppercase border-b pb-1">Kiritilgan Ma'lumotlarni Tekshirish</h3>
-            
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Ism:</span> <span className="font-bold text-on-surface dark:text-slate-100">{name}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Kasb:</span> <span className="font-bold text-on-surface dark:text-slate-100">{category}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Telefon:</span> <span className="font-bold text-on-surface dark:text-slate-100">{phone}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Manzil:</span> <span className="font-bold text-on-surface dark:text-slate-100">{primaryLandmark}</span></div>
+          <div className="bg-ios-card p-4 rounded-ios-lg shadow-sm space-y-3">
+            <h3 className="font-semibold text-[13px] text-ios-label-secondary/70 uppercase pb-1" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>Kiritilgan Ma'lumotlarni Tekshirish</h3>
+
+            <div className="space-y-2 text-[13px]">
+              <div className="flex justify-between"><span className="text-ios-label-secondary/70">Ism:</span> <span className="font-bold text-ios-label">{name}</span></div>
+              <div className="flex justify-between"><span className="text-ios-label-secondary/70">Kasb:</span> <span className="font-bold text-ios-label">{category}</span></div>
+              <div className="flex justify-between"><span className="text-ios-label-secondary/70">Telefon:</span> <span className="font-bold text-ios-label">{phone}</span></div>
+              <div className="flex justify-between"><span className="text-ios-label-secondary/70">Manzil:</span> <span className="font-bold text-ios-label">{primaryLandmark}</span></div>
               {listingType === 'ZAPRAVKA' && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Xarita havolasi:</span>
-                  <span className={`font-bold ${mapUrl.trim() ? 'text-on-surface dark:text-slate-100' : 'text-amber-500'}`}>
+                  <span className="text-ios-label-secondary/70">Xarita havolasi:</span>
+                  <span className={`font-bold ${mapUrl.trim() ? 'text-ios-label' : 'text-ios-orange'}`}>
                     {mapUrl.trim() ? "✓ qo'shilgan" : "⚠️ kiritilmagan"}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between"><span className="text-slate-500">Ish vaqti:</span> <span className="font-bold text-on-surface dark:text-slate-100">{workFrom} - {workTo}</span></div>
-              {approxPrice && <div className="flex justify-between"><span className="text-slate-500">Narx:</span> <span className="font-bold text-on-surface dark:text-slate-100">{approxPrice}</span></div>}
-              {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{b}</span>)}</div>}
-              {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-slate-500 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-semibold">{w}</span>)}</div>}
-              {photoUrls.length > 0 && <div className="flex justify-between"><span className="text-slate-500">Rasmlar:</span> <span className="font-bold text-on-surface dark:text-slate-100">{photoUrls.length} ta</span></div>}
+              <div className="flex justify-between"><span className="text-ios-label-secondary/70">Ish vaqti:</span> <span className="font-bold text-ios-label">{workFrom} - {workTo}</span></div>
+              {approxPrice && <div className="flex justify-between"><span className="text-ios-label-secondary/70">Narx:</span> <span className="font-bold text-ios-label">{approxPrice}</span></div>}
+              {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-ios-label-secondary/70 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-ios-fill/[0.12] px-2 py-0.5 rounded text-[11px] font-semibold text-ios-label">{b}</span>)}</div>}
+              {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-ios-label-secondary/70 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-ios-fill/[0.12] px-2 py-0.5 rounded text-[11px] font-semibold text-ios-label">{w}</span>)}</div>}
+              {photoUrls.length > 0 && <div className="flex justify-between"><span className="text-ios-label-secondary/70">Rasmlar:</span> <span className="font-bold text-ios-label">{photoUrls.length} ta</span></div>}
             </div>
           </div>
 
           {/* Consent Checkbox */}
-          <label className="flex items-start gap-2.5 p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-2xl cursor-pointer">
+          <label className="flex items-start gap-2.5 p-3.5 bg-ios-blue/10 rounded-ios-lg cursor-pointer">
             <input
               type="checkbox"
               checked={consentGiven}
               onChange={(e) => setConsentGiven(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded text-primary focus:ring-primary dark:bg-slate-800"
+              className="mt-0.5 w-4 h-4 rounded text-ios-blue focus:ring-ios-blue"
             />
-            <span className="text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+            <span className="text-[12px] font-semibold text-ios-blue">
               Ushbu usta yoki do'kon ma'lumotlarini bazada e'lon qilish bo'yicha ularning roziligi olindi. *
             </span>
           </label>
@@ -872,16 +877,16 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         {step > 1 && (
           <button
             onClick={handleBackStep}
-            className="flex-1 py-3 bg-slate-200 dark:bg-slate-800 text-on-surface dark:text-slate-100 font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1"
+            className="flex-1 py-3 bg-ios-fill/[0.12] text-ios-label font-bold text-[13px] rounded-ios active:opacity-60 transition-all flex items-center justify-center gap-1"
           >
             Orqaga
           </button>
         )}
-        
+
         {step < 3 ? (
           <button
             onClick={handleNextStep}
-            className="flex-1 py-3 bg-gradient-to-r from-[#2AABEE] to-[#0088CC] text-white font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1 shadow-md shadow-blue-500/20"
+            className="flex-1 py-3 bg-ios-blue text-white font-bold text-[13px] rounded-ios active:opacity-70 transition-all flex items-center justify-center gap-1"
           >
             Keyingi →
           </button>
@@ -889,7 +894,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || !consentGiven}
-            className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1 disabled:opacity-50 shadow-md shadow-emerald-500/20"
+            className="flex-1 py-3 bg-ios-green text-white font-bold text-[13px] rounded-ios active:opacity-70 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
           >
             {isSubmitting ? 'Saqlanmoqda...' : 'Tasdiqlash & Saqlash'}
           </button>
