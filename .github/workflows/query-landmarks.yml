@@ -1,0 +1,28 @@
+name: One-off - Query landmarks for test design
+on:
+  workflow_dispatch:
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const cities = await db.city.findMany({ select: { id: true, name: true } });
+                console.log('CITIES:', JSON.stringify(cities));
+                for (const c of cities) {
+                  const lms = await db.landmark.findMany({ where: { cityId: c.id }, select: { name: true, synonyms: true }, take: 10 });
+                  console.log('LANDMARKS for', c.name, JSON.stringify(lms));
+                }
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
