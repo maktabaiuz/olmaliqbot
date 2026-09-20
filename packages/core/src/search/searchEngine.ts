@@ -956,6 +956,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // (pastdagi jiddiy xato tuzatilishiga qarang).
   let hasResolvedCategory = false;
   let categoryHasAnyListings = false;
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "bochkadan
+  // olmaliqqa ketadigan taxilar bormi", "Olmaliqdan Samarqandga taksi kk"
+  // kabi so'rovlarga bot jim qoldi — garchi bizda haqiqiy taksi
+  // haydovchilari (Fayzxon, Muhridin, Xolmurtof) bo'lsa ham. Sabab:
+  // AI "bochka"/"olmaliq"ni MO'LJAL (landmark) deb chiqargan, bu esa
+  // Landmark jadvalida ro'yxatdan o'tmagani uchun "aniq, lekin bizda
+  // yo'q joy" (to'ytepa-pavarot uslubidagi) deb qat'iy filtrlangan.
+  // Lekin TRANSPORT toifasidagi xizmatlarda (taksi, labo, yuk mashinasi,
+  // arenda) foydalanuvchi aytgan joy odatda YO'NALISH/MANZIL (qayerga
+  // borish kerak), zapravka/usta kabi "shu YERDA joylashgan xizmat"
+  // ma'nosidagi mo'ljal EMAS — taksichi Olmaliqning istalgan joyidan
+  // Toshkentga olib ketishi mumkin, "Olmaliq" uni ajratmaydi. Shu sabab
+  // TRANSPORT toifalarida noaniq/topilmagan mo'ljal filtr sifatida
+  // ISHLATILMAYDI.
+  let hasResolvedTransportCategory = false;
   // Aniqlangan kategoriyaning O'Z lug'ati (nomi + sinonimlari) — pastdagi
   // "nomlangan ob'ekt" himoyasida kerak: AI ba'zan "name" maydoniga aslida
   // TOIFA so'zini ("balon", "shina") qo'yib yuboradi. Agar shu so'z bazada
@@ -1080,6 +1095,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       whereCondition.categoryId = { in: categoryIds };
       categoryDisplayName = categories[0].name;
       hasResolvedCategory = true;
+      hasResolvedTransportCategory = (categories as Array<{ objectType?: string | null }>).some(
+        (c) => c.objectType === 'TRANSPORT'
+      );
       // Kategoriyaning o'zida (mo'ljal/landmark cheklovidan MUSTAQIL) umuman
       // yozuv bor-yo'qligi — pastdagi jargon-qutqarish bosqichida kerak
       // bo'ladi (candidateListings landmark cheklovi sabab bo'sh bo'lib
@@ -1319,7 +1337,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // jargon) mos kelmasa, natija BO'SH qoladi va bot to'g'ri ravishda JIM
   // turadi — noto'g'ri "eng yaqin" yozuvni taxmin qilib bermaydi.
   const isGenericLocationPhrase = !!cleanLandmarkName && /\batrof/.test(cleanLandmarkName);
-  if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !(hasResolvedCategory && isGenericLocationPhrase))) {
+  const shouldIgnoreUnresolvedLandmark =
+    hasResolvedCategory && (isGenericLocationPhrase || hasResolvedTransportCategory);
+  if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !shouldIgnoreUnresolvedLandmark)) {
     const landmarkOrConditions: any[] = [];
     if (matchedLandmarkIds.length > 0) {
       landmarkOrConditions.push({ primaryLandmarkId: { in: matchedLandmarkIds } });
