@@ -64,7 +64,12 @@ export async function classifyQuery(
 ): Promise<ClassifierResult> {
   const cleanText = userMessage.trim();
   const normalized = normalizeText(cleanText);
-  const cacheKey = `kimbor:classifier:v2:${crypto.createHash('md5').update(normalized).digest('hex')}`;
+  // MUHIM: cityId keshlash kalitiga KIRISHI SHART — landmark-bog'lash
+  // (getRealLandmarkNames) shahar bo'yicha farqlanadi, shuning uchun bitta
+  // matn ikki xil shahardan kelsa ham natija bir-biriga aralashib
+  // ketmasligi kerak (masalan, A shahardagi "karzinka" mo'ljali B shahar
+  // foydalanuvchisiga keshdan noto'g'ri qaytmasligi uchun).
+  const cacheKey = `kimbor:classifier:v2:${cityId || 'nocity'}:${crypto.createHash('md5').update(normalized).digest('hex')}`;
 
   // 1. Keshni tekshirish (10 minutlik)
   const cached = memoryCache.get(cacheKey);
