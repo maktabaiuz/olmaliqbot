@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory, getRealCategoryEnumNames } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory, getRealCategoryEnumNames, getRealLandmarkNames } from '@kimbor/core';
 import crypto from 'crypto';
 
 // Simple in-memory fallback cache if Redis is not connected
@@ -85,11 +85,11 @@ export async function classifyQuery(
 
   if (geminiUsable && hasPossibleServiceSignal(normalized)) {
     if (reserveGeminiCallSlot()) {
-      const first = await callGeminiClassifier(cleanText, geminiKey, 6000);
+      const first = await callGeminiClassifier(cleanText, geminiKey, 6000, cityId);
       if (first.data) {
         result = first.data;
       } else if (!first.rateLimited && reserveGeminiCallSlot()) {
-        const second = await callGeminiClassifier(cleanText, geminiKey, 6000);
+        const second = await callGeminiClassifier(cleanText, geminiKey, 6000, cityId);
         result = second.data || fallbackRuleClassification(normalized, cleanText);
       } else {
         result = fallbackRuleClassification(normalized, cleanText);
@@ -198,7 +198,8 @@ const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 async function callGeminiClassifier(
   cleanText: string,
   geminiKey: string,
-  timeoutMs: number
+  timeoutMs: number,
+  cityId?: string
 ): Promise<GeminiCallOutcome> {
   const abortController = new AbortController();
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
@@ -208,6 +209,20 @@ async function callGeminiClassifier(
     // (10 daqiqaga keshlanadi — qarang: getRealCategoryEnumNames) va
     // Gemini so'rov sxemasiga enum sifatida ulanadi.
     const categoryEnumNames = await getRealCategoryEnumNames();
+
+    // MUHIM (2026-09, AI-bog'lashning 2-bosqichi): "landmark" — kategoriyadan
+    // farqli o'laroq — QATTIQ ro'yxat bilan cheklanmaydi (foydalanuvchi
+    // bizda ro'yxatdan o'tmagan joyni ham aytishi mumkin, bu holda qidiruv
+    // to'g'ri ravishda JIM turadi). Buning o'rniga haqiqiy mo'ljallar
+    // ro'yxati "ma'lumot beruvchi" KONTEKST sifatida promptga qo'shiladi —
+    // AI bilgan joyni TO'G'RI yozishga (buzuq/aralash matn emas) yordam
+    // beradi, lekin yangi joy aytish erkinligini cheklamaydi.
+    const landmarkNames = cityId ? await getRealLandmarkNames(cityId) : [];
+    const landmarkContext =
+      landmarkNames.length > 0
+        ? `\n\nKNOWN LANDMARKS IN THIS CITY (reference only, not exhaustive — if the person's wording clearly matches one of these, use this exact spelling for "landmark"; if they mention a different/unlisted place, use their own wording as usual, do not force-fit):\n${landmarkNames.join(', ')}`
+        : '';
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
@@ -217,7 +232,7 @@ async function callGeminiClassifier(
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: classifierPrompt }] },
+          systemInstruction: { parts: [{ text: classifierPrompt + landmarkContext }] },
           contents: [{ role: 'user', parts: [{ text: `INPUT: "${cleanText}"` }] }],
           generationConfig: {
             responseMimeType: 'application/json',
