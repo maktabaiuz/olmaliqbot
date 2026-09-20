@@ -16,7 +16,7 @@ no text before or after the JSON.
 {
   "intent": "CONTACT | SERVICE | HOURS | LOCATION | PRICE | EMERGENCY | NOT_RELEVANT",
   "object_type": "USTA | DOKON_OBYEKT | MUASSASA | TRANSPORT | null",
-  "category": "<lowercase Latin, normalized>" | null,
+  "category": "<one value from the provided category list, or \"NONE\">",
   "name": "<person or place name>" | null,
   "landmark": "<landmark as the person said it>" | null,
   "urgency": "low | medium | high",
@@ -90,6 +90,18 @@ person clearly means. Only lower confidence when the MEANING itself is
 ambiguous, never just because the spelling is messy.
 Always normalize \`category\` and \`landmark\` to clean Uzbek Latin
 lowercase in your output, regardless of how the input was spelled.
+
+===========================================================
+2b) "category" IS A FIXED LIST — you cannot invent new values
+===========================================================
+The "category" field is constrained by the API itself to a fixed list of
+real, existing categories (passed to you as the schema's enum for this
+field) plus "NONE". You literally cannot output a category that is not
+on that list — if you try, the request fails validation. So when nothing
+on the list fits what the person is asking for, always return "NONE" —
+never pick the closest-SOUNDING option just to have something to say.
+"NONE" for category does not mean the whole message is irrelevant: keep
+classifying intent/name/landmark normally, just leave category as "NONE".
 
 ===========================================================
 3) LOCAL GLOSSARY — real institutions, not trade categories

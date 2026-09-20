@@ -1,5 +1,5 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory } from '@kimbor/core';
+import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory, getRealCategoryEnumNames } from '@kimbor/core';
 import crypto from 'crypto';
 
 // Simple in-memory fallback cache if Redis is not connected
@@ -139,37 +139,54 @@ interface GeminiCallOutcome {
 // bu erkin matn ichidan JSON "ushlashga" harakat qilishdan (markdown
 // bloklar, qo'shimcha izohlar bilan buzilishi mumkin) ancha ishonchli.
 // Diqqat: Gemini schema'sida type qiymatlari UPPERCASE bo'lishi shart.
-const CLASSIFY_RESPONSE_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    intent: {
-      type: 'STRING',
-      enum: ['CONTACT', 'SERVICE', 'HOURS', 'LOCATION', 'PRICE', 'EMERGENCY', 'NOT_RELEVANT'],
+// MUHIM (2026-09, "professional audit"dan keyingi tub yechim): "category"
+// avval ERKIN MATN (`type: 'STRING'`, cheklovsiz) edi — AI istalgan narsa
+// yoza olardi. Natijada Gemini muntazam ravishda bizda UMUMAN YO'Q,
+// o'ylab topilgan kategoriya nomlarini ("perekrutel", "razval", "klapan",
+// "karbyuratorchi", "ustoz") "haqiqiy" kabi qaytarardi — bularning har
+// biri alohida real skrinshot orqali topilib, qidiruv qatlamida
+// (searchEngine.ts) chetlab o'tilishi kerak bo'lgan, CHEKSIZ davom
+// etadigan reaktiv kurash edi.
+//
+// Endi "category" ham "intent"/"object_type" kabi ENUM — faqat bizning
+// bazamizda HAQIQATAN mavjud kategoriyalar ro'yxatidan (+ "NONE") biri
+// bo'lishi mumkin. Bu AI'ni YO'Q kategoriya o'ylab topishdan API
+// darajasida to'sadi — qidiruv qatlamidagi ko'plab himoya qatlamlari
+// endi zaxira vazifasini bajaradi, birinchi chiziq esa shu yerda.
+function buildResponseSchema(categoryEnumNames: string[]) {
+  return {
+    type: 'OBJECT',
+    properties: {
+      intent: {
+        type: 'STRING',
+        enum: ['CONTACT', 'SERVICE', 'HOURS', 'LOCATION', 'PRICE', 'EMERGENCY', 'NOT_RELEVANT'],
+      },
+      object_type: {
+        type: 'STRING',
+        enum: ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'NONE'],
+      },
+      category: {
+        type: 'STRING',
+        enum: [...categoryEnumNames, 'NONE'],
+        description:
+          'Kind of trade/business. MUST be exactly one value from this list, or "NONE" if nothing in the list fits — never invent a new value.',
+      },
+      name: {
+        type: 'STRING',
+        description:
+          'Proper name of the ONE specific business/person/institution being asked about, e.g. "LADA magazin", "MIB". Never a category word, never a landmark+category phrase. Empty string if none — never the text "NONE" or "null".',
+      },
+      landmark: {
+        type: 'STRING',
+        description:
+          'Place mentioned only to say WHERE something is (not the thing being asked about), as the person said it. Empty string if none.',
+      },
+      urgency: { type: 'STRING', enum: ['low', 'medium', 'high'] },
+      confidence: { type: 'NUMBER' },
     },
-    object_type: {
-      type: 'STRING',
-      enum: ['USTA', 'DOKON_OBYEKT', 'MUASSASA', 'TRANSPORT', 'NONE'],
-    },
-    category: {
-      type: 'STRING',
-      description:
-        'Kind of trade/business (lowercase Latin, normalized), e.g. "santexnik", "zapravka". Never a proper name, never an acronym echoed back. Empty string if none.',
-    },
-    name: {
-      type: 'STRING',
-      description:
-        'Proper name of the ONE specific business/person/institution being asked about, e.g. "LADA magazin", "MIB". Never a category word, never a landmark+category phrase. Empty string if none — never the text "NONE" or "null".',
-    },
-    landmark: {
-      type: 'STRING',
-      description:
-        'Place mentioned only to say WHERE something is (not the thing being asked about), as the person said it. Empty string if none.',
-    },
-    urgency: { type: 'STRING', enum: ['low', 'medium', 'high'] },
-    confidence: { type: 'NUMBER' },
-  },
-  required: ['intent', 'urgency', 'confidence'],
-};
+    required: ['intent', 'urgency', 'confidence'],
+  };
+}
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
@@ -187,6 +204,10 @@ async function callGeminiClassifier(
   const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
+    // Har bir so'rovda bazadan HAQIQIY kategoriyalar ro'yxati olinadi
+    // (10 daqiqaga keshlanadi — qarang: getRealCategoryEnumNames) va
+    // Gemini so'rov sxemasiga enum sifatida ulanadi.
+    const categoryEnumNames = await getRealCategoryEnumNames();
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
@@ -200,7 +221,7 @@ async function callGeminiClassifier(
           contents: [{ role: 'user', parts: [{ text: `INPUT: "${cleanText}"` }] }],
           generationConfig: {
             responseMimeType: 'application/json',
-            responseSchema: CLASSIFY_RESPONSE_SCHEMA,
+            responseSchema: buildResponseSchema(categoryEnumNames),
             maxOutputTokens: 400,
           },
         }),
@@ -235,7 +256,7 @@ async function callGeminiClassifier(
         object_type: (parsed.object_type && parsed.object_type !== 'NONE'
           ? parsed.object_type
           : null) as ListingObjectType | null,
-        category: parsed.category || null,
+        category: parsed.category && parsed.category !== 'NONE' ? parsed.category : null,
         name: parsed.name || null,
         landmark: parsed.landmark || null,
         confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.85,

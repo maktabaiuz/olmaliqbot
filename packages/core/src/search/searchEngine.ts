@@ -5,6 +5,7 @@ import { normalizeText, levenshteinDistance, coreMatchText } from '../transliter
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { UZBEK_STOPWORDS } from './uzbekStopwords';
+import { isMalformedCategoryName } from './categoryDictionary';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
@@ -222,13 +223,6 @@ let categoryVocabCache: { words: Set<string>; expiresAt: number } | null = null;
 // хизматини таклиф"). Bunday "kategoriya" o'nlab tasodifiy so'zni lug'atga
 // olib kiradi va qidiruv aniqligini buzadi. Mavjudlari tozalandi, lekin
 // yangisi yana paydo bo'lishi mumkin — shuning uchun kod ham himoyalangan.
-function isMalformedCategoryName(name: string): boolean {
-  if (/[\n\r]/.test(name)) return true;
-  if (name.length > 40) return true;
-  if (/\+998|\d{3}[-\s]\d{2}[-\s]\d{2}|@\w+/.test(name)) return true;
-  return false;
-}
-
 // MUHIM (2026-09, real skrinshot bilan tasdiqlangan, juda KENG QAMROVLI
 // xato): "gaz plitani remont qiladigan usta" so'roviga AI category="gaz
 // plita ustasi" deb chiqardi — bu o'zi TO'G'RI, lekin so'z darajasidagi
