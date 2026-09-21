@@ -1,0 +1,61 @@
+name: One-off - Verify akalar fix plus full regression
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { searchListings } = require('/app/packages/core/dist/index.js');
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                console.log('=== A the exact bug case: arenda moshina (should NOT be sugurta) ===');
+                const msg1 = \"Akalar arendaga yegil moshina kerak kimda bo'lsa qarab akuratniy haydab yuriladi uzoq muddatga\";
+                const r1a = await searchListings({ cityId: CITY, categoryName: \"avtomobil arendasi\", rawMessage: msg1, intent: 'SERVICE' });
+                console.log('with correct category:', r1a ? JSON.stringify({name: r1a.listing && r1a.listing.name}) : 'null');
+                const r1b = await searchListings({ cityId: CITY, rawMessage: msg1, intent: 'SERVICE' });
+                console.log('jargon-only (should be null now):', r1b ? JSON.stringify({name: r1b.listing && r1b.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== B regression: sugurta fix still works (from earlier fix) ===');
+                const msg2 = \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\";
+                const r2 = await searchListings({ cityId: CITY, categoryName: \"sug'urta\", rawMessage: msg2, intent: 'SERVICE' });
+                console.log('sugurta with akalar+oldindan+rahmat:', r2 ? JSON.stringify({name: r2.listing && r2.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== C regression: transport+landmark (karzinka taksi) ===');
+                const r3 = await searchListings({ cityId: CITY, categoryName: 'taksi', landmarkName: 'karzinka', rawMessage: 'taksi kerak edi karzinka tomonda', intent: 'SERVICE' });
+                console.log('taksi+karzinka:', r3 ? JSON.stringify({name: r3.listing && r3.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== D regression: genuine oldida landmark postposition ===');
+                const r4 = await searchListings({ cityId: CITY, rawMessage: 'karzinka oldida taksi kerak', intent: 'SERVICE' });
+                console.log('karzinka oldida:', r4 ? JSON.stringify({name: r4.listing && r4.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== E regression: other categories (kafelchi) ===');
+                const r5 = await searchListings({ cityId: CITY, categoryName: 'kafelchi', rawMessage: 'kafelchi kerak', intent: 'SERVICE' });
+                console.log('kafelchi:', r5 ? JSON.stringify({name: r5.listing && r5.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== F regression: beton teshish (Shohjahon) still works ===');
+                const r6 = await searchListings({ cityId: CITY, categoryName: 'beton teshish', rawMessage: 'Beton teshish kerak ustalar bormi', intent: 'SERVICE' });
+                console.log('beton teshish:', r6 ? JSON.stringify({name: r6.listing && r6.listing.name}) : 'null');
+
+                console.log('');
+                console.log('=== G real akalar-opening messages still resolve their real category ===');
+                const r7 = await searchListings({ cityId: CITY, categoryName: 'santexnik', rawMessage: 'Akalar santexnik kerak suv tomayabdi', intent: 'SERVICE' });
+                console.log('akalar santexnik:', r7 ? JSON.stringify({name: r7.listing && r7.listing.name}) : 'null');
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
