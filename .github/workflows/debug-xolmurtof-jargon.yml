@@ -1,4 +1,4 @@
-name: One-off - Debug taksi priority vs badge bonus
+name: One-off - Debug Xolmurtof Abror jargon match
 
 on:
   workflow_dispatch:
@@ -20,10 +20,10 @@ jobs:
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
               const db = new PrismaClient();
               (async () => {
-                const listings = await db.listing.findMany({
-                  where: { category: { name: 'Taksi' }, status: 'ACTIVE' },
-                  select: { name: true, badges: true, priorityRank: true, thumbsUpCount: true, thumbsDownCount: true, bayesianRating: true, verification: true },
+                const l = await db.listing.findFirst({
+                  where: { name: 'Xolmurtof Abror' },
+                  select: { name: true, jargonSynonyms: true },
                 });
-                console.log(JSON.stringify(listings, null, 2));
+                console.log(JSON.stringify(l));
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
