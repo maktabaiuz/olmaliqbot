@@ -22,6 +22,14 @@ export interface SearchOptions {
   categoryName?: string | null;
   landmarkName?: string | null;
   badgeFilter?: string[] | null;
+  /** Foydalanuvchi xabaridan aniqlangan, so'ralgan xususiyatlar (masalan
+   * ["Kafolat", "24/7"] — qarang: extractRequestedBadges). `badgeFilter`dan
+   * FARQLI o'laroq bu QATTIQ filtr EMAS — faqat reyting BONUSI (2026-09):
+   * shu belgiga ega yozuv(lar) ustunlik bilan birinchi chiqadi, lekin
+   * hech kimda bo'lmasa ham qidiruv bo'sh qaytmaydi (admin belgini
+   * qo'yishni unutgan bo'lishi mumkin — qattiq filtr botni noto'g'ri
+   * jim qoldirib qo'yar edi). */
+  requestedBadges?: string[] | null;
   /** Foydalanuvchining asl xabari — jargon so'zlarni to'g'ridan-to'g'ri qidirish uchun (AI klassifikator xato/vaqt tugashi holatida ham topish uchun). */
   rawMessage?: string | null;
   /** AI klassifikatorning "intent" bahosi (masalan "CONTACT", "SERVICE",
@@ -785,7 +793,7 @@ function deriveTargetAfterLandmark(rawMessage: string | null | undefined): strin
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter, rawMessage } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage } = options;
 
   if (!cityId) return null;
   if (!categoryName && !landmarkName && !rawMessage) return null;
@@ -1587,11 +1595,24 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const priorityBonus =
       item.priorityRank === 1 ? 1_000_000 : item.priorityRank === 2 ? 990_000 : item.priorityRank === 3 ? 980_000 : 0;
 
+    // Foydalanuvchi "kafolat bilan", "AI-92 bor" kabi aniq xususiyat
+    // so'ragan bo'lsa — shu belgiga ega yozuv(lar) ustunlik bilan tepaga
+    // chiqadi. ATAYLAB qattiq filtr EMAS (whereCondition'da yo'q) — har
+    // bir mos belgi uchun bonus qo'shiladi, hech kimda bo'lmasa ham
+    // (masalan admin belgini qo'yishni unutgan bo'lsa) qidiruv baribir
+    // odatdagidek davom etadi, bo'sh qaytmaydi.
+    const matchedBadgeCount =
+      requestedBadges && requestedBadges.length > 0 && Array.isArray(item.badges)
+        ? item.badges.filter((b: string) => requestedBadges.includes(b)).length
+        : 0;
+    const badgeBonus = matchedBadgeCount * 400;
+
     const totalScore =
       priorityBonus +
       isVerifiedBonus +
       jargonBonus +
       directJargonBonus +
+      badgeBonus +
       ratingScore +
       countScore +
       recencyScore * 0.15 +

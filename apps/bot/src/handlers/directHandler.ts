@@ -1,6 +1,6 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
 import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText } from '@kimbor/core';
+import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -278,6 +278,7 @@ async function runPrivateSearch(
     rawMessage: opts.rawMessage,
     intent: opts.intent,
     name: opts.name,
+    requestedBadges: extractRequestedBadges(opts.rawMessage),
   });
 
   if (!searchResult) {
