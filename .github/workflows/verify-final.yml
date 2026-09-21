@@ -1,0 +1,49 @@
+name: One-off - Final verify quy-fix + badge regression
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const { searchListings, extractRequestedBadges, isSelfOffer } = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                console.log('=== 1) Metan quyadigan zapravka -> should now be a zapravka listing, NOT Biton quyuvchi ===');
+                const msg1 = 'Metan quyadigan zapravka qayerda';
+                const r1 = await searchListings({ cityId: CITY, categoryName: 'avtomobil zapravkasi', rawMessage: msg1, intent: 'SERVICE', requestedBadges: extractRequestedBadges(msg1) });
+                console.log('Top result:', r1 ? r1.listing.name : 'null', '| category correct:', r1 ? r1.listing.name !== 'Biton quyuvchi' : false);
+
+                console.log('');
+                console.log('=== 2) Regression: genuine Betonchi query (fundament quyadigan usta kerak) STILL finds Biton quyuvchi via \"fundament\" ===');
+                const msg2 = 'Fundament quyadigan usta kerak';
+                const r2 = await searchListings({ cityId: CITY, categoryName: 'betonchi', rawMessage: msg2, intent: 'SERVICE', requestedBadges: extractRequestedBadges(msg2) });
+                console.log('Top result:', r2 ? r2.listing.name : 'null');
+
+                console.log('');
+                console.log('=== 3) Badge ranking still works: Taksi + Zudlik -> Muhridin ===');
+                const msg3 = 'Taksi kerak zudlik bilan';
+                const r3 = await searchListings({ cityId: CITY, categoryName: 'taksi', rawMessage: msg3, intent: 'SERVICE', requestedBadges: extractRequestedBadges(msg3) });
+                console.log('Top result:', r3 ? r3.listing.name : 'null');
+
+                console.log('');
+                console.log('=== 4) Prior fix regressions ===');
+                console.log('isSelfOffer sugurta ad (labo+phone):', isSelfOffer('Лабо хизмати 776880696'));
+                console.log('isSelfOffer akalar arenda (should be false, real request):', isSelfOffer('Akalar arendaga yegil moshina kerak'));
+                const r4 = await searchListings({ cityId: CITY, categoryName: 'taksi', rawMessage: 'taksi kerak karzinka bilan', intent: 'SERVICE', requestedBadges: extractRequestedBadges('taksi kerak karzinka bilan') });
+                console.log('taksi+karzinka top:', r4 ? r4.listing.name : 'null');
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
