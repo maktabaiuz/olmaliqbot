@@ -1,0 +1,37 @@
+name: One-off - Debug avtomobil arendasi category mismatch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                console.log('=== categories matching avtomobil/arenda ===');
+                const cats = await db.category.findMany({
+                  where: { OR: [ { name: { contains: 'arenda', mode: 'insensitive' } }, { synonyms: { has: 'avtomobil arendasi' } } ] },
+                  select: { id: true, name: true, synonyms: true, objectType: true },
+                });
+                console.log(JSON.stringify(cats, null, 2));
+
+                console.log('=== Rano listing ===');
+                const rano = await db.listing.findMany({
+                  where: { name: { contains: 'Rano', mode: 'insensitive' } },
+                  select: { id: true, name: true, categoryId: true, jargonSynonyms: true, status: true, category: { select: { name: true } } },
+                });
+                console.log(JSON.stringify(rano, null, 2));
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
