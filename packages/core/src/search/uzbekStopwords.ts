@@ -677,4 +677,19 @@ export const UZBEK_STOPWORDS: ReadonlySet<string> = new Set([
   "zog'onga", "zohidni", "zohiran", "zohirda", "zohiriy", "zolimlarga", "zolimona", "zoring",
   "zormandani", "zotin", "zo’g’a", "zo’r-bazo’r", "zo’rg’atdan", "zo’rma-zo’raki", "zubdat", "zud",
   "zukkoligiga", "zulfingga", "zullisonaynsiz", "zulmatda", "zulmdi", "zurriyoting", "zuryodi",
+
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato — "Akalar
+  // arendaga yegil moshina kerak..." so'roviga aloqasiz "Sug'urta"
+  // ko'rsatilgan): akademik darslik korpusi RASMIY yozma tildan olingan,
+  // shuning uchun guruh chatlariga xos MUROJAAT/SALOMLASHISH so'zlarini
+  // ("akalar", "assalomu alaykum" kabi) umuman o'z ichiga olmaydi. Bunday
+  // so'zlar hech qanday kategoriya lug'atida uchramagani uchun kod ularni
+  // "noyob, o'ziga xos identifikator" (atoqli nom kabi) deb NOTO'G'RI
+  // baholab, kategoriya chegarasini buzib o'tishga haqli "kuchli" dalil
+  // deb hisoblardi — garchi ular aslida ENG UMUMIY, hech narsani
+  // ajratmaydigan so'zlar bo'lsa ham (deyarli har bir xabar "Akalar..."
+  // yoki "Assalomu alaykum..." bilan boshlanadi). Qo'lda tasdiqlangan.
+  "akalar", "aka", "ukalar", "birodarlar", "opalar",
+  "assalomu", "alaykum", "alekum", "aleykum", "salomalekum",
+  "rahmat", "iltimos", "xammaga", "hammaga",
 ]);
