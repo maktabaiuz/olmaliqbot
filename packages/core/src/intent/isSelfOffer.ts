@@ -15,6 +15,19 @@ export function isSelfOffer(text: string): boolean {
   // Aniq so'rov belgisi ustun: "menga X kerak", "X bormi", "X nomeri"
   if (isClearSeek(n)) return false;
 
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "Labo
+  // xizmati 776880696" — o'z xizmatini taklif qilishning ENG QISQA,
+  // fe'lsiz shakli (shunchaki xizmat nomi + telefon raqami, "bor"/
+  // "menda"/"sotaman" kabi hech qanday belgi so'zisiz). Yuqoridagi
+  // barcha qoidalar biror FE'L yoki EGALIK belgisiga tayanadi, shu
+  // sabab bunday "yalang'och" e'lonni o'tkazib yuborardi — bot esa
+  // buni so'rov deb qabul qilib, BAZADAGI BOSHQA (aloqasiz) yozuvni
+  // ko'rsatib yuborardi. Endi: xabar QISQA (<=6 so'z), o'zbek telefon
+  // raqamiga o'xshash 9 xonali (yoki 998+9 xonali) ketma-ketlik bor,
+  // VA hech qanday aniq so'rov so'zi ("kerak", "bormi", "narxi" kabi)
+  // yo'q bo'lsa — bu deyarli har doim o'z raqamini qoldirgan e'lon.
+  if (looksLikeContactOnlyAd(n)) return true;
+
   if (hasFirstPersonPossession(n)) return true;
   if (/\byo'?lga chiqaman\b/.test(n)) return true;
   if (/\b(bo'sh|bosh) ketaman\b/.test(n)) return true;
@@ -101,6 +114,20 @@ function hasFirstPersonPossession(n: string): boolean {
   // juda tabiiy va keng tarqalgan shakl E'LON emas, SO'ROV deb xato
   // baholanib, bot mavjud (aloqasiz) yozuvlarni ko'rsatib yuborardi.
   return /\b\w+im\s+bor\b/.test(n);
+}
+
+// O'zbek mobil raqami: mahalliy 9 xonali ("776880696") yoki 998 kodi
+// bilan 12 xonali ("998776880696") — ikkalasi ham shu bitta qoliplashda.
+const PHONE_LIKE_PATTERN = /\b(?:998)?\d{9}\b/;
+// Aniq so'rov so'zlaridan biri bo'lsa — raqam bo'lishidan qat'i nazar,
+// bu SO'ROV (masalan "taksi kerak, shu raqamga yozing"), reklama emas.
+const REQUEST_MARKER_RE = /\b(kerak|bormi|nomeri|raqami|telefoni|narxi|qancha|nechiga|qayerda\w*|kimda)\b/;
+
+function looksLikeContactOnlyAd(n: string): boolean {
+  if (!PHONE_LIKE_PATTERN.test(n)) return false;
+  if (REQUEST_MARKER_RE.test(n)) return false;
+  const wordCount = n.split(/\s+/).filter(Boolean).length;
+  return wordCount <= 6;
 }
 
 function hasVehicleHint(n: string): boolean {
