@@ -1,0 +1,43 @@
+name: One-off - Find Rano collision word
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const core = require('/app/packages/core/dist/index.js');
+              const { UZBEK_STOPWORDS } = require('/app/packages/core/dist/search/uzbekStopwords.js');
+              const msg = \"Akalar arendaga yegil moshina kerak kimda bo'lsa qarab akuratniy haydab yuriladi uzoq muddatga\";
+              const jargonList = [
+                'arendaga kivartira kerak','studentlarga kvartira kerak',
+                'ijaraga kivartira kerak studentlarga','ijaraga kvartira',
+                'ijaraga uy kerak','ogil bolalarga ijaraga uy kerak','ijaraga uy kerak bollarga'
+              ];
+              const msgCore = core.coreMatchText(msg);
+              console.log('MSG_CORE:', msgCore);
+              for (const j of jargonList) {
+                const jc = core.coreMatchText(j);
+                console.log(JSON.stringify({ jargon: j, jargonCore: jc, includesFwd: msgCore.includes(jc), includesBack: jc.includes(msgCore) }));
+              }
+              console.log('');
+              console.log('--- word level check ---');
+              const msgWords = core.normalizeText(msg).split(/\s+/).filter(w => w.length>=5 && !UZBEK_STOPWORDS.has(w));
+              console.log('msgWords (len>=5, not stopword):', JSON.stringify(msgWords));
+              for (const j of jargonList) {
+                const jWords = core.normalizeText(j).split(/\s+/).filter(w => w.length>=5 && !UZBEK_STOPWORDS.has(w));
+                const shared = jWords.filter(jw => msgWords.includes(jw));
+                if (shared.length > 0) console.log('SHARED WORD:', JSON.stringify({ jargon: j, shared }));
+              }
+            "
