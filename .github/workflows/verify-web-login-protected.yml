@@ -1,4 +1,4 @@
-name: One-off - Verify standalone web-login end to end
+name: One-off - Verify web-login against a write-protected endpoint
 
 on:
   workflow_dispatch:
@@ -27,66 +27,35 @@ jobs:
               (async () => {
                 const city = await db.city.findFirst();
                 const testTelegramId = BigInt('999999999901');
-                const user = await db.user.upsert({
+                await db.user.upsert({
                   where: { telegramId: testTelegramId },
-                  update: {
-                    role: 'CITY_ADMIN',
-                    isSuspended: false,
-                    cityId: city.id,
-                    passwordHash: hashPassword('TestWebLogin123'),
-                    isPasswordSet: true,
-                    loginUsername: 'weblogintest',
-                  },
-                  create: {
-                    telegramId: testTelegramId,
-                    firstName: 'WebLoginTest',
-                    role: 'CITY_ADMIN',
-                    cityId: city.id,
-                    passwordHash: hashPassword('TestWebLogin123'),
-                    isPasswordSet: true,
-                    loginUsername: 'weblogintest',
-                  },
+                  update: { role: 'CITY_ADMIN', isSuspended: false, cityId: city.id, passwordHash: hashPassword('TestWebLogin123'), isPasswordSet: true, loginUsername: 'weblogintest' },
+                  create: { telegramId: testTelegramId, firstName: 'WebLoginTest', role: 'CITY_ADMIN', cityId: city.id, passwordHash: hashPassword('TestWebLogin123'), isPasswordSet: true, loginUsername: 'weblogintest' },
                 });
-                console.log('TEST_USER_READY', user.id, user.loginUsername);
+                console.log('TEST_USER_READY');
               })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
             "
 
-      - name: Test web-login flow via curl
+      - name: Test against write-protected endpoint
         run: |
-          echo "=== 1) Wrong password should fail ==="
-          curl -s -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/web-login \
+          echo "=== A) POST /admin/categories WITHOUT auth (expect 401) ==="
+          curl -s -X POST https://olmaliq.online/api/admin/categories \
             -H "Content-Type: application/json" \
-            -d '{"loginUsername":"weblogintest","password":"wrong"}' -w "\nHTTP:%{http_code}\n"
+            -d '{"name":"ShouldNotBeCreated"}' -w "\nHTTP:%{http_code}\n"
 
           echo ""
-          echo "=== 2) Correct login should succeed and set cookie ==="
+          echo "=== B) Login via web-login ==="
           curl -s -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/web-login \
             -H "Content-Type: application/json" \
             -d '{"loginUsername":"weblogintest","password":"TestWebLogin123"}' -w "\nHTTP:%{http_code}\n"
 
           echo ""
-          echo "=== 3) Cookie jar contents ==="
-          cat /tmp/cookies.txt
+          echo "=== C) POST /admin/categories WITH cookie only (no x-init-data) — should succeed and create a real (test) row ==="
+          curl -s -b /tmp/cookies.txt -X POST https://olmaliq.online/api/admin/categories \
+            -H "Content-Type: application/json" \
+            -d '{"name":"ZZZ_TEST_WEBLOGIN_VERIFY","objectType":"USTA"}' -w "\nHTTP:%{http_code}\n"
 
-          echo ""
-          echo "=== 4) /api/auth/session with cookie should return the user ==="
-          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/auth/session -w "\nHTTP:%{http_code}\n"
-
-          echo ""
-          echo "=== 5) A real admin endpoint with cookie (no x-init-data) should work ==="
-          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/admin/categories -w "\nHTTP:%{http_code}\n" | head -c 300
-          echo ""
-
-          echo ""
-          echo "=== 6) Same admin endpoint WITHOUT any auth should be rejected ==="
-          curl -s https://olmaliq.online/api/admin/categories -w "\nHTTP:%{http_code}\n"
-
-          echo ""
-          echo "=== 7) Logout should clear session ==="
-          curl -s -b /tmp/cookies.txt -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/logout -w "\nHTTP:%{http_code}\n"
-          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/auth/session -w "\nHTTP:%{http_code}\n"
-
-      - name: Cleanup test user via SSH
+      - name: Restore setting + cleanup via SSH
         if: always()
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -100,6 +69,8 @@ jobs:
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
               const db = new PrismaClient();
               (async () => {
+                const deletedCat = await db.category.deleteMany({ where: { name: 'ZZZ_TEST_WEBLOGIN_VERIFY' } });
+                console.log('Deleted test categories:', deletedCat.count);
                 await db.loginAttempt.deleteMany({ where: { telegramId: BigInt('999999999901') } });
                 await db.user.deleteMany({ where: { telegramId: BigInt('999999999901') } });
                 console.log('TEST_USER_CLEANED');
