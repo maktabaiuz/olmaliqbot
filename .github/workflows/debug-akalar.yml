@@ -1,0 +1,27 @@
+name: One-off - Test akalar word-level match hypothesis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const core = require('/app/packages/core/dist/index.js');
+              const { UZBEK_STOPWORDS } = require('/app/packages/core/dist/search/uzbekStopwords.js');
+              console.log('akalar in UZBEK_STOPWORDS:', UZBEK_STOPWORDS.has('akalar'));
+              console.log('assalomu in UZBEK_STOPWORDS:', UZBEK_STOPWORDS.has('assalomu'));
+              console.log('alaykum in UZBEK_STOPWORDS:', UZBEK_STOPWORDS.has('alaykum'));
+              console.log('iltimos in UZBEK_STOPWORDS:', UZBEK_STOPWORDS.has('iltimos'));
+              console.log('birodarlar in UZBEK_STOPWORDS:', UZBEK_STOPWORDS.has('birodarlar'));
+            "
