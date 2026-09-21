@@ -206,6 +206,11 @@ model User {
   firstName     String?
   lastName      String?
   username      String?
+  // Saytdan (Telegram tashqarisida, oddiy brauzerdan) kirish uchun admin
+  // o'zi tanlagan login — Telegram'ning o'zgaruvchan `username` maydonidan
+  // ATAYLAB alohida: shu orqali admin panelga t.me tashqarisidan ham
+  // kirish mumkin bo'ladi (2026-09, standalone web-login).
+  loginUsername String?  @unique
   phoneNumber   String?            // Moderator uchun telefon raqami
   role          Role     @default(USER)
   cityId        String?

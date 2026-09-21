@@ -1,5 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
+import jwt from '@fastify/jwt';
+import crypto from 'crypto';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import dotenv from 'dotenv';
@@ -18,7 +21,20 @@ const fastify = Fastify({ logger: true });
 fs.mkdirSync(`${UPLOADS_DIR}/listings`, { recursive: true });
 
 async function main() {
-  await fastify.register(cors, { origin: true });
+  await fastify.register(cors, { origin: true, credentials: true });
+  await fastify.register(cookie);
+  // MUHIM (2026-09, standalone web-login): saytdan (Telegram tashqarisida)
+  // kirish uchun sessiya cookie'sini imzolash/tekshirish shu kalit bilan
+  // qilinadi. SESSION_SECRET serverda sozlanmagan bo'lsa ham API
+  // ishlashda davom etadi (xavfsizlik uchun EMAS, ishlab chiqishda
+  // qulaylik uchun) — lekin bu holda har bir deploy/qayta ishga
+  // tushirishda barcha web-sessiyalar bekor bo'ladi, shuning uchun
+  // productionda SESSION_SECRET albatta .env'ga qo'yilishi kerak.
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+  if (!process.env.SESSION_SECRET) {
+    fastify.log.warn('SESSION_SECRET .env da sozlanmagan — vaqtinchalik tasodifiy kalit ishlatilmoqda, har deploy sessiyalarni bekor qiladi.');
+  }
+  await fastify.register(jwt, { secret: sessionSecret });
   await fastify.register(multipart, {
     limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5MB, bitta rasm har bir so'rovda
   });

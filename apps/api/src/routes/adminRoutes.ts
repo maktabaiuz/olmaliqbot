@@ -4,7 +4,7 @@ import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonica
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest } from './authSecurity';
+import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest, issueSessionCookie, clearSessionCookie } from './authSecurity';
 import { UPLOADS_DIR } from '../uploadsPath';
 
 const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
@@ -433,6 +433,130 @@ export async function adminRoutes(fastify: FastifyInstance) {
     });
 
     return { success: true, message: "Parol o'rnatildi!" };
+  });
+
+  // --- STANDALONE WEB-LOGIN (2026-09) ---
+  // Admin panelga Telegram tashqarisida, oddiy brauzerdan (masalan
+  // https://olmaliq.online) kirish uchun. Telegram initData'ga
+  // bog'liq EMAS — buning o'rniga admin avval (Telegram orqali, allaqachon
+  // tasdiqlangan holda) o'zi tanlagan login+parolni o'rnatadi
+  // (`/auth/set-login-username`), keyin shu login+parol bilan istalgan
+  // brauzerdan kirishi mumkin (`/auth/web-login`).
+
+  // Admin (Telegram orqali allaqachon kirgan holda) o'zining sayt-login
+  // ismini o'rnatadi/o'zgartiradi. Parol allaqachon o'rnatilgan bo'lishi
+  // shart (`/auth/setup-password` orqali) — web-login xuddi shu
+  // parolni ishlatadi, alohida parol talab qilinmaydi.
+  fastify.post('/auth/set-login-username', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { loginUsername } = req.body;
+    const clean = (loginUsername || '').trim().toLowerCase();
+    if (!/^[a-z0-9_]{4,32}$/.test(clean)) {
+      return reply.status(400).send({
+        success: false,
+        message: "Login 4-32 belgi, faqat lotin harflari/raqam/pastki chiziqdan iborat bo'lishi kerak",
+      });
+    }
+    if (!req.user.passwordHash) {
+      return reply.status(400).send({ success: false, message: "Avval parol o'rnating (Til/Tema > Sozlamalar)" });
+    }
+    const existing = await db.user.findUnique({ where: { loginUsername: clean } });
+    if (existing && existing.id !== req.user.id) {
+      return reply.status(409).send({ success: false, message: 'Bu login band, boshqasini tanlang' });
+    }
+    await db.user.update({ where: { id: req.user.id }, data: { loginUsername: clean } });
+    return { success: true, loginUsername: clean };
+  });
+
+  // Joriy adminning sayt-login holatini ko'rsatish (o'rnatilganmi, qaysi login).
+  fastify.get('/auth/login-username', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    return { success: true, loginUsername: req.user.loginUsername || null };
+  });
+
+  fastify.post('/auth/web-login', async (req: any, reply) => {
+    const { loginUsername, password } = req.body;
+    const clean = (loginUsername || '').trim().toLowerCase();
+    if (!clean || !password) {
+      return reply.status(400).send({ success: false, message: 'Login va parol talab qilinadi' });
+    }
+
+    const dbUser = await db.user.findUnique({ where: { loginUsername: clean }, include: { city: true } });
+    if (!dbUser || dbUser.role === 'USER' || dbUser.isSuspended || !dbUser.passwordHash) {
+      return reply.status(401).send({ success: false, message: "Login yoki parol noto'g'ri" });
+    }
+
+    // Xuddi shu brute-force himoyasi (Telegram-login bilan bir xil jadval,
+    // telegramId orqali baham ko'riladi) — 5 marta xato bo'lsa 3 kunga bloklaydi.
+    const existingAttempt = await db.loginAttempt.findUnique({ where: { telegramId: dbUser.telegramId } });
+    if (existingAttempt?.bannedUntil && existingAttempt.bannedUntil > new Date()) {
+      return reply.status(403).send({
+        success: false,
+        banned: true,
+        message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(existingAttempt.bannedUntil)} keyin qayta urining.`,
+      });
+    }
+
+    if (!verifyPassword(password, dbUser.passwordHash)) {
+      const newFailedCount = (existingAttempt?.failedCount || 0) + 1;
+      const shouldBan = newFailedCount >= 5;
+      const bannedUntil = shouldBan ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
+      await db.loginAttempt.upsert({
+        where: { telegramId: dbUser.telegramId },
+        update: { failedCount: shouldBan ? 0 : newFailedCount, bannedUntil, lastAttemptAt: new Date() },
+        create: { telegramId: dbUser.telegramId, failedCount: shouldBan ? 0 : newFailedCount, bannedUntil },
+      });
+      if (shouldBan) {
+        return reply.status(403).send({
+          success: false,
+          banned: true,
+          message: `Ko'p marta xato parol kiritildi. ${formatRemainingTime(bannedUntil!)} keyin qayta urining.`,
+        });
+      }
+      return reply.status(401).send({ success: false, message: "Login yoki parol noto'g'ri" });
+    }
+
+    if (existingAttempt) {
+      await db.loginAttempt.delete({ where: { telegramId: dbUser.telegramId } }).catch(() => {});
+    }
+
+    issueSessionCookie(req, reply, dbUser);
+    return {
+      success: true,
+      user: {
+        id: dbUser.id,
+        telegramId: dbUser.telegramId.toString(),
+        name: `${dbUser.firstName || ''} ${dbUser.lastName || ''}`.trim() || 'Admin',
+        role: dbUser.role,
+        cityId: dbUser.cityId || 'default_city',
+        cityName: dbUser.city?.name || 'Olmaliq',
+      },
+    };
+  });
+
+  // Sahifa yuklanganda (Telegram konteksti yo'q holatda) mavjud sessiya
+  // cookie'si hali kuchdami — tekshirish uchun.
+  fastify.get('/auth/session', async (req: any, reply) => {
+    const { user, error } = await authenticateRequest(req);
+    if (error) {
+      return reply.status(error.status).send(error.body);
+    }
+    return {
+      success: true,
+      user: {
+        id: user.id,
+        telegramId: user.telegramId.toString(),
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin',
+        role: user.role,
+        cityId: user.cityId || 'default_city',
+        cityName: user.city?.name || 'Olmaliq',
+      },
+    };
+  });
+
+  fastify.post('/auth/logout', async (req: any, reply) => {
+    clearSessionCookie(reply);
+    return { success: true };
   });
 
   // --- 1.2 TEST CHECKOUT & CREDENTIAL GENERATION (Section 2 & 3) ---

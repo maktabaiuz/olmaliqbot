@@ -56,9 +56,42 @@ export function verifyTelegramInitData(initDataStr: string): { isValid: boolean;
   }
 }
 
+/** Sessiya cookie nomi — standalone (saytdan, Telegram tashqarisida) kirish uchun. */
+export const SESSION_COOKIE_NAME = 'kimbor_session';
+const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 kun
+
+/**
+ * Muvaffaqiyatli web-login'dan keyin imzolangan sessiya cookie'sini
+ * javobga qo'shadi (httpOnly — JS orqali o'qib bo'lmaydi, XSS himoyasi).
+ */
+export function issueSessionCookie(req: any, reply: any, dbUser: { id: string; telegramId: bigint }) {
+  const token = req.server.jwt.sign(
+    { userId: dbUser.id, telegramId: dbUser.telegramId.toString() },
+    { expiresIn: SESSION_TTL_SECONDS }
+  );
+  reply.setCookie(SESSION_COOKIE_NAME, token, {
+    path: '/',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: SESSION_TTL_SECONDS,
+  });
+}
+
+export function clearSessionCookie(reply: any) {
+  reply.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+}
+
 /**
  * Resolve and Authenticate User from Request securely.
  * Rejects header spoofing or default fallback IDs.
+ *
+ * Ikki xil kirish yo'lini qo'llab-quvvatlaydi:
+ * 1. Telegram WebApp initData (HMAC bilan tasdiqlangan) — botning ichida
+ *    ochilganda.
+ * 2. Sessiya cookie (JWT, web-login orqali) — oddiy brauzerdan, Telegram
+ *    tashqarisida kirilganda (2026-09, standalone web-login). initData
+ *    header umuman yo'q bo'lsa, avval shu yo'l sinab ko'riladi.
  */
 export async function authenticateRequest(req: any): Promise<{ user: any; error?: { status: number; body: any } }> {
   if (req.user) {
@@ -66,10 +99,25 @@ export async function authenticateRequest(req: any): Promise<{ user: any; error?
   }
 
   const initDataHeader = req.headers['x-init-data'] || req.headers['initdata'] || req.body?.initData;
+
   if (!initDataHeader) {
+    // Telegram konteksti yo'q — sessiya cookie'sini tekshiramiz.
+    const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
+    if (sessionToken) {
+      try {
+        const payload = req.server.jwt.verify(sessionToken) as { userId: string; telegramId: string };
+        const dbUser = await db.user.findUnique({ where: { id: payload.userId }, include: { city: true } });
+        if (dbUser && !dbUser.isSuspended) {
+          req.user = dbUser;
+          return { user: dbUser };
+        }
+      } catch {
+        // Yaroqsiz/eskirgan token — pastdagi umumiy 401 bilan yakunlanadi.
+      }
+    }
     return {
       user: null,
-      error: { status: 401, body: { success: false, accessDenied: true, message: 'Autentifikatsiya ma\'lumotlari (initData) talab qilinadi 🔒' } },
+      error: { status: 401, body: { success: false, accessDenied: true, message: 'Autentifikatsiya ma\'lumotlari talab qilinadi 🔒' } },
     };
   }
 

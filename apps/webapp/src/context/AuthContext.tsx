@@ -9,7 +9,14 @@ export interface AuthUser {
   cityName: string;
 }
 
-export type AuthState = 'CHECKING' | 'AUTHENTICATED' | 'ACCESS_DENIED' | 'REQUIRES_PASSWORD' | 'REQUIRES_SETUP' | 'BANNED';
+export type AuthState =
+  | 'CHECKING'
+  | 'AUTHENTICATED'
+  | 'ACCESS_DENIED'
+  | 'REQUIRES_PASSWORD'
+  | 'REQUIRES_SETUP'
+  | 'REQUIRES_WEB_LOGIN'
+  | 'BANNED';
 
 export interface LoginResult {
   success: boolean;
@@ -24,6 +31,8 @@ interface AuthContextType {
   isLoading: boolean;
   loginWithPassword: (password: string) => Promise<LoginResult>;
   setupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
+  /** Telegram tashqarisida, oddiy brauzerdan kirish (saytdan). */
+  loginWithWebCredentials: (loginUsername: string, password: string) => Promise<LoginResult>;
   logout: () => void;
 }
 
@@ -67,8 +76,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const tgData = window.Telegram?.WebApp?.initData;
 
         if (!tgData) {
+          // Telegram konteksti yo'q — oddiy brauzerdan (saytdan) kirilgan
+          // bo'lishi mumkin (2026-09, standalone web-login). Avval mavjud
+          // sessiya cookie'si hali kuchdami tekshiramiz (masalan sahifa
+          // yangilangan bo'lsa) — bo'lmasa, login formasi ko'rsatiladi.
+          try {
+            const sessionRes = await fetch('/api/auth/session');
+            if (sessionRes.ok) {
+              const sessionData = await sessionRes.json();
+              if (sessionData.success && sessionData.user) {
+                setUser(sessionData.user);
+                setAuthState('AUTHENTICATED');
+                setIsLoading(false);
+                return;
+              }
+            }
+          } catch (err) {
+            console.error('Session check failed:', err);
+          }
           setUser(null);
-          setAuthState('ACCESS_DENIED');
+          setAuthState('REQUIRES_WEB_LOGIN');
           setIsLoading(false);
           return;
         }
@@ -167,9 +194,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const loginWithWebCredentials = async (loginUsername: string, password: string): Promise<LoginResult> => {
+    try {
+      const res = await fetch('/api/auth/web-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginUsername, password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success && data.user) {
+        setUser(data.user);
+        setAuthState('AUTHENTICATED');
+        return { success: true };
+      }
+
+      if (data.banned) {
+        setBanMessage(data.message || "Vaqtincha bloklangan.");
+        setAuthState('BANNED');
+        return { success: false, message: data.message };
+      }
+
+      return { success: false, message: data.message || "Login yoki parol noto'g'ri" };
+    } catch (err) {
+      console.error('Web login failed:', err);
+      return { success: false };
+    }
+  };
+
   const logout = () => {
     setUser(null);
-    setAuthState('ACCESS_DENIED');
+    setAuthState(window.Telegram?.WebApp?.initData ? 'ACCESS_DENIED' : 'REQUIRES_WEB_LOGIN');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   };
 
   return (
@@ -182,6 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         loginWithPassword,
         setupPassword,
+        loginWithWebCredentials,
         logout,
       }}
     >

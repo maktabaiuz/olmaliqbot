@@ -18,6 +18,7 @@ import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
 
 import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 import { LoginScreen } from './screens/LoginScreen';
+import { WebLoginScreen } from './screens/WebLoginScreen';
 import { PasswordSetupScreen } from './screens/PasswordSetupScreen';
 
 import { ModeratorManagementScreen } from './screens/ModeratorManagementScreen';
@@ -68,7 +69,7 @@ const MoreRow: React.FC<{ icon: string; iconColor: string; label: string; onClic
 const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
-  const { user, authState, banMessage, isLoading, loginWithPassword, setupPassword } = useAuth();
+  const { user, authState, banMessage, isLoading, loginWithPassword, setupPassword, loginWithWebCredentials } = useAuth();
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   
   // Navigation & Control States
@@ -137,6 +138,16 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         adminName={user?.name || 'Admin'}
         onLogin={async (pass) => {
           return await loginWithPassword(pass);
+        }}
+      />
+    );
+  }
+
+  if (authState === 'REQUIRES_WEB_LOGIN') {
+    return (
+      <WebLoginScreen
+        onLogin={async (loginUsername, pass) => {
+          return await loginWithWebCredentials(loginUsername, pass);
         }}
       />
     );
