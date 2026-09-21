@@ -42,6 +42,15 @@ export function extractRequestedBadges(rawMessage: string): string[] {
   if (/\bruscha\b/.test(n) || /\brus tilida\b/.test(n) || /русск/.test(rawMessage)) {
     found.add('Ruscha');
   }
+  if (/\bbepul\s+(yetkazib|dostavka|dastavka)\b/.test(n) || /\b(dostavka|dastavka|yetkazib)\s+bepul\b/.test(n) || /\btekin\s+(yetkazib|dostavka|dastavka)\b/.test(n)) {
+    found.add('Bepul yetkazib berish');
+  }
+  if (/\bnasiya\b/.test(n) || /\bbo'?lib to'?lash\b/.test(n) || /\bmuddatli to'?lov\b/.test(n)) {
+    found.add('Nasiya');
+  }
+  if (/\bsertifikat\w*\b/.test(n) || /\blitsenzi\w*\b/.test(n)) {
+    found.add('Sertifikatlangan');
+  }
 
   // Zapravka yoqilg'i turlari — nisbatan aniq, kam uchraydigan atamalar
   // (oktan raqami), shuning uchun yolg'on-musbat xavfi past.

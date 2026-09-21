@@ -45,7 +45,10 @@ const LISTING_TYPE_OPTIONS: { id: 'USTA' | 'DOKON_OBYEKT' | 'MUASSASA' | 'TRANSP
 
 // Zapravkalar uchun yoqilg'i turi belgilar — boshqa turlarda ko'rinmaydi
 // (2026-09, deep-TZ'da kelishilgan: "tanlanadigan maydon (badge kabi)").
-const DEFAULT_BADGE_OPTIONS = ['Uyga boradi', 'Kafolat', '24/7', 'Karta', 'Zudlik', 'Ruscha'];
+const DEFAULT_BADGE_OPTIONS = [
+  'Uyga boradi', 'Kafolat', '24/7', 'Karta', 'Zudlik', 'Ruscha',
+  'Bepul yetkazib berish', 'Nasiya', 'Sertifikatlangan',
+];
 const ZAPRAVKA_BADGE_OPTIONS = ['Metan', 'Propan', 'AI-80', 'AI-91', 'AI-92', 'AI-95', 'Dizel', '24/7'];
 
 export const AddListingScreen: React.FC<AddListingScreenProps> = ({
