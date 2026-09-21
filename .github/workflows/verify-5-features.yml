@@ -1,0 +1,90 @@
+name: One-off - Verify 5 new admin panel features in production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                if (!superAdmin) { console.log('No SUPER_ADMIN found, aborting'); process.exit(1); }
+                const initData = buildInitData(superAdmin.telegramId.toString());
+                const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
+                const BASE = 'http://localhost:4000/api';
+
+                console.log('=== 1) Bot Simulator: real query ===');
+                const simRes = await fetch(BASE + '/admin/simulate', { method: 'POST', headers, body: JSON.stringify({ message: 'santexnik kerak kafolat bilan' }) });
+                const simData = await simRes.json();
+                console.log('status:', simRes.status);
+                console.log('zeroLayer passed:', simData.steps?.zeroLayer?.passed);
+                console.log('AI intent:', simData.steps?.aiClassification?.intent, 'category:', simData.steps?.aiClassification?.category);
+                console.log('selfOfferCheck blocked:', simData.steps?.selfOfferCheck?.blocked);
+                console.log('finalResult.found:', simData.finalResult?.found, 'listingName:', simData.finalResult?.listingName);
+                console.log('scoreBreakdown entries:', simData.scoreBreakdown ? simData.scoreBreakdown.length : 0);
+                if (simData.scoreBreakdown && simData.scoreBreakdown.length > 0) {
+                  console.log('sample breakdown entry:', JSON.stringify(simData.scoreBreakdown[0]));
+                }
+
+                console.log('');
+                console.log('=== 2) Duplicate category detector ===');
+                const dupRes = await fetch(BASE + '/admin/categories/duplicates', { headers });
+                const dupData = await dupRes.json();
+                console.log('status:', dupRes.status, 'duplicate pairs found:', dupData.duplicates?.length);
+                if (dupData.duplicates?.length > 0) console.log('sample:', JSON.stringify(dupData.duplicates.slice(0,3)));
+
+                console.log('');
+                console.log('=== 3) System health ===');
+                const healthRes = await fetch(BASE + '/admin/system-health', { headers });
+                const healthData = await healthRes.json();
+                console.log('status:', healthRes.status);
+                console.log(JSON.stringify(healthData, null, 2));
+
+                console.log('');
+                console.log('=== 4) Login history (audit-logs) ===');
+                const auditRes = await fetch(BASE + '/admin/audit-logs?limit=5', { headers });
+                const auditData = await auditRes.json();
+                console.log('status:', auditRes.status, 'logs returned:', auditData.logs?.length);
+                console.log('most recent 3:', JSON.stringify(auditData.logs?.slice(0,3)));
+
+                console.log('');
+                console.log('=== 5) Moderators list includes lastLoginAt ===');
+                const modRes = await fetch(BASE + '/admin/moderators', { headers });
+                const modData = await modRes.json();
+                console.log('status:', modRes.status, 'moderators:', modData.moderators?.length);
+                if (modData.moderators?.length > 0) console.log('sample:', JSON.stringify(modData.moderators[0]));
+
+                console.log('');
+                console.log('=== Bonus: confirm this test itself logged a LOGIN audit entry ===');
+                const loginLogs = await db.auditLog.findMany({ where: { userId: superAdmin.id, action: 'LOGIN' }, orderBy: { createdAt: 'desc' }, take: 1 });
+                console.log('most recent LOGIN log for this admin:', JSON.stringify(loginLogs));
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
+            "
