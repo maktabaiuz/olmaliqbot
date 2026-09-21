@@ -1,0 +1,43 @@
+name: One-off - Debug badge scoring internals
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const { extractRequestedBadges } = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              (async () => {
+                const msg = 'Taksi kerak zudlik bilan';
+                const requestedBadges = extractRequestedBadges(msg);
+                console.log('requestedBadges:', JSON.stringify(requestedBadges));
+
+                const listings = await db.listing.findMany({
+                  where: { category: { name: 'Taksi' }, status: 'ACTIVE' },
+                  select: { id: true, name: true, badges: true },
+                });
+                for (const item of listings) {
+                  const matchedBadgeCount = requestedBadges && requestedBadges.length > 0 && Array.isArray(item.badges)
+                    ? item.badges.filter((b) => requestedBadges.includes(b)).length
+                    : 0;
+                  console.log(item.name, '-> badges:', JSON.stringify(item.badges), 'matchedBadgeCount:', matchedBadgeCount, 'badgeBonus:', matchedBadgeCount * 400);
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
+
+            echo ""
+            echo "=== grep deployed dist for badgeBonus / matchedBadgeCount to confirm compiled code matches source ==="
+            docker exec kimbor_api grep -n "matchedBadgeCount\|badgeBonus" /app/packages/core/dist/search/searchEngine.js
