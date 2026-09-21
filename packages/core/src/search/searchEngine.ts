@@ -103,6 +103,26 @@ const GENERIC_ACTION_STEMS = ['remont', 'tamir', 'tuzat'];
 // boshlab) uni ham ushlay olmaydi — shu sabab alohida, aniq ro'yxatga
 // qo'shildi.
 const GENERIC_NOUN_STEMS = ['mashin', 'moshin', 'usta'];
+// MUHIM (2026-09, "belgilar" xususiyatini sinovdan o'tkazishda TASODIFAN
+// topilgan xato): "Metan QUYADIGAN zapravka qayerda" so'roviga aloqasiz
+// "Biton quyuvchi" (Betonchi, fundament ustasi) chiqib qoldi — sababi uning
+// jargonida "fundament QUYADIGAN usta kerak" iborasi bor edi va "quyadigan"
+// so'zi ANIQ (harfma-harf) mos kelgan. "Quy-" (quyish/to'kish) — fundamentga
+// beton quyishda ham, yoqilg'i quyishda ham, suv/moy quyishda ham
+// ishlatiladigan, hech bir sohaga xos BO'LMAGAN umumiy fe'l — xuddi
+// "remont"/"mashina"/"usta" kabi. O'zagi ("quy") atigi 3 harf bo'lgani
+// uchun yuqoridagi Levenshtein-stem usuli (5-6 harfli o'zaklar uchun
+// xavfsiz) bu yerda ISHLATILMAYDI: 3 harfli prefiksda 1-ta xatoga yo'l
+// qo'yish "qo'y" (qo'y go'shti — sohaga xos so'z!), "quvur" (santexnika
+// so'zi!) kabi haqiqiy identifikatorlarni ham noto'g'ri "umumiy" deb
+// chiqarib tashlashi mumkin edi. Shu sabab faqat "quy" o'zagidan ANIQ fe'l
+// qo'shimchalari bilan yasalgan, tekshirilgan shakllarning qat'iy ro'yxati
+// ishlatiladi.
+const GENERIC_QUY_VERB_FORMS = new Set([
+  'quyadigan', 'quyish', 'quyishi', 'quyuvchi', 'quygan', 'quyganlar',
+  'quyaman', 'quyamiz', 'quysin', 'quysinmi', 'quydi', 'quyibdi', 'quyib',
+  'quying', 'quyiladi', 'quyilgan', 'quyilsin',
+]);
 // MUHIM (2026-09, tub yechim): yuqoridagilarning barchasi ("remont",
 // "mashina", "usta"...) bitta ILDIZ muammoning turli ko'rinishlari edi —
 // bizning KICHIK bazamizda kam takrorlangani uchun o'zbek tilining ODDIY,
@@ -121,6 +141,7 @@ function isGenericFillerWord(word: string): boolean {
   if (UZBEK_STOPWORDS.has(word)) return true;
   if (word.startsWith('ishla')) return true;
   if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
+  if (GENERIC_QUY_VERB_FORMS.has(word)) return true;
   const bare = word.replace(/'/g, '');
   return GENERIC_ACTION_STEMS.some((stem) => {
     if (bare.length < stem.length - 1) return false;
