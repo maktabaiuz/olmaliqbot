@@ -1,0 +1,37 @@
+name: One-off - Check Redis rankedlist state for Elyor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const listings = await db.listing.findMany({
+                  where: { name: { contains: 'Elyor', mode: 'insensitive' } },
+                  select: { id: true, name: true, categoryId: true, jargonSynonyms: true, photoUrls: true },
+                });
+                console.log('ELYOR_LISTINGS:', JSON.stringify(listings, null, 2));
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
+            echo "--- Redis keys matching rankedlist ---"
+            docker exec kimbor_redis redis-cli KEYS 'kimbor:rankedlist:*'
+            echo "--- Contents of each ---"
+            for key in $(docker exec kimbor_redis redis-cli KEYS 'kimbor:rankedlist:*'); do
+              echo "KEY: $key"
+              docker exec kimbor_redis redis-cli GET "$key"
+              docker exec kimbor_redis redis-cli TTL "$key"
+            done
