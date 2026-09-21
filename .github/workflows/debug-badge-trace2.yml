@@ -1,4 +1,4 @@
-name: One-off - Trace badge scoring inside real searchListings call
+name: One-off - Trace badge scoring (in-place, safe, auto-revert)
 
 on:
   workflow_dispatch:
@@ -16,15 +16,12 @@ jobs:
           timeout: 60s
           command_timeout: 10m
           script: |
-            docker exec kimbor_api sh -c "
-              rm -rf /tmp/core-debug &&
-              cp -r /app/packages/core/dist /tmp/core-debug &&
-              sed -i \"s/scoredListings.sort((a, b) => b.score - a.score);/scoredListings.sort((a, b) => b.score - a.score); if (process.env.TRACE_SCORE) { console.error('TRACE', JSON.stringify(scoredListings.map(s => ({ name: s.listing.name, score: s.score, badges: s.listing.badges })))); }/\" /tmp/core-debug/search/searchEngine.js &&
-              grep -n 'TRACE_SCORE' /tmp/core-debug/search/searchEngine.js
-            "
+            docker exec kimbor_api cp /app/packages/core/dist/search/searchEngine.js /tmp/searchEngine.js.bak
+            docker exec kimbor_api sed -i "s/scoredListings.sort((a, b) => b.score - a.score);/scoredListings.sort((a, b) => b.score - a.score); if (process.env.TRACE_SCORE) { console.error('TRACE', JSON.stringify(scoredListings.map(s => ({ name: s.listing.name, score: s.score, badges: s.listing.badges })))); }/" /app/packages/core/dist/search/searchEngine.js
+
             docker exec -e TRACE_SCORE=1 kimbor_api node -e "
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
-              const { searchListings, extractRequestedBadges } = require('/tmp/core-debug/index.js');
+              const { searchListings, extractRequestedBadges } = require('/app/packages/core/dist/index.js');
               const db = new PrismaClient();
               const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
               (async () => {
@@ -35,3 +32,7 @@ jobs:
                 console.log('Final top result:', r ? r.listing.name : 'null');
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
+
+            echo "=== restoring original file ==="
+            docker exec kimbor_api cp /tmp/searchEngine.js.bak /app/packages/core/dist/search/searchEngine.js
+            docker exec kimbor_api diff /tmp/searchEngine.js.bak /app/packages/core/dist/search/searchEngine.js && echo "RESTORED OK - files identical"
