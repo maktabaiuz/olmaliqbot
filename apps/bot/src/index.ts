@@ -249,7 +249,20 @@ async function startBot() {
 
   if (useWebhook) {
     const webhookUrl = process.env.WEBHOOK_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}/webhook`;
-    await bot.api.setWebhook(webhookUrl);
+    // MUHIM (2026-09 topilgan JIDDIY xato): `allowed_updates` ko'rsatilmasa,
+    // Telegram OLDIN o'rnatilgan cheklovni saqlab qoladi (o'z hujjatida
+    // aniq yozilgan: "If not specified, the previous setting will be
+    // used"). Bazada nima uchundir faqat ["message", "edited_message",
+    // "channel_post", "edited_channel_post"] ro'yxati qolib ketgan edi —
+    // "callback_query" ro'yxatda YO'Q edi! Natijada Telegram tugma
+    // bosilganda ("Yana ko'rish", yulduzcha baho, shikoyat) hodisani
+    // BOTGA UMUMAN YUBORMASDI — bot hech qanday xato bermas, chunki
+    // so'rovning o'zi hech qachon kelmasdi. Endi HAR safar ishga
+    // tushganda TO'LIQ ro'yxat ANIQ ko'rsatiladi, shunday qilib bu holat
+    // qayta yuzaga kelmaydi.
+    await bot.api.setWebhook(webhookUrl, {
+      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member'],
+    });
     console.log(`✅ Webhook set to: ${webhookUrl}`);
 
     // MUHIM: avval webhookCallback() bot.init()ni o'zi ichida chaqirardi.
