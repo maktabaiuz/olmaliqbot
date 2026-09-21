@@ -80,6 +80,11 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     return saved ? JSON.parse(saved) : [];
   });
   const [newJargonWord, setNewJargonWord] = useState('');
+  // Tanlangan kategoriyada bazada ALLAQACHON bor boshqa yozuvlarning
+  // jargon so'zlari — taklif sifatida ko'rsatish uchun (2026-09, admin
+  // so'roviga ko'ra qo'shildi). Hech qanday generativ AI emas — faqat
+  // bazadagi haqiqiy so'zlar, shuning uchun 100% aniq.
+  const [jargonSuggestions, setJargonSuggestions] = useState<{ phrase: string; count: number }[]>([]);
 
   const [workFrom, setWorkFrom] = useState(() => localStorage.getItem('draft_workFrom') || '08:00');
   const [workTo, setWorkTo] = useState(() => localStorage.getItem('draft_workTo') || '20:00');
@@ -244,6 +249,35 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       setNewJargonWord('');
     }
   };
+
+  const handleAddJargonSuggestion = (phrase: string) => {
+    const clean = phrase.trim().toLowerCase();
+    if (clean && !jargonWords.includes(clean)) {
+      setJargonWords([...jargonWords, clean]);
+    }
+  };
+
+  // Kategoriya tanlanganda/o'zgarganda — shu turdagi boshqa yozuvlarning
+  // jargon so'zlarini bazadan olib, taklif sifatida ko'rsatadi.
+  useEffect(() => {
+    let active = true;
+    const clean = category.trim();
+    if (!clean) {
+      setJargonSuggestions([]);
+      return;
+    }
+    fetch(`/api/admin/categories/jargon-suggestions?name=${encodeURIComponent(clean)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (active) setJargonSuggestions(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (active) setJargonSuggestions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [category]);
 
   // Duplicate checks
   useEffect(() => {
@@ -639,6 +673,35 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 Qo'shish
               </button>
             </div>
+
+            {/* Bazadagi shu turdagi boshqa yozuvlarning jargon so'zlari —
+                bosilsa darhol qo'shiladi. Faqat hali qo'shilmagan
+                so'zlar ko'rsatiladi. */}
+            {jargonSuggestions.filter((s) => !jargonWords.includes(s.phrase.toLowerCase())).length > 0 && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                <p className="text-[11px] text-ios-label-secondary/70">
+                  💡 Bazada shu turdagi boshqa yozuvlarda ishlatilgan:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {jargonSuggestions
+                    .filter((s) => !jargonWords.includes(s.phrase.toLowerCase()))
+                    .map((s) => (
+                      <button
+                        key={s.phrase}
+                        type="button"
+                        onClick={() => handleAddJargonSuggestion(s.phrase)}
+                        className="bg-ios-fill/[0.12] text-ios-label px-3 py-1 rounded-full text-[13px] font-medium flex items-center gap-1.5 active:opacity-60"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-ios-blue">add_circle</span>
+                        {s.phrase}
+                        {s.count > 1 && (
+                          <span className="text-ios-label-secondary/60 text-[11px]">×{s.count}</span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1">

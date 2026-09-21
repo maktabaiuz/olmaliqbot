@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1209,6 +1209,53 @@ export async function adminRoutes(fastify: FastifyInstance) {
       objectType: c.objectType,
       count: c._count.listings,
     }));
+  });
+
+  // Yozuv qo'shishda "Jargon / xalq atamalari" maydoni uchun — TANLANGAN
+  // kategoriyada ALLAQACHON bor boshqa yozuvlarning jargon so'zlarini
+  // taklif sifatida qaytaradi (2026-09, admin so'roviga ko'ra qo'shildi).
+  //
+  // MUHIM: bu HECH QANDAY generativ AI ishlatmaydi — faqat bazadagi
+  // HAQIQIY, admin o'zi oldin kiritgan so'zlarni qaytaradi, shuning
+  // uchun 100% aniq (hech narsa "o'ylab topilmaydi") va bazaga hech
+  // narsa yozmaydi (faqat o'qish). Kategoriya nomini solishtirish
+  // normalizeText() orqali qilinadi — shunda bazada bir xil ko'rinadigan,
+  // lekin Unicode darajasida farqli (masalan apostrof) yozilgan
+  // dublikat kategoriya qatorlari ham hammasi hisobga olinadi (qarang:
+  // searchEngine.ts'dagi xuddi shu turdagi "Sug'urta" xatosi tuzatilishi).
+  fastify.get('/admin/categories/jargon-suggestions', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const { name } = req.query as { name?: string };
+    if (!name || !name.trim()) return [];
+
+    const cleanNormalized = normalizeText(name.trim());
+    const allCategories = await db.category.findMany({ select: { id: true, name: true, synonyms: true } });
+    const matchedCategoryIds = allCategories
+      .filter((c) => {
+        if (normalizeText(c.name) === cleanNormalized) return true;
+        return (c.synonyms || []).some((s) => normalizeText(s) === cleanNormalized);
+      })
+      .map((c) => c.id);
+
+    if (matchedCategoryIds.length === 0) return [];
+
+    const listings = await db.listing.findMany({
+      where: { cityId, categoryId: { in: matchedCategoryIds }, status: 'ACTIVE' },
+      select: { jargonSynonyms: true },
+    });
+
+    const freq = new Map<string, number>();
+    for (const l of listings) {
+      for (const phrase of l.jargonSynonyms) {
+        const clean = phrase.trim();
+        if (!clean) continue;
+        freq.set(clean, (freq.get(clean) || 0) + 1);
+      }
+    }
+
+    return Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([phrase, count]) => ({ phrase, count }));
   });
 
   // Mavjud guruh nomlari ro'yxati — "Kategoriya qo'shish" formasida tanlash uchun

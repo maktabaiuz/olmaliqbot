@@ -100,6 +100,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [newBadgeInput, setNewBadgeInput] = useState('');
   const [showNewBadgeInput, setShowNewBadgeInput] = useState(false);
   const [newJargonInput, setNewJargonInput] = useState('');
+  // Shu kategoriyadagi boshqa yozuvlarning jargon so'zlari — taklif
+  // sifatida (2026-09). Faqat bazadagi haqiqiy so'zlar, generativ AI emas.
+  const [jargonSuggestions, setJargonSuggestions] = useState<{ phrase: string; count: number }[]>([]);
   const { showToast, confirm } = useFeedback();
 
   const headers = {
@@ -284,6 +287,35 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
       setNewJargonInput('');
     }
   };
+
+  const handleAddJargonSuggestion = (phrase: string) => {
+    const clean = phrase.trim().toLowerCase();
+    if (clean && !jargonSynonyms.includes(clean)) {
+      setJargonSynonyms([...jargonSynonyms, clean]);
+    }
+  };
+
+  // Kategoriya o'zgarganda — shu turdagi boshqa yozuvlarning jargon
+  // so'zlarini bazadan olib, taklif sifatida ko'rsatadi.
+  useEffect(() => {
+    let active = true;
+    const clean = categoryName.trim();
+    if (!clean) {
+      setJargonSuggestions([]);
+      return;
+    }
+    fetch(`/api/admin/categories/jargon-suggestions?name=${encodeURIComponent(clean)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (active) setJargonSuggestions(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (active) setJargonSuggestions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [categoryName]);
 
   const handleRemoveJargon = (wToRemove: string) => {
     setJargonSynonyms(jargonSynonyms.filter(w => w !== wToRemove));
@@ -734,6 +766,33 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Bazadagi shu turdagi boshqa yozuvlarning jargon so'zlari —
+                bosilsa darhol qo'shiladi. */}
+            {jargonSuggestions.filter((s) => !jargonSynonyms.includes(s.phrase.toLowerCase())).length > 0 && (
+              <div className="flex flex-col gap-1.5 mt-2">
+                <p className="text-[11px] text-ios-label-secondary/70 px-1">
+                  💡 Bazada shu turdagi boshqa yozuvlarda ishlatilgan:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {jargonSuggestions
+                    .filter((s) => !jargonSynonyms.includes(s.phrase.toLowerCase()))
+                    .map((s) => (
+                      <button
+                        key={s.phrase}
+                        onClick={() => handleAddJargonSuggestion(s.phrase)}
+                        className="bg-ios-fill/[0.12] text-ios-label px-3 py-1 rounded-full text-[13px] font-medium flex items-center gap-1.5 active:opacity-60"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-ios-blue">add_circle</span>
+                        {s.phrase}
+                        {s.count > 1 && (
+                          <span className="text-ios-label-secondary/60 text-[11px]">×{s.count}</span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* GURUH: RASMLAR */}
