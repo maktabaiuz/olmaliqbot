@@ -1,0 +1,38 @@
+name: One-off - Test early-exit gates directly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const core = require('/app/packages/core/dist/index.js');
+              const msgs = [
+                \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\",
+                \"Sug'urta qayerda ishlaydi xozir\",
+                \"Sug'urta kerak\"
+              ];
+              for (const m of msgs) {
+                console.log(JSON.stringify({
+                  msg: m,
+                  isJobVacancy: core.isJobVacancy ? core.isJobVacancy(m) : 'MISSING_EXPORT',
+                  isUtilityStatusQuestion: core.isUtilityStatusQuestion ? core.isUtilityStatusQuestion(m) : 'MISSING_EXPORT',
+                }));
+              }
+              console.log('EXPORTS_CHECK:', JSON.stringify({
+                hasIsJobVacancy: typeof core.isJobVacancy,
+                hasIsUtilityStatusQuestion: typeof core.isUtilityStatusQuestion,
+                hasSearchListings: typeof core.searchListings,
+              }));
+            "
