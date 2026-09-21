@@ -162,10 +162,22 @@ export async function clusterUnresolvedQueries(cityId: string, apiKey?: string):
   if (!cityId) return [];
 
   // 1. Fetch unresolved query logs for the city
+  //
+  // MUHIM (2026-09 topilgan xato, real skrinshot bilan tasdiqlangan):
+  // avval `intent`ga umuman qaralmasdi — natijada Dashboard'dagi "Yangi
+  // ehtiyojlar" bo'limida "Gayilar qaerlarda turibdi?", "Kocha tinchmi?"
+  // kabi oddiy suhbat xabarlari va "Elektrika ishlarini qilamiz +998..."
+  // kabi o'z-e'lonlari (bot ularni allaqachon aniq NOT_RELEVANT deb
+  // belgilagan bo'lsa ham) "biznes ehtiyoji" sifatida ko'rsatilib
+  // kelgan edi. Bu bo'lim MA'NOSI — admin uchun "qaysi xizmatga real
+  // talab bor-u bazada yo'q" signalini berish, shuning uchun bot o'zi
+  // "bu so'rov ham EMAS" deb ANIQ xulosa chiqargan yozuvlar bu yerga
+  // umuman kirmasligi kerak.
   const logs = await db.queryLog.findMany({
     where: {
       cityId,
       isResolved: false,
+      intent: { not: 'NOT_RELEVANT' },
     },
     orderBy: { createdAt: 'desc' },
   });

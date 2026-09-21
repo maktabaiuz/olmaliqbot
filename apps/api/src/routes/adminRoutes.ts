@@ -2381,11 +2381,34 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.get('/admin/queries/top-10', async (req: any, reply) => {
     const cityId = await getCityId(req);
+    const { period } = req.query || {};
+
+    // MUHIM (2026-09 topilgan xato, real skrinshot bilan tasdiqlangan):
+    // bu so'rov avval ne `period` filtrini (frontend uzatsa ham,
+    // e'tiborga olinmasdi — "Bugun/Hafta/Oy" tugmalari amalda hech
+    // narsani o'zgartirmasdi), NE intent'ni tekshirmasdi — natijada
+    // o'z-e'lonlari ("металлом оламиз ...", ko'p marta takrorlangan
+    // spam) "Top 10 qidiruvlar"da haqiqiy so'rovlar bilan bir qatorda
+    // ko'rsatilardi. Endi ikkalasi ham /admin/stats bilan bir xil
+    // qoida bo'yicha qo'llaniladi.
+    let periodStart: Date | undefined;
+    if (period === 'today') {
+      periodStart = new Date();
+      periodStart.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'month') {
+      periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+    const periodFilter = periodStart ? { createdAt: { gte: periodStart } } : {};
+
     const result = await db.queryLog.groupBy({
       by: ['rawMessage'],
       where: {
         cityId,
         rawMessage: { not: '' },
+        intent: { not: 'NOT_RELEVANT' },
+        ...periodFilter,
       },
       _count: {
         rawMessage: true,
