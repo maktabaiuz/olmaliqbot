@@ -1,0 +1,52 @@
+name: One-off - Find beton teshish trigger context
+
+on:
+  workflow_dispatch:
+
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                console.log('=== A) QueryLog matching beton/teshish/kanalizatsiya/dimaxod ===');
+                const logs = await db.queryLog.findMany({
+                  where: {
+                    OR: [
+                      { rawMessage: { contains: 'beton', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'teshish', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'teshik', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'kanaliz', mode: 'insensitive' } },
+                      { categoryName: { contains: 'beton', mode: 'insensitive' } },
+                    ],
+                  },
+                  orderBy: { createdAt: 'desc' },
+                  take: 20,
+                  select: { rawMessage: true, categoryName: true, landmarkName: true, isResolved: true, confidence: true, createdAt: true, telegramUserId: true, chatId: true },
+                });
+                console.log(JSON.stringify(logs, null, 2));
+
+                console.log('=== B) Listing named Shohjahon or category beton ===');
+                const listings = await db.listing.findMany({
+                  where: {
+                    OR: [
+                      { name: { contains: 'Shohjahon', mode: 'insensitive' } },
+                      { category: { name: { contains: 'beton', mode: 'insensitive' } } },
+                    ],
+                  },
+                  select: { id: true, name: true, categoryId: true, jargonSynonyms: true, specificServices: true, category: { select: { name: true, synonyms: true } } },
+                });
+                console.log(JSON.stringify(listings, null, 2));
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
