@@ -1,0 +1,33 @@
+name: One-off - Test oldindan false positive hypothesis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const core = require('/app/packages/core/dist/index.js');
+              const { UZBEK_STOPWORDS } = require('/app/packages/core/dist/search/uzbekStopwords.js');
+              const msg = \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\";
+              console.log('UZBEK_STOPWORDS has rahmat:', UZBEK_STOPWORDS.has('rahmat'));
+              console.log('UZBEK_STOPWORDS has aytvorilar:', UZBEK_STOPWORDS.has('aytvorilar'));
+              // deriveTargetAfterLandmark is not exported (internal) - test isolate the word-scan manually
+              const { normalizeText } = core;
+              const words = normalizeText(msg).split(/\s+/).filter(Boolean);
+              const STEMS = ['old','yon','ropara','orqasi','tepasi','yaqini','qarshisi'];
+              const idx = words.findIndex(w => w.length>=4 && w.length<=9 && STEMS.some(s=>w.startsWith(s)));
+              console.log('words:', JSON.stringify(words));
+              console.log('matched landmark-postposition word at idx', idx, '->', idx>=0 ? words[idx] : null);
+              if (idx>=0) console.log('words after it:', JSON.stringify(words.slice(idx+1)));
+            "
