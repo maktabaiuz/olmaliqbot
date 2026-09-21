@@ -1,0 +1,31 @@
+name: One-off - Verify new badge extraction rules
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_bot node -e "
+              const { extractRequestedBadges } = require('/app/packages/core/dist/index.js');
+              const cases = [
+                'Bepul yetkazib beradimi',
+                'Dostavka bepul boladimi',
+                'Nasiya beradigan santexnik kerak',
+                'Bolib tolashim mumkinmi',
+                'Sertifikatlangan shifokor kerak',
+                'Litsenziyasi bor advokat kerak',
+                'Santexnik kerak suv tomayabdi',
+              ];
+              for (const c of cases) console.log(JSON.stringify({ msg: c, badges: extractRequestedBadges(c) }));
+            "
