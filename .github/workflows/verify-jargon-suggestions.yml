@@ -1,0 +1,25 @@
+name: One-off - Verify jargon suggestions endpoint
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test via curl
+        run: |
+          echo "=== A) Sug'urta (curly apostrophe duplicate scenario) ==="
+          curl -s "https://olmaliq.online/api/admin/categories/jargon-suggestions?name=Sug%27urta" -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== B) Betonchi (should include dimaxot/beton teshish jargon) ==="
+          curl -s "https://olmaliq.online/api/admin/categories/jargon-suggestions?name=Betonchi" -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== C) Brand new/nonexistent category (should be empty array) ==="
+          curl -s "https://olmaliq.online/api/admin/categories/jargon-suggestions?name=ZZZ_YoqCategoriya" -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== D) No name param (should be empty array) ==="
+          curl -s "https://olmaliq.online/api/admin/categories/jargon-suggestions" -w "\nHTTP:%{http_code}\n"
