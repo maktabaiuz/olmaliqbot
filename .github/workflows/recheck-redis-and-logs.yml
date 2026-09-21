@@ -1,0 +1,27 @@
+name: One-off - Recheck Redis state and logs after click
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            echo "=== Redis state now ==="
+            docker exec kimbor_redis redis-cli GET "kimbor:rankedlist:80fbdb10-a722-4a64-89f2-212ddfeb3131"
+            docker exec kimbor_redis redis-cli TTL "kimbor:rankedlist:80fbdb10-a722-4a64-89f2-212ddfeb3131"
+            echo ""
+            echo "=== Full bot logs (last 500 lines) ==="
+            docker logs --tail 500 kimbor_bot 2>&1
+            echo ""
+            echo "=== Container status/uptime ==="
+            docker ps --format '{{.Names}}: {{.Status}}' | grep kimbor
