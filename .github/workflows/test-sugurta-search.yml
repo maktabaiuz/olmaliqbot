@@ -22,7 +22,7 @@ jobs:
               const db = new PrismaClient();
               const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
               (async () => {
-                console.log('=== A) Raw apostrophe byte check ===');
+                console.log('=== A raw apostrophe byte check ===');
                 const cats = await db.category.findMany({
                   where: { name: { contains: 'ug', mode: 'insensitive' } },
                   select: { id: true, name: true },
@@ -33,32 +33,34 @@ jobs:
                 }
 
                 console.log('');
-                console.log('=== B) searchListings with categoryName + rawMessage (real historical query) ===');
+                console.log('=== B searchListings with categoryName plus rawMessage ===');
+                const msg1 = \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\";
                 const r1 = await searchListings({
                   cityId: CITY,
                   categoryName: \"sug'urta\",
-                  rawMessage: \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\",
+                  rawMessage: msg1,
                   intent: 'SERVICE',
                 });
-                console.log('RESULT_B:', r1 ? JSON.stringify({ name: r1.name, categoryId: r1.categoryId }) : 'null (topilmadi)');
+                console.log('RESULT_B:', r1 ? JSON.stringify({ name: r1.name, categoryId: r1.categoryId }) : 'null');
 
                 console.log('');
-                console.log('=== C) same rawMessage, NO categoryName (jargon-only path) ===');
+                console.log('=== C same rawMessage no categoryName ===');
                 const r2 = await searchListings({
                   cityId: CITY,
-                  rawMessage: \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\",
+                  rawMessage: msg1,
                   intent: 'SERVICE',
                 });
-                console.log('RESULT_C:', r2 ? JSON.stringify({ name: r2.name, categoryId: r2.categoryId }) : 'null (topilmadi)');
+                console.log('RESULT_C:', r2 ? JSON.stringify({ name: r2.name, categoryId: r2.categoryId }) : 'null');
 
                 console.log('');
-                console.log('=== D) simple direct query: Sug'"'"'urta kerak ===');
+                console.log('=== D simple direct query ===');
+                const msg2 = \"Sug'urta kerak\";
                 const r3 = await searchListings({
                   cityId: CITY,
                   categoryName: \"sug'urta\",
-                  rawMessage: \"Sug'urta kerak\",
+                  rawMessage: msg2,
                   intent: 'SERVICE',
                 });
-                console.log('RESULT_D:', r3 ? JSON.stringify({ name: r3.name, categoryId: r3.categoryId }) : 'null (topilmadi)');
+                console.log('RESULT_D:', r3 ? JSON.stringify({ name: r3.name, categoryId: r3.categoryId }) : 'null');
               })().catch(e=>{console.error('ERR', e); process.exit(1)}).finally(()=>db.\$disconnect());
             "
