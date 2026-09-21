@@ -742,11 +742,28 @@ function nameRelatesToTarget(nameCore: string, nameWords: string[], target: stri
  */
 const LANDMARK_POSTPOSITION_STEMS = ['old', 'yon', 'ropara', 'orqasi', 'tepasi', 'yaqini', 'qarshisi'];
 
+// MUHIM (2026-09 topilgan xato, real "...aytvorilar oldindan rahmat"
+// xabari bilan tasdiqlangan): "old" o'zagi FAZOVIY mo'ljal so'zlarini
+// ("oldida", "oldidagi", "oldiga", typo "oldgai") tutish uchun mo'ljallangan,
+// lekin xuddi shu prefiksdan boshlanadigan, lekin butunlay VAQT ma'nosidagi
+// so'zlar ham bor ("oldindan" — "beforehand/in advance", ko'pincha "rahmat
+// oldindan" iborasida; "oldin", "oldinroq", "oldingi"). Bular tasodifan
+// "old" bilan boshlangani uchun mo'ljal postpozitsiyasi deb noto'g'ri
+// qabul qilinsa, ulardan KEYINGI so'z ("rahmat" kabi) "so'ralayotgan nom"
+// sifatida chiqarib olinib, bazada topilmagani uchun butun qidiruv
+// (hatto allaqachon aniq jargon moslik topilgan bo'lsa ham) noto'g'ri
+// "topilmadi" deb yakunlanardi.
+const OLD_STEM_TEMPORAL_FALSE_POSITIVES = new Set(['oldindan', 'oldin', 'oldinroq', 'oldingi']);
+
 function deriveTargetAfterLandmark(rawMessage: string | null | undefined): string | null {
   if (!rawMessage) return null;
   const words = normalizeText(rawMessage).split(/\s+/).filter(Boolean);
   const idx = words.findIndex(
-    (w) => w.length >= 4 && w.length <= 9 && LANDMARK_POSTPOSITION_STEMS.some((s) => w.startsWith(s))
+    (w) =>
+      w.length >= 4 &&
+      w.length <= 9 &&
+      !OLD_STEM_TEMPORAL_FALSE_POSITIVES.has(w) &&
+      LANDMARK_POSTPOSITION_STEMS.some((s) => w.startsWith(s))
   );
   if (idx === -1 || idx === words.length - 1) return null;
   const target = words
@@ -977,16 +994,25 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   if (categoryName) {
     const cleanCat = categoryName.trim().toLowerCase();
-    let categories = (
-      await db.category.findMany({
-        where: {
-          OR: [
-            { name: { contains: cleanCat, mode: 'insensitive' } },
-            { synonyms: { has: cleanCat } },
-          ],
-        },
-      })
-    ).filter((c) => !isMalformedCategoryName(c.name));
+    // MUHIM (2026-09 topilgan xato, real "Sug'urta" holati bilan
+    // tasdiqlangan): avval bu yerda Prisma'ning `contains`/`has` filtri
+    // RAW (normalizatsiya qilinmagan) `category.name`/`synonyms` matniga
+    // qarshi solishtirardi. Amalda bazada bir xil ko'rinadigan, lekin
+    // Unicode darajasida FARQLI apostrof bilan yozilgan ikkita "Sug'urta"
+    // kategoriyasi bor edi (biri oddiy ' U+0027, ikkinchisi qайрилма
+    // ’ U+2019) — AI har doim normallashtirilgan (' U+0027) shaklni
+    // qaytaradi, shuning uchun qайрилма apostrofli kategoriya (aynan
+    // o'sha, boy jargon ro'yxati yozilgan kategoriya) HECH QACHON
+    // topilmasdi. Endi solishtiruv ikkala tomonda ham `normalizeText()`
+    // orqali qilinadi — apostrof/registr farqidan qat'i nazar bir xil
+    // kategoriya deb topiladi.
+    const cleanCatNormalized = normalizeText(cleanCat);
+    const allCategoriesForNameMatch = await db.category.findMany({});
+    let categories = allCategoriesForNameMatch.filter((c) => {
+      if (isMalformedCategoryName(c.name)) return false;
+      if (normalizeText(c.name).includes(cleanCatNormalized)) return true;
+      return (c.synonyms || []).some((s) => normalizeText(s) === cleanCatNormalized);
+    });
 
     // MUHIM (2026-09 topilgan xato): yuqoridagi `synonyms: { has: cleanCat } }`
     // FAQAT massivning BITTA elementi cleanCat bilan AYNAN bir xil bo'lsagina
