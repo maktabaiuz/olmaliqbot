@@ -1,6 +1,4 @@
-import { zeroLayerFilter } from './zeroLayerFilter';
-import { fallbackRuleClassification } from './aiClassifier';
-import { normalizeText, isSelfOffer } from '@kimbor/core';
+import { zeroLayerFilter, fallbackRuleClassification, normalizeText, isSelfOffer } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 
 let totalTests = 0;

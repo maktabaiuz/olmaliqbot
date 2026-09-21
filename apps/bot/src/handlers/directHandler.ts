@@ -1,6 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery } from '../filter/aiClassifier';
-import { searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';

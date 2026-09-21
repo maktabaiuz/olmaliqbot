@@ -24,6 +24,8 @@ import { ListingDetailScreen } from './screens/ListingDetailScreen';
 import { BotMessagesEditorScreen } from './screens/BotMessagesEditorScreen';
 import { EmergencyNumbersScreen } from './screens/EmergencyNumbersScreen';
 import { GlobalDictionaryScreen } from './screens/GlobalDictionaryScreen';
+import { LoginHistoryScreen } from './screens/LoginHistoryScreen';
+import { BotSimulatorScreen } from './screens/BotSimulatorScreen';
 import { CategoryDetailScreen } from './screens/CategoryDetailScreen';
 import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
 import { GroupDetailScreen } from './screens/GroupDetailScreen';
@@ -74,7 +76,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
+    'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -122,7 +124,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
   // RBAC Security Guard: moderatorlar admin-only bo'limlarga kira olmaydi
   useEffect(() => {
-    const superAdminOnlyModes = ['moderators', 'bot_messages', 'dictionary'];
+    const superAdminOnlyModes = ['moderators', 'bot_messages', 'dictionary', 'login_history'];
     if (superAdminOnlyModes.includes(viewMode) && !isSuperAdmin) {
       setViewMode('normal');
     }
@@ -258,6 +260,14 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
         {viewMode === 'dictionary' && isSuperAdmin && (
           <GlobalDictionaryScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'login_history' && isSuperAdmin && (
+          <LoginHistoryScreen onBack={() => setViewMode('normal')} />
+        )}
+
+        {viewMode === 'bot_simulator' && (
+          <BotSimulatorScreen onBack={() => setViewMode('normal')} />
         )}
 
         {viewMode === 'chat' && activeChatUserId && (
@@ -411,11 +421,15 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
                         {/* Tizim */}
                         <IosSection title={t('more_section_system')}>
+                          <MoreRow icon="science" iconColor="rgb(255 149 0)" label={t('more_item_bot_simulator')} onClick={() => setViewMode('bot_simulator')} />
                           {isSuperAdmin && (
                             <MoreRow icon="smart_toy" iconColor="rgb(255 149 0)" label={t('more_item_bot_messages')} onClick={() => setViewMode('bot_messages')} />
                           )}
                           {isSuperAdmin && (
                             <MoreRow icon="menu_book" iconColor="rgb(142 142 147)" label={t('more_item_dictionary')} onClick={() => setViewMode('dictionary')} />
+                          )}
+                          {isSuperAdmin && (
+                            <MoreRow icon="history" iconColor="rgb(52 199 89)" label={t('more_item_login_history')} onClick={() => setViewMode('login_history')} />
                           )}
                           <MoreRow icon="language" iconColor="rgb(0 122 255)" label={t('more_item_settings_lang_theme')} onClick={() => setViewMode('settings_lang_theme')} last />
                         </IosSection>
@@ -518,6 +532,24 @@ const MoreCategoriesSubView: React.FC<{
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // "Dublikat kategoriya" ogohlantirishi (2026-09) — real "Sug'urta" ikki
+  // marta qo'shilib qolgan xatosi qaytalanmasligi uchun proaktiv tekshiruv.
+  const [duplicates, setDuplicates] = useState<{
+    a: { id: string; name: string };
+    b: { id: string; name: string };
+    reason: string;
+    detail: string;
+  }[]>([]);
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set());
+
+  const loadDuplicates = () => {
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/categories/duplicates', { headers: { 'x-init-data': initData } })
+      .then(r => r.json())
+      .then(data => setDuplicates(data.duplicates || []))
+      .catch(() => {});
+  };
+
   const loadCategories = () => {
     const initData = window.Telegram?.WebApp?.initData || '';
     fetch('/api/admin/categories', { headers: { 'x-init-data': initData } })
@@ -538,6 +570,7 @@ const MoreCategoriesSubView: React.FC<{
   useEffect(() => {
     loadCategories();
     loadGroups();
+    loadDuplicates();
   }, []);
 
   // Tanlangan Turi (Usta/Do'kon/Muassasa/Transport)ga tegishli guruhlarni
@@ -649,6 +682,48 @@ const MoreCategoriesSubView: React.FC<{
         }
       />
       <IosSearchBar value={search} onChange={setSearch} placeholder="Kategoriyani qidirish" />
+
+      {/* DUBLIKAT OGOHLANTIRISHI */}
+      {duplicates.filter((d) => !dismissedDuplicates.has([d.a.id, d.b.id].sort().join('|'))).length > 0 && (
+        <div className="flex flex-col gap-2">
+          {duplicates
+            .filter((d) => !dismissedDuplicates.has([d.a.id, d.b.id].sort().join('|')))
+            .map((d) => {
+              const key = [d.a.id, d.b.id].sort().join('|');
+              return (
+                <div key={key} className="bg-ios-orange/10 border border-ios-orange/30 rounded-ios-lg p-3 flex items-start gap-2.5">
+                  <span className="material-symbols-outlined text-[18px] text-ios-orange mt-0.5">warning</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-ios-label">
+                      "{d.a.name}" va "{d.b.name}" dublikat bo'lishi mumkin
+                    </p>
+                    <p className="text-[12px] text-ios-label-secondary/70 mt-0.5">{d.detail}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <button
+                        onClick={() => onSelectCategory(d.a.id, d.a.name)}
+                        className="text-[12px] font-semibold text-ios-blue active:opacity-50"
+                      >
+                        "{d.a.name}"ni ko'rish
+                      </button>
+                      <button
+                        onClick={() => onSelectCategory(d.b.id, d.b.name)}
+                        className="text-[12px] font-semibold text-ios-blue active:opacity-50"
+                      >
+                        "{d.b.name}"ni ko'rish
+                      </button>
+                      <button
+                        onClick={() => setDismissedDuplicates((prev) => new Set(prev).add(key))}
+                        className="text-[12px] font-medium text-ios-label-secondary/60 active:opacity-50"
+                      >
+                        E'tiborsiz qoldirish
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 max-h-[440px] overflow-y-auto -mx-1 px-1">
         {groupOrder.map((groupName) => (

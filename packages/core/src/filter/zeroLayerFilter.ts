@@ -1,4 +1,5 @@
-import { INITIAL_DICTIONARY, normalizeText, containsWholeWord, levenshteinDistance } from '@kimbor/core';
+import { INITIAL_DICTIONARY } from '../dictionary';
+import { normalizeText, containsWholeWord, levenshteinDistance } from '../transliteration';
 import { db } from '@kimbor/db';
 
 // MUHIM (2026-09, "Global Lug'at" ekranini chin backend bilan qurish):

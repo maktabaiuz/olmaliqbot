@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -215,6 +215,30 @@ export async function adminRoutes(fastify: FastifyInstance) {
   };
 
   // --- 1. AUTHENTICATION ---
+  // "Kirishlar tarixi" (2026-09) — har bir muvaffaqiyatli kirish (Telegram
+  // ichida yoki oddiy saytdan) mavjud AuditLog jadvaliga yoziladi. MUHIM:
+  // bu FAQAT muvaffaqiyatli, YANGI sessiya yaratilgan paytda chaqiriladi
+  // (authenticateRequest() har bir so'rovda emas) — aks holda jurnal
+  // foydasiz shovqinga aylanardi.
+  async function writeLoginAuditLog(req: any, dbUser: { id: string; cityId: string | null }, method: 'telegram' | 'web') {
+    const ua = (req.headers['user-agent'] || '').toString();
+    const ip = ((req.headers['x-forwarded-for'] as string) || req.ip || '').split(',')[0].trim();
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: dbUser.id,
+          cityId: dbUser.cityId || undefined,
+          action: 'LOGIN',
+          details: { method },
+          deviceInfo: ua.slice(0, 255),
+          ipAddress: ip.slice(0, 64),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to write login audit log:', err);
+    }
+  }
+
   fastify.post('/auth/telegram', async (req: any, reply) => {
     const { initData } = req.body;
     const botToken = process.env.BOT_TOKEN;
@@ -372,6 +396,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (existingAttempt) {
         await db.loginAttempt.delete({ where: { telegramId } }).catch(() => {});
       }
+      await writeLoginAuditLog(req, { id: resultUser.id, cityId: resultUser.cityId }, 'telegram');
       return {
         success: true,
         user: {
@@ -521,6 +546,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     issueSessionCookie(req, reply, dbUser);
+    await writeLoginAuditLog(req, { id: dbUser.id, cityId: dbUser.cityId }, 'web');
     return {
       success: true,
       user: {
@@ -625,6 +651,83 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 2. STATS & ANALYTICS ---
+  // "Tizim salomatligi" vidjeti (2026-09) — real production'da aynan shu
+  // narsalar tekshirilmagani sabab (GEMINI_API_KEY o'chib qolgani,
+  // webhook'ning allowed_updates noto'g'ri sozlangani) topilishi
+  // SOATLAB/KUNLAB SSH orqali qo'lda qidiruv talab qilgan real xatolarga
+  // sabab bo'lgan. Endi admin bularni Dashboard'da bir qarashda ko'radi.
+  fastify.get('/admin/system-health', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+
+    // 1. Gemini API kaliti
+    const geminiKey = process.env.GEMINI_API_KEY || '';
+    const geminiConfigured = geminiKey.length > 0 && !['your_gemini_api_key_here', 'mock_key'].includes(geminiKey);
+
+    // 2. Telegram webhook holati (bot.api.setWebhook orqali sozlangan)
+    let webhook: any = { reachable: false };
+    const botToken = process.env.BOT_TOKEN;
+    if (botToken) {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+        const data = await res.json();
+        if (data.ok) {
+          const info = data.result;
+          webhook = {
+            reachable: true,
+            urlSet: !!info.url,
+            hasCallbackQuery: Array.isArray(info.allowed_updates)
+              ? info.allowed_updates.includes('callback_query')
+              : true, // bo'sh massiv = HAMMASI (Telegram standart xulqi)
+            pendingUpdateCount: info.pending_update_count,
+            lastErrorMessage: info.last_error_message || null,
+            lastErrorDate: info.last_error_date ? new Date(info.last_error_date * 1000).toISOString() : null,
+          };
+        }
+      } catch (err) {
+        webhook = { reachable: false, error: 'Telegram API bilan aloqa xatosi' };
+      }
+    }
+
+    // 3. Broadcast navbati — muddati o'tgan (5+ daqiqa) lekin hali
+    // yuborilmagan xabarlar bo'lsa, bu worker ishlamay qolganining belgisi.
+    const now = new Date();
+    const overdueThreshold = new Date(now.getTime() - 5 * 60 * 1000);
+    const overdueBroadcasts = await db.broadcastMessage.count({
+      where: {
+        isEnabled: true,
+        nextSendAt: { lt: overdueThreshold },
+      },
+    }).catch(() => 0);
+
+    // 4. Baza aloqasi (bu so'rovning o'zi allaqachon buni sinaydi, lekin
+    // aniq belgi sifatida alohida ham tekshiramiz)
+    let dbReachable = true;
+    try {
+      await db.$queryRaw`SELECT 1`;
+    } catch {
+      dbReachable = false;
+    }
+
+    // 5. Javob berish darajasi — oxirgi 24 soatda botning HAQIQIY qanchalik
+    // yaxshi javob berayotgani (bazada topilgan / umuman topilmagan nisbati).
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const [totalQueries, resolvedQueries] = await Promise.all([
+      db.queryLog.count({ where: { cityId, createdAt: { gte: oneDayAgo } } }),
+      db.queryLog.count({ where: { cityId, createdAt: { gte: oneDayAgo }, isResolved: true } }),
+    ]);
+    const responseRate = totalQueries > 0 ? Math.round((resolvedQueries / totalQueries) * 100) : null;
+
+    return {
+      success: true,
+      gemini: { configured: geminiConfigured },
+      webhook,
+      broadcastQueue: { overdueCount: overdueBroadcasts, healthy: overdueBroadcasts === 0 },
+      database: { reachable: dbReachable },
+      responseRate: { last24h: responseRate, totalQueries, resolvedQueries },
+    };
+  });
+
   fastify.get('/admin/stats', async (req: any, reply) => {
     const cityId = await getCityId(req);
     const { period } = req.query || {};
@@ -1178,7 +1281,214 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, dismissedCount: queryLogIds.length };
   });
 
+  // --- BOT SINOVI (simulyator, 2026-09) ---
+  //
+  // Admin panelidan yozilgan xabar botning HAQIQIY guruh-xabar quvurini
+  // (zeroLayerFilter -> AI klassifikator -> o'z-e'lon/ish-e'loni tekshiruvi
+  // -> qidiruv) AYNAN O'ZINI, real Telegram'ga chiqmasdan, bosib o'tadi —
+  // shu bilan admin (yoki men, xato tuzatishda) har safar SSH orqali qo'lda
+  // sinamasdan, to'g'ridan-to'g'ri "bot bunga nima javob beradi va NEGA"ni
+  // ko'ra oladi. MUHIM: bu HAQIQIY AI (Gemini) so'rovini ishlatadi —
+  // groupHandler.ts bilan bir xil RPM-chegara (reserveGeminiCallSlot)
+  // baham ko'riladi, shuning uchun haddan tashqari tez-tez sinash real
+  // foydalanuvchi trafigiga ozgina ta'sir qilishi mumkin (past ehtimol,
+  // chunki chegara 12/daqiqa va odatda ancha bo'sh).
+  fastify.post('/admin/simulate', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { message } = req.body as { message?: string };
+    if (!message || !message.trim()) {
+      return reply.status(400).send({ success: false, message: 'Xabar matni talab qilinadi' });
+    }
+    const cityId = await getCityId(req);
+    const messageText = message.trim();
+
+    const steps: any = {};
+
+    // 1. 0-qavat filtr (faqat GURUH xabarlari uchun ishlaydi — shaxsiy
+    // xabar bo'lsa bot buni umuman qo'llamaydi, lekin sinov shaffofligi
+    // uchun natijasi baribir ko'rsatiladi).
+    const passedZeroLayer = zeroLayerFilter(messageText);
+    steps.zeroLayer = { passed: passedZeroLayer };
+
+    if (!passedZeroLayer) {
+      return {
+        success: true,
+        steps,
+        finalResult: {
+          found: false,
+          reason: "0-qavat filtridan o'tmadi — guruhda bot bunga UMUMAN javob bermaydi (AI'ga ham yuborilmaydi). Shaxsiy xabarlarda bu bosqich qo'llanilmaydi.",
+        },
+        scoreBreakdown: null,
+      };
+    }
+
+    // 2. AI klassifikator (real Gemini so'rovi)
+    const classification = await classifyQuery(messageText, cityId);
+    steps.aiClassification = classification;
+
+    // 3. O'z-e'lon / ish-e'loni / kommunal-holat so'rovi tekshiruvi —
+    // AI xulosasidan QAT'I NAZAR ustuvor (groupHandler.ts bilan bir xil mantiq).
+    const selfOfferBlocked =
+      classification.intent !== 'EMERGENCY' &&
+      (isSelfOffer(messageText) || isJobVacancy(messageText) || isUtilityStatusQuestion(messageText));
+    steps.selfOfferCheck = {
+      isSelfOffer: isSelfOffer(messageText),
+      isJobVacancy: isJobVacancy(messageText),
+      isUtilityStatusQuestion: isUtilityStatusQuestion(messageText),
+      blocked: selfOfferBlocked,
+    };
+
+    if (selfOfferBlocked) {
+      return {
+        success: true,
+        steps,
+        finalResult: {
+          found: false,
+          reason: "O'z-e'lon/ish-e'loni/kommunal-holat so'rovi deb topildi — bot ATAYLAB javob bermaydi (bu odam bizdan so'ramayapti, o'zi taklif qilyapti).",
+        },
+        scoreBreakdown: null,
+      };
+    }
+
+    // 4. Favqulodda holat
+    if (classification.intent === 'EMERGENCY') {
+      const guessedCategory = classification.category || '';
+      const category = isValidEmergencyCategory(guessedCategory) ? guessedCategory : detectEmergencyCategory(messageText) || 'gas_leak';
+      return {
+        success: true,
+        steps,
+        finalResult: {
+          found: true,
+          reason: `FAVQULODDA holat sifatida aniqlandi (shablon: ${category}) — bot darhol xavfsizlik xabari yuboradi, usta/xizmat qidirmaydi.`,
+        },
+        scoreBreakdown: null,
+      };
+    }
+
+    // 5. Qidiruv — groupHandler.ts bilan bir xil mantiq
+    const isSeeking = classification.intent !== 'NOT_RELEVANT';
+    const requestedBadges = extractRequestedBadges(messageText);
+    steps.requestedBadges = requestedBadges;
+
+    const searchResult = await searchListings({
+      cityId,
+      categoryName: isSeeking ? classification.category : null,
+      landmarkName: isSeeking ? classification.landmark : null,
+      rawMessage: messageText,
+      intent: classification.intent,
+      name: isSeeking ? classification.name : null,
+      requestedBadges,
+      debug: true,
+    });
+
+    if (!searchResult) {
+      return {
+        success: true,
+        steps,
+        finalResult: {
+          found: false,
+          reason: "Bazada mos yozuv topilmadi — guruhda bot JIM turadi (bo'sh javob emas, umuman javob bermaydi).",
+        },
+        scoreBreakdown: null,
+      };
+    }
+
+    return {
+      success: true,
+      steps,
+      finalResult: {
+        found: true,
+        listingName: searchResult.listing.name,
+        categoryName: searchResult.listing.category?.name || null,
+        formattedText: searchResult.formattedText,
+        otherMatchesCount: searchResult.otherMatches.length,
+      },
+      scoreBreakdown: searchResult.scoreBreakdown || null,
+    };
+  });
+
   // --- 5. CATEGORIES & LANDMARKS ---
+
+  // "Dublikat kategoriya" detektori (2026-09) — real xato ("Sug'urta"
+  // bazada 2 marta qo'shilib qolgani, qidiruv natijalarini bo'lib
+  // yuborgani) qayta yuz bermasligi uchun. Ikki turdagi dalilni tekshiradi:
+  // 1. NOMLAR bir-biriga juda yaqin (Levenshtein) — yozilish xatosi bilan
+  //    ikki marta qo'shilgan bo'lishi mumkin ("Sugurta" / "Sug'urta").
+  // 2. Bitta kategoriyaning NOMI boshqasining SINONIMLAR ro'yxatida
+  //    so'zma-so'z bor — bu ATOQLI dalil, deyarli har doim haqiqiy
+  //    dublikat (masalan "Taksi" kategoriyasi bor-u, "Taxi" kategoriyasi
+  //    ham bor, va uning sinonimida "taksi" yozilgan).
+  //
+  // ATAYLAB faqat NOM darajasida solishtiriladi (sinonim so'zlarning o'zaro
+  // usma-tushishi emas) — aks holda "usta"/"arenda" kabi umumiy so'zlar
+  // deyarli har qanday ikkita kategoriyani "dublikat" deb ko'rsatib
+  // yuborardi (xuddi searchEngine.ts'dagi kategoriya-chastota xatosi kabi).
+  fastify.get('/admin/categories/duplicates', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+
+    const cats = await db.category.findMany({
+      select: { id: true, name: true, synonyms: true, group: true, objectType: true },
+    });
+
+    const pairs: {
+      a: { id: string; name: string };
+      b: { id: string; name: string };
+      reason: 'similar_name' | 'name_in_synonyms';
+      detail: string;
+    }[] = [];
+
+    const seen = new Set<string>();
+
+    for (let i = 0; i < cats.length; i++) {
+      for (let j = i + 1; j < cats.length; j++) {
+        const a = cats[i];
+        const b = cats[j];
+        const pairKey = [a.id, b.id].sort().join('|');
+        if (seen.has(pairKey)) continue;
+
+        const normA = normalizeText(a.name);
+        const normB = normalizeText(b.name);
+        if (normA.length < 3 || normB.length < 3) continue;
+
+        // 1) Nomlar yozilishi bo'yicha juda yaqin
+        const compactA = normA.replace(/[\s'-]+/g, '');
+        const compactB = normB.replace(/[\s'-]+/g, '');
+        if (Math.abs(compactA.length - compactB.length) <= 3) {
+          const dist = levenshteinDistance(compactA, compactB);
+          const threshold = Math.max(1, Math.floor(Math.max(compactA.length, compactB.length) / 6));
+          if (dist > 0 && dist <= threshold) {
+            pairs.push({
+              a: { id: a.id, name: a.name },
+              b: { id: b.id, name: b.name },
+              reason: 'similar_name',
+              detail: `Nomlar yozilishi juda o'xshash (${dist} ta harf farqi)`,
+            });
+            seen.add(pairKey);
+            continue;
+          }
+        }
+
+        // 2) Bitta kategoriyaning nomi ikkinchisining sinonimlar
+        // ro'yxatida so'zma-so'z bor
+        const aInB = b.synonyms.some((s: string) => normalizeText(s) === normA);
+        const bInA = a.synonyms.some((s: string) => normalizeText(s) === normB);
+        if (aInB || bInA) {
+          pairs.push({
+            a: { id: a.id, name: a.name },
+            b: { id: b.id, name: b.name },
+            reason: 'name_in_synonyms',
+            detail: aInB
+              ? `"${a.name}" so'zi "${b.name}" kategoriyasining sinonimlar ro'yxatida bor`
+              : `"${b.name}" so'zi "${a.name}" kategoriyasining sinonimlar ro'yxatida bor`,
+          });
+          seen.add(pairKey);
+        }
+      }
+    }
+
+    return { success: true, duplicates: pairs };
+  });
+
   fastify.get('/admin/categories', async (req: any, reply) => {
     const { search, objectType } = req.query as { search?: string; objectType?: string };
 

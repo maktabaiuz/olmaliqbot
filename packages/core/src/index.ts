@@ -12,6 +12,8 @@ export * from './intent/isUtilityStatusQuestion';
 export * from './intent/extractRequestedBadges';
 export * from './requests/queryLoop';
 export * from './moderation/moderationFilter';
+export * from './filter/zeroLayerFilter';
+export * from './filter/aiClassifier';
 
 export function calculateBayesianRating(thumbsUp: number, thumbsDown: number, globalAvg: number = 3.0, m: number = 5): number {
   const total = thumbsUp + thumbsDown;

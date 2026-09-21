@@ -1,6 +1,4 @@
-import { zeroLayerFilter } from './zeroLayerFilter';
-import { fallbackRuleClassification } from './aiClassifier';
-import { isSelfOffer } from '@kimbor/core';
+import { zeroLayerFilter, fallbackRuleClassification, isSelfOffer } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 
 describe('0-QAVAT: Kalit so\'z va Pattern filtri (0-Layer Filter)', () => {

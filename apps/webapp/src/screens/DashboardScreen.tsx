@@ -34,6 +34,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     user?: { firstName: string; lastName: string; username: string } | null;
   }>>([]);
 
+  // "Tizim salomatligi" (2026-09) — GEMINI_API_KEY, webhook, broadcast
+  // navbati va bazaning haqiqiy holatini bir qarashda ko'rsatadi. Aynan
+  // shu narsalar (masalan webhook'ning noto'g'ri sozlangani) topilishi
+  // oldin soatlab qo'lda tekshiruv talab qilgan edi.
+  const [systemHealth, setSystemHealth] = useState<{
+    gemini: { configured: boolean };
+    webhook: { reachable: boolean; urlSet?: boolean; hasCallbackQuery?: boolean; lastErrorMessage?: string | null };
+    broadcastQueue: { overdueCount: number; healthy: boolean };
+    database: { reachable: boolean };
+    responseRate: { last24h: number | null; totalQueries: number; resolvedQueries: number };
+  } | null>(null);
+
   // Time Greeting
   const getGreetingText = () => {
     const hour = new Date().getHours();
@@ -90,6 +102,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
   };
 
+  const fetchSystemHealth = async () => {
+    try {
+      const res = await apiFetch('/api/admin/system-health');
+      if (res.ok) {
+        setSystemHealth(await res.json());
+      }
+    } catch (e) {
+      console.error('Failed to load system health:', e);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
     // 5 soniya juda tez edi — doim fon rejimida so'rov yuborilib, ilovani
@@ -97,6 +120,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     const interval = setInterval(fetchDashboardData, 20000);
     return () => clearInterval(interval);
   }, [period]);
+
+  useEffect(() => {
+    fetchSystemHealth();
+    // Webhook tekshiruvi Telegram API'ga haqiqiy so'rov yuboradi — bu
+    // yuqoridagi 20s statistikadan farqli, kamroq tez-tez (60s) yangilanadi.
+    const interval = setInterval(fetchSystemHealth, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex flex-col gap-5 animate-fade-in pb-16">
@@ -109,6 +140,48 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         <h1 className="text-xl font-extrabold tracking-tight">{getGreetingText()}</h1>
         <p className="text-xs text-blue-50/80 font-medium">Shahar: <span className="underline font-semibold">{user?.cityName || 'Olmaliq'}</span></p>
       </div>
+
+      {/* 1.5 TIZIM SALOMATLIGI */}
+      {systemHealth && (
+        <div className="bg-ios-card rounded-ios-lg p-3.5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">Tizim salomatligi</h3>
+            {systemHealth.responseRate.last24h !== null && (
+              <span className="text-[11px] font-bold text-ios-blue">
+                Javob darajasi (24s): {systemHealth.responseRate.last24h}%
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <HealthChip
+              ok={systemHealth.gemini.configured}
+              okLabel="Gemini AI: ishlayapti"
+              badLabel="Gemini AI: KALIT YO'Q"
+            />
+            <HealthChip
+              ok={systemHealth.webhook.reachable && !!systemHealth.webhook.urlSet && !!systemHealth.webhook.hasCallbackQuery}
+              okLabel="Webhook: sog'lom"
+              badLabel={
+                !systemHealth.webhook.reachable
+                  ? 'Webhook: aloqa yo\'q'
+                  : !systemHealth.webhook.urlSet
+                    ? 'Webhook: sozlanmagan'
+                    : 'Webhook: tugmalar ishlamasligi mumkin'
+              }
+            />
+            <HealthChip
+              ok={systemHealth.broadcastQueue.healthy}
+              okLabel="Broadcast navbati: sog'lom"
+              badLabel={`Broadcast: ${systemHealth.broadcastQueue.overdueCount} ta kechikkan`}
+            />
+            <HealthChip
+              ok={systemHealth.database.reachable}
+              okLabel="Baza: ulangan"
+              badLabel="Baza: ULANMAGAN"
+            />
+          </div>
+        </div>
+      )}
 
       {/* 2. SEGMENT CONTROL (Bugun / Hafta / Oy) */}
       <div className="bg-ios-fill/[0.12] p-0.5 rounded-ios flex items-center justify-between">
@@ -344,3 +417,13 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     </div>
   );
 };
+
+const HealthChip: React.FC<{ ok: boolean; okLabel: string; badLabel: string }> = ({ ok, okLabel, badLabel }) => (
+  <span
+    className={`text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 ${
+      ok ? 'bg-ios-green/10 text-ios-green' : 'bg-ios-red/10 text-ios-red'
+    }`}
+  >
+    {ok ? '✓' : '⚠️'} {ok ? okLabel : badLabel}
+  </span>
+);

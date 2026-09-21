@@ -1,5 +1,11 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
-import { classifierPrompt, normalizeText, matchCategoryFromText, levenshteinDistance, INITIAL_DICTIONARY, isSelfOffer, detectEmergencyCategory, getRealCategoryEnumNames, getRealLandmarkNames } from '@kimbor/core';
+import { classifierPrompt } from '../prompts';
+import { normalizeText, levenshteinDistance } from '../transliteration';
+import { matchCategoryFromText, INITIAL_DICTIONARY } from '../dictionary';
+import { isSelfOffer } from '../intent/isSelfOffer';
+import { detectEmergencyCategory } from '../emergency';
+import { getRealCategoryEnumNames } from '../search/categoryDictionary';
+import { getRealLandmarkNames } from '../search/landmarkDictionary';
 import crypto from 'crypto';
 
 // Simple in-memory fallback cache if Redis is not connected

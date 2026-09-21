@@ -42,6 +42,30 @@ export interface SearchOptions {
    * intentlarda "nomlangan ob'ekt himoyasi" uchun ishlatiladi — pastga
    * qarang. */
   name?: string | null;
+  /** MUHIM (2026-09, admin panel "Bot sinovi" xususiyati uchun): true
+   * bo'lsa, natijaga `scoreBreakdown` — barcha nomzodlarning reyting
+   * ballari tafsiloti (har bir bonus komponenti alohida) — qo'shiladi.
+   * Botning haqiqiy ishlashiga HECH QANDAY ta'sir qilmaydi (faqat qo'shimcha
+   * ma'lumot qaytaradi), standart holatda o'chiq. */
+  debug?: boolean;
+}
+
+export interface ScoreBreakdownEntry {
+  listingId: string;
+  name: string;
+  totalScore: number;
+  priorityBonus: number;
+  isVerifiedBonus: number;
+  jargonBonus: number;
+  directJargonBonus: number;
+  jargonStrength: 'strong' | 'category' | 'weak' | null;
+  badgeBonus: number;
+  matchedBadgeCount: number;
+  ratingScore: number;
+  countScore: number;
+  recencyScore: number;
+  completenessScore: number;
+  rotationBonus: number;
 }
 
 const MIN_JARGON_PHRASE_LENGTH = 4;
@@ -622,6 +646,8 @@ export interface FormattedListingResult {
   totalMatches: number;
   executionTimeMs: number;
   listing: any;
+  /** Faqat `options.debug === true` bo'lganda to'ldiriladi — qarang: ScoreBreakdownEntry. */
+  scoreBreakdown?: ScoreBreakdownEntry[];
 }
 
 const MAX_RANKED_RESULTS = 7;
@@ -1667,6 +1693,27 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       bayesianRating,
       reviewCount,
       score: totalScore,
+      breakdown: options.debug
+        ? {
+            listingId: item.id,
+            name: item.name,
+            totalScore,
+            priorityBonus,
+            isVerifiedBonus,
+            jargonBonus,
+            directJargonBonus,
+            jargonStrength: (jargonMatchedIds.has(item.id)
+              ? jargonStrengthInfo?.strength || 'strong'
+              : null) as 'strong' | 'category' | 'weak' | null,
+            badgeBonus,
+            matchedBadgeCount,
+            ratingScore,
+            countScore,
+            recencyScore,
+            completenessScore,
+            rotationBonus,
+          }
+        : undefined,
     };
   });
 
@@ -1733,5 +1780,6 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     totalMatches: rankedTop.length,
     executionTimeMs,
     listing: bestMatch,
+    scoreBreakdown: options.debug ? scoredListings.map((s) => s.breakdown!).filter(Boolean) : undefined,
   };
 }

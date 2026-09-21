@@ -170,11 +170,21 @@ export async function moderatorRoutes(fastify: FastifyInstance) {
       orderBy: { createdAt: 'desc' },
     });
 
+    // "Kirishlar tarixi" (2026-09): har bir moderator uchun ENG SO'NGGI
+    // haqiqiy LOGIN yozuvi — N+1 so'rov o'rniga bitta groupBy bilan.
+    const lastLogins = await db.auditLog.groupBy({
+      by: ['userId'],
+      where: { userId: { in: mods.map((m) => m.id) }, action: 'LOGIN' },
+      _max: { createdAt: true },
+    });
+    const lastLoginByUserId = new Map(lastLogins.map((l) => [l.userId, l._max.createdAt]));
+
     return {
       success: true,
       moderators: mods.map(m => ({
         ...m,
         addedCount: m._count.addedListings,
+        lastLoginAt: lastLoginByUserId.get(m.id) || null,
         telegramId: undefined, // Xavfsizlik: telegramId ni qaytarmaymiz
       })),
     };

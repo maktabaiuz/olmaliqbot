@@ -32,6 +32,8 @@ export const translations = {
   more_item_broadcast: { uz: 'Xabar yuborish', ru: 'Рассылка' },
   more_item_bot_messages: { uz: 'Bot xabarlari', ru: 'Сообщения бота' },
   more_item_dictionary: { uz: 'Umumiy lug‘at', ru: 'Общий словарь' },
+  more_item_login_history: { uz: 'Kirishlar tarixi', ru: 'История входов' },
+  more_item_bot_simulator: { uz: 'Bot sinovi', ru: 'Тест бота' },
   more_item_settings_lang_theme: { uz: 'Til va mavzu', ru: 'Язык и тема' },
   more_item_logout: { uz: 'Chiqish', ru: 'Выйти' },
 

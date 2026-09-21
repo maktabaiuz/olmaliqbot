@@ -26,8 +26,7 @@
 
 import { Context } from 'grammy';
 import { db } from '@kimbor/db';
-import { checkEasyModerationFilters, normalizeText, looksLikePossibleGamblingAd, ModerationCategory } from '@kimbor/core';
-import { hasPossibleServiceSignal, reserveGeminiCallSlot } from '../filter/aiClassifier';
+import { checkEasyModerationFilters, normalizeText, looksLikePossibleGamblingAd, ModerationCategory, hasPossibleServiceSignal, reserveGeminiCallSlot } from '@kimbor/core';
 import { checkAndRecordFlood, checkAndRecordGroupFlood } from './floodTracker';
 import { checkGamblingWithAI } from './gamblingAiCheck';
 

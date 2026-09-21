@@ -15,6 +15,7 @@ interface Moderator {
   isSuspended: boolean;
   addedCount: number;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 interface Contribution {
@@ -223,6 +224,11 @@ export const ModeratorManagementScreen: React.FC<Props> = ({ initData, onBack })
                         {mod.addedCount} ta qo'shgan
                       </span>
                     </div>
+                    <p className="text-[11px] text-ios-label-secondary/50 mt-0.5">
+                      {mod.lastLoginAt
+                        ? `Oxirgi kirish: ${new Date(mod.lastLoginAt).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                        : 'Hali tizimga kirmagan'}
+                    </p>
                   </div>
                 </div>
 
