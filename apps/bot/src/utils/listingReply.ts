@@ -65,11 +65,22 @@ export interface SendListingReplyOptions {
   /** Berilsa — xabar 15 daqiqada avtomatik o'chiriladi (guruh xabarlari
    * uchun) va matnga shu haqda eslatma qo'shiladi. DM'da berilmaydi. */
   autoDeleteChatId?: number;
+  /** "Yana ko'rish" bosilganda: true bo'lsa YANGI post yuborish o'rniga
+   * mavjud (tugma bosilgan) xabar TAHRIRLANADI — faqat chaqiruvchi buni
+   * ikkala tomon ham (hozirgi ekrandagi xabar HAM, yangi yozuv HAM)
+   * matn-only ekanini tekshirgandan keyin true qilib berishi kerak
+   * (qarang: rankedListCache.ts `canEdit`). Rasmli (Rich Message)
+   * javoblarda HECH QACHON true berilmasin — Telegram rasmli xabarni
+   * oddiy matnga tahrirlashni qo'llab-quvvatlamaydi.
+   */
+  editMessage?: boolean;
 }
 
 /**
- * Bitta yozuv kartasini yuboradi — rasm bo'lsa Rich Message (suriladigan
- * albom + karta matni + tugmalar BITTA postda), bo'lmasa oddiy matn+tugmalar.
+ * Bitta yozuv kartasini yuboradi (yoki, `editMessage: true` bo'lsa,
+ * "Yana" tugmasi bosilgan xabarning o'zini tahrirlaydi) — rasm bo'lsa
+ * Rich Message (suriladigan albom + karta matni + tugmalar BITTA
+ * postda), bo'lmasa oddiy matn+tugmalar.
  */
 export async function sendListingReply(ctx: Context, opts: SendListingReplyOptions): Promise<void> {
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
@@ -79,6 +90,21 @@ export async function sendListingReply(ctx: Context, opts: SendListingReplyOptio
   const slideshowHtml = buildSlideshowHtml(opts.photoUrls, publicBaseUrl);
   const finalKeyboard = opts.keyboard.inline_keyboard.length > 0 ? opts.keyboard : undefined;
   const replyParams = opts.replyToMessageId !== undefined ? { reply_parameters: { message_id: opts.replyToMessageId } } : {};
+
+  // "Yana" bosilganda, ikkala tomon ham matn-only bo'lsa — yangi post
+  // o'rniga mavjud xabarni tahrirlaymiz (shu bilan chatda ortiqcha post
+  // to'planib qolmaydi). Agar biror sabab bilan (masalan xabar juda
+  // eski yoki foydalanuvchi allaqachon o'chirib yuborgan) tahrirlash
+  // muvaffaqiyatsiz bo'lsa — oddiy yangi post yuborishga qaytamiz, shunda
+  // foydalanuvchi baribir javobsiz qolmaydi.
+  if (opts.editMessage && !slideshowHtml) {
+    try {
+      await ctx.editMessageText(bodyText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
+      return;
+    } catch (err) {
+      console.error('sendListingReply: tahrirlash muvaffaqiyatsiz, yangi post yuborilmoqda:', err);
+    }
+  }
 
   // MUHIM (2026-09 topilgan xato): agar tugmalardan biri (masalan
   // noto'g'ri formatdagi Lokatsiya havolasi) Telegram tomonidan rad

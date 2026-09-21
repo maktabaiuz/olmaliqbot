@@ -139,7 +139,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // guruhga o'tish havolasi (qizil/danger, admin panelidan sozlansa — HAR
   // BIR postda ko'rinadi).
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.otherMatches);
+    const firstHadPhoto = !!(searchResult.listing.photoUrls && searchResult.listing.photoUrls.length > 0);
+    await setRankedList(searchResult.listingId, searchResult.otherMatches, firstHadPhoto);
   }
   const keyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 

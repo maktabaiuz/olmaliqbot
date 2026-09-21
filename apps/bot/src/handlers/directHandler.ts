@@ -308,7 +308,8 @@ async function runPrivateSearch(
   // (2026-09, Zapravkalar uchun) admin mapUrl qo'ygan bo'lsa qaytadan
   // qo'shiladi (buildResultKeyboard ichida).
   if (searchResult.hasMore) {
-    await setRankedList(searchResult.listingId, searchResult.otherMatches);
+    const firstHadPhoto = !!(searchResult.listing.photoUrls && searchResult.listing.photoUrls.length > 0);
+    await setRankedList(searchResult.listingId, searchResult.otherMatches, firstHadPhoto);
   }
   const resultKeyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 
@@ -390,11 +391,13 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
     await ctx.answerCallbackQuery();
 
-    // Navbatdagi moslik ENDI mavjud xabarga qo'shib qo'yilmaydi — o'zining
-    // alohida, to'liq postida (kerak bo'lsa rasmlari bilan) yuboriladi, shu
-    // bilan turli yozuvlarning matni/rasmlari aralashib ketmaydi (2026-09
-    // tuzatildi). "Yana ko'rish" qolganlar bo'lsa shu yangi postga ham
-    // qo'shiladi, hammasi ko'rsatilgan bo'lsa esa butunlay yo'qoladi.
+    // Navbatdagi moslik: agar ekranda hozir turgan xabar HAM, yangi
+    // yozuv HAM matn-only bo'lsa (rasm yo'q) — mavjud xabarning o'zi
+    // tahrirlanadi (yangi post yuborilmaydi), shunda "Yana" bir necha
+    // marta bosilsa ham chatda ortiqcha post to'planib qolmaydi. Rasmli
+    // (Rich Message) yozuvlar esa hamon o'zining alohida postida
+    // yuboriladi (2026-09, ikkinchi marta tuzatildi — qarang:
+    // rankedListCache.ts).
     const isGroupChat = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
     const keyboard = await buildResultKeyboard(revealed.remaining, listingId, revealed.item.mapUrl);
 
@@ -403,7 +406,8 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
         formattedText: revealed.item.formattedText,
         photoUrls: revealed.item.photoUrls,
         keyboard,
-        autoDeleteChatId: isGroupChat ? ctx.chat?.id : undefined,
+        editMessage: revealed.canEdit,
+        autoDeleteChatId: revealed.canEdit ? undefined : (isGroupChat ? ctx.chat?.id : undefined),
       });
     } catch (err) {
       console.error('Failed to send next ranked item:', err);
