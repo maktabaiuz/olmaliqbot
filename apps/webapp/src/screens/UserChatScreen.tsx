@@ -31,13 +31,13 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [userStats, setUserStats] = useState({
-    registeredAt: '2026-08-10T12:00:00Z',
-    queryCountToday: 5,
-    queryCountTotal: 48,
-    complaintCount: 1,
-    cityName: 'Olmaliq',
-  });
+  const [userStats, setUserStats] = useState<{
+    registeredAt: string | null;
+    queryCountToday: number;
+    queryCountTotal: number;
+    complaintCount: number;
+    cityName: string;
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -67,9 +67,9 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
         if (data && data.length > 0) {
           const u = data[0];
           setUserStats({
-            registeredAt: u.lastActivity, // fallback or registration date
+            registeredAt: u.registeredAt || null,
             queryCountToday: u.queryCountToday,
-            queryCountTotal: u.queryCountToday + 20, // dummy estimate
+            queryCountTotal: u.queryCountTotal,
             complaintCount: u.hasComplaints ? 1 : 0,
             cityName: 'Olmaliq',
           });
@@ -172,11 +172,11 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
           <div className="w-full h-1.5 bg-ios-fill/[0.16] rounded-full overflow-hidden">
             <div
               className="h-full bg-ios-blue transition-all"
-              style={{ width: `${Math.min(100, (userStats.queryCountToday / 20) * 100)}%` }}
+              style={{ width: `${Math.min(100, ((userStats?.queryCountToday ?? 0) / 20) * 100)}%` }}
             />
           </div>
           <span className="text-[11px] font-semibold text-ios-blue whitespace-nowrap">
-            {userStats.queryCountToday}/20
+            {userStats?.queryCountToday ?? 0}/20
           </span>
         </div>
       </div>
@@ -274,17 +274,24 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Shahar</span>
-                <span className="font-medium text-ios-label">{userStats.cityName}</span>
+                <span className="font-medium text-ios-label">{userStats?.cityName ?? '—'}</span>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Ro'yxatdan o'tgan sana</span>
+                <span className="font-medium text-ios-label">
+                  {userStats?.registeredAt ? new Date(userStats.registeredAt).toLocaleDateString('uz-UZ') : '—'}
+                </span>
               </div>
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Jami so'rovlari</span>
-                <span className="font-medium text-ios-label">{userStats.queryCountTotal} ta</span>
+                <span className="font-medium text-ios-label">{userStats?.queryCountTotal ?? '—'} ta</span>
               </div>
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-ios-label-secondary/70 font-medium uppercase">Shikoyatlari</span>
-                <span className="font-medium text-ios-red">{userStats.complaintCount} ta</span>
+                <span className="font-medium text-ios-red">{userStats?.complaintCount ?? '—'} ta</span>
               </div>
             </div>
           </div>

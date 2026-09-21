@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { avatarColorForName } from '../utils/avatarColor';
 import { useFeedback } from '../context/FeedbackContext';
+import { useAuth } from '../context/AuthContext';
 
 interface LandmarkDetailScreenProps {
   landmarkId: string;
@@ -18,6 +19,11 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   onBack,
 }) => {
   const { showToast, confirm } = useFeedback();
+  const { user } = useAuth();
+  // AI-taklif backendda FAQAT SUPER_ADMIN'ga ruxsat etilgan — boshqa
+  // rollar uchun tugma yashiriladi (avval doim ko'rinardi, bosilsa
+  // 403 xatosi bilan duch kelinardi).
+  const canSuggestAi = user?.role === 'SUPER_ADMIN';
   const [name, setName] = useState(landmarkName);
   const [synonyms, setSynonyms] = useState<string[]>([]);
   const [newSynonym, setNewSynonym] = useState('');
@@ -195,14 +201,16 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         <div>
           <div className="flex items-center justify-between px-1 mb-1.5">
             <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Mahalliy nomlari</span>
-            <button
-              onClick={handleSuggest}
-              disabled={isSuggesting}
-              className="flex items-center gap-1 text-[13px] font-medium text-[#007AFF] dark:text-[#0A84FF] disabled:opacity-50 active:opacity-50"
-            >
-              <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-              {isSuggesting ? 'So\'ralmoqda...' : 'AI taklif qilsin'}
-            </button>
+            {canSuggestAi && (
+              <button
+                onClick={handleSuggest}
+                disabled={isSuggesting}
+                className="flex items-center gap-1 text-[13px] font-medium text-[#007AFF] dark:text-[#0A84FF] disabled:opacity-50 active:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+                {isSuggesting ? 'So\'ralmoqda...' : 'AI taklif qilsin'}
+              </button>
+            )}
           </div>
 
           <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">

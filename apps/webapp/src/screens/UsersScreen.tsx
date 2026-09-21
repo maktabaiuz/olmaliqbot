@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosSearchBar } from '../components/ios/IosSearchBar';
+import { useAuth } from '../context/AuthContext';
+import { useFeedback } from '../context/FeedbackContext';
 
 interface UserItem {
   id: string;
@@ -34,6 +36,13 @@ function initData(): string {
 }
 
 export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
+  const { user: currentUser } = useAuth();
+  const { showToast } = useFeedback();
+  // MUHIM (2026-09): bloklash backendda FAQAT SUPER_ADMIN'ga ruxsat
+  // etilgan (requireSuperAdmin) — avval bu yerda rol tekshiruvi yo'q edi,
+  // CITY_ADMIN/moderator bossa server 403 qaytarardi, tugma esa sukut
+  // ravishda eski holatga qaytib, "ishlamayapti"dek ko'rinardi.
+  const canSuspend = currentUser?.role === 'SUPER_ADMIN';
   const [users, setUsers] = useState<UserItem[]>([]);
   const [totalUsers, setTotalUsers] = useState(0);
   const [newUsersToday, setNewUsersToday] = useState(0);
@@ -104,9 +113,16 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
       if (!res.ok) {
         // Muvaffaqiyatsiz bo'lsa — orqaga qaytaramiz
         setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
+        showToast(
+          res.status === 403
+            ? "Bu amal uchun ruxsatingiz yo'q (faqat bosh admin)"
+            : 'Saqlashda xato yuz berdi',
+          'error'
+        );
       }
     } catch {
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
+      showToast('Aloqa xatosi', 'error');
     } finally {
       setBusyUserId(null);
     }
@@ -252,7 +268,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       <span className="material-symbols-outlined text-[18px]">chat</span>
                       Javob
                     </button>
-                    {u.role === 'USER' && (
+                    {u.role === 'USER' && canSuspend && (
                       <button
                         onClick={() => handleToggleSuspend(u)}
                         disabled={busyUserId === u.id}
@@ -278,7 +294,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
                       }
                     }}
                     className="absolute inset-0 bg-ios-card p-3 flex items-center gap-3 transition-transform duration-300 z-10 cursor-pointer"
-                    style={{ transform: isSwiped ? `translateX(-${u.role === 'USER' ? 128 : 64}px)` : 'translateX(0)' }}
+                    style={{ transform: isSwiped ? `translateX(-${u.role === 'USER' && canSuspend ? 128 : 64}px)` : 'translateX(0)' }}
                   >
                     {/* Avatar with red dot complaint indicator */}
                     <div className="relative">

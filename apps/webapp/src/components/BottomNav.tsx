@@ -10,7 +10,7 @@ export interface BottomNavProps {
 }
 
 /** iOS UITabBar — flat, attached to bottom edge, translucent blur, top hairline. */
-export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, hasUnreadRequests }) => {
   const { t } = useLanguage();
 
   const tabs: { id: NavTab; label: string; icon: string }[] = [
@@ -35,11 +35,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
             onClick={() => onTabChange(tab.id)}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 active:opacity-50 transition-opacity"
           >
-            <span
-              className={`material-symbols-outlined ${isAdd ? 'text-[30px]' : 'text-[24px]'} ${isActive || isAdd ? 'text-ios-blue' : 'text-ios-label-secondary/60'}`}
-              style={{ fontVariationSettings: isActive && !isAdd ? "'FILL' 1" : "'FILL' 0" }}
-            >
-              {tab.icon}
+            <span className="relative">
+              <span
+                className={`material-symbols-outlined ${isAdd ? 'text-[30px]' : 'text-[24px]'} ${isActive || isAdd ? 'text-ios-blue' : 'text-ios-label-secondary/60'}`}
+                style={{ fontVariationSettings: isActive && !isAdd ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                {tab.icon}
+              </span>
+              {tab.id === 'home' && hasUnreadRequests && (
+                <span className="absolute top-0 right-0 w-[8px] h-[8px] rounded-full bg-ios-red" style={{ boxShadow: '0 0 0 1.5px rgb(var(--ios-card))' }} />
+              )}
             </span>
             {tab.label && (
               <span className={`text-[10px] font-medium ${isActive ? 'text-ios-blue' : 'text-ios-label-secondary/60'}`}>

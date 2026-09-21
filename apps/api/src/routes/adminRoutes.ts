@@ -2176,6 +2176,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
         { username: { contains: search, mode: 'insensitive' } },
         { phoneNumber: { contains: search, mode: 'insensitive' } },
       ];
+      // MUHIM (2026-09): avval telegramId (BigInt) bu yerda UMUMAN
+      // tekshirilmasdi — UserChatScreen "search=<telegramUserId>" orqali
+      // aynan shu foydalanuvchini topishga urinardi, lekin HECH QACHON
+      // topolmasdi (natijada doim boshlang'ich soxta statistika ko'rsatilardi).
+      if (/^\d+$/.test(search)) {
+        try {
+          whereClause.OR.push({ telegramId: BigInt(search) });
+        } catch {
+          // juda katta/noto'g'ri son bo'lsa e'tiborsiz qoldiriladi
+        }
+      }
     }
 
     if (filter === 'new') {
@@ -2213,6 +2224,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         const lastActivity = lastMsg ? lastMsg.createdAt : user.createdAt;
 
+        // MUHIM (2026-09): avval webapp'ning UserChatScreen'i bu yerda
+        // BO'LMAGAN maydonlarni o'zi o'ylab topardi ("registeredAt:
+        // lastActivity" — noto'g'ri, "queryCountTotal: queryCountToday+20"
+        // — shunchaki o'ylab chiqarilgan raqam). Endi ikkalasi ham HAQIQIY:
+        // ro'yxatdan o'tgan sana (user.createdAt) va jami (barcha vaqt)
+        // so'rovlar soni.
+        const queryCountTotal = await db.queryLog.count({
+          where: { telegramUserId: user.telegramId },
+        });
+
         return {
           id: user.id,
           telegramId: user.telegramId.toString(),
@@ -2221,6 +2242,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
           username: user.username,
           phoneNumber: user.phoneNumber,
           queryCountToday,
+          queryCountTotal,
+          registeredAt: user.createdAt,
           hasComplaints,
           lastActivity,
           lastMessageText: lastMsg ? lastMsg.text : null,

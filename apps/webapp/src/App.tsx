@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { FeedbackProvider, useFeedback } from './context/FeedbackContext';
 import { BottomNav, NavTab } from './components/BottomNav';
-import { AuthModal } from './components/AuthModal';
 import { IosSection, IosRow } from './components/ios/IosCard';
 import { IosHeader } from './components/ios/IosHeader';
 import { IosSearchBar } from './components/ios/IosSearchBar';
@@ -14,7 +13,6 @@ import { UsersScreen } from './screens/UsersScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
-import { SubscriptionLockScreen } from './screens/SubscriptionLockScreen';
 
 import { AccessDeniedScreen } from './screens/AccessDeniedScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -76,7 +74,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'expired' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
+    'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -91,8 +89,21 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeChatUserFullName, setActiveChatUserFullName] = useState<string>('');
   const [activeChatUserUsername, setActiveChatUserUsername] = useState<string | undefined>();
 
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [prefilledCategory, setPrefilledCategory] = useState<string | undefined>();
+  const [hasUnreadRequests, setHasUnreadRequests] = useState(false);
+
+  // "So'rovlar" tabidagi qizil nuqta — MUHIM (2026-09): avval bu doim
+  // hardcoded `true` edi (real holatdan qat'i nazar) va BottomNav uni
+  // umuman ishlatmasdi ham — ikki karra o'lik kod. Endi bazadagi
+  // "hali kategoriyaga bog'lanmagan yangi ehtiyojlar" soniga qarab
+  // haqiqiy holatni ko'rsatadi.
+  useEffect(() => {
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/requests/top-missing?limit=1', { headers: { 'x-init-data': initData } })
+      .then((r) => r.json())
+      .then((data) => setHasUnreadRequests(Array.isArray(data) && data.length > 0))
+      .catch(() => setHasUnreadRequests(false));
+  }, []);
 
   // React to previewConfig changes
   useEffect(() => {
@@ -221,14 +232,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
               </span>
             </button>
 
-            {/* Admin Login Button */}
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="w-8 h-8 rounded-full text-ios-blue flex items-center justify-center active:opacity-50 transition-opacity"
-              title="Admin hisobi"
-            >
-              <span className="material-symbols-outlined text-[20px]">account_circle</span>
-            </button>
           </div>
         </header>
       )}
@@ -255,13 +258,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
 
         {viewMode === 'dictionary' && isSuperAdmin && (
           <GlobalDictionaryScreen onBack={() => setViewMode('normal')} />
-        )}
-
-        {viewMode === 'expired' && (
-          <SubscriptionLockScreen
-            cityName="Olmaliq"
-            onRenewPayment={() => setViewMode('normal')}
-          />
         )}
 
         {viewMode === 'chat' && activeChatUserId && (
@@ -486,12 +482,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
         <BottomNav
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          hasUnreadRequests={true}
+          hasUnreadRequests={hasUnreadRequests}
         />
       )}
-
-      {/* Admin Auth Modal */}
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   );
 };

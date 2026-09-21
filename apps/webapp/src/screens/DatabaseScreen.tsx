@@ -5,6 +5,7 @@ import { NavTab } from '../components/BottomNav';
 import { apiFetch } from '../config';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosSearchBar } from '../components/ios/IosSearchBar';
+import { useFeedback } from '../context/FeedbackContext';
 
 export interface CategorySummary {
   id: string;
@@ -34,7 +35,14 @@ export interface DatabaseScreenProps {
 }
 
 export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, onSelectListing }) => {
-  useAuth();
+  const { user } = useAuth();
+  const { showToast } = useFeedback();
+  // MUHIM (2026-09): "1/2/3-o'rin" belgilash backendda FAQAT SUPER_ADMIN'ga
+  // ruxsat etilgan (requireSuperAdmin). Avval bu yerda hech qanday rol
+  // tekshiruvi yo'q edi — CITY_ADMIN/moderator tugmani bossa, server 403
+  // qaytarardi, UI esa sukut ravishda eski holatga qaytib, HECH QANDAY
+  // xato ko'rsatmasdi — tugma "shunchaki ishlamayapti"dek ko'rinardi.
+  const canSetPriority = user?.role === 'SUPER_ADMIN';
 
   // Navigation & View States
   const [selectedCategory, setSelectedCategory] = useState<CategorySummary | null>(null);
@@ -167,6 +175,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
     } catch (err) {
       console.error('Failed to set priority:', err);
       setListings(prevListings);
+      showToast("O'rinni belgilashda xato yuz berdi", 'error');
     }
   };
 
@@ -360,7 +369,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
                   phone={item.phone}
                   priorityRank={item.priorityRank}
                   isVerified={item.verification === 'VERIFIED'}
-                  onSetPriority={(rank) => handleSetPriority(item, rank)}
+                  onSetPriority={canSetPriority ? (rank) => handleSetPriority(item, rank) : undefined}
                 />
               </div>
             ))

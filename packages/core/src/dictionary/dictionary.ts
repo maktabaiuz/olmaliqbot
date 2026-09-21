@@ -1,5 +1,29 @@
 import initialDictionaryData from './initialDictionary.json';
 import { normalizeText, levenshteinDistance, containsWholeWord } from '../transliteration';
+import { db } from '@kimbor/db';
+
+// MUHIM (2026-09, "Global Lug'at" ekranini chin backend bilan qurish):
+// admin panelida qo'shilgan QO'SHIMCHA mo'ljal-qo'shimchalari (masalan
+// "yaqinida", "tepasida" kabi bazaviy ro'yxatda yo'q so'zlar) shu yerda
+// AppSetting jadvalidan ('dictionary_landmark_suffixes' kaliti, JSON
+// massiv) 60 soniyada bir marta yangilanadi — har xabarda bazaga
+// murojaat qilinmasligi uchun. Funksiya SINXRON qolishi kerak (searchEngine
+// va testlar shunday chaqiradi), shu sabab async so'rov fon rejimida
+// (setInterval) ishlaydi, natija xotirada saqlanadi.
+let extraLandmarkSuffixes: string[] = [];
+
+async function refreshExtraLandmarkSuffixes(): Promise<void> {
+  try {
+    const row = await db.appSetting.findUnique({ where: { key: 'dictionary_landmark_suffixes' } });
+    const parsed = row?.value ? JSON.parse(row.value) : [];
+    if (Array.isArray(parsed)) extraLandmarkSuffixes = parsed.filter((s) => typeof s === 'string' && s.trim());
+  } catch (err) {
+    // Bazaga ulanib bo'lmasa (masalan standalone test skript) — eski
+    // qiymat (yoki bo'sh massiv) bilan davom etiladi, hech narsa qulamaydi.
+  }
+}
+refreshExtraLandmarkSuffixes();
+setInterval(refreshExtraLandmarkSuffixes, 60_000).unref?.();
 
 export interface CategorySeed {
   id: string;
@@ -49,7 +73,7 @@ export function stripLandmarkSuffixes(text: string): string {
   if (!text) return '';
   let cleaned = text.trim().toLowerCase();
 
-  for (const suffix of initialDictionaryData.suffixes) {
+  for (const suffix of [...initialDictionaryData.suffixes, ...extraLandmarkSuffixes]) {
     const escaped = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(?:^|\\s+)${escaped}(?:$|\\s+)`, 'gi');
     cleaned = cleaned.replace(regex, ' ');

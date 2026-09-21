@@ -18,10 +18,8 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
   const { showToast } = useFeedback();
   const [name, setName] = useState(categoryName);
   const [synonyms, setSynonyms] = useState<string[]>([]);
-  const [passThroughWords, setPassThroughWords] = useState<string[]>([]);
 
   const [newSynonym, setNewSynonym] = useState('');
-  const [newPassWord, setNewPassWord] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchCategoryDetails = async () => {
@@ -33,15 +31,12 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
         const data = await response.json();
         setName(data.name || categoryName);
         setSynonyms(data.synonyms || []);
-        setPassThroughWords(data.passThroughWords || ['usta', 'sozlash']);
       } else {
         // Fallback default details
         setSynonyms([categoryName.toLowerCase(), categoryName.toLowerCase() + 'lar']);
-        setPassThroughWords(['usta', 'sozlash', 'xizmati']);
       }
     } catch {
       setSynonyms([categoryName.toLowerCase(), categoryName.toLowerCase() + 'lar']);
-      setPassThroughWords(['usta', 'sozlash', 'xizmati']);
     }
   };
 
@@ -58,14 +53,6 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
     }
   };
 
-  const handleAddPassWord = () => {
-    const clean = newPassWord.trim().toLowerCase();
-    if (clean && !passThroughWords.includes(clean)) {
-      setPassThroughWords([...passThroughWords, clean]);
-      setNewPassWord('');
-    }
-  };
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -79,7 +66,6 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
         body: JSON.stringify({
           name,
           synonyms,
-          passThroughWords,
         }),
       });
       if (response.ok) {
@@ -156,55 +142,6 @@ export const CategoryDetailScreen: React.FC<CategoryDetailScreenProps> = ({
               <button
                 onClick={handleAddSynonym}
                 disabled={!newSynonym.trim()}
-                className="text-ios-blue text-[13px] font-semibold disabled:opacity-30"
-              >
-                Qo'shish
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* O'tkazish so'zlar */}
-        <div>
-          <h3 className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5">
-            O'tkazish so'zlar (keywords)
-          </h3>
-          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
-            <div className="px-4 py-3 flex flex-wrap gap-1.5">
-              {passThroughWords.length === 0 && (
-                <span className="text-[13px] text-ios-label-secondary/70">Hali so'z qo'shilmagan</span>
-              )}
-              {passThroughWords.map((word) => (
-                <span
-                  key={word}
-                  className="bg-ios-fill/[0.12] text-ios-label pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
-                >
-                  {word}
-                  <button
-                    onClick={() => setPassThroughWords(passThroughWords.filter((w) => w !== word))}
-                    className="w-4 h-4 rounded-full bg-ios-fill/20 flex items-center justify-center active:bg-ios-red active:text-white transition-colors"
-                    aria-label={`${word}ni o'chirish`}
-                  >
-                    <span className="material-symbols-outlined text-[11px] leading-none">close</span>
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2.5" style={HAIRLINE}>
-              <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/70">add_circle</span>
-              <input
-                type="text"
-                value={newPassWord}
-                onChange={(e) => setNewPassWord(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddPassWord();
-                }}
-                placeholder="Yangi so'z..."
-                className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
-              />
-              <button
-                onClick={handleAddPassWord}
-                disabled={!newPassWord.trim()}
                 className="text-ios-blue text-[13px] font-semibold disabled:opacity-30"
               >
                 Qo'shish

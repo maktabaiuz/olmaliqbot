@@ -4,7 +4,12 @@ export interface AuthUser {
   id: string;
   telegramId?: string;
   name: string;
-  role: 'SUPER_ADMIN' | 'MODERATOR_FULL' | 'MODERATOR_VIEWER' | 'USER';
+  // MUHIM (2026-09): bu ro'yxat avval bazadagi haqiqiy Role enum'idan
+  // (packages/db/prisma/schema.prisma) FARQ QILAR EDI (masalan
+  // "MODERATOR_FULL" bazada umuman yo'q) — natijada frontend real
+  // CITY_ADMIN/MODERATOR_* rollarni to'g'ri tekshira olmasdi. Endi
+  // bazadagi enum bilan bir xil.
+  role: 'SUPER_ADMIN' | 'CITY_ADMIN' | 'MODERATOR_APPROVER' | 'MODERATOR_EDITOR' | 'MODERATOR_VIEWER' | 'USER';
   cityId: string;
   cityName: string;
 }

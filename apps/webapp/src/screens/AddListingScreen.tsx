@@ -96,12 +96,8 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     return saved ? JSON.parse(saved) : ['Uyga boradi', 'Kafolat'];
   });
   const [mapUrl, setMapUrl] = useState(() => localStorage.getItem('draft_mapUrl') || '');
-  const [serviceAreas] = useState<string[]>(() => {
-    const saved = localStorage.getItem('draft_serviceAreas');
-    return saved ? JSON.parse(saved) : ['3-mavze', '4-mavze'];
-  });
 
-  const [specificServices] = useState(() => localStorage.getItem('draft_specificServices') || '');
+  const [specificServices, setSpecificServices] = useState(() => localStorage.getItem('draft_specificServices') || '');
   const [approxPrice, setApproxPrice] = useState(() => localStorage.getItem('draft_approxPrice') || '');
   const [description, setDescription] = useState(() => localStorage.getItem('draft_description') || '');
   const [photoUrls, setPhotoUrls] = useState<string[]>(() => {
@@ -204,14 +200,13 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     localStorage.setItem('draft_workFrom', workFrom);
     localStorage.setItem('draft_workTo', workTo);
     localStorage.setItem('draft_badges', JSON.stringify(badges));
-    localStorage.setItem('draft_serviceAreas', JSON.stringify(serviceAreas));
     localStorage.setItem('draft_specificServices', specificServices);
     localStorage.setItem('draft_approxPrice', approxPrice);
     localStorage.setItem('draft_description', description);
     localStorage.setItem('draft_consentGiven', String(consentGiven));
     localStorage.setItem('draft_photoUrls', JSON.stringify(photoUrls));
     localStorage.setItem('draft_mapUrl', mapUrl);
-  }, [listingType, name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, serviceAreas, specificServices, approxPrice, description, consentGiven, photoUrls, mapUrl]);
+  }, [listingType, name, category, phone, primaryLandmark, primaryLandmarkId, jargonWords, workFrom, workTo, badges, specificServices, approxPrice, description, consentGiven, photoUrls, mapUrl]);
 
   const handlePhotoFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -323,7 +318,6 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
     if (workFrom) filled++;
     if (workTo) filled++;
     if (badges.length > 0) filled++;
-    if (serviceAreas.length > 0) filled++;
     if (specificServices.trim()) filled++;
     if (approxPrice.trim()) filled++;
     if (description.trim()) filled++;
@@ -451,7 +445,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
         title="Yozuv qo'shish"
         trailing={
           <span className="text-[12px] text-ios-blue font-bold bg-ios-blue/10 px-2.5 py-1 rounded-full">
-            {filledCount}/11
+            {filledCount}/10
           </span>
         }
       />
@@ -826,6 +820,17 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           )}
 
           <div className="flex flex-col gap-1">
+            <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Aniq xizmatlar</label>
+            <input
+              type="text"
+              value={specificServices}
+              onChange={(e) => setSpecificServices(e.target.value)}
+              placeholder="masalan: gaz kolonka ta'mirlash, plita o'rnatish"
+              className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
             <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Narxi (Taxminiy)</label>
             <input
               type="text"
@@ -916,6 +921,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                 </div>
               )}
               <div className="flex justify-between"><span className="text-ios-label-secondary/70">Ish vaqti:</span> <span className="font-bold text-ios-label">{workFrom} - {workTo}</span></div>
+              {specificServices && <div className="flex justify-between"><span className="text-ios-label-secondary/70">Aniq xizmatlar:</span> <span className="font-bold text-ios-label">{specificServices}</span></div>}
               {approxPrice && <div className="flex justify-between"><span className="text-ios-label-secondary/70">Narx:</span> <span className="font-bold text-ios-label">{approxPrice}</span></div>}
               {badges.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-ios-label-secondary/70 w-full mb-0.5">Xususiyatlar:</span> {badges.map(b => <span key={b} className="bg-ios-fill/[0.12] px-2 py-0.5 rounded text-[11px] font-semibold text-ios-label">{b}</span>)}</div>}
               {jargonWords.length > 0 && <div className="flex flex-wrap gap-1 mt-1"><span className="text-ios-label-secondary/70 w-full mb-0.5">Jargon so'zlar:</span> {jargonWords.map(w => <span key={w} className="bg-ios-fill/[0.12] px-2 py-0.5 rounded text-[11px] font-semibold text-ios-label">{w}</span>)}</div>}

@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { IosHeader } from '../components/ios/IosHeader';
-import { IosSearchBar } from '../components/ios/IosSearchBar';
 import { useFeedback } from '../context/FeedbackContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -8,154 +7,144 @@ export interface GlobalDictionaryScreenProps {
   onBack: () => void;
 }
 
-interface DictionaryCategory {
-  id: string;
-  name: string;
-  group: string;
-  synonyms: string[];
-}
-
-const TABS: { id: 'categories' | 'queries' | 'suffixes'; label: (n: number) => string }[] = [
-  { id: 'categories', label: (n) => `Kategoriyalar (${n})` },
+const TABS: { id: 'queries' | 'suffixes'; label: (n: number) => string }[] = [
   { id: 'queries', label: (n) => `Savol shakllari (${n})` },
   { id: 'suffixes', label: (n) => `Mo'ljal qo'shimchalari (${n})` },
 ];
 
+// MUHIM (2026-09, to'liq qayta qurildi): bu ekran avval butunlay
+// DEKORATIV edi — hech qanday backend chaqiruvi yo'q, faqat brauzer
+// xotirasida turadigan soxta massivlar edi (sahifa yangilansa hammasi
+// yo'qolardi, "saqlandi" degan xabar esa yolg'on edi). Endi ikkala
+// ro'yxat ham HAQIQIY: umumiy `/api/admin/settings/:key` orqali
+// (bazaviy AppSetting jadvali, JSON massiv sifatida) saqlanadi va
+// bot kodi (zeroLayerFilter.ts, dictionary.ts) shu yozuvlarni 60
+// soniyada bir marta o'qib, HAQIQATDA ishlatadi (qarang: 2026-09
+// izohlari o'sha fayllarda).
+//
+// "Kategoriyalar" tabi ATAYLAB OLIB TASHLANDI — u aslida "Yana >
+// Kategoriyalar" ekrani boshqaradigan bir xil bazadagi Category
+// jadvalining dublikat, alohida (va sinxronlanmagan) ko'rinishi edi.
+// Kategoriya/sinonim boshqarish uchun endi FAQAT bitta, real joy bor.
 export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ onBack }) => {
   const { showToast } = useFeedback();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'categories' | 'queries' | 'suffixes'>('categories');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'queries' | 'suffixes'>('queries');
 
-  // Modal / Inputs
-  const [showAddCatModal, setShowAddCatModal] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatSynonyms, setNewCatSynonyms] = useState('');
-  const [newCatGroup, setNewCatGroup] = useState('Uy-joy ustalari');
-
-  const [activeSynonymInputId, setActiveSynonymInputId] = useState<string | null>(null);
-  const [newSynonymText, setNewSynonymText] = useState('');
-
-  // Seeded Categories & Synonyms from docs/dictionary.md
-  const [categories, setCategories] = useState<DictionaryCategory[]>([
-    { id: '1', name: 'gazavik', group: 'Uy-joy ustalari', synonyms: ['gazovik', 'gaz ustasi', 'gaz mastir', 'kolonka ustasi', 'plita ustasi', 'газавик', 'газовщик'] },
-    { id: '2', name: 'santexnik', group: 'Uy-joy ustalari', synonyms: ['suv ustasi', 'quvur ustasi', 'santexnika ustasi', 'сантехник', 'сув устаси'] },
-    { id: '3', name: 'elektrik', group: 'Uy-joy ustalari', synonyms: ['elektr ustasi', 'elektromontyor', 'svet ustasi', 'электрик', 'электр устаси'] },
-    { id: '4', name: 'kafelchi', group: 'Uy-joy ustalari', synonyms: ['plitkachi', 'kafel ustasi', 'kafel yotqizuvchi', 'плиточник'] },
-    { id: '5', name: 'konditsioner ustasi', group: 'Maishiy texnika', synonyms: ['split ustasi', 'konditsioner o\'rnatuvchi', 'кондиционерщик'] },
-    { id: '6', name: 'muzlatgich ustasi', group: 'Maishiy texnika', synonyms: ['xolodilnik ustasi', 'muzlatkich', 'холодильщик'] },
-    { id: '7', name: 'avtoelektrik', group: 'Avtomobil', synonyms: ['mashina elektrigi', 'автоэлектрик'] },
-    { id: '8', name: 'dorixona', group: 'Do\'kon va obyektlar', synonyms: ['apteka', 'аптека', 'дорихона'] },
-    { id: '9', name: 'notarius', group: 'Rasmiy idoralar', synonyms: ['нотариус', 'нотариус ваколатхонаси'] },
-  ]);
-
-  // Seeded 0-Level Filter Trigger Phrases from docs/dictionary.md
-  const [queryPhrases, setQueryPhrases] = useState<string[]>([
-    'kim bor', 'kim biladi', 'kim bilsa', 'bilasizmi', 'bilasizlarmi',
-    'aytinglar', 'aytib yuboringlar', 'kerak edi', 'kerak', 'zarur',
-    'nomeri', 'nomer', 'raqami', 'raqam', 'telefoni', 'telefon',
-    'nechigacha', 'nechida ochiladi', 'nechida yopiladi', 'ochiqmi', 'yopiqmi',
-    'qayerda', 'qayerda joylashgan', 'qayerdan topaman', 'manzili',
-    'qancha', 'qanchaga', 'qancha turadi', 'narxi',
-    'кто знает', 'подскажите', 'кто-нибудь', 'нужен', 'нужна', 'надо', 'где', 'цена'
-  ]);
-
-  // Seeded Landmark Suffix Modifiers from docs/dictionary.md
-  const [landmarkSuffixes, setLandmarkSuffixes] = useState<string[]>([
-    'oldi', 'oldida', 'orqasi', 'orqasida', 'yoni', 'yonida',
-    'atrofi', 'atrofida', 'yaqinida', 'yaqin', 'ro\'parasi', 'qarshisida',
-    'tepasi', 'pastida', 'ichida', 'tomonda',
-    'рядом', 'около', 'возле', 'напротив', 'за', 'перед'
-  ]);
+  const [queryPhrases, setQueryPhrases] = useState<string[]>([]);
+  const [landmarkSuffixes, setLandmarkSuffixes] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [newPhraseInput, setNewPhraseInput] = useState('');
   const [newSuffixInput, setNewSuffixInput] = useState('');
 
-  const handleAddCategory = () => {
-    if (!newCatName.trim()) return;
-    const synList = newCatSynonyms.split(',').map(s => s.trim()).filter(Boolean);
-    const newCat: DictionaryCategory = {
-      id: Date.now().toString(),
-      name: newCatName.trim(),
-      group: newCatGroup,
-      synonyms: [newCatName.trim().toLowerCase(), ...synList],
-    };
-    setCategories([...categories, newCat]);
-    setNewCatName('');
-    setNewCatSynonyms('');
-    setShowAddCatModal(false);
-    showToast(`"${newCat.name}" kategoriyasi lug'atga qo'shildi`, 'success');
+  const initData = window.Telegram?.WebApp?.initData || '';
+
+  const loadSetting = async (key: string): Promise<string[]> => {
+    const res = await fetch(`/api/admin/settings/${key}`, { headers: { 'x-init-data': initData } });
+    const data = await res.json();
+    if (!data.value) return [];
+    try {
+      const parsed = JSON.parse(data.value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   };
 
-  const handleAddSynonym = (catId: string) => {
-    if (!newSynonymText.trim()) return;
-    setCategories(prev =>
-      prev.map(c =>
-        c.id === catId
-          ? { ...c, synonyms: [...c.synonyms, newSynonymText.trim().toLowerCase()] }
-          : c
-      )
-    );
-    setNewSynonymText('');
-    setActiveSynonymInputId(null);
-    showToast('Sinonim qo\'shildi', 'success');
+  const saveSetting = async (key: string, list: string[]): Promise<boolean> => {
+    const res = await fetch(`/api/admin/settings/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+      body: JSON.stringify({ value: JSON.stringify(list) }),
+    });
+    const data = await res.json().catch(() => ({ success: false }));
+    return !!data.success;
   };
 
-  const handleRemoveSynonym = (catId: string, synToRemove: string) => {
-    setCategories(prev =>
-      prev.map(c =>
-        c.id === catId ? { ...c, synonyms: c.synonyms.filter(s => s !== synToRemove) } : c
-      )
-    );
-  };
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const [phrases, suffixes] = await Promise.all([
+        loadSetting('dictionary_query_phrases'),
+        loadSetting('dictionary_landmark_suffixes'),
+      ]);
+      setQueryPhrases(phrases);
+      setLandmarkSuffixes(suffixes);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleAddPhrase = () => {
-    if (newPhraseInput.trim() && !queryPhrases.includes(newPhraseInput.trim().toLowerCase())) {
-      setQueryPhrases([...queryPhrases, newPhraseInput.trim().toLowerCase()]);
+  const handleAddPhrase = async () => {
+    const clean = newPhraseInput.trim().toLowerCase();
+    if (!clean || queryPhrases.includes(clean)) return;
+    const next = [...queryPhrases, clean];
+    setSaving(true);
+    const ok = await saveSetting('dictionary_query_phrases', next);
+    setSaving(false);
+    if (ok) {
+      setQueryPhrases(next);
       setNewPhraseInput('');
-      showToast('Savol shakli qo\'shildi', 'success');
+      showToast("Savol shakli qo'shildi — botga 60 soniya ichida qo'llanadi", 'success');
+    } else {
+      showToast('Saqlashda xato yuz berdi', 'error');
     }
   };
 
-  const handleAddSuffix = () => {
-    if (newSuffixInput.trim() && !landmarkSuffixes.includes(newSuffixInput.trim().toLowerCase())) {
-      setLandmarkSuffixes([...landmarkSuffixes, newSuffixInput.trim().toLowerCase()]);
+  const handleRemovePhrase = async (phrase: string) => {
+    const next = queryPhrases.filter((p) => p !== phrase);
+    setSaving(true);
+    const ok = await saveSetting('dictionary_query_phrases', next);
+    setSaving(false);
+    if (ok) {
+      setQueryPhrases(next);
+    } else {
+      showToast("O'chirishda xato yuz berdi", 'error');
+    }
+  };
+
+  const handleAddSuffix = async () => {
+    const clean = newSuffixInput.trim().toLowerCase();
+    if (!clean || landmarkSuffixes.includes(clean)) return;
+    const next = [...landmarkSuffixes, clean];
+    setSaving(true);
+    const ok = await saveSetting('dictionary_landmark_suffixes', next);
+    setSaving(false);
+    if (ok) {
+      setLandmarkSuffixes(next);
       setNewSuffixInput('');
-      showToast('Mo\'jal qo\'shimchasi qo\'shildi', 'success');
+      showToast("Mo'ljal qo'shimchasi qo'shildi — botga 60 soniya ichida qo'llanadi", 'success');
+    } else {
+      showToast('Saqlashda xato yuz berdi', 'error');
     }
   };
 
-  const filteredCategories = categories.filter(
-    c =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.synonyms.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const handleRemoveSuffix = async (suffix: string) => {
+    const next = landmarkSuffixes.filter((s) => s !== suffix);
+    setSaving(true);
+    const ok = await saveSetting('dictionary_landmark_suffixes', next);
+    setSaving(false);
+    if (ok) {
+      setLandmarkSuffixes(next);
+    } else {
+      showToast("O'chirishda xato yuz berdi", 'error');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4 -mx-4 px-4 pt-1 pb-16">
       <IosHeader
         title="Global Lug'at"
-        subtitle="Super-Admin · Barcha shaharlar uchun umumiy bilimlar bazasi"
+        subtitle="Super-Admin · Bot filtriga to'g'ridan-to'g'ri ulangan qo'shimcha so'zlar"
         onBack={onBack}
         backLabel={t('action_back')}
-        trailing={
-          activeTab === 'categories' ? (
-            <button
-              onClick={() => setShowAddCatModal(true)}
-              className="flex items-center gap-1 text-ios-blue text-[15px] font-semibold active:opacity-50 transition-opacity"
-            >
-              <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              Kategoriya
-            </button>
-          ) : undefined
-        }
       />
-
-      <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Kategoriya yoki sinonim qidirish" />
 
       {/* TAB NAVIGATION */}
       <div className="flex bg-ios-fill/[0.12] rounded-ios p-[2px]">
-        {TABS.map(tab => (
+        {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -163,244 +152,119 @@ export const GlobalDictionaryScreen: React.FC<GlobalDictionaryScreenProps> = ({ 
               activeTab === tab.id ? 'bg-ios-card text-ios-label shadow-sm' : 'text-ios-label-secondary/70'
             }`}
           >
-            {tab.label(tab.id === 'categories' ? categories.length : tab.id === 'queries' ? queryPhrases.length : landmarkSuffixes.length)}
+            {tab.label(tab.id === 'queries' ? queryPhrases.length : landmarkSuffixes.length)}
           </button>
         ))}
       </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* TAB 1: KATEGORIYALAR VA SINONIMLAR */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'categories' && (
-        <div className="flex flex-col gap-3">
-          {filteredCategories.map(cat => (
-            <div key={cat.id} className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-[15px] text-ios-label capitalize">
-                    {cat.name}
-                  </h3>
-                  <span className="text-[11px] text-ios-label-secondary/70 font-medium">{cat.group}</span>
-                </div>
-                <span className="text-[12px] font-semibold text-ios-blue bg-ios-blue/10 px-2.5 py-1 rounded-full">
-                  {cat.synonyms.length} ta sinonim
-                </span>
+      {loading ? (
+        <div className="text-center text-[13px] text-ios-label-secondary/70 py-8">Yuklanmoqda...</div>
+      ) : (
+        <>
+          {activeTab === 'queries' && (
+            <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
+              <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
+                Qo'shimcha savol iboralari
+              </h3>
+              <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
+                Bazaviy so'zlar ("kerak", "nomeri", "qayerda" va h.k.) kod ichida allaqachon ishlaydi — bu yerga
+                FAQAT ular yetarli bo'lmagan qo'shimcha iboralarni qo'shasiz. Qo'shilgan so'z 60 soniya ichida
+                botda haqiqatan ishlay boshlaydi.
+              </p>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="text"
+                  value={newPhraseInput}
+                  onChange={(e) => setNewPhraseInput(e.target.value)}
+                  placeholder="Yangi savol iborasi..."
+                  className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
+                  disabled={saving}
+                />
+                <button
+                  onClick={handleAddPhrase}
+                  disabled={saving}
+                  className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios disabled:opacity-50"
+                >
+                  + Qo'shish
+                </button>
               </div>
 
-              {/* SYNONYMS CHIPS */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {cat.synonyms.map(syn => (
+              <div className="flex flex-wrap gap-2 pt-2">
+                {queryPhrases.length === 0 && (
+                  <span className="text-[12px] text-ios-label-secondary/50">Qo'shimcha ibora yo'q</span>
+                )}
+                {queryPhrases.map((p) => (
                   <span
-                    key={syn}
-                    className="bg-ios-fill/[0.10] text-ios-label text-[12px] px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                    key={p}
+                    className="bg-ios-purple/[0.12] text-ios-purple text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
                   >
-                    {syn}
+                    {p}
                     <button
-                      onClick={() => handleRemoveSynonym(cat.id, syn)}
-                      className="text-ios-label-secondary/50 active:text-ios-red font-bold"
+                      onClick={() => handleRemovePhrase(p)}
+                      disabled={saving}
+                      className="text-ios-purple/70 active:text-ios-red font-bold disabled:opacity-50"
                     >
                       ×
                     </button>
                   </span>
                 ))}
-
-                {activeSynonymInputId === cat.id ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={newSynonymText}
-                      onChange={e => setNewSynonymText(e.target.value)}
-                      placeholder="sinonim..."
-                      className="bg-ios-fill/[0.08] text-[12px] text-ios-label px-3 py-1 rounded-full outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => handleAddSynonym(cat.id)}
-                      className="bg-ios-blue text-white text-[12px] px-2.5 py-1 rounded-full font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setActiveSynonymInputId(cat.id);
-                      setNewSynonymText('');
-                    }}
-                    className="border border-dashed border-ios-blue/40 text-ios-blue text-[12px] px-2.5 py-1 rounded-full active:bg-ios-blue/10 transition-colors"
-                  >
-                    + so'z qo'shish
-                  </button>
-                )}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* TAB 2: SAVOL SHAKLLARI (0-QAVAT FILTRI) */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'queries' && (
-        <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
-          <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
-            0-Qavat bepul filtr o'tkazuvchi so'zlar ({queryPhrases.length})
-          </h3>
-          <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
-            Xabarda ushbu so'zlardan biri bo'lsagina u AI klassifikatoriga yuboriladi (TZ 3.2 bo'limi).
-          </p>
+          {activeTab === 'suffixes' && (
+            <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
+              <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
+                Qo'shimcha mo'ljal-qo'shimchalari
+              </h3>
+              <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
+                Bot bu so'zlarni mo'ljal nomidan ajratib oladi ("karzinka oldida" → "Karzinka"). Bazaviy
+                ro'yxat ("oldida", "yonida", "orqasida" va h.k.) allaqachon ishlaydi — bu yerga faqat
+                yetishmayotgan qo'shimchalarni qo'shasiz.
+              </p>
 
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="text"
-              value={newPhraseInput}
-              onChange={e => setNewPhraseInput(e.target.value)}
-              placeholder="Yangi savol iborasi..."
-              className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
-            />
-            <button
-              onClick={handleAddPhrase}
-              className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios"
-            >
-              + Qo'shish
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            {queryPhrases.map(p => (
-              <span
-                key={p}
-                className="bg-ios-purple/[0.12] text-ios-purple text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
-              >
-                {p}
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="text"
+                  value={newSuffixInput}
+                  onChange={(e) => setNewSuffixInput(e.target.value)}
+                  placeholder="Yangi qo'shimcha so'z..."
+                  className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
+                  disabled={saving}
+                />
                 <button
-                  onClick={() => setQueryPhrases(queryPhrases.filter(q => q !== p))}
-                  className="text-ios-purple/70 active:text-ios-red font-bold"
+                  onClick={handleAddSuffix}
+                  disabled={saving}
+                  className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios disabled:opacity-50"
                 >
-                  ×
+                  + Qo'shish
                 </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+              </div>
 
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {/* TAB 3: MO'LJAL QO'SHIMCHALARI */}
-      {/* ────────────────────────────────────────────────────────────────────────── */}
-      {activeTab === 'suffixes' && (
-        <div className="bg-ios-card rounded-ios-lg p-4 shadow-sm space-y-3">
-          <h3 className="font-semibold text-[12px] text-ios-label-secondary/70 uppercase tracking-wide">
-            Mo'ljal qo'shimchalari ro'yxati ({landmarkSuffixes.length})
-          </h3>
-          <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">
-            Bot ushbu so'zlarni mo'ljal nomidan ajratib oladi va bitta joyga bog'laydi ("karzinka oldida" ➔ "Korzinka").
-          </p>
-
-          <div className="flex items-center gap-2 pt-2">
-            <input
-              type="text"
-              value={newSuffixInput}
-              onChange={e => setNewSuffixInput(e.target.value)}
-              placeholder="Yangi qo'shimcha so'z..."
-              className="flex-1 bg-ios-fill/[0.08] rounded-ios px-3.5 py-2 text-[13px] text-ios-label outline-none"
-            />
-            <button
-              onClick={handleAddSuffix}
-              className="bg-ios-blue text-white text-[12px] font-bold px-4 py-2 rounded-ios"
-            >
-              + Qo'shish
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            {landmarkSuffixes.map(s => (
-              <span
-                key={s}
-                className="bg-ios-green/[0.12] text-ios-green text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
-              >
-                {s}
-                <button
-                  onClick={() => setLandmarkSuffixes(landmarkSuffixes.filter(x => x !== s))}
-                  className="text-ios-green/70 active:text-ios-red font-bold"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: NEW CATEGORY */}
-      {showAddCatModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-ios-card rounded-ios-lg p-5 w-full max-w-sm space-y-4 shadow-lg animate-fade-in">
-            <h3 className="font-semibold text-[17px] text-ios-label">
-              Yangi global kategoriya
-            </h3>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
-                Asosiy nom *
-              </label>
-              <input
-                type="text"
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-                placeholder="masalan: santexnik"
-                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
-              />
+              <div className="flex flex-wrap gap-2 pt-2">
+                {landmarkSuffixes.length === 0 && (
+                  <span className="text-[12px] text-ios-label-secondary/50">Qo'shimcha so'z yo'q</span>
+                )}
+                {landmarkSuffixes.map((s) => (
+                  <span
+                    key={s}
+                    className="bg-ios-green/[0.12] text-ios-green text-[12px] px-3 py-1.5 rounded-full flex items-center gap-2"
+                  >
+                    {s}
+                    <button
+                      onClick={() => handleRemoveSuffix(s)}
+                      disabled={saving}
+                      className="text-ios-green/70 active:text-ios-red font-bold disabled:opacity-50"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
-                Guruh
-              </label>
-              <select
-                value={newCatGroup}
-                onChange={e => setNewCatGroup(e.target.value)}
-                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
-              >
-                <option value="Uy-joy ustalari">Uy-joy ustalari</option>
-                <option value="Maishiy texnika">Maishiy texnika</option>
-                <option value="Avtomobil">Avtomobil</option>
-                <option value="Transport va tashish">Transport va tashish</option>
-                <option value="Do'kon va obyektlar">Do'kon va obyektlar</option>
-                <option value="Tibbiyot">Tibbiyot</option>
-                <option value="Rasmiy idoralar">Rasmiy idoralar</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1">
-                Sinonimlar (vergul bilan)
-              </label>
-              <input
-                type="text"
-                value={newCatSynonyms}
-                onChange={e => setNewCatSynonyms(e.target.value)}
-                placeholder="suv ustasi, quvur ustasi, сантехник"
-                className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label outline-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={() => setShowAddCatModal(false)}
-                className="flex-1 py-2.5 bg-ios-fill/[0.10] text-ios-label rounded-ios text-[13px] font-semibold active:bg-ios-fill/20 transition-colors"
-              >
-                {t('action_cancel')}
-              </button>
-              <button
-                onClick={handleAddCategory}
-                className="flex-1 py-2.5 bg-ios-blue text-white rounded-ios text-[13px] font-bold active:opacity-70 transition-opacity"
-              >
-                Qo'shish
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

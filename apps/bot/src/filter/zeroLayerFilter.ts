@@ -1,4 +1,25 @@
 import { INITIAL_DICTIONARY, normalizeText, containsWholeWord, levenshteinDistance } from '@kimbor/core';
+import { db } from '@kimbor/db';
+
+// MUHIM (2026-09, "Global Lug'at" ekranini chin backend bilan qurish):
+// admin panelida qo'shilgan QO'SHIMCHA savol-shakl iboralari shu yerda
+// AppSetting jadvalidan ('dictionary_query_phrases' kaliti, JSON massiv)
+// 60 soniyada bir marta yangilanadi. zeroLayerFilter SINXRON qolishi
+// kerak (har xabarda chaqiriladi, testlar ham sinxron), shu sabab async
+// so'rov fon rejimida (setInterval) ishlaydi.
+let extraQuestionPhrases: string[] = [];
+
+async function refreshExtraQuestionPhrases(): Promise<void> {
+  try {
+    const row = await db.appSetting.findUnique({ where: { key: 'dictionary_query_phrases' } });
+    const parsed = row?.value ? JSON.parse(row.value) : [];
+    if (Array.isArray(parsed)) extraQuestionPhrases = parsed.filter((s) => typeof s === 'string' && s.trim());
+  } catch (err) {
+    // Bazaga ulanib bo'lmasa — eski qiymat (yoki bo'sh massiv) bilan davom etiladi.
+  }
+}
+refreshExtraQuestionPhrases();
+setInterval(refreshExtraQuestionPhrases, 60_000).unref?.();
 
 // 0-Qavat Filtr: Kod bo'yicha bepul va tezkor filtr (AI so'rovisiz).
 // 90% keraksiz guruh suhbatlarini AI'ga yubormay tashlab yuboradi (return false).
@@ -96,7 +117,9 @@ export function zeroLayerFilter(text: string): boolean {
   const hasQuestionMark = text.includes('?');
 
   // 3. Savol so'zlaridan biri bormi?
-  const hasQuestionWord = QUESTION_KEYWORDS.some((kw) => containsWholeWord(normalized, normalizeText(kw)));
+  const hasQuestionWord = [...QUESTION_KEYWORDS, ...extraQuestionPhrases].some((kw) =>
+    containsWholeWord(normalized, normalizeText(kw))
+  );
 
   // 4. Kasb / Obyekt lug'atidan biror so'z bormi?
   const hasTradeKeyword =
