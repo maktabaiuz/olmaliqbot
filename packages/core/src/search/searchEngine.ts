@@ -1400,8 +1400,23 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // orqali jargon qidiruvi bo'lgan holat), whereCondition hali ham shahar
   // bo'yicha CHEKSIZ ro'yxatni qaytaradi — bunday holatda faqat jargon so'z
   // orqali aniq topilgan yozuvlar bilan cheklaymiz.
+  //
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato — "Akalar
+  // arendaga yegil moshina kerak..." so'roviga aloqasiz ko'chmas mulk
+  // yozuvi "Rano" ko'rsatilgan): "arendaga" so'zi ikkita turli kategoriyada
+  // ("Arenda", "Uy/kvartira arendaga") uchragani uchun ZAIF ('weak')
+  // darajali dalil hisoblanadi — bu odatiy, to'g'ri xulq-atvor. Lekin
+  // kategoriya/mo'ljal UMUMAN berilmagan holatda bu filtr faqat
+  // `jargonMatchedIds`da bor-yo'qligini tekshirardi, ZAIF/KUCHLI farqiga
+  // qaramasdan — garchi pastroqda (`missingJargonIds`) xuddi shu zaif
+  // dalil har doim pruning'ga uchraydi. Endi bu yerda ham bir xil qoida:
+  // ZAIF (faqat umumiy so'z ustma-tushishi) dalil categoriyasiz holda
+  // yakka o'zi yetarli emas — faqat KUCHLI yoki SOHA darajasidagi moslik
+  // qabul qilinadi.
   if (!categoryName && !landmarkName) {
-    candidateListings = candidateListings.filter((l) => jargonMatchedIds.has(l.id));
+    candidateListings = candidateListings.filter(
+      (l) => jargonMatchedIds.has(l.id) && conditionalJargon.get(l.id)?.strength !== 'weak'
+    );
   }
 
   // Jargon orqali topilgan, lekin structured (kategoriya/mo'ljal) filtrga
