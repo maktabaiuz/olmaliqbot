@@ -22,7 +22,7 @@ jobs:
               (async () => {
                 const listings = await db.listing.findMany({
                   where: { category: { name: 'Taksi' }, status: 'ACTIVE' },
-                  select: { name: true, badges: true, priorityRank: true, thumbsUp: true, thumbsDown: true, verification: true },
+                  select: { name: true, badges: true, priorityRank: true, thumbsUpCount: true, thumbsDownCount: true, bayesianRating: true, verification: true },
                 });
                 console.log(JSON.stringify(listings, null, 2));
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
