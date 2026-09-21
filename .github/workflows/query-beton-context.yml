@@ -33,7 +33,7 @@ jobs:
                   },
                   orderBy: { createdAt: 'desc' },
                   take: 20,
-                  select: { rawMessage: true, categoryName: true, landmarkName: true, isResolved: true, confidence: true, createdAt: true, telegramUserId: true, chatId: true },
+                  select: { rawMessage: true, categoryName: true, landmarkName: true, isResolved: true, confidence: true, createdAt: true },
                 });
                 console.log(JSON.stringify(logs, null, 2));
 
