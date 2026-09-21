@@ -1,0 +1,107 @@
+name: One-off - Verify standalone web-login end to end
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup test user via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const crypto = require('crypto');
+              const db = new PrismaClient();
+              function hashPassword(password) {
+                const salt = process.env.PASSWORD_SALT || 'kimbor_hyperlocal_secure_salt_2026';
+                return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+              }
+              (async () => {
+                const city = await db.city.findFirst();
+                const testTelegramId = BigInt('999999999901');
+                const user = await db.user.upsert({
+                  where: { telegramId: testTelegramId },
+                  update: {
+                    role: 'CITY_ADMIN',
+                    isSuspended: false,
+                    cityId: city.id,
+                    passwordHash: hashPassword('TestWebLogin123'),
+                    isPasswordSet: true,
+                    loginUsername: 'weblogintest',
+                  },
+                  create: {
+                    telegramId: testTelegramId,
+                    firstName: 'WebLoginTest',
+                    role: 'CITY_ADMIN',
+                    cityId: city.id,
+                    passwordHash: hashPassword('TestWebLogin123'),
+                    isPasswordSet: true,
+                    loginUsername: 'weblogintest',
+                  },
+                });
+                console.log('TEST_USER_READY', user.id, user.loginUsername);
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
+
+      - name: Test web-login flow via curl
+        run: |
+          echo "=== 1) Wrong password should fail ==="
+          curl -s -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/web-login \
+            -H "Content-Type: application/json" \
+            -d '{"loginUsername":"weblogintest","password":"wrong"}' -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== 2) Correct login should succeed and set cookie ==="
+          curl -s -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/web-login \
+            -H "Content-Type: application/json" \
+            -d '{"loginUsername":"weblogintest","password":"TestWebLogin123"}' -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== 3) Cookie jar contents ==="
+          cat /tmp/cookies.txt
+
+          echo ""
+          echo "=== 4) /api/auth/session with cookie should return the user ==="
+          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/auth/session -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== 5) A real admin endpoint with cookie (no x-init-data) should work ==="
+          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/admin/categories -w "\nHTTP:%{http_code}\n" | head -c 300
+          echo ""
+
+          echo ""
+          echo "=== 6) Same admin endpoint WITHOUT any auth should be rejected ==="
+          curl -s https://olmaliq.online/api/admin/categories -w "\nHTTP:%{http_code}\n"
+
+          echo ""
+          echo "=== 7) Logout should clear session ==="
+          curl -s -b /tmp/cookies.txt -c /tmp/cookies.txt -X POST https://olmaliq.online/api/auth/logout -w "\nHTTP:%{http_code}\n"
+          curl -s -b /tmp/cookies.txt https://olmaliq.online/api/auth/session -w "\nHTTP:%{http_code}\n"
+
+      - name: Cleanup test user via SSH
+        if: always()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                await db.loginAttempt.deleteMany({ where: { telegramId: BigInt('999999999901') } });
+                await db.user.deleteMany({ where: { telegramId: BigInt('999999999901') } });
+                console.log('TEST_USER_CLEANED');
+              })().catch(e=>{console.error(e); process.exit(1)}).finally(()=>db.\$disconnect());
+            "
