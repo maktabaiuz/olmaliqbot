@@ -1,0 +1,63 @@
+name: One-off - Verify badge extraction and ranking bonus
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            echo "=== A) extractRequestedBadges direct tests ==="
+            docker exec kimbor_bot node -e "
+              const { extractRequestedBadges } = require('/app/packages/core/dist/index.js');
+              const cases = [
+                'Santexnik kerak, kafolat bilan bolsa',
+                'Taksi kerak 24/7 ishlaydigan',
+                'Karta bilan to\\'lov qabul qiladigan santexnik kerak',
+                'AI-92 bor zapravka qayerda',
+                'Metan quyish kerak',
+                'Oddiy santexnik kerak suv tomayabdi',
+                'Ruscha gaplashadigan shifokor kerak',
+                'Zudlik bilan santexnik kerak',
+                'Kartada pul bor',
+              ];
+              for (const c of cases) {
+                console.log(JSON.stringify({ msg: c, badges: extractRequestedBadges(c) }));
+              }
+            "
+
+            echo ""
+            echo "=== B) Full search ranking test: kafolat-requesting query ==="
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const { searchListings, extractRequestedBadges } = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                const santexnikListings = await db.listing.findMany({
+                  where: { category: { name: { equals: 'Santexnik' } }, cityId: CITY, status: 'ACTIVE' },
+                  select: { id: true, name: true, badges: true },
+                });
+                console.log('Santexnik listings + badges:', JSON.stringify(santexnikListings));
+
+                const msg = 'Santexnik kerak, kafolat bilan bolsa';
+                const badges = extractRequestedBadges(msg);
+                console.log('Extracted badges:', JSON.stringify(badges));
+                const r = await searchListings({ cityId: CITY, categoryName: 'santexnik', rawMessage: msg, intent: 'SERVICE', requestedBadges: badges });
+                console.log('Top result:', r ? JSON.stringify({ name: r.listing.name, badges: r.listing.badges }) : 'null');
+
+                console.log('');
+                console.log('=== C) same category, NO badge request (regression: still works normally) ===');
+                const r2 = await searchListings({ cityId: CITY, categoryName: 'santexnik', rawMessage: 'Santexnik kerak', intent: 'SERVICE', requestedBadges: [] });
+                console.log('Top result (no badge pref):', r2 ? JSON.stringify({ name: r2.listing.name }) : 'null');
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
