@@ -1605,7 +1605,29 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // Xabar matnida admin qo'shgan jargon ibora to'g'ridan-to'g'ri topilgan
     // bo'lsa — bu eng aniq signal, hatto tasdiqlanganlik holatidan ham
     // ustunroq bo'lishi kerak (AI klassifikator xato/vaqt tugagan bo'lsa ham).
-    const directJargonBonus = jargonMatchedIds.has(item.id) ? 2000 : 0;
+    //
+    // MUHIM (2026-09, "belgilar" xususiyatini sinovdan o'tkazishda TASODIFAN
+    // topilgan xato): bu bonus avval `strength`dan qat'i nazar BIR XIL (2000)
+    // edi. Natijada "Taksi kerak zudlik bilan" so'roviga Zudlik belgisi
+    // BOR "Muhridin" o'rniga, jargonida shunchaki "taksi" so'zi (SOHA/
+    // "category" darajali moslik — chunki "taksi" so'zi faqat "Taksi"
+    // kategoriyasida uchraydi, lekin bu so'z o'sha kategoriyaning DEYARLI
+    // BARCHA yozuvida takrorlanadi, hech kimni ajratmaydi) bor "Xolmurtof
+    // Abror" g'olib chiqdi — chunki 2000 ball badge bonusini (400) butunlay
+    // bosib ketgan. "category"/"weak" darajali moslik — AI xato kategoriya
+    // bergan holatlarda qidiruvni QUTQARISH uchun yetarli (candidateListings
+    // ro'yxatiga QO'SHISH bosqichida, yuqorida), lekin ALLAQACHON to'g'ri
+    // aniqlangan kategoriya ICHIDA reytingni bunchalik katta ustunlik bilan
+    // boshqarishga haqli EMAS — faqat haqiqiy atoqli nom ("strong") shunga
+    // loyiq.
+    const jargonStrengthInfo = conditionalJargon.get(item.id);
+    const directJargonBonus = !jargonMatchedIds.has(item.id)
+      ? 0
+      : jargonStrengthInfo?.strength === 'category'
+        ? 150
+        : jargonStrengthInfo?.strength === 'weak'
+          ? 0
+          : 2000;
 
     // Admin kategoriya ichida "1/2/3-o'rin" deb belgilagan yozuv — bu HAR
     // QANDAY boshqa signaldan (tasdiqlanganlik, reyting, jargon) ustunroq
