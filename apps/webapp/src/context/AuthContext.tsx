@@ -30,7 +30,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   loginWithPassword: (password: string) => Promise<LoginResult>;
-  setupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
+  setupPassword: (password: string) => Promise<LoginResult>;
   /** Telegram tashqarisida, oddiy brauzerdan kirish (saytdan). */
   loginWithWebCredentials: (loginUsername: string, password: string) => Promise<LoginResult>;
   logout: () => void;
@@ -171,27 +171,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const setupPassword = async (oneTimePass: string, newPass: string): Promise<boolean> => {
+  // MUHIM (2026-09 topilgan xato): bu funksiya avval `oneTimePass`/`newPass`
+  // maydonlarini yuborardi, lekin backend (`/auth/setup-password`)
+  // ANCHA OLDIN soddalashtirilib, yagona `password` maydonini kutadigan
+  // bo'lib qolgan edi — bir martalik kod umuman tekshirilmaydi. Bu
+  // nomuvofiqlik sabab parol o'rnatish HAR DOIM 400 xatosi bilan
+  // muvaffaqiyatsiz bo'lardi. Backend `user` obyektini ham qaytarmaydi
+  // (faqat `{success, message}`) — shu sabab `data.user`ni talab qilish
+  // ham noto'g'ri edi.
+  const setupPassword = async (password: string): Promise<LoginResult> => {
     try {
       const tgData = window.Telegram?.WebApp?.initData;
       const res = await fetch('/api/auth/setup-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tgData, oneTimePass, newPass }),
+        body: JSON.stringify({ initData: tgData, password }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          setUser(data.user);
-          setAuthState('AUTHENTICATED');
-          return true;
-        }
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        setAuthState('AUTHENTICATED');
+        return { success: true };
       }
+      return { success: false, message: data.message };
     } catch (err) {
       console.error('Setup password failed:', err);
+      return { success: false };
     }
-    return false;
   };
 
   const loginWithWebCredentials = async (loginUsername: string, password: string): Promise<LoginResult> => {

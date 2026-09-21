@@ -458,7 +458,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
     }
     if (!req.user.passwordHash) {
-      return reply.status(400).send({ success: false, message: "Avval parol o'rnating (Til/Tema > Sozlamalar)" });
+      return reply.status(400).send({ success: false, message: "Avval yuqoridagi \"Parol\" bo'limidan parol o'rnating" });
     }
     const existing = await db.user.findUnique({ where: { loginUsername: clean } });
     if (existing && existing.id !== req.user.id) {

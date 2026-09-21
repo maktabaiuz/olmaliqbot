@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useFeedback } from '../context/FeedbackContext';
+import { useAuth } from '../context/AuthContext';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosSection, IosRow } from '../components/ios/IosCard';
 
@@ -25,10 +26,39 @@ export const SettingsLanguageThemeScreen: React.FC<SettingsLanguageThemeScreenPr
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { showToast } = useFeedback();
+  const { setupPassword } = useAuth();
 
   const [currentLoginUsername, setCurrentLoginUsername] = useState<string | null | undefined>(undefined);
   const [newLoginUsername, setNewLoginUsername] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  const handleSavePassword = async () => {
+    if (newPassword.length < 6) {
+      showToast("Parol kamida 6 belgidan iborat bo'lishi kerak", 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('Parollar mos kelmadi', 'error');
+      return;
+    }
+    setIsSavingPassword(true);
+    try {
+      const result = await setupPassword(newPassword);
+      if (result.success) {
+        setNewPassword('');
+        setConfirmPassword('');
+        showToast('Parol saqlandi', 'success');
+      } else {
+        showToast(result.message || 'Saqlashda xatolik yuz berdi', 'error');
+      }
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
 
   useEffect(() => {
     const initData = window.Telegram?.WebApp?.initData || '';
@@ -96,7 +126,35 @@ export const SettingsLanguageThemeScreen: React.FC<SettingsLanguageThemeScreenPr
         </IosRow>
       </IosSection>
 
-      <IosSection title="Saytdan kirish" footer="O'rnatgandan keyin admin panelga Telegram tashqarisida, oddiy brauzerdan ham shu login va (Telegram orqali o'rnatilgan) parolingiz bilan kirishingiz mumkin bo'ladi.">
+      <IosSection title="Parol" footer="Bu parol saytdan (olmaliq.online) kirishda ham ishlatiladi — pastdagi login bilan birga.">
+        <div className="px-4 py-3" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Yangi parol (kamida 6 belgi)"
+            className="w-full bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
+          />
+        </div>
+        <div className="px-4 py-3 flex items-center gap-2">
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Parolni takrorlang"
+            className="flex-1 bg-transparent text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
+          />
+          <button
+            onClick={handleSavePassword}
+            disabled={isSavingPassword || !newPassword || !confirmPassword}
+            className="text-ios-blue text-[15px] font-medium disabled:opacity-40 active:opacity-60"
+          >
+            {isSavingPassword ? 'Saqlanmoqda…' : 'Saqlash'}
+          </button>
+        </div>
+      </IosSection>
+
+      <IosSection title="Saytdan kirish" footer="O'rnatgandan keyin admin panelga Telegram tashqarisida, oddiy brauzerdan ham shu login va yuqorida o'rnatgan parolingiz bilan kirishingiz mumkin bo'ladi.">
         <div className="px-4 py-3" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
           <p className="text-[13px] text-ios-label-secondary/70">Joriy login</p>
           <p className="text-[15px] text-ios-label mt-0.5">

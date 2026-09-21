@@ -171,8 +171,8 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
     return (
       <PasswordSetupScreen
         adminName={user?.name || 'Admin'}
-        onSetupPassword={async (oneTime, newP) => {
-          return await setupPassword(oneTime, newP);
+        onSetupPassword={async (pass) => {
+          return await setupPassword(pass);
         }}
       />
     );

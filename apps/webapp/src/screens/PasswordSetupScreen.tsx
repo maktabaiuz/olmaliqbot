@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 
 export interface PasswordSetupScreenProps {
   adminName?: string;
-  onSetupPassword: (oneTimePass: string, newPass: string) => Promise<boolean>;
+  onSetupPassword: (password: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
   adminName = 'Admin',
   onSetupPassword,
 }) => {
-  const [oneTimePass, setOneTimePass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,9 +30,9 @@ export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
     setError(null);
 
     try {
-      const success = await onSetupPassword(oneTimePass, newPass);
-      if (!success) {
-        setError("Bir martalik parol noto'g'ri!");
+      const result = await onSetupPassword(newPass);
+      if (!result.success) {
+        setError(result.message || "Parol o'rnatib bo'lmadi.");
       }
     } catch (err: any) {
       setError("Parol o'rnatishda xatolik yuz berdi.");
@@ -53,7 +52,7 @@ export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
           Birinchi kirish, {adminName}
         </h1>
         <p className="text-ios-label-secondary/70 text-[15px] mb-6 text-center">
-          Berilgan bir martalik parolni kiriting va shaxsiy parolingizni o'rnating
+          Shaxsiy parolingizni o'rnating
         </p>
 
         {error && (
@@ -67,20 +66,11 @@ export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
             <div className="px-4" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
               <input
                 type="password"
-                value={oneTimePass}
-                onChange={(e) => setOneTimePass(e.target.value)}
-                placeholder="Bir martalik parol"
-                required
-                className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
-              />
-            </div>
-            <div className="px-4" style={{ borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
-              <input
-                type="password"
                 value={newPass}
                 onChange={(e) => setNewPass(e.target.value)}
                 placeholder="Yangi parol (kamida 6 belgi)"
                 required
+                autoFocus
                 className="w-full bg-transparent py-3.5 text-[16px] text-ios-label placeholder:text-ios-label-secondary/50 focus:outline-none"
               />
             </div>
@@ -98,7 +88,7 @@ export const PasswordSetupScreen: React.FC<PasswordSetupScreenProps> = ({
 
           <button
             type="submit"
-            disabled={isSubmitting || !oneTimePass || !newPass}
+            disabled={isSubmitting || !newPass || !confirmPass}
             className="w-full bg-ios-blue active:opacity-70 text-white font-medium py-3.5 rounded-ios text-[16px] transition-opacity disabled:opacity-40"
           >
             {isSubmitting ? "Saqlanmoqda…" : "Parolni o'rnatish va kirish"}
