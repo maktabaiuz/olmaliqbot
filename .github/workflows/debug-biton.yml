@@ -1,0 +1,29 @@
+name: One-off - Debug Biton quyuvchi cross-category jargon match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const l = await db.listing.findFirst({
+                  where: { name: { contains: 'Biton quyuvchi' } },
+                  select: { id: true, name: true, jargonSynonyms: true, category: { select: { name: true } } },
+                });
+                console.log('Biton quyuvchi listing:', JSON.stringify(l));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
