@@ -1,0 +1,29 @@
+name: One-off - Check if fake 'Test Master' listing was actually saved
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const found = await db.listing.findMany({
+                  where: { OR: [ { name: { contains: 'Test Master', mode: 'insensitive' } }, { phone: { contains: '901234567' } } ] },
+                  select: { id: true, name: true, phone: true, createdAt: true, status: true },
+                });
+                console.log('Matches:', JSON.stringify(found, null, 2));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
