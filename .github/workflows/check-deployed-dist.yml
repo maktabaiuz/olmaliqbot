@@ -1,0 +1,29 @@
+name: One-off - Check deployed dist content matches source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            echo "=== git log on server ==="
+            cd /root/kimbor && git log --oneline -3
+            echo ""
+            echo "=== rankedListCache.js inside kimbor_bot container ==="
+            docker exec kimbor_bot cat /app/apps/bot/dist/cache/rankedListCache.js | head -60
+            echo ""
+            echo "=== canEdit reference in directHandler.js ==="
+            docker exec kimbor_bot grep -n "canEdit\|editMessage" /app/apps/bot/dist/handlers/directHandler.js
+            echo ""
+            echo "=== editMessage reference in listingReply.js ==="
+            docker exec kimbor_bot grep -n "editMessage\|editMessageText" /app/apps/bot/dist/utils/listingReply.js
