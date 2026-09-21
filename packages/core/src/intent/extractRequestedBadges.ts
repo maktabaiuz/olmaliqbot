@@ -45,7 +45,7 @@ export function extractRequestedBadges(rawMessage: string): string[] {
   if (/\bbepul\s+(yetkazib|dostavka|dastavka)\b/.test(n) || /\b(dostavka|dastavka|yetkazib)\s+bepul\b/.test(n) || /\btekin\s+(yetkazib|dostavka|dastavka)\b/.test(n)) {
     found.add('Bepul yetkazib berish');
   }
-  if (/\bnasiya\b/.test(n) || /\bbo'?lib to'?lash\b/.test(n) || /\bmuddatli to'?lov\b/.test(n)) {
+  if (/\bnasiya\b/.test(n) || /\bbo'?lib\s+to'?lash\w*\b/.test(n) || /\bmuddatli to'?lov\b/.test(n)) {
     found.add('Nasiya');
   }
   if (/\bsertifikat\w*\b/.test(n) || /\blitsenzi\w*\b/.test(n)) {
