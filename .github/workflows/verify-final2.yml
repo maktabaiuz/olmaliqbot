@@ -1,0 +1,61 @@
+name: One-off - Final verify after directJargonBonus tiering fix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const { searchListings, extractRequestedBadges, isSelfOffer } = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                console.log('=== 1) Taksi + Zudlik -> Muhridin should now WIN ===');
+                const msg1 = 'Taksi kerak zudlik bilan';
+                const r1 = await searchListings({ cityId: CITY, categoryName: 'taksi', rawMessage: msg1, intent: 'SERVICE', requestedBadges: extractRequestedBadges(msg1) });
+                console.log('Top result:', r1 ? r1.listing.name : 'null', '(expect Muhridin)');
+
+                console.log('');
+                console.log('=== 2) Taksi + Karta -> Muhridin or Xolmurtof (both have Karta) should win over Fayzxon (no Karta) ===');
+                const msg2 = 'Taksi kerak karta bilan tolaydigan';
+                const r2 = await searchListings({ cityId: CITY, categoryName: 'taksi', rawMessage: msg2, intent: 'SERVICE', requestedBadges: extractRequestedBadges(msg2) });
+                console.log('Top result:', r2 ? r2.listing.name : 'null', '(expect Muhridin or Xolmurtof Abror, NOT Fayzxon)');
+
+                console.log('');
+                console.log('=== 3) plain Taksi kerak, no badge pref -> still returns normal, non-null result ===');
+                const r3 = await searchListings({ cityId: CITY, categoryName: 'taksi', rawMessage: 'Taksi kerak', intent: 'SERVICE', requestedBadges: [] });
+                console.log('Top result:', r3 ? r3.listing.name : 'null');
+
+                console.log('');
+                console.log('=== 4) toy tepada balon kerak -> category-level jargon recovery still works (NOT_RELEVANT bypass) ===');
+                const r4 = await searchListings({ cityId: CITY, categoryName: null, rawMessage: 'toy tepada balon kerak', intent: 'NOT_RELEVANT', requestedBadges: [] });
+                console.log('Top result:', r4 ? r4.listing.name : 'null (if null, category-recovery may be affected - needs check)');
+
+                console.log('');
+                console.log('=== 5) Metan quyadigan zapravka -> still correct (quy-verb fix regression) ===');
+                const r5 = await searchListings({ cityId: CITY, categoryName: 'avtomobil zapravkasi', rawMessage: 'Metan quyadigan zapravka qayerda', intent: 'SERVICE', requestedBadges: [] });
+                console.log('Top result:', r5 ? r5.listing.name : 'null', '(expect Deska ichidagi Zaprafka, NOT Biton quyuvchi)');
+
+                console.log('');
+                console.log('=== 6) Fundament quyadigan usta kerak -> Betonchi still found ===');
+                const r6 = await searchListings({ cityId: CITY, categoryName: 'betonchi', rawMessage: 'Fundament quyadigan usta kerak', intent: 'SERVICE', requestedBadges: [] });
+                console.log('Top result:', r6 ? r6.listing.name : 'null', '(expect Biton quyuvchi)');
+
+                console.log('');
+                console.log('=== 7) Prior isSelfOffer / karzinka regressions ===');
+                console.log('isSelfOffer labo+phone:', isSelfOffer('Лабо хизмати 776880696'));
+                console.log('isSelfOffer akalar arenda (false=ok):', isSelfOffer('Akalar arendaga yegil moshina kerak'));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
