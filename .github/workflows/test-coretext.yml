@@ -1,0 +1,39 @@
+name: One-off - Test coreMatchText jargon logic directly
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_api node -e "
+              const { coreMatchText, normalizeText } = require('/app/packages/core/dist/index.js');
+              const msg = \"Assalomu alaykum akalar sug'urta qancha bo'lyapti kim biladi aytvorilar oldindan rahmat\";
+              const jargonList = [
+                'straxovka','sugurta','acko','kasko','online sugurta','gostrax qatta qiladi',
+                'straxovka qatta qiladi','akalar sugurta qancha bolyapti','sugurta nechpul bulgan',
+                'cheksiz sugurta nechpul bulgan','sugurta qancha bulgan hozir','sugurta qatta ishlaydi hozir',
+                'dam olish kuni sugurta ishlaydi','sugurta hizmatlari','bugun sugurta ishlaydimi',
+                'bezagranicheniya sugurta qancha bulyapti','passajir sugurta','tashuvchi sugurta','6 oylik sugurta'
+              ];
+              const msgCore = coreMatchText(msg);
+              console.log('MSG_NORMALIZED:', normalizeText(msg));
+              console.log('MSG_CORE:', msgCore);
+              console.log('');
+              for (const j of jargonList) {
+                const jc = coreMatchText(j);
+                const includesFwd = msgCore.includes(jc);
+                const includesBack = jc.includes(msgCore);
+                console.log(JSON.stringify({ jargon: j, jargonCore: jc, includesFwd, includesBack }));
+              }
+            " 2>&1
