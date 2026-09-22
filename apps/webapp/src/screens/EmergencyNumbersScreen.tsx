@@ -123,25 +123,32 @@ const AiTemplateAndLinkFields: React.FC<{
           </button>
         </div>
 
+        <p className="text-[10px] text-ios-label-secondary/60 -mt-1">
+          AI'dan taklif oling YOKI shu yerga o'zingiz to'g'ridan-to'g'ri yozing/tahrirlang. Telefon raqami
+          o'rniga aynan <code className="text-[10px] bg-ios-fill/20 px-1 rounded">{'{phone}'}</code> deb yozing —
+          bot buni haqiqiy raqamga avtomatik almashtiradi.
+        </p>
+
         {suggestError && <p className="text-[12px] text-ios-red">{suggestError}</p>}
 
-        {messageTemplate && (
-          <div className="bg-ios-fill/[0.08] rounded-ios p-3 flex items-start justify-between gap-2">
-            <div
-              className="text-[13px] text-ios-label flex-1"
-              dangerouslySetInnerHTML={{ __html: renderPreview(messageTemplate) }}
-            />
-            <button
-              onClick={() => setMessageTemplate(null)}
-              className="text-[11px] text-ios-label-secondary/60 active:text-ios-red shrink-0"
-            >
-              Standartga qaytarish
-            </button>
+        <textarea
+          value={messageTemplate ?? ''}
+          onChange={(e) => setMessageTemplate(e.target.value || null)}
+          placeholder={`masalan: 🏢 <b>${label || 'Nomi'}</b>\n📞 {phone}`}
+          rows={3}
+          className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none resize-none font-mono"
+        />
+
+        {messageTemplate && messageTemplate.trim() && (
+          <div className="bg-ios-fill/[0.08] rounded-ios p-3">
+            <p className="text-[10px] font-semibold text-ios-label-secondary/60 uppercase mb-1">Ko'rinishi:</p>
+            <div className="text-[13px] text-ios-label" dangerouslySetInnerHTML={{ __html: renderPreview(messageTemplate) }} />
           </div>
         )}
 
         {suggestions.length > 0 && (
           <div className="flex flex-col gap-2">
+            <p className="text-[10px] font-semibold text-ios-label-secondary/60 uppercase">AI takliflari — bosib tanlang, keyin yuqorida tahrirlang:</p>
             {suggestions.map((tpl, idx) => (
               <button
                 key={idx}
