@@ -130,18 +130,24 @@ type LocalDispatcherEntry = {
   linkLabel: string | null;
   linkButtonStyle: string | null;
 };
-const cache = new Map<string, { entries: LocalDispatcherEntry[]; expiresAt: number }>();
+const cache = new Map<string, { entries: LocalDispatcherEntry[]; cityName: string; expiresAt: number }>();
 
-async function getLocalDispatcherEntries(cityId: string): Promise<LocalDispatcherEntry[]> {
+async function getLocalDispatcherEntries(
+  cityId: string
+): Promise<{ entries: LocalDispatcherEntry[]; cityName: string }> {
   const cached = cache.get(cityId);
-  if (cached && cached.expiresAt > Date.now()) return cached.entries;
+  if (cached && cached.expiresAt > Date.now()) return cached;
 
-  const rows = await db.emergencyNumber.findMany({
-    where: { cityId, jargonWords: { isEmpty: false } },
-    select: { label: true, phoneNumber: true, jargonWords: true, messageTemplate: true, linkUrl: true, linkLabel: true, linkButtonStyle: true },
-  });
-  cache.set(cityId, { entries: rows, expiresAt: Date.now() + LOCAL_DISPATCHER_CACHE_TTL_MS });
-  return rows;
+  const [rows, city] = await Promise.all([
+    db.emergencyNumber.findMany({
+      where: { cityId, jargonWords: { isEmpty: false } },
+      select: { label: true, phoneNumber: true, jargonWords: true, messageTemplate: true, linkUrl: true, linkLabel: true, linkButtonStyle: true },
+    }),
+    db.city.findUnique({ where: { id: cityId }, select: { name: true } }),
+  ]);
+  const result = { entries: rows, cityName: city?.name || '' };
+  cache.set(cityId, { ...result, expiresAt: Date.now() + LOCAL_DISPATCHER_CACHE_TTL_MS });
+  return result;
 }
 
 // MUHIM (2026-09, real skrinshot bilan tasdiqlangan XATO — "Горсетни
@@ -170,12 +176,29 @@ function wordsShareStem(a: string, b: string): boolean {
   return shorter.length >= 4 && longer.startsWith(shorter);
 }
 
-function extractDistinctiveJargonWords(phrase: string): string[] {
+function extractDistinctiveJargonWords(phrase: string, cityNameNormalized: string): string[] {
   return normalizeText(phrase)
     .split(/\s+/)
-    .filter((w) => w.length >= 4 && !UZBEK_STOPWORDS.has(w) && !GENERIC_LOCAL_WORDS.has(w));
+    .filter(
+      (w) =>
+        w.length >= 4 &&
+        !UZBEK_STOPWORDS.has(w) &&
+        !GENERIC_LOCAL_WORDS.has(w) &&
+        (!cityNameNormalized || w !== cityNameNormalized)
+    );
 }
 
+// MUHIM (2026-09, real XATO — "taxi kerak ... Olmaliqqa ... beradi"
+// (Toshkentdan Olmaliqqa taksi so'rovi) elektr avariya raqamiga NOTO'G'RI
+// mos kelib qoldi): jargon "Olmaliq elektrenergiya raqami kimda bor" ikkita
+// "xos" so'zga ega edi — "olmaliq" va "elektrenergiya". Avvalgi mantiq
+// ULARDAN BITTASI (.some()) mos kelsa yetarli deb hisoblardi — lekin shahar
+// nomi ("Olmaliq") bu botda DEYARLI HAR QANDAY manzilli xabarda uchraydi
+// (masalan "Olmaliqqa" borish so'ralganda), demak u aslida "xos" emas.
+// Endi: (1) shahar nomining o'zi hech qachon "xos so'z" deb hisoblanmaydi,
+// (2) qolgan xos so'zlarning HAMMASI (every(), .some() emas) xabarda
+// uchrashi shart — faqat shunda mos deb topiladi. Bitta so'zli jargon
+// ("gorset" kabi) uchun bu xatti-harakatni o'zgartirmaydi.
 export async function findLocalDispatcherMatch(
   rawMessage: string,
   cityId: string
@@ -185,7 +208,8 @@ export async function findLocalDispatcherMatch(
   if (!normalized) return null;
   const msgWords = normalized.split(/\s+/).filter(Boolean);
 
-  const entries = await getLocalDispatcherEntries(cityId);
+  const { entries, cityName } = await getLocalDispatcherEntries(cityId);
+  const cityNameNormalized = cityName ? normalizeText(cityName) : '';
   for (const entry of entries) {
     for (const jargon of entry.jargonWords) {
       const normJargon = normalizeText(jargon);
@@ -204,9 +228,13 @@ export async function findLocalDispatcherMatch(
       }
 
       // 2) Butun ibora mos kelmasa — jargondagi ENG XOS (umumiy bo'lmagan)
-      // so'z xabarda (qo'shimchali shaklda bo'lsa ham) uchraydimi.
-      const distinctiveWords = extractDistinctiveJargonWords(jargon);
-      const hasWordMatch = distinctiveWords.some((jw) =>
+      // so'zlarNING HAMMASI xabarda (qo'shimchali shaklda bo'lsa ham)
+      // uchraydimi. Hech bo'lmasa bitta xos so'z bo'lishi shart (bo'sh
+      // ro'yxat — masalan jargon butunlay umumiy so'zlardan iborat bo'lsa —
+      // mos kelgan deb HISOBLANMAYDI, aks holda hamma narsaga mos kelib
+      // qoladi).
+      const distinctiveWords = extractDistinctiveJargonWords(jargon, cityNameNormalized);
+      const hasWordMatch = distinctiveWords.length > 0 && distinctiveWords.every((jw) =>
         msgWords.some((mw) => wordsShareStem(jw, mw))
       );
       if (hasWordMatch) {
