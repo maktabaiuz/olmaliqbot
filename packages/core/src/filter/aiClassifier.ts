@@ -1,7 +1,7 @@
 import { ClassifierResult, IntentType, ListingObjectType } from '@kimbor/types';
 import { classifierPrompt } from '../prompts';
-import { normalizeText, levenshteinDistance } from '../transliteration';
-import { matchCategoryFromText, INITIAL_DICTIONARY } from '../dictionary';
+import { normalizeText, levenshteinDistance, containsWholeWord, containsAffirmedWholeWord } from '../transliteration';
+import { matchCategoryFromText, INITIAL_DICTIONARY, resolveCanonicalCategoryName, getDictionarySynonymsForCategory } from '../dictionary';
 import { isSelfOffer } from '../intent/isSelfOffer';
 import { detectEmergencyCategory } from '../emergency';
 import { getRealCategoryEnumNames } from '../search/categoryDictionary';
@@ -44,6 +44,41 @@ export function reserveGeminiCallSlot(): boolean {
 // qo'shimcha AI so'rovi sarflaydi. Shubha bo'lsa — signal bor deb hisoblanadi.
 const REQUEST_SIGNAL_RE =
   /\b(kerak|kerakmi|bormi|bo'?lsa|qolsa|yo'?qmi|qayerda|qaerda|qanaqa|qancha|narxi|nechada|nechiga|nechi|nomeri|raqami|telefoni|qo'?ng'?iroq|murojaat|izlayapman|izlamoqda|izlab|ishlaydimi|ishlaydi|arenda|ijara|sotiladi|sotaman|sotamiz|sotilmoqda|beriladi|beraman|beramiz|kimda|kimdadir|topib|yordam)\b/;
+
+// MUHIM (2026-09, real XATO — "Arendaga yengil mashina kerak ... TAKSI
+// QILISHGA EMAS, kimda bo'lsa aytvoring" TAKSI kategoriyasiga xato mos
+// kelib qolgan edi): Gemini prompt'iga inkor haqida yozma ta'lim qo'shish
+// (4c-bo'lim, classifierPrompt.ts) YOLG'IZ O'ZI YETARLI bo'lmadi — kichik
+// ("lite") model uzun, tartibsiz xabarda oxirida kelgan "taksi" so'ziga
+// baribir yopishib qoldi. Shu sabab bu yerda DETERMINISTIK (AI xatosidan
+// qat'i nazar ishlaydigan) himoya qatlami qo'shildi: Gemini tanlagan
+// kategoriyaning o'z lug'at sinonimlari xabar ichida qidiriladi — agar
+// ular xabarda BOR-yu, lekin FAQAT inkor shaklida ("...emas") uchrasa (va
+// hech qanday tasdiqlangan shakli topilmasa), bu klassifikatsiya rad
+// etiladi (NOT_RELEVANT). Agar kategoriya sinonimlari xabarda umuman
+// uchramasa (masalan Gemini faqat ma'noga qarab, so'zma-so'z mos kelmagan
+// parafraz bilan to'g'ri tushungan bo'lsa) — HECH NARSA o'zgartirilmaydi,
+// chunki bu holatda lug'at "ko'r" (kontekstni Gemini kabi tushunolmaydi)
+// va uni ishonchli rad etish uchun asos bo'la olmaydi.
+function isClassificationNegatedInText(normalizedMessage: string, categoryGuess: string | null): boolean {
+  if (!categoryGuess) return false;
+  const canonical = resolveCanonicalCategoryName(categoryGuess);
+  const synonyms = getDictionarySynonymsForCategory(canonical);
+  if (synonyms.length === 0) return false;
+
+  let sawRawMatch = false;
+  for (const syn of synonyms) {
+    const pattern = normalizeText(syn);
+    if (pattern.length < 3) continue;
+    if (containsWholeWord(normalizedMessage, pattern)) {
+      sawRawMatch = true;
+      if (containsAffirmedWholeWord(normalizedMessage, pattern)) {
+        return false; // kamida bitta TASDIQLANGAN shakl bor — ishonch bilan qoldiriladi
+      }
+    }
+  }
+  return sawRawMatch; // so'z bor edi, lekin faqat inkor shaklda
+}
 
 export function hasPossibleServiceSignal(normalized: string): boolean {
   if (!normalized || normalized.length < 3) return false;
@@ -115,6 +150,15 @@ export async function classifyQuery(
 
   // Qat'iy qoida: confidence < 0.7 bo'lsa bot jim turadi (NOT_RELEVANT)
   if (result.confidence < 0.7) {
+    result.intent = IntentType.NOT_RELEVANT;
+  }
+
+  // Determinstik inkor-himoyasi — yuqoridagi izohga qarang.
+  if (
+    result.intent !== IntentType.NOT_RELEVANT &&
+    result.intent !== IntentType.EMERGENCY &&
+    isClassificationNegatedInText(normalized, result.category)
+  ) {
     result.intent = IntentType.NOT_RELEVANT;
   }
 

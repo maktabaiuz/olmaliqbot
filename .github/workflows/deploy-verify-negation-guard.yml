@@ -1,19 +1,24 @@
-name: One-off - Verify real bug message through full Gemini pipeline v2
+name: One-off - Deploy deterministic negation guard and verify
 on:
   workflow_dispatch:
 jobs:
-  verify:
+  deploy_and_verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify via SSH
+      - name: Deploy and verify via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           timeout: 90s
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
+            cd /root/kimbor
+            git pull origin main || git pull origin master
+            git log -1 --oneline
+            docker compose -f docker-compose.prod.yml up -d --build
+            sleep 20
             docker exec kimbor_api node -e "
               const crypto = require('crypto');
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
@@ -36,22 +41,22 @@ jobs:
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
                 const messages = [
-                  'Асалому алайкум арендага йенгил мошина керак еди узок муддатга узим агмкадан ишлиман мошинага акуратний караб йураман босиб такси килишга емас кимда боса айтворила илтимос',
-                  'taksi kerak zudlik bilan Toshkentgacha',
-                  'mashina arendaga kerak uzoq muddatga',
+                  ['REAL BUG: rental with taxi negation', 'Асалому алайкум арендага йенгил мошина керак еди узок муддатга узим агмкадан ишлиман мошинага акуратний караб йураман босиб такси килишга емас кимда боса айтворила илтимос'],
+                  ['REGRESSION: genuine taxi request', 'taksi kerak zudlik bilan Toshkentgacha'],
+                  ['REGRESSION: genuine taxi request cyrillic', 'такси керак шошилинч'],
+                  ['REGRESSION: genuine car rental', 'mashina arendaga kerak uzoq muddatga'],
+                  ['REGRESSION: santexnik', 'santexnik kerak suv tomayabdi'],
+                  ['REGRESSION: gorset local dispatcher (unrelated path)', 'gorset raqamini bering'],
                 ];
-                for (const msg of messages) {
+                for (const [label, msg] of messages) {
                   const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
                     method: 'POST', headers, body: JSON.stringify({ message: msg }),
                   });
                   const simData = await simRes.json();
-                  console.log('MSG:', msg.slice(0, 50) + '...');
-                  console.log('AI_INTENT:', simData?.steps?.aiClassification?.intent);
-                  console.log('AI_CATEGORY:', simData?.steps?.aiClassification?.category);
-                  console.log('FOUND:', simData?.finalResult?.found);
-                  console.log('LISTING_NAME:', simData?.finalResult?.listingName);
-                  console.log('RESULT_CATEGORY:', simData?.finalResult?.categoryName);
-                  console.log('REASON:', simData?.finalResult?.reason);
+                  console.log('CASE:', label);
+                  console.log('  AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category);
+                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
+                  console.log('  REASON:', simData?.finalResult?.reason);
                   console.log('---');
                 }
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
