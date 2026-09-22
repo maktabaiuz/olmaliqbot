@@ -1,0 +1,27 @@
+name: One-off - Check current emergency_mahalliy_* AppSettings before migration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const keys = ['emergency_mahalliy_gaz','emergency_mahalliy_suv','emergency_mahalliy_elektr','emergency_mahalliy_issiqlik','emergency_mahalliy_hokimiyat'];
+                const rows = await db.appSetting.findMany({ where: { key: { in: keys } } });
+                console.log(JSON.stringify(rows, null, 2));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
