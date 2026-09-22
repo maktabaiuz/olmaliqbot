@@ -35,9 +35,25 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // oddiy ma'lumot-so'rov).
   const localDispatcherMatch = await findLocalDispatcherMatch(messageText, cityId);
   if (localDispatcherMatch) {
-    await ctx.reply(`🏢 <b>${localDispatcherMatch.label}</b>\n📞 <code>${localDispatcherMatch.phoneNumber}</code>`, {
+    // Reklama/havola tugmasi — admin qo'ygan bo'lsa (Broadcast'dagi bilan
+    // bir xil rang tizimi: primary/success/danger).
+    const replyMarkup = localDispatcherMatch.linkUrl
+      ? {
+          inline_keyboard: [
+            [
+              {
+                text: localDispatcherMatch.linkLabel || 'Havola',
+                url: localDispatcherMatch.linkUrl,
+                ...(localDispatcherMatch.linkButtonStyle ? { style: localDispatcherMatch.linkButtonStyle } : {}),
+              },
+            ],
+          ],
+        }
+      : undefined;
+    await ctx.reply(localDispatcherMatch.formattedText, {
       parse_mode: 'HTML',
       reply_parameters: { message_id: ctx.message.message_id },
+      reply_markup: replyMarkup as any,
     });
     db.queryLog.create({
       data: {

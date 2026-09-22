@@ -197,7 +197,20 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   // bilan bir xil mantiq, qarang: groupHandler.ts.
   const localDispatcherMatch = await findLocalDispatcherMatch(messageText, activeCityId);
   if (localDispatcherMatch) {
-    await ctx.reply(`🏢 <b>${localDispatcherMatch.label}</b>\n📞 <code>${localDispatcherMatch.phoneNumber}</code>`, { parse_mode: 'HTML' });
+    const replyMarkup = localDispatcherMatch.linkUrl
+      ? {
+          inline_keyboard: [
+            [
+              {
+                text: localDispatcherMatch.linkLabel || 'Havola',
+                url: localDispatcherMatch.linkUrl,
+                ...(localDispatcherMatch.linkButtonStyle ? { style: localDispatcherMatch.linkButtonStyle } : {}),
+              },
+            ],
+          ],
+        }
+      : undefined;
+    await ctx.reply(localDispatcherMatch.formattedText, { parse_mode: 'HTML', reply_markup: replyMarkup as any });
     db.queryLog.create({
       data: {
         cityId: activeCityId,

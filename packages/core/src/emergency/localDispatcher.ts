@@ -16,6 +16,33 @@ import { normalizeText, containsWholeWord } from '../transliteration';
 export interface LocalDispatcherMatch {
   label: string;
   phoneNumber: string;
+  /** Admin AI yordamida tanlagan xabar matni (HTML, {phone} allaqachon
+   * haqiqiy raqamga almashtirilgan) — bo'lmasa standart format ishlatiladi. */
+  formattedText: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  linkButtonStyle: 'primary' | 'success' | 'danger' | null;
+}
+
+/** Standart (shablon tanlanmagan) format — 🏢 nomi + 📞 raqam. */
+function defaultLocalDispatcherText(label: string, phoneNumber: string): string {
+  return `🏢 <b>${label}</b>\n📞 <code>${phoneNumber}</code>`;
+}
+
+function renderLocalDispatcherText(
+  label: string,
+  phoneNumber: string,
+  messageTemplate: string | null
+): string {
+  if (!messageTemplate) return defaultLocalDispatcherText(label, phoneNumber);
+  // Admin AI shablonini tanlaganida {phone} joy-belgisi bo'lishi shart
+  // (backend shart qilib tekshiradi), lekin ehtiyot chorasi sifatida bu
+  // yerda ham: agar negadir yo'q bo'lib qolsa, raqam oxiriga qo'shiladi
+  // (hech qachon butunlay yo'qolib ketmasin).
+  if (!messageTemplate.includes('{phone}')) {
+    return `${messageTemplate}\n📞 <code>${phoneNumber}</code>`;
+  }
+  return messageTemplate.replace(/\{phone\}/g, `<code>${phoneNumber}</code>`);
 }
 
 // MUHIM (2026-09, ikkinchi bosqich): dastlab faqat "Qo'shimcha mahalliy
@@ -93,17 +120,24 @@ export async function getCoreEmergencyNumbers(
 }
 
 const LOCAL_DISPATCHER_CACHE_TTL_MS = 30_000;
-const cache = new Map<string, { entries: { label: string; phoneNumber: string; jargonWords: string[] }[]; expiresAt: number }>();
+type LocalDispatcherEntry = {
+  label: string;
+  phoneNumber: string;
+  jargonWords: string[];
+  messageTemplate: string | null;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  linkButtonStyle: string | null;
+};
+const cache = new Map<string, { entries: LocalDispatcherEntry[]; expiresAt: number }>();
 
-async function getLocalDispatcherEntries(
-  cityId: string
-): Promise<{ label: string; phoneNumber: string; jargonWords: string[] }[]> {
+async function getLocalDispatcherEntries(cityId: string): Promise<LocalDispatcherEntry[]> {
   const cached = cache.get(cityId);
   if (cached && cached.expiresAt > Date.now()) return cached.entries;
 
   const rows = await db.emergencyNumber.findMany({
     where: { cityId, jargonWords: { isEmpty: false } },
-    select: { label: true, phoneNumber: true, jargonWords: true },
+    select: { label: true, phoneNumber: true, jargonWords: true, messageTemplate: true, linkUrl: true, linkLabel: true, linkButtonStyle: true },
   });
   cache.set(cityId, { entries: rows, expiresAt: Date.now() + LOCAL_DISPATCHER_CACHE_TTL_MS });
   return rows;
@@ -125,7 +159,14 @@ export async function findLocalDispatcherMatch(
       // Butun ibora matnda bor (masalan "mahalla raisi" so'zma-so'z), YOKI
       // (bitta so'zli jargon bo'lsa) so'z chegarasi bilan aniq mos keladi.
       if (normalized.includes(normJargon) || containsWholeWord(normalized, normJargon)) {
-        return { label: entry.label, phoneNumber: entry.phoneNumber };
+        return {
+          label: entry.label,
+          phoneNumber: entry.phoneNumber,
+          formattedText: renderLocalDispatcherText(entry.label, entry.phoneNumber, entry.messageTemplate),
+          linkUrl: entry.linkUrl,
+          linkLabel: entry.linkLabel,
+          linkButtonStyle: entry.linkButtonStyle as 'primary' | 'success' | 'danger' | null,
+        };
       }
     }
   }

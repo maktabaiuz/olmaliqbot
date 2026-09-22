@@ -85,6 +85,64 @@ async function analyzeLinkWithGemini(url: string, geminiKey: string): Promise<st
 }
 
 const LANDMARK_SYNONYM_SCHEMA = { type: 'ARRAY', items: { type: 'STRING' } };
+const MESSAGE_TEMPLATE_SCHEMA = { type: 'ARRAY', items: { type: 'STRING' } };
+
+// "Mahalliy raqamlar" — admin "AI'dan taklif so'rash" bosganda, shu
+// raqamga mos 3 ta QISQA xabar shablonini taklif qiladi (mavzuga mos
+// emoji bilan). MUHIM: {phone} joy-belgisi HAR DOIM aynan shu ko'rinishda
+// qaytishi kerak — bot buni haqiqiy raqamga almashtiradi, shuning uchun
+// promptda buni ANIQ, qat'iy talab qilib so'raymiz.
+async function suggestLocalNumberTemplatesWithGemini(label: string, geminiKey: string): Promise<string[]> {
+  const prompt =
+    `Sen O'zbek tilida Telegram bot uchun juda qisqa, chiroyli xabar shablonlari yozasan. ` +
+    `"${label}" degan mahalliy xizmat/tashkilot nomi uchun 3 xil variant taklif qil. ` +
+    `Har bir variant QAT'IY shu qoidalarga bo'ysunsin: ` +
+    `1) Mavzuga ANIQ mos keladigan BITTA emoji bilan boshlansin (masalan gaz uchun 🔥, suv uchun 💧, elektr uchun ⚡). ` +
+    `2) Telegram HTML formatida, tashkilot nomini <b>qalin</b> qilib yozsin. ` +
+    `3) Telefon raqami o'rniga ANIQ "{phone}" so'zini (jingalak qavslar bilan, aynan shu yozilishda) ishlatsin — buni HECH QACHON boshqa narsaga almashtirma yoki tarjima qilma. ` +
+    `4) Juda qisqa bo'lsin — 2-3 qatordan oshmasin, hech qanday ogohlantirish yoki ko'rsatma (nima qiling/qilmang) YOZMA, faqat nomi va raqam. ` +
+    `3 ta variant bir-biridan FARQLI uslubda (emoji, formatlash) bo'lsin. Faqat JSON massiv (3 ta satr) qaytar, boshqa hech qanday matn yozma.`;
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 10000);
+  try {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+      {
+        method: 'POST',
+        headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: MESSAGE_TEMPLATE_SCHEMA,
+            maxOutputTokens: 400,
+          },
+        }),
+        signal: abortController.signal,
+      }
+    );
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`Gemini HTTP ${response.status}: ${bodyText.slice(0, 300)}`);
+    }
+
+    const json = await response.json();
+    const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) return [];
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return [];
+    // Xavfsizlik: {phone} joy-belgisi yo'q variant qabul qilinmaydi —
+    // aks holda bot telefon raqamini umuman ko'rsatmay qo'yishi mumkin.
+    return parsed
+      .map((s: any) => String(s).trim())
+      .filter((s: string) => s && s.includes('{phone}'))
+      .slice(0, 3);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // Mo'ljal (Manzil) uchun mahalliy/jargon nomlarni Gemini'dan so'raydi —
 // FAQAT admin "AI so'z taklif qilsin" tugmasini bosganda ishlaydi
@@ -2336,10 +2394,52 @@ export async function adminRoutes(fastify: FastifyInstance) {
         id: existing?.id || null,
         phoneNumber: existing?.phoneNumber || '',
         jargonWords: existing?.jargonWords || [],
+        messageTemplate: existing?.messageTemplate || null,
+        linkUrl: existing?.linkUrl || null,
+        linkLabel: existing?.linkLabel || null,
+        linkButtonStyle: existing?.linkButtonStyle || null,
       };
     });
     return { success: true, numbers: result };
   });
+
+  // "Mahalliy raqamlar" — admin uchun (raqam qo'shish/tahrirlash
+  // formasida) AI 3 ta qisqa xabar shablonini taklif qiladi. Faqat admin
+  // "AI'dan taklif so'rash" (yoki "Yangilash") bosganda ishlaydi.
+  fastify.post('/admin/local-numbers/suggest-templates', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { label } = req.body as { label?: string };
+    if (!label?.trim()) {
+      return reply.status(400).send({ success: false, message: 'Nomi talab qilinadi' });
+    }
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey || geminiKey === 'your_gemini_api_key_here' || geminiKey === 'mock_key') {
+      return reply.status(503).send({ success: false, message: 'AI xizmati sozlanmagan (GEMINI_API_KEY)' });
+    }
+    try {
+      const templates = await suggestLocalNumberTemplatesWithGemini(label.trim(), geminiKey);
+      return { success: true, templates };
+    } catch (err: any) {
+      return reply.status(502).send({ success: false, message: `AI so'rovi muvaffaqiyatsiz: ${err?.message || err}` });
+    }
+  });
+
+  function parseLinkFields(body: any): { linkUrl: string | null; linkLabel: string | null; linkButtonStyle: string | null } | { error: string } {
+    const linkUrl = (body.linkUrl || '').trim();
+    const linkLabel = (body.linkLabel || '').trim();
+    const linkButtonStyle = body.linkButtonStyle || null;
+    if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
+      return { error: "Noto'g'ri tugma rangi" };
+    }
+    if (linkUrl && !isValidButtonUrl(linkUrl)) {
+      return { error: "Havola noto'g'ri (https:// bilan boshlanishi kerak)" };
+    }
+    return {
+      linkUrl: linkUrl || null,
+      linkLabel: linkUrl ? (linkLabel || null) : null,
+      linkButtonStyle: linkUrl ? linkButtonStyle : null,
+    };
+  }
 
   fastify.put('/admin/local-numbers/by-key/:key', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
@@ -2348,13 +2448,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, message: "Noma'lum kalit" });
     }
     const cityId = await getCityId(req);
-    const { phoneNumber, jargonWords } = req.body as { phoneNumber?: string; jargonWords?: string[] };
+    const { phoneNumber, jargonWords, messageTemplate } = req.body as { phoneNumber?: string; jargonWords?: string[]; messageTemplate?: string | null };
+    const linkFields = parseLinkFields(req.body);
+    if ('error' in linkFields) return reply.status(400).send({ success: false, message: linkFields.error });
     const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
     const coreDef = CORE_EMERGENCY_KEYS.find((k) => k.key === key)!;
+    const data = { phoneNumber: (phoneNumber || '').trim(), jargonWords: cleanJargon, messageTemplate: messageTemplate?.trim() || null, ...linkFields };
     const row = await db.emergencyNumber.upsert({
       where: { cityId_key: { cityId, key } },
-      update: { phoneNumber: (phoneNumber || '').trim(), jargonWords: cleanJargon },
-      create: { cityId, key, label: coreDef.label, phoneNumber: (phoneNumber || '').trim(), jargonWords: cleanJargon },
+      update: data,
+      create: { cityId, key, label: coreDef.label, ...data },
     });
     return { success: true, number: row };
   });
@@ -2362,10 +2465,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/admin/local-numbers', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
-    const { label, phoneNumber, jargonWords } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[] };
+    const { label, phoneNumber, jargonWords, messageTemplate } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[]; messageTemplate?: string | null };
     if (!label?.trim() || !phoneNumber?.trim()) {
       return reply.status(400).send({ success: false, message: "Nomi va telefon raqami talab qilinadi" });
     }
+    const linkFields = parseLinkFields(req.body);
+    if ('error' in linkFields) return reply.status(400).send({ success: false, message: linkFields.error });
     const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
     // "key" — EmergencyNumber jadvalining (cityId, key) unique cheklovi
     // uchun kerak, lekin bu yozuvlar uchun ma'nosi yo'q — shu sabab har
@@ -2377,6 +2482,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
         label: label.trim(),
         phoneNumber: phoneNumber.trim(),
         jargonWords: cleanJargon,
+        messageTemplate: messageTemplate?.trim() || null,
+        ...linkFields,
       },
     });
     return { success: true, number: row };
@@ -2385,14 +2492,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.put('/admin/local-numbers/:id', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const { id } = req.params;
-    const { label, phoneNumber, jargonWords } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[] };
+    const { label, phoneNumber, jargonWords, messageTemplate } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[]; messageTemplate?: string | null };
     if (!label?.trim() || !phoneNumber?.trim()) {
       return reply.status(400).send({ success: false, message: "Nomi va telefon raqami talab qilinadi" });
     }
+    const linkFields = parseLinkFields(req.body);
+    if ('error' in linkFields) return reply.status(400).send({ success: false, message: linkFields.error });
     const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
     const row = await db.emergencyNumber.update({
       where: { id },
-      data: { label: label.trim(), phoneNumber: phoneNumber.trim(), jargonWords: cleanJargon },
+      data: { label: label.trim(), phoneNumber: phoneNumber.trim(), jargonWords: cleanJargon, messageTemplate: messageTemplate?.trim() || null, ...linkFields },
     });
     return { success: true, number: row };
   });

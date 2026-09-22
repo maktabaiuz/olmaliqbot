@@ -569,6 +569,16 @@ model EmergencyNumber {
   label       String   // "Gaz avariya", "Suv ta'minoti"
   phoneNumber String
   jargonWords String[] @default([]) // odamlar qanday so'rashi mumkin ("mahalla raisi", "raisga qongiroq")
+  // MUHIM (2026-09, uchinchi bosqich): admin AI yordamida mavzuga mos
+  // emoji bilan tayyorlangan xabar shablonlarini tanlab, saqlab qo'yishi
+  // mumkin ("{phone}" — telefon raqami o'rniga qo'yiladigan joy belgisi).
+  // Bo'sh bo'lsa, standart (🏢 nomi + 📞 raqam) format ishlatiladi.
+  messageTemplate String?
+  // Reklama/havola tugmasi — BroadcastMessage'dagi bilan AYNAN bir xil
+  // maydonlar va Telegram Bot API rang qiymatlari (primary/success/danger).
+  linkUrl         String?
+  linkLabel       String?
+  linkButtonStyle String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

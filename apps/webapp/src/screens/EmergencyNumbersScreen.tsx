@@ -9,21 +9,196 @@ export interface EmergencyNumbersScreenProps {
 
 const HAIRLINE = { borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
 
-interface CoreNumber {
+// Telegram Bot API'ning haqiqiy, cheklangan tugma ranglari — Broadcast
+// bo'limidagi bilan AYNAN bir xil (bir joyda ta'riflangan bo'lsa edi
+// yaxshiroq bo'lardi, lekin ikkala ekran mustaqil komponent bo'lgani
+// uchun bu kichik ro'yxat ataylab takrorlangan).
+const BUTTON_STYLES: { value: string | null; label: string; swatchClass: string }[] = [
+  { value: null, label: 'Standart', swatchClass: 'bg-ios-label-secondary/40' },
+  { value: 'primary', label: "Ko'k", swatchClass: 'bg-ios-blue' },
+  { value: 'success', label: 'Yashil', swatchClass: 'bg-ios-green' },
+  { value: 'danger', label: 'Qizil', swatchClass: 'bg-ios-red' },
+];
+
+interface LinkFields {
+  linkUrl: string;
+  linkLabel: string;
+  linkButtonStyle: string | null;
+}
+
+interface CoreNumber extends LinkFields {
   key: string;
   label: string;
   help: string;
   id: string | null;
   phoneNumber: string;
   jargonWords: string[];
+  messageTemplate: string | null;
 }
 
-interface LocalNumber {
+interface LocalNumber extends LinkFields {
   id: string;
   label: string;
   phoneNumber: string;
   jargonWords: string[];
+  messageTemplate: string | null;
 }
+
+const initData = window.Telegram?.WebApp?.initData || '';
+const jsonHeaders = { 'Content-Type': 'application/json', 'x-init-data': initData };
+
+// MUHIM (2026-09, uchinchi bosqich): admin endi AI'dan shu raqamga mos
+// 3 ta qisqa xabar shablonini (mavzuga mos emoji bilan) so'ray oladi,
+// birini tanlaydi (yoqmasa "Yangilash" bilan yana 3 ta), va ixtiyoriy
+// reklama/havola tugmasi (Broadcast'dagi bilan bir xil rang tizimi)
+// qo'sha oladi. Namuna kartalarida haqiqiy telefon o'rniga "+998 90 xxx
+// xx xx" ko'rsatiladi — bot javobida esa haqiqiy raqam qo'yiladi.
+const PREVIEW_PHONE = '+998 90 xxx xx xx';
+
+async function fetchTemplateSuggestions(label: string): Promise<{ templates: string[]; error: string | null }> {
+  try {
+    const res = await fetch('/api/admin/local-numbers/suggest-templates', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ label }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) return { templates: data.templates || [], error: null };
+    return { templates: [], error: data.message || 'AI xatolik qaytardi' };
+  } catch {
+    return { templates: [], error: 'Aloqa xatoligi' };
+  }
+}
+
+// AI shablon tanlovi + reklama tugmasi — 5 ta asosiy raqam VA qo'shimcha
+// raqamlarda BIR XIL ishlaydi, shu sabab bitta umumiy komponentga
+// chiqarilgan.
+const AiTemplateAndLinkFields: React.FC<{
+  label: string;
+  messageTemplate: string | null;
+  setMessageTemplate: (v: string | null) => void;
+  linkUrl: string;
+  setLinkUrl: (v: string) => void;
+  linkLabel: string;
+  setLinkLabel: (v: string) => void;
+  linkButtonStyle: string | null;
+  setLinkButtonStyle: (v: string | null) => void;
+}> = ({ label, messageTemplate, setMessageTemplate, linkUrl, setLinkUrl, linkLabel, setLinkLabel, linkButtonStyle, setLinkButtonStyle }) => {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+
+  const requestSuggestions = async () => {
+    if (!label.trim()) {
+      setSuggestError('Avval nomini kiriting');
+      return;
+    }
+    setSuggesting(true);
+    setSuggestError(null);
+    const { templates, error } = await fetchTemplateSuggestions(label.trim());
+    setSuggesting(false);
+    if (error) {
+      setSuggestError(error);
+      return;
+    }
+    setSuggestions(templates);
+  };
+
+  const renderPreview = (tpl: string) => tpl.replace(/\{phone\}/g, PREVIEW_PHONE);
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">
+            Xabar ko'rinishi (AI)
+          </label>
+          <button
+            onClick={requestSuggestions}
+            disabled={suggesting}
+            className="flex items-center gap-1 text-ios-blue text-[12px] font-semibold active:opacity-50 disabled:opacity-40"
+          >
+            <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
+            {suggesting ? 'So\'ralmoqda...' : suggestions.length > 0 ? 'Yangilash' : "AI'dan so'rash"}
+          </button>
+        </div>
+
+        {suggestError && <p className="text-[12px] text-ios-red">{suggestError}</p>}
+
+        {messageTemplate && (
+          <div className="bg-ios-fill/[0.08] rounded-ios p-3 flex items-start justify-between gap-2">
+            <div
+              className="text-[13px] text-ios-label flex-1"
+              dangerouslySetInnerHTML={{ __html: renderPreview(messageTemplate) }}
+            />
+            <button
+              onClick={() => setMessageTemplate(null)}
+              className="text-[11px] text-ios-label-secondary/60 active:text-ios-red shrink-0"
+            >
+              Standartga qaytarish
+            </button>
+          </div>
+        )}
+
+        {suggestions.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {suggestions.map((tpl, idx) => (
+              <button
+                key={idx}
+                onClick={() => { setMessageTemplate(tpl); setSuggestions([]); }}
+                className="text-left bg-ios-card border border-ios-fill/20 rounded-ios p-3 active:border-ios-blue transition-colors"
+              >
+                <div className="text-[13px] text-ios-label" dangerouslySetInnerHTML={{ __html: renderPreview(tpl) }} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">
+          Reklama/havola tugmasi (ixtiyoriy)
+        </label>
+        <p className="text-[10px] text-ios-label-secondary/60 -mt-1">
+          Berilsa, xabar ostida bosiladigan tugma chiqadi — masalan guruh/kanal/botga o'tish uchun.
+        </p>
+        <input
+          type="text"
+          value={linkUrl}
+          onChange={(e) => setLinkUrl(e.target.value)}
+          placeholder="https://t.me/..."
+          className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 outline-none"
+        />
+        {linkUrl.trim() && (
+          <>
+            <input
+              type="text"
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              placeholder="Tugma matni, masalan: Kanalga o'tish"
+              className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 outline-none"
+            />
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <span className="text-[10px] font-semibold text-ios-label-secondary/70 uppercase mr-1">Tugma rangi:</span>
+              {BUTTON_STYLES.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => setLinkButtonStyle(s.value)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
+                    linkButtonStyle === s.value ? 'border-ios-blue bg-ios-blue/10 text-ios-blue' : 'border-ios-fill/20 text-ios-label-secondary/70'
+                  }`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // MUHIM (2026-09, ikkinchi bosqich): 5 ta ASOSIY mahalliy raqam endi
 // AppSetting'dan EmergencyNumber jadvaliga ko'chirildi — shu bilan
@@ -52,17 +227,18 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
   const [formPhone, setFormPhone] = useState('');
   const [formJargon, setFormJargon] = useState<string[]>([]);
   const [formJargonInput, setFormJargonInput] = useState('');
+  const [formTemplate, setFormTemplate] = useState<string | null>(null);
+  const [formLinkUrl, setFormLinkUrl] = useState('');
+  const [formLinkLabel, setFormLinkLabel] = useState('');
+  const [formLinkStyle, setFormLinkStyle] = useState<string | null>('primary');
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const initData = window.Telegram?.WebApp?.initData || '';
-  const headers = { 'Content-Type': 'application/json', 'x-init-data': initData };
 
   const loadCoreNumbers = () => {
     setLoading(true);
     fetch('/api/admin/local-numbers/core', { headers: { 'x-init-data': initData } })
       .then((r) => r.json())
-      .then((data) => setCoreNumbers(data.numbers || []))
+      .then((data) => setCoreNumbers((data.numbers || []).map((n: any) => ({ ...n, linkUrl: n.linkUrl || '', linkLabel: n.linkLabel || '', linkButtonStyle: n.linkButtonStyle || 'primary' }))))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
@@ -82,8 +258,8 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const updateCorePhone = (key: string, phoneNumber: string) => {
-    setCoreNumbers((prev) => prev.map((n) => (n.key === key ? { ...n, phoneNumber } : n)));
+  const updateCore = (key: string, patch: Partial<CoreNumber>) => {
+    setCoreNumbers((prev) => prev.map((n) => (n.key === key ? { ...n, ...patch } : n)));
   };
 
   const addCoreJargon = (key: string) => {
@@ -109,8 +285,15 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
         coreNumbers.map((n) =>
           fetch(`/api/admin/local-numbers/by-key/${n.key}`, {
             method: 'PUT',
-            headers,
-            body: JSON.stringify({ phoneNumber: n.phoneNumber.trim(), jargonWords: n.jargonWords }),
+            headers: jsonHeaders,
+            body: JSON.stringify({
+              phoneNumber: n.phoneNumber.trim(),
+              jargonWords: n.jargonWords,
+              messageTemplate: n.messageTemplate,
+              linkUrl: n.linkUrl,
+              linkLabel: n.linkLabel,
+              linkButtonStyle: n.linkButtonStyle,
+            }),
           })
         )
       );
@@ -119,7 +302,8 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
         showToast('Bazaga saqlandi', 'success');
         setTimeout(() => setSaved(false), 2500);
       } else {
-        showToast('Saqlashda xatolik yuz berdi', 'error');
+        const failed = await Promise.all(results.filter((r) => !r.ok).map((r) => r.json().catch(() => ({}))));
+        showToast(failed[0]?.message || 'Saqlashda xatolik yuz berdi', 'error');
       }
     } catch {
       showToast('Aloqa xatoligi', 'error');
@@ -133,6 +317,10 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
     setFormPhone('');
     setFormJargon([]);
     setFormJargonInput('');
+    setFormTemplate(null);
+    setFormLinkUrl('');
+    setFormLinkLabel('');
+    setFormLinkStyle('primary');
     setFormError(null);
   };
 
@@ -142,6 +330,10 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
     setFormPhone(n.phoneNumber);
     setFormJargon(n.jargonWords);
     setFormJargonInput('');
+    setFormTemplate(n.messageTemplate);
+    setFormLinkUrl(n.linkUrl || '');
+    setFormLinkLabel(n.linkLabel || '');
+    setFormLinkStyle(n.linkButtonStyle || 'primary');
     setFormError(null);
   };
 
@@ -170,8 +362,16 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
       const url = isNew ? '/api/admin/local-numbers' : `/api/admin/local-numbers/${editingId}`;
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
-        headers,
-        body: JSON.stringify({ label: formLabel, phoneNumber: formPhone, jargonWords: formJargon }),
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          label: formLabel,
+          phoneNumber: formPhone,
+          jargonWords: formJargon,
+          messageTemplate: formTemplate,
+          linkUrl: formLinkUrl,
+          linkLabel: formLinkLabel,
+          linkButtonStyle: formLinkStyle,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -224,25 +424,27 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
         </p>
       </div>
 
-      <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+      <div className="flex flex-col gap-3">
         {loading ? (
-          <div className="p-4 space-y-3">
+          <div className="bg-ios-card rounded-ios shadow-sm p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-10 bg-ios-fill/20 rounded-ios animate-pulse" />)}
           </div>
         ) : (
-          coreNumbers.map((n, idx) => (
-            <div key={n.key} className="p-4 space-y-2" style={idx === 0 ? undefined : HAIRLINE}>
-              <label className="text-[13px] font-medium text-ios-label">{n.label}</label>
-              <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">{n.help}</p>
+          coreNumbers.map((n) => (
+            <div key={n.key} className="bg-ios-card rounded-ios-lg shadow-sm p-4 space-y-3">
+              <div>
+                <label className="text-[13px] font-medium text-ios-label">{n.label}</label>
+                <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">{n.help}</p>
+              </div>
               <input
                 type="text"
                 value={n.phoneNumber}
-                onChange={(e) => updateCorePhone(n.key, e.target.value)}
+                onChange={(e) => updateCore(n.key, { phoneNumber: e.target.value })}
                 placeholder="+998 70 xxx xx xx"
                 className="w-full bg-ios-fill/[0.12] rounded-ios px-3.5 py-2.5 text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none focus:ring-1 focus:ring-ios-blue"
               />
 
-              <div className="pt-1">
+              <div style={HAIRLINE} className="pt-3">
                 <span className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">
                   Mahalliy jargon so'zlar
                 </span>
@@ -269,6 +471,20 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
                     Qo'shish
                   </button>
                 </div>
+              </div>
+
+              <div style={HAIRLINE} className="pt-3">
+                <AiTemplateAndLinkFields
+                  label={n.label}
+                  messageTemplate={n.messageTemplate}
+                  setMessageTemplate={(v) => updateCore(n.key, { messageTemplate: v })}
+                  linkUrl={n.linkUrl}
+                  setLinkUrl={(v) => updateCore(n.key, { linkUrl: v })}
+                  linkLabel={n.linkLabel}
+                  setLinkLabel={(v) => updateCore(n.key, { linkLabel: v })}
+                  linkButtonStyle={n.linkButtonStyle}
+                  setLinkButtonStyle={(v) => updateCore(n.key, { linkButtonStyle: v })}
+                />
               </div>
             </div>
           ))
@@ -327,6 +543,14 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
                 jargonInput={formJargonInput}
                 setJargonInput={setFormJargonInput}
                 onAddJargon={handleAddJargon}
+                messageTemplate={formTemplate}
+                setMessageTemplate={setFormTemplate}
+                linkUrl={formLinkUrl}
+                setLinkUrl={setFormLinkUrl}
+                linkLabel={formLinkLabel}
+                setLinkLabel={setFormLinkLabel}
+                linkButtonStyle={formLinkStyle}
+                setLinkButtonStyle={setFormLinkStyle}
                 error={formError}
                 saving={formSaving}
                 onSave={handleSaveLocalNumber}
@@ -363,6 +587,12 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
                     ))}
                   </div>
                 )}
+                {(n.messageTemplate || n.linkUrl) && (
+                  <div className="flex items-center gap-2 mt-2 text-[11px] text-ios-label-secondary/60">
+                    {n.messageTemplate && <span>✨ Maxsus shablon</span>}
+                    {n.linkUrl && <span>🔗 Havola tugmasi bor</span>}
+                  </div>
+                )}
               </div>
             )
           )}
@@ -378,6 +608,14 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
               jargonInput={formJargonInput}
               setJargonInput={setFormJargonInput}
               onAddJargon={handleAddJargon}
+              messageTemplate={formTemplate}
+              setMessageTemplate={setFormTemplate}
+              linkUrl={formLinkUrl}
+              setLinkUrl={setFormLinkUrl}
+              linkLabel={formLinkLabel}
+              setLinkLabel={setFormLinkLabel}
+              linkButtonStyle={formLinkStyle}
+              setLinkButtonStyle={setFormLinkStyle}
               error={formError}
               saving={formSaving}
               onSave={handleSaveLocalNumber}
@@ -400,11 +638,23 @@ const LocalNumberForm: React.FC<{
   jargonInput: string;
   setJargonInput: (v: string) => void;
   onAddJargon: () => void;
+  messageTemplate: string | null;
+  setMessageTemplate: (v: string | null) => void;
+  linkUrl: string;
+  setLinkUrl: (v: string) => void;
+  linkLabel: string;
+  setLinkLabel: (v: string) => void;
+  linkButtonStyle: string | null;
+  setLinkButtonStyle: (v: string | null) => void;
   error: string | null;
   saving: boolean;
   onSave: () => void;
   onCancel: () => void;
-}> = ({ label, setLabel, phone, setPhone, jargon, setJargon, jargonInput, setJargonInput, onAddJargon, error, saving, onSave, onCancel }) => (
+}> = ({
+  label, setLabel, phone, setPhone, jargon, setJargon, jargonInput, setJargonInput, onAddJargon,
+  messageTemplate, setMessageTemplate, linkUrl, setLinkUrl, linkLabel, setLinkLabel, linkButtonStyle, setLinkButtonStyle,
+  error, saving, onSave, onCancel,
+}) => (
   <div className="bg-ios-card rounded-ios-lg shadow-sm p-3.5 space-y-3">
     <div className="space-y-1">
       <label className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">Nomi</label>
@@ -453,6 +703,20 @@ const LocalNumberForm: React.FC<{
           Qo'shish
         </button>
       </div>
+    </div>
+
+    <div style={HAIRLINE} className="pt-3">
+      <AiTemplateAndLinkFields
+        label={label}
+        messageTemplate={messageTemplate}
+        setMessageTemplate={setMessageTemplate}
+        linkUrl={linkUrl}
+        setLinkUrl={setLinkUrl}
+        linkLabel={linkLabel}
+        setLinkLabel={setLinkLabel}
+        linkButtonStyle={linkButtonStyle}
+        setLinkButtonStyle={setLinkButtonStyle}
+      />
     </div>
 
     {error && <p className="text-[12px] text-ios-red">{error}</p>}
