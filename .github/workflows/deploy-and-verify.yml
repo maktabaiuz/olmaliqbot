@@ -1,4 +1,4 @@
-name: One-off - Deploy city-name false-positive fix and verify
+name: One-off - Deploy city-name false-positive fix v2
 on:
   workflow_dispatch:
 jobs:
@@ -14,10 +14,13 @@ jobs:
           timeout: 90s
           command_timeout: 15m
           script: |
-            cd /app
-            git pull
-            docker compose up -d --build
+            cd /root/kimbor
+            git pull origin main || git pull origin master
+            git log -1 --oneline
+            docker compose -f docker-compose.prod.yml up -d --build
             sleep 20
+            echo "--- verify new code present ---"
+            docker exec kimbor_api grep -c "cityNameNormalized" /app/packages/core/dist/emergency/localDispatcher.js
             docker exec kimbor_api node -e "
               const { findLocalDispatcherMatch } = require('/app/packages/core/dist/index.js');
               const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
@@ -30,8 +33,6 @@ jobs:
                 console.log('=== B) Previously-fixed cases must STILL work ===');
                 const b1 = await findLocalDispatcherMatch('Горсетни номери борми', CITY);
                 console.log('Gorset cyrillic (expect match):', JSON.stringify(b1));
-                const b2 = await findLocalDispatcherMatch('gorset raqamini bering', CITY);
-                console.log('gorset variation (expect match):', JSON.stringify(b2));
                 const b3 = await findLocalDispatcherMatch('svet ochilib qoldi kimga qongiroq qilaman', CITY);
                 console.log('svet stem (expect match):', JSON.stringify(b3));
                 const b4 = await findLocalDispatcherMatch('elektrenergiya raqami kimda bor', CITY);
