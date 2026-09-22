@@ -8,6 +8,7 @@
  */
 
 import { db } from '@kimbor/db';
+import { getCoreEmergencyNumbers } from '@kimbor/core';
 
 const CACHE_TTL_MS = 60_000;
 const cache = new Map<string, { value: string; expiresAt: number }>();
@@ -44,31 +45,24 @@ export async function getCommunityLabel(): Promise<string> {
 
 /**
  * Favqulodda xabarlarida ko'rsatiladigan MAHALLIY xizmat raqamlari —
- * admin panelidan (Yana > Favqulodda raqamlar) sozlanadi. Milliy raqamlar
+ * admin panelidan (Yana > Mahalliy raqamlar) sozlanadi. Milliy raqamlar
  * (101, 102, 103, 104, 112) shablon matniga qattiq yozilgan — o'zgarmaydi,
  * chunki ular butun O'zbekiston bo'yicha bir xil. Bu yerdagilar esa
  * SHAHARGA XOS (gaz idorasi, suv ta'minoti va h.k.), shu sabab admin
  * tomonidan kiritilishi kerak.
+ *
+ * MUHIM (2026-09, ikkinchi bosqich): avval bu 5 ta raqam AppSetting'da
+ * (alohida, jargon so'zsiz) saqlanardi. Endi ular EmergencyNumber
+ * jadvaliga (packages/core/src/emergency/localDispatcher.ts,
+ * CORE_EMERGENCY_KEYS) ko'chirildi — shu bilan ularga ham jargon so'z
+ * qo'shib bo'ladi va bitta yagona manba (bir joyda) qoladi.
  */
-export async function getEmergencyLocalNumbers(): Promise<{
+export async function getEmergencyLocalNumbers(cityId: string): Promise<{
   mahalliy_gaz?: string;
   mahalliy_suv?: string;
   mahalliy_elektr?: string;
   mahalliy_issiqlik?: string;
   mahalliy_hokimiyat?: string;
 }> {
-  const [gaz, suv, elektr, issiqlik, hokimiyat] = await Promise.all([
-    getAppSetting('emergency_mahalliy_gaz'),
-    getAppSetting('emergency_mahalliy_suv'),
-    getAppSetting('emergency_mahalliy_elektr'),
-    getAppSetting('emergency_mahalliy_issiqlik'),
-    getAppSetting('emergency_mahalliy_hokimiyat'),
-  ]);
-  return {
-    mahalliy_gaz: gaz,
-    mahalliy_suv: suv,
-    mahalliy_elektr: elektr,
-    mahalliy_issiqlik: issiqlik,
-    mahalliy_hokimiyat: hokimiyat,
-  };
+  return getCoreEmergencyNumbers(cityId);
 }

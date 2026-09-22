@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -2311,11 +2311,52 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // (packages/core) jargon bo'yicha topadi.
   fastify.get('/admin/local-numbers', async (req: any, reply) => {
     const cityId = await getCityId(req);
+    const coreKeys = CORE_EMERGENCY_KEYS.map((k) => k.key);
     const rows = await db.emergencyNumber.findMany({
-      where: { cityId, jargonWords: { isEmpty: false } },
+      where: { cityId, key: { notIn: coreKeys } },
       orderBy: { createdAt: 'desc' },
     });
     return { success: true, numbers: rows };
+  });
+
+  // 5 ta ASOSIY mahalliy dispecher raqami (gaz/suv/elektr/issiqlik/
+  // hokimiyat) — endi shu yerda ham jargon so'z qo'shish mumkin. Hali
+  // yaratilmagan bo'lsa (birinchi marta) bo'sh "stub" qaytariladi.
+  fastify.get('/admin/local-numbers/core', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const coreKeys = CORE_EMERGENCY_KEYS.map((k) => k.key);
+    const rows = await db.emergencyNumber.findMany({ where: { cityId, key: { in: coreKeys } } });
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    const result = CORE_EMERGENCY_KEYS.map(({ key, label, help }) => {
+      const existing = byKey.get(key);
+      return {
+        key,
+        label,
+        help,
+        id: existing?.id || null,
+        phoneNumber: existing?.phoneNumber || '',
+        jargonWords: existing?.jargonWords || [],
+      };
+    });
+    return { success: true, numbers: result };
+  });
+
+  fastify.put('/admin/local-numbers/by-key/:key', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { key } = req.params;
+    if (!CORE_EMERGENCY_KEYS.some((k) => k.key === key)) {
+      return reply.status(400).send({ success: false, message: "Noma'lum kalit" });
+    }
+    const cityId = await getCityId(req);
+    const { phoneNumber, jargonWords } = req.body as { phoneNumber?: string; jargonWords?: string[] };
+    const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
+    const coreDef = CORE_EMERGENCY_KEYS.find((k) => k.key === key)!;
+    const row = await db.emergencyNumber.upsert({
+      where: { cityId_key: { cityId, key } },
+      update: { phoneNumber: (phoneNumber || '').trim(), jargonWords: cleanJargon },
+      create: { cityId, key, label: coreDef.label, phoneNumber: (phoneNumber || '').trim(), jargonWords: cleanJargon },
+    });
+    return { success: true, number: row };
   });
 
   fastify.post('/admin/local-numbers', async (req: any, reply) => {

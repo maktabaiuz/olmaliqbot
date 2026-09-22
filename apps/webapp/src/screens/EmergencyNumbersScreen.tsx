@@ -9,41 +9,14 @@ export interface EmergencyNumbersScreenProps {
 
 const HAIRLINE = { borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
 
-// Har bir maydon botning shablon matnidagi {mahalliy_...} o'rniga aynan
-// shu tartibda qo'yiladi — kalitlar backend (AppSetting) va bot
-// (getEmergencyLocalNumbers) bilan bir xil bo'lishi SHART.
-const FIELDS: { key: string; label: string; help: string; placeholder: string }[] = [
-  {
-    key: 'emergency_mahalliy_gaz',
-    label: 'Gaz idorasi (mahalliy)',
-    help: "Gaz hidi/avariyasida 104 va 112 dan keyin ko'rsatiladigan shahar gaz xizmati raqami",
-    placeholder: '+998 70 xxx xx xx',
-  },
-  {
-    key: 'emergency_mahalliy_suv',
-    label: "Suv ta'minoti (mahalliy)",
-    help: 'Quvur yorilishi, issiq/sovuq suv yo\'qligida ko\'rsatiladigan suv avariya xizmati raqami',
-    placeholder: '+998 70 xxx xx xx',
-  },
-  {
-    key: 'emergency_mahalliy_elektr',
-    label: 'Elektr tarmoqlari (mahalliy)',
-    help: "Tok urishi va elektr avariyasida ko'rsatiladigan mahalliy elektr xizmati raqami",
-    placeholder: '+998 70 xxx xx xx',
-  },
-  {
-    key: 'emergency_mahalliy_issiqlik',
-    label: "Issiqlik ta'minoti (mahalliy)",
-    help: "Isitish yo'qligida ko'rsatiladigan issiqlik tarmog'i raqami",
-    placeholder: '+998 70 xxx xx xx',
-  },
-  {
-    key: 'emergency_mahalliy_hokimiyat',
-    label: 'Hokimiyat navbatchisi',
-    help: "Liftda qolish kabi ma'muriy holatlarda ko'rsatiladigan hokimiyat navbatchi raqami",
-    placeholder: '+998 70 xxx xx xx',
-  },
-];
+interface CoreNumber {
+  key: string;
+  label: string;
+  help: string;
+  id: string | null;
+  phoneNumber: string;
+  jargonWords: string[];
+}
 
 interface LocalNumber {
   id: string;
@@ -52,19 +25,26 @@ interface LocalNumber {
   jargonWords: string[];
 }
 
+// MUHIM (2026-09, ikkinchi bosqich): 5 ta ASOSIY mahalliy raqam endi
+// AppSetting'dan EmergencyNumber jadvaliga ko'chirildi — shu bilan
+// ularga ham jargon so'z qo'shish mumkin bo'ldi. Saqlangandan keyin
+// bot buni AYNAN SHU ONDA (keshlash tugagach, ~30s ichida) jargon
+// orqali ham, dramatik favqulodda shablonlarda ({mahalliy_gaz} va h.k.)
+// ham ishlatadi — bitta yagona manba, ikki xil foydalanish.
 export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
   cityName = 'Olmaliq',
   onBack,
 }) => {
   const { confirm, showToast } = useFeedback();
-  const [values, setValues] = useState<Record<string, string>>({});
+
+  const [coreNumbers, setCoreNumbers] = useState<CoreNumber[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [jargonInputs, setJargonInputs] = useState<Record<string, string>>({});
 
-  // "Qo'shimcha mahalliy raqamlar" (2026-09) — 5 ta qattiq kodlangan
-  // maydondan FARQLI, admin cheksiz sonli qo'shimcha dispecher/xizmat
-  // raqami qo'sha oladi, har biri o'z mahalliy jargon so'zlari bilan.
+  // "Qo'shimcha mahalliy raqamlar" — 5 ta asosiy maydondan FARQLI, admin
+  // cheksiz sonli qo'shimcha dispecher/xizmat raqami qo'sha oladi.
   const [localNumbers, setLocalNumbers] = useState<LocalNumber[]>([]);
   const [loadingLocalNumbers, setLoadingLocalNumbers] = useState(true);
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
@@ -76,6 +56,16 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
 
   const initData = window.Telegram?.WebApp?.initData || '';
+  const headers = { 'Content-Type': 'application/json', 'x-init-data': initData };
+
+  const loadCoreNumbers = () => {
+    setLoading(true);
+    fetch('/api/admin/local-numbers/core', { headers: { 'x-init-data': initData } })
+      .then((r) => r.json())
+      .then((data) => setCoreNumbers(data.numbers || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
 
   const loadLocalNumbers = () => {
     setLoadingLocalNumbers(true);
@@ -87,16 +77,56 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
   };
 
   useEffect(() => {
-    Promise.all(FIELDS.map(f => fetch(`/api/admin/settings/${f.key}`).then(r => r.json())))
-      .then(results => {
-        const next: Record<string, string> = {};
-        results.forEach((r, i) => { next[FIELDS[i].key] = r?.value || ''; });
-        setValues(next);
-      })
-      .finally(() => setLoading(false));
+    loadCoreNumbers();
     loadLocalNumbers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const updateCorePhone = (key: string, phoneNumber: string) => {
+    setCoreNumbers((prev) => prev.map((n) => (n.key === key ? { ...n, phoneNumber } : n)));
+  };
+
+  const addCoreJargon = (key: string) => {
+    const clean = (jargonInputs[key] || '').trim().toLowerCase();
+    if (!clean) return;
+    setCoreNumbers((prev) =>
+      prev.map((n) => (n.key === key && !n.jargonWords.includes(clean) ? { ...n, jargonWords: [...n.jargonWords, clean] } : n))
+    );
+    setJargonInputs((prev) => ({ ...prev, [key]: '' }));
+  };
+
+  const removeCoreJargon = (key: string, word: string) => {
+    setCoreNumbers((prev) =>
+      prev.map((n) => (n.key === key ? { ...n, jargonWords: n.jargonWords.filter((w) => w !== word) } : n))
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const results = await Promise.all(
+        coreNumbers.map((n) =>
+          fetch(`/api/admin/local-numbers/by-key/${n.key}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ phoneNumber: n.phoneNumber.trim(), jargonWords: n.jargonWords }),
+          })
+        )
+      );
+      if (results.every((r) => r.ok)) {
+        setSaved(true);
+        showToast('Bazaga saqlandi', 'success');
+        setTimeout(() => setSaved(false), 2500);
+      } else {
+        showToast('Saqlashda xatolik yuz berdi', 'error');
+      }
+    } catch {
+      showToast('Aloqa xatoligi', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const resetForm = () => {
     setFormLabel('');
@@ -140,7 +170,7 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
       const url = isNew ? '/api/admin/local-numbers' : `/api/admin/local-numbers/${editingId}`;
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        headers,
         body: JSON.stringify({ label: formLabel, phoneNumber: formPhone, jargonWords: formJargon }),
       });
       const data = await res.json();
@@ -174,30 +204,6 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
     loadLocalNumbers();
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
-    try {
-      const initData = window.Telegram?.WebApp?.initData || '';
-      const headers = { 'Content-Type': 'application/json', 'x-init-data': initData };
-      const results = await Promise.all(
-        FIELDS.map(f =>
-          fetch(`/api/admin/settings/${f.key}`, {
-            method: 'PUT', headers, body: JSON.stringify({ value: (values[f.key] || '').trim() }),
-          })
-        )
-      );
-      if (results.every(r => r.ok)) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
-      }
-    } catch {
-      // jim — foydalanuvchi "Saqlash"ni qayta bosib ko'radi
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-5 animate-fade-in pb-16 -mx-4 -mt-2 px-4 pt-1">
       <IosHeader
@@ -213,29 +219,60 @@ export const EmergencyNumbersScreen: React.FC<EmergencyNumbersScreenProps> = ({
           101, 102, 103, 104, 112 — butun O'zbekiston bo'yicha bir xil, doim
           avtomatik ko'rsatiladi, bu yerda o'zgartirish shart emas. Quyidagilar
           esa <b className="text-ios-label">faqat {cityName}ga xos</b> raqamlar — favqulodda xabarda milliy
-          raqamlar bilan bir qatorda qo'shimcha ko'rsatiladi. Bo'sh qoldirilgan
-          maydon shablonda umuman ko'rinmaydi.
+          raqamlar bilan bir qatorda qo'shimcha ko'rsatiladi. Har biriga mahalliy jargon so'z ham qo'shsangiz,
+          oddiy so'rovga ("gaz idorasi raqami bormi" kabi) bot darhol, faqat shu raqam bilan javob beradi.
         </p>
       </div>
 
       <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
-        {FIELDS.map((f, idx) => (
-          <div key={f.key} className="p-4 space-y-1.5" style={idx === 0 ? undefined : HAIRLINE}>
-            <label className="text-[13px] font-medium text-ios-label">{f.label}</label>
-            <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">{f.help}</p>
-            {loading ? (
-              <div className="h-10 bg-ios-fill/20 rounded-ios animate-pulse" />
-            ) : (
+        {loading ? (
+          <div className="p-4 space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-10 bg-ios-fill/20 rounded-ios animate-pulse" />)}
+          </div>
+        ) : (
+          coreNumbers.map((n, idx) => (
+            <div key={n.key} className="p-4 space-y-2" style={idx === 0 ? undefined : HAIRLINE}>
+              <label className="text-[13px] font-medium text-ios-label">{n.label}</label>
+              <p className="text-[12px] text-ios-label-secondary/70 leading-relaxed">{n.help}</p>
               <input
                 type="text"
-                value={values[f.key] || ''}
-                onChange={(e) => setValues(prev => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.placeholder}
+                value={n.phoneNumber}
+                onChange={(e) => updateCorePhone(n.key, e.target.value)}
+                placeholder="+998 70 xxx xx xx"
                 className="w-full bg-ios-fill/[0.12] rounded-ios px-3.5 py-2.5 text-[15px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none focus:ring-1 focus:ring-ios-blue"
               />
-            )}
-          </div>
-        ))}
+
+              <div className="pt-1">
+                <span className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">
+                  Mahalliy jargon so'zlar
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {n.jargonWords.map((w) => (
+                    <span key={w} className="bg-ios-purple/[0.12] text-ios-purple text-[12px] px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                      {w}
+                      <button onClick={() => removeCoreJargon(n.key, w)} className="text-ios-purple/70 active:text-ios-red font-bold">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <input
+                    type="text"
+                    value={jargonInputs[n.key] || ''}
+                    onChange={(e) => setJargonInputs((prev) => ({ ...prev, [n.key]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCoreJargon(n.key); } }}
+                    placeholder="masalan: gaz idorasi raqami"
+                    className="flex-1 bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 outline-none"
+                  />
+                  <button onClick={() => addCoreJargon(n.key)} className="text-ios-blue text-[13px] font-semibold px-2">
+                    Qo'shish
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       <button

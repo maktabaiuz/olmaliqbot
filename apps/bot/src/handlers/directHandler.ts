@@ -224,7 +224,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     const category = isValidEmergencyCategory(classification.category)
       ? (classification.category as string)
       : detectEmergencyCategory(messageText) || 'gas_leak';
-    const localNumbers = await getEmergencyLocalNumbers();
+    const localNumbers = await getEmergencyLocalNumbers(activeCityId);
     const emergencyMessage =
       (await renderEmergencyTemplate(category, 'lotin', localNumbers)) ||
       `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;

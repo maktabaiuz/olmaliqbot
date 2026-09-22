@@ -103,7 +103,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       ? guessedCategory
       : detectEmergencyCategory(messageText) || 'gas_leak';
 
-    const localNumbers = await getEmergencyLocalNumbers();
+    const localNumbers = await getEmergencyLocalNumbers(cityId);
     const emergencyMessage =
       (await renderEmergencyTemplate(category, 'lotin', localNumbers)) ||
       `🚨 FAVQULODDA HOLAT!\n\nDarhol 112 ga qo'ng'iroq qiling — Yagona qutqaruv xizmati.\n\n📞 112`;
