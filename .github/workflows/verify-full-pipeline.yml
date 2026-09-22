@@ -1,4 +1,4 @@
-name: One-off - Verify real bug message through full Gemini pipeline
+name: One-off - Verify real bug message through full Gemini pipeline v2
 on:
   workflow_dispatch:
 jobs:
@@ -45,10 +45,13 @@ jobs:
                     method: 'POST', headers, body: JSON.stringify({ message: msg }),
                   });
                   const simData = await simRes.json();
-                  console.log('MSG:', msg);
-                  console.log('CATEGORY:', simData?.steps?.classify?.categoryName || simData?.finalResult?.categoryName);
-                  console.log('FOUND:', simData?.finalResult?.found, 'REASON:', simData?.finalResult?.reason);
-                  console.log('RESULT NAME:', simData?.finalResult?.listing?.name || simData?.finalResult?.result?.name);
+                  console.log('MSG:', msg.slice(0, 50) + '...');
+                  console.log('AI_INTENT:', simData?.steps?.aiClassification?.intent);
+                  console.log('AI_CATEGORY:', simData?.steps?.aiClassification?.category);
+                  console.log('FOUND:', simData?.finalResult?.found);
+                  console.log('LISTING_NAME:', simData?.finalResult?.listingName);
+                  console.log('RESULT_CATEGORY:', simData?.finalResult?.categoryName);
+                  console.log('REASON:', simData?.finalResult?.reason);
                   console.log('---');
                 }
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
