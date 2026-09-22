@@ -29,6 +29,7 @@ interface SimulateResponse {
   message?: string;
   steps: {
     zeroLayer?: { passed: boolean };
+    localDispatcher?: { matched: boolean; label?: string };
     aiClassification?: {
       intent: string;
       object_type: string | null;
@@ -146,6 +147,20 @@ export const BotSimulatorScreen: React.FC<BotSimulatorScreenProps> = ({ onBack }
                 ok={result.steps.zeroLayer.passed}
                 detail={result.steps.zeroLayer.passed ? "O'tdi — AI'ga yuboriladi" : "O'tmadi — guruhda AI'ga umuman yuborilmaydi"}
               />
+            )}
+
+            {result.steps.localDispatcher && (
+              <div className="pt-1.5" style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+                <StepRow
+                  label="Mahalliy raqamlar (dispecher jargon)"
+                  ok={true}
+                  detail={
+                    result.steps.localDispatcher.matched
+                      ? `Mos keldi: "${result.steps.localDispatcher.label}" — AI'ga umuman yuborilmadi, to'g'ridan-to'g'ri javob berildi`
+                      : "Mos kelmadi — davom etadi (AI klassifikatorga o'tadi)"
+                  }
+                />
+              </div>
             )}
 
             {result.steps.aiClassification && (

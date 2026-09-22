@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1375,6 +1375,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
         finalResult: {
           found: false,
           reason: "0-qavat filtridan o'tmadi — guruhda bot bunga UMUMAN javob bermaydi (AI'ga ham yuborilmaydi). Shaxsiy xabarlarda bu bosqich qo'llanilmaydi.",
+        },
+        scoreBreakdown: null,
+      };
+    }
+
+    // 1b. Mahalliy dispecher/xizmat raqamlari (2026-09) — groupHandler.ts
+    // bilan BIR XIL tartibda, AI'DAN OLDIN tekshiriladi. MUHIM: bu bosqich
+    // avval bu yerda YO'Q edi (simulyator local-dispatcher tizimidan
+    // OLDINROQ qurilgan) — natijada sinov real pipeline'ni to'liq aks
+    // ettirmasdi. Endi to'liq mos.
+    const localDispatcherMatch = await findLocalDispatcherMatch(messageText, cityId);
+    steps.localDispatcher = localDispatcherMatch
+      ? { matched: true, label: localDispatcherMatch.label }
+      : { matched: false };
+    if (localDispatcherMatch) {
+      return {
+        success: true,
+        steps,
+        finalResult: {
+          found: true,
+          listingName: localDispatcherMatch.label,
+          categoryName: 'Mahalliy raqam (dispecher)',
+          formattedText: localDispatcherMatch.formattedText,
         },
         scoreBreakdown: null,
       };
