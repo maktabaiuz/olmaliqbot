@@ -1,7 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
-import { normalizeText, levenshteinDistance, coreMatchText } from '../transliteration';
+import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { UZBEK_STOPWORDS } from './uzbekStopwords';
@@ -1065,7 +1065,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const allCategoriesForNameMatch = await db.category.findMany({});
     let categories = allCategoriesForNameMatch.filter((c) => {
       if (isMalformedCategoryName(c.name)) return false;
-      if (normalizeText(c.name).includes(cleanCatNormalized)) return true;
+      // MUHIM (2026-09, real skrinshot bilan tasdiqlangan XATO — "stol stul
+      // arendaga beradigan odam" so'roviga aloqasiz "Uy/kvartira arendaga"
+      // kategoriyasi chiqib qolgan): bu yerda avval oddiy `.includes()`
+      // (ISTALGAN joyda substring) ishlatilardi. O'zbek tili qo'shimchali
+      // (agglutinativ) bo'lgani uchun "arenda" so'zi "arenda-si"/"arenda-ga"
+      // kabi TURLI, boshqa-boshqa ma'noli qo'shimchali shakllarning ICHIDA
+      // ham substring sifatida uchraydi — natijada AI ning oddiy "arenda"
+      // taxminiga "Arenda" (umumiy) kategoriyasi bilan bir qatorda "Avtomobil
+      // arendaSI", "Uy/kvartira arendaGA" kabi BUTUNLAY BOSHQA kategoriyalar
+      // ham "topilgan" deb qo'shilib ketardi. Endi so'z CHEGARASI bilan aniq
+      // solishtiriladi (containsWholeWord) — "arenda" endi faqat ANIQ "arenda"
+      // so'zi turgan joyda mos keladi, "arendasi"/"arendaga" kabi davom
+      // etuvchi so'zlar ICHIDA emas. Boshqa, haqiqiy qo'shimchali holatlar
+      // (masalan "zapravka"~"zapravkasi") uchun pastdagi alohida, o'zak
+      // (wordsShareStem) asosidagi zaxira bosqich hamon ishlaydi.
+      if (containsWholeWord(normalizeText(c.name), cleanCatNormalized)) return true;
       return (c.synonyms || []).some((s) => normalizeText(s) === cleanCatNormalized);
     });
 
