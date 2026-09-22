@@ -118,3 +118,36 @@ export function containsWholeWord(haystack: string, needle: string): boolean {
     fromIndex = idx + 1;
   }
 }
+
+// MUHIM (2026-09, real xato — "...такси килишга ЕМАС кимда боса айтворила"
+// arenda mashina so'rovi TAKSI kategoriyasiga xato mos kelib qolgan edi):
+// "такси" so'zi xabarda BOR edi, lekin darhol keyin "emas" (inkor) bilan
+// bekor qilingan — "taksi qilish UCHUN EMAS" demoqchi edi. `containsWholeWord`
+// so'zning shunchaki borligini tekshiradi, gap ma'nosiga (inkorga) qaramaydi.
+// Bu funksiya o'sha bo'shliqni to'ldiradi: topilgan so'zdan keyingi bir necha
+// so'z ichida inkor so'zi ("emas"/"yo'q" va h.k.) kelsa, bu topilma RAD
+// ETILGAN deb hisoblanadi va qidiruv boshqa joyларида davom etadi.
+// Bu funksiya FAQAT ALLAQACHON `normalizeText` orqali Lotin alifbosiga
+// o'tkazilgan matn (masalan `matchCategoryFromText`ga keladigan
+// `normalizedText`) bilan ishlatilishi kerak — shu sabab inkor so'zlar
+// ham faqat Lotin shaklida sanab o'tilgan.
+const NEGATION_TOKENS = new Set(['emas', 'emes', "yo'q", 'yoq', 'kerakmas']);
+
+export function containsAffirmedWholeWord(haystack: string, needle: string, negationWindow = 4): boolean {
+  if (!needle) return false;
+  const isWordChar = (c: string | undefined) => !!c && /[a-z0-9']/i.test(c);
+  let fromIndex = 0;
+  while (true) {
+    const idx = haystack.indexOf(needle, fromIndex);
+    if (idx === -1) return false;
+    const before = idx === 0 ? undefined : haystack[idx - 1];
+    const after = haystack[idx + needle.length];
+    if (!isWordChar(before) && !isWordChar(after)) {
+      const rest = haystack.slice(idx + needle.length);
+      const nextWords = rest.split(/\s+/).filter(Boolean).slice(0, negationWindow);
+      const negated = nextWords.some((w) => NEGATION_TOKENS.has(w.replace(/[^a-z0-9']/gi, '')));
+      if (!negated) return true;
+    }
+    fromIndex = idx + 1;
+  }
+}

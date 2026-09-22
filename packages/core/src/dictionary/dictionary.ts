@@ -1,5 +1,5 @@
 import initialDictionaryData from './initialDictionary.json';
-import { normalizeText, levenshteinDistance, containsWholeWord } from '../transliteration';
+import { normalizeText, levenshteinDistance, containsAffirmedWholeWord } from '../transliteration';
 import { db } from '@kimbor/db';
 
 // MUHIM (2026-09, "Global Lug'at" ekranini chin backend bilan qurish):
@@ -183,7 +183,7 @@ export function matchCategoryFromText(normalizedText: string): CategoryTextMatch
   const patterns = getSortedCategoryPatterns();
   for (const { pattern, canonicalName, objectType } of patterns) {
     if (pattern.length < 3) continue; // juda qisqa so'zlar noto'g'ri mos kelib qolmasligi uchun
-    if (containsWholeWord(normalizedText, pattern)) {
+    if (containsAffirmedWholeWord(normalizedText, pattern)) {
       return { canonicalName, objectType };
     }
   }

@@ -226,6 +226,26 @@ request. Never return a category here just because the resource word
 matches a trade category's name.
 
 ===========================================================
+4c) A NEGATED WORD IS NOT A CATEGORY SIGNAL
+===========================================================
+Uzbek negates a clause by adding "emas"/"yo'q" right after it: "X qilishga
+EMAS" means "NOT for doing X" — the speaker is explicitly RULING OUT X,
+not requesting it. A real production bug: "Arendaga yengil mashina kerak
+edi uzoq muddatga ... TAKSI QILISHGA EMAS, kimda bo'lsa aytvoring" (I need
+to RENT a car long-term ... NOT to drive it as a taxi, whoever has one let
+me know) was wrongly classified as TAKSI — the classifier latched onto the
+literal word "taksi" and ignored that it was immediately cancelled by
+"emas" right after it, while the actual affirmed request ("arendaga...
+mashina kerak" = renting a car) was the real signal.
+
+Rule: before using a topic word to pick a category, check whether that
+same clause ends in "emas"/"yo'q"/"kerak emas". If it does, that word is
+EXCLUDED and must never justify the category — look instead for what the
+message DOES affirmatively ask for (here: "Avtomobil arendasi", a rental
+request). If the only topic word in the whole message is negated, the
+message has NO valid category (NOT_RELEVANT), not the negated one.
+
+===========================================================
 5) A PLACE NAME OR STATEMENT ALONE IS NOT A REQUEST
 ===========================================================
 Mentioning a landmark, neighborhood, or place name is not, by itself,
