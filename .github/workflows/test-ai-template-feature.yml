@@ -1,0 +1,90 @@
+name: One-off - Test AI template + link button feature end-to-end
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const initData = buildInitData(superAdmin.telegramId.toString());
+                const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
+
+                console.log('=== 1) Request AI template suggestions for gas_office ===');
+                const sugRes = await fetch('http://localhost:4000/api/admin/local-numbers/suggest-templates', {
+                  method: 'POST', headers, body: JSON.stringify({ label: 'Gaz idorasi (mahalliy)' }),
+                });
+                const sugData = await sugRes.json();
+                console.log('status:', sugRes.status, 'templates count:', sugData.templates?.length);
+                console.log(JSON.stringify(sugData.templates, null, 2));
+
+                if (!sugData.templates || sugData.templates.length === 0) {
+                  console.log('NO TEMPLATES RETURNED - stopping test here');
+                  process.exit(0);
+                }
+
+                console.log('');
+                console.log('=== 2) Save gas_office with chosen template + link button ===');
+                const chosenTemplate = sugData.templates[0];
+                const putRes = await fetch('http://localhost:4000/api/admin/local-numbers/by-key/gas_office', {
+                  method: 'PUT', headers,
+                  body: JSON.stringify({
+                    phoneNumber: '+998701234567',
+                    jargonWords: ['gaz idorasi raqami'],
+                    messageTemplate: chosenTemplate,
+                    linkUrl: 'https://t.me/kimbor_test',
+                    linkLabel: 'Kanalga otish',
+                    linkButtonStyle: 'success',
+                  }),
+                });
+                const putData = await putRes.json();
+                console.log('save status:', putRes.status, JSON.stringify(putData));
+
+                console.log('');
+                console.log('=== 3) Bot-side: find match, check formattedText + link fields ===');
+                const { findLocalDispatcherMatch } = require('/app/packages/core/dist/index.js');
+                const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+                const match = await findLocalDispatcherMatch('gaz idorasi raqami bormi', CITY);
+                console.log(JSON.stringify(match, null, 2));
+
+                console.log('');
+                console.log('=== 4) Verify formattedText has REAL phone (not {phone} placeholder) and NOT the preview placeholder ===');
+                console.log('Contains real phone:', match?.formattedText?.includes('+998701234567'));
+                console.log('Contains literal {phone}:', match?.formattedText?.includes('{phone}'));
+
+                console.log('');
+                console.log('=== 5) Cleanup: reset gas_office fully to empty/default ===');
+                const cleanupRes = await fetch('http://localhost:4000/api/admin/local-numbers/by-key/gas_office', {
+                  method: 'PUT', headers,
+                  body: JSON.stringify({ phoneNumber: '', jargonWords: [], messageTemplate: null, linkUrl: '', linkLabel: '', linkButtonStyle: null }),
+                });
+                console.log('cleanup status:', cleanupRes.status);
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
