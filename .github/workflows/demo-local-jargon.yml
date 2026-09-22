@@ -1,0 +1,32 @@
+name: One-off - Live demo of local-jargon direct answer (using real Feruza listing)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Demo via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const { searchListings } = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                const msg = 'Sugurta qancha bulyapti hozir';
+                const r = await searchListings({ cityId: CITY, categoryName: null, rawMessage: msg, intent: 'SERVICE', requestedBadges: [] });
+                console.log('So\'rov:', msg);
+                console.log('');
+                console.log('=== Botning HAQIQIY javobi (formattedText, HTML) ===');
+                console.log(r ? r.formattedText : 'topilmadi');
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
