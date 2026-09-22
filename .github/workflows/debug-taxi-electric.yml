@@ -1,0 +1,77 @@
+name: One-off - Debug taxi message matching electricity dispatcher
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { normalizeText, containsWholeWord } = require('/app/packages/core/dist/transliteration.js');
+              const { UZBEK_STOPWORDS } = require('/app/packages/core/dist/search/uzbekStopwords.js');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+
+              const GENERIC_LOCAL_WORDS = new Set([
+                'nomer', 'nomeri', 'raqam', 'raqami', 'telefon', 'telefoni', 'kontakt',
+                'bor', 'bormi', 'yoq', \"yo'q\", 'kerak', 'kimda', 'kim', 'qayerda',
+                'qanday', 'nima', 'qachon', 'dispechir', 'dispetcher', 'xizmati',
+                'idorasi', 'boladimi', 'bolsa', 'kelyapti', 'ketdi', 'ochib', 'qoldi',
+              ]);
+              function wordsShareStem(a, b) {
+                if (a === b) return true;
+                const shorter = a.length <= b.length ? a : b;
+                const longer = a.length <= b.length ? b : a;
+                return shorter.length >= 4 && longer.startsWith(shorter);
+              }
+              function extractDistinctiveJargonWords(phrase) {
+                return normalizeText(phrase)
+                  .split(/\s+/)
+                  .filter((w) => w.length >= 4 && !UZBEK_STOPWORDS.has(w) && !GENERIC_LOCAL_WORDS.has(w));
+              }
+
+              (async () => {
+                const msg = \"Assalom aleykum taxi kerak Toshkent navoi ko'chadan Olmaliqqa 1 kishi bor soat 18:00 da  50 ming beradi.  +998950917877\";
+                const normalized = normalizeText(msg);
+                const msgWords = normalized.split(/\s+/).filter(Boolean);
+                console.log('NORMALIZED MSG:', normalized);
+                console.log('MSG WORDS:', JSON.stringify(msgWords));
+                console.log('');
+
+                const cities = await db.city.findMany({ select: { id: true, name: true } });
+                for (const city of cities) {
+                  const entries = await db.emergencyNumber.findMany({
+                    where: { cityId: city.id, jargonWords: { isEmpty: false } },
+                    select: { key: true, label: true, jargonWords: true },
+                  });
+                  if (entries.length === 0) continue;
+                  console.log('CITY:', city.name);
+                  for (const entry of entries) {
+                    console.log('  ENTRY:', entry.key, entry.label, 'jargon=', JSON.stringify(entry.jargonWords));
+                    for (const jargon of entry.jargonWords) {
+                      const normJargon = normalizeText(jargon);
+                      if (!normJargon || normJargon.length < 3) continue;
+                      const wholePhrase = normalized.includes(normJargon) || containsWholeWord(normalized, normJargon);
+                      const distinctiveWords = extractDistinctiveJargonWords(jargon);
+                      const wordMatches = [];
+                      for (const jw of distinctiveWords) {
+                        for (const mw of msgWords) {
+                          if (wordsShareStem(jw, mw)) wordMatches.push(jw + '<->' + mw);
+                        }
+                      }
+                      if (wholePhrase || wordMatches.length > 0) {
+                        console.log('    JARGON:', JSON.stringify(jargon), 'distinctive=', JSON.stringify(distinctiveWords), 'wholePhrase=', wholePhrase, 'wordMatches=', JSON.stringify(wordMatches));
+                      }
+                    }
+                  }
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
