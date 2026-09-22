@@ -1,0 +1,43 @@
+name: One-off - Verify gorset word-level matching fix + regression
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { findLocalDispatcherMatch } = require('/app/packages/core/dist/index.js');
+              const CITY = '23fdb721-7073-4fd3-bda5-b61bde593490';
+              (async () => {
+                console.log('=== 1) Real message that failed before: Горсетни номери борми ===');
+                const m1 = await findLocalDispatcherMatch('Горсетни номери борми', CITY);
+                console.log(JSON.stringify(m1));
+
+                console.log('');
+                console.log('=== 2) Other real variations should also work ===');
+                const m2 = await findLocalDispatcherMatch('gorset raqamini bering', CITY);
+                console.log('gorset raqamini bering:', JSON.stringify(m2));
+                const m3 = await findLocalDispatcherMatch('svet ochilib qoldi kimga qongiroq qilaman', CITY);
+                console.log('svet ochilib qoldi (should match via svet stem):', JSON.stringify(m3));
+
+                console.log('');
+                console.log('=== 3) REGRESSION: unrelated messages must NOT false-positive match ===');
+                const m4 = await findLocalDispatcherMatch('santexnik kerak suv tomayabdi', CITY);
+                console.log('santexnik kerak (expect null):', JSON.stringify(m4));
+                const m5 = await findLocalDispatcherMatch('taksi kerak zudlik bilan', CITY);
+                console.log('taksi kerak (expect null):', JSON.stringify(m5));
+                const m6 = await findLocalDispatcherMatch('kim bilan gaplashsam boladi', CITY);
+                console.log('generic chat (expect null):', JSON.stringify(m6));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
