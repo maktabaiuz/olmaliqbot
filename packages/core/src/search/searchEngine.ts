@@ -1533,6 +1533,28 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   if (missingJargonIds.length > 0 && !hasResolvedCategory) {
     missingJargonIds = missingJargonIds.filter((id) => !conditionalJargon.has(id));
   }
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan XATO — "stol stul
+  // arendaga beradigan odamni nomeri kimda bor" so'roviga bazada bunday
+  // kategoriya UMUMAN yo'qligi sabab AI umumiy "Arenda" kategoriyasini
+  // taxmin qilgan, lekin bu kategoriyada haqiqiy yozuv yo'q edi):
+  // yuqoridagi ikkita shart ORASIDA ataylab HIMOYASIZ bo'shliq qolgan
+  // edi — "kategoriya aniqlangan-yu, lekin unda yozuv yo'q" holati. Bu
+  // holatda hech qanday chegara qo'llanilmasdi (sabab: "balon" kabi
+  // holatlarda AI noto'g'ri, BO'SH kategoriya taxmin qilganda ham SOHA
+  // darajasidagi moslik qutqarishi kerak edi). Ammo bu ZAIF (bir nechta
+  // kategoriyada takrorlanadigan, masalan "arendaga" — Arenda/Avtomobil
+  // arendasi/Uy-kvartira arendaga barchasida bor) moslikni ham cheklovsiz
+  // o'tkazib yuborardi — natijada "stol-stul" so'roviga ALOQASIZ
+  // "Uy/kvartira arendaga" (Rano/Bahtiyor) yozuvi chiqib qolgan.
+  // Farq: SOHA ("category") darajasidagi moslik — bitta so'z faqat BITTA
+  // boshqa kategoriyaga xos (masalan "balon" — faqat shina do'koni) —
+  // ishonchli, qutqarishga haqli. ZAIF moslik esa (so'z ko'p kategoriyada
+  // takrorlanadi, hech narsani ajratmaydi) ishonchsiz — kategoriya
+  // haqiqatan bo'sh bo'lsa ham, faqat shu asosda tasodifiy boshqa
+  // kategoriyadan yozuv "botqoqlab" chiqishi kerak emas.
+  if (missingJargonIds.length > 0 && hasResolvedCategory && !categoryHasAnyListings) {
+    missingJargonIds = missingJargonIds.filter((id) => conditionalJargon.get(id)?.strength !== 'weak');
+  }
   if (missingJargonIds.length > 0 && hasResolvedCategory && categoryHasAnyListings) {
     const resolvedCategoryIds = new Set(
       (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
