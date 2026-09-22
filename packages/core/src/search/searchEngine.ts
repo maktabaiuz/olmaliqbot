@@ -1601,6 +1601,30 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     return null;
   }
 
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "Propan
+  // qayerda ishlayabdi akalar" so'roviga bot Propan UMUMAN yo'q bo'lgan,
+  // aloqasiz zapravkani (CARVON) "javob" sifatida ko'rsatib yuborgan edi.
+  // Sabab: `badgeBonus` ATAYLAB yumshoq signal (pastga qarang) — hech
+  // kimda so'ralgan belgi bo'lmasa ham ballar 0 bo'lib qoladi va g'olibni
+  // FAQAT tasodifiy `rotationBonus` hal qiladi. "Kafolat"/"24/7" kabi
+  // yumshoq xususiyatlar uchun bu to'g'ri (admin belgini unutgan bo'lishi
+  // mumkin). Lekin YOQILG'I TURI (Propan/Metan/AI-92/Dizel...) — OBYEKTIV,
+  // tekshiriladigan haqiqat: stansiyada yo bor, yo yo'q, "unutilgan
+  // belgi" ehtimoli deyarli nol. Shu sabab foydalanuvchi ANIQ yoqilg'i
+  // turini so'rasa-yu, HECH BIR nomzodda bunday belgi bo'lmasa — botning
+  // tasodifiy stansiyani "topdim" deb ko'rsatishi ODAMNI YO'Q YOQILG'I
+  // uchun noto'g'ri manzilga yuborishi mumkin, bu jim turishdan YOMONROQ.
+  const FUEL_TYPE_BADGES = new Set(['Metan', 'Propan', 'AI-80', 'AI-91', 'AI-92', 'AI-95', 'Dizel']);
+  const requestedFuelTypes = (requestedBadges || []).filter((b) => FUEL_TYPE_BADGES.has(b));
+  if (requestedFuelTypes.length > 0) {
+    const anyCandidateHasFuelType = candidateListings.some(
+      (l) => Array.isArray(l.badges) && l.badges.some((b: string) => requestedFuelTypes.includes(b))
+    );
+    if (!anyCandidateHasFuelType) {
+      return null;
+    }
+  }
+
   // 4. Ranking Formula:
   // Score = BaseVerification + (BayesianRating * 0.5) + (ReviewCount * 0.2) + (RecencyScore * 0.15) + (CompletenessScore * 0.15) + RotationBonus
   const scoredListings = candidateListings.map((item) => {
