@@ -1,5 +1,6 @@
 import { db } from '@kimbor/db';
 import { normalizeText, containsWholeWord } from '../transliteration';
+import { UZBEK_STOPWORDS } from '../search/uzbekStopwords';
 
 /**
  * "Mahalliy raqamlar" ekranida admin qo'shgan QO'SHIMCHA dispecher/xizmat
@@ -143,6 +144,38 @@ async function getLocalDispatcherEntries(cityId: string): Promise<LocalDispatche
   return rows;
 }
 
+// MUHIM (2026-09, real skrinshot bilan tasdiqlangan XATO — "Горсетни
+// номери борми" so'roviga admin ALLAQACHON saqlagan "gorset nomeri kimda
+// bor" jargoni MOS KELMADI): avvalgi mantiq faqat BUTUN ibora matnda
+// so'zma-so'z bor-yo'qligini tekshirardi. O'zbek tili qo'shimchali til —
+// odam ko'pincha jargon saqlangan SHAKLDAN farqli, o'z so'zlari bilan
+// yozadi ("gorsetNI" — qo'shimchali, "kimda bor" o'rniga "bormi"). Endi
+// searchEngine.ts'dagi bilan bir xil, o'zbek tilining qo'shimchali
+// tabiatiga mos SO'Z DARAJASIDAGI moslik ishlatiladi: jargon iborasidan
+// umumiy (stop-so'z) bo'lmagan ENG XOS so'z ajratib olinadi va xabar
+// matnida (qo'shimchali shaklda bo'lsa ham, umumiy o'zak orqali) qidiriladi.
+const GENERIC_LOCAL_WORDS = new Set([
+  'nomer', 'nomeri', 'raqam', 'raqami', 'telefon', 'telefoni', 'kontakt',
+  'bor', 'bormi', 'yoq', "yo'q", 'kerak', 'kimda', 'kim', 'qayerda',
+  'qanday', 'nima', 'qachon', 'dispechir', 'dispetcher', 'xizmati',
+  'idorasi', 'boladimi', 'bolsa', 'kelyapti', 'ketdi', 'ochib', 'qoldi',
+]);
+
+/** O'zbek tili qo'shimchali (agglutinativ) — qo'shimcha so'z OXIRIGA
+ * qo'shiladi, o'zak o'zgarmaydi. "gorset" / "gorsetni" shu qoidaga mos. */
+function wordsShareStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return shorter.length >= 4 && longer.startsWith(shorter);
+}
+
+function extractDistinctiveJargonWords(phrase: string): string[] {
+  return normalizeText(phrase)
+    .split(/\s+/)
+    .filter((w) => w.length >= 4 && !UZBEK_STOPWORDS.has(w) && !GENERIC_LOCAL_WORDS.has(w));
+}
+
 export async function findLocalDispatcherMatch(
   rawMessage: string,
   cityId: string
@@ -150,15 +183,33 @@ export async function findLocalDispatcherMatch(
   if (!rawMessage || !cityId) return null;
   const normalized = normalizeText(rawMessage);
   if (!normalized) return null;
+  const msgWords = normalized.split(/\s+/).filter(Boolean);
 
   const entries = await getLocalDispatcherEntries(cityId);
   for (const entry of entries) {
     for (const jargon of entry.jargonWords) {
       const normJargon = normalizeText(jargon);
       if (!normJargon || normJargon.length < 3) continue;
-      // Butun ibora matnda bor (masalan "mahalla raisi" so'zma-so'z), YOKI
-      // (bitta so'zli jargon bo'lsa) so'z chegarasi bilan aniq mos keladi.
+
+      // 1) Butun ibora matnda bor (eng ishonchli, aniq moslik).
       if (normalized.includes(normJargon) || containsWholeWord(normalized, normJargon)) {
+        return {
+          label: entry.label,
+          phoneNumber: entry.phoneNumber,
+          formattedText: renderLocalDispatcherText(entry.label, entry.phoneNumber, entry.messageTemplate),
+          linkUrl: entry.linkUrl,
+          linkLabel: entry.linkLabel,
+          linkButtonStyle: entry.linkButtonStyle as 'primary' | 'success' | 'danger' | null,
+        };
+      }
+
+      // 2) Butun ibora mos kelmasa — jargondagi ENG XOS (umumiy bo'lmagan)
+      // so'z xabarda (qo'shimchali shaklda bo'lsa ham) uchraydimi.
+      const distinctiveWords = extractDistinctiveJargonWords(jargon);
+      const hasWordMatch = distinctiveWords.some((jw) =>
+        msgWords.some((mw) => wordsShareStem(jw, mw))
+      );
+      if (hasWordMatch) {
         return {
           label: entry.label,
           phoneNumber: entry.phoneNumber,
