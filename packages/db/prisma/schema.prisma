@@ -551,6 +551,16 @@ model GamblingKeyword {
   @@map("gambling_keywords")
 }
 
+// MUHIM (2026-09): bu jadval avval kodda HECH QAYERDA ishlatilmagan edi
+// (5 ta qattiq kodlangan "mahalliy raqam" — gaz/suv/elektr/issiqlik/
+// hokimiyat — AppSetting orqali alohida saqlanadi, ular o'zgarishsiz
+// qoladi). Endi admin so'roviga ko'ra shu jadval JONLANTIRILDI:
+// "Mahalliy raqamlar" ekranida admin CHEKSIZ sonli QO'SHIMCHA mahalliy
+// dispecher/xizmat raqami qo'sha oladi (masalan "Mahalla raisi", "Tozalik
+// xizmati") — har biri o'z mahalliy jargon so'zlari bilan. Bunday raqam
+// so'ralganda bot HECH QANDAY "DARHOL bunday qiling" shablonisiz, FAQAT
+// so'ralgan ma'lumotni (nomi + telefon) qaytaradi — bular hayotiy xavf
+// emas, oddiy ma'lumot-so'rov.
 model EmergencyNumber {
   id          String   @id @default(uuid())
   cityId      String
@@ -558,6 +568,7 @@ model EmergencyNumber {
   key         String   // "gas_emergency", "water_dept", "power_grid"
   label       String   // "Gaz avariya", "Suv ta'minoti"
   phoneNumber String
+  jargonWords String[] @default([]) // odamlar qanday so'rashi mumkin ("mahalla raisi", "raisga qongiroq")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

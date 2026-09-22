@@ -2302,6 +2302,67 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
+  // --- 5a2. QO'SHIMCHA MAHALLIY DISPECHER RAQAMLARI (2026-09) —
+  // "Mahalliy raqamlar" ekranida admin qo'shgan, cheksiz sonli qo'shimcha
+  // raqamlar (mahalliy jargon so'zlar bilan). 5 ta qattiq kodlangan
+  // favqulodda maydondan (gaz/suv/elektr/issiqlik/hokimiyat, hamon
+  // /admin/settings/:key orqali) FARQLI — bular alohida EmergencyNumber
+  // jadvalida saqlanadi va bot ularni findLocalDispatcherMatch orqali
+  // (packages/core) jargon bo'yicha topadi.
+  fastify.get('/admin/local-numbers', async (req: any, reply) => {
+    const cityId = await getCityId(req);
+    const rows = await db.emergencyNumber.findMany({
+      where: { cityId, jargonWords: { isEmpty: false } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { success: true, numbers: rows };
+  });
+
+  fastify.post('/admin/local-numbers', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { label, phoneNumber, jargonWords } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[] };
+    if (!label?.trim() || !phoneNumber?.trim()) {
+      return reply.status(400).send({ success: false, message: "Nomi va telefon raqami talab qilinadi" });
+    }
+    const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
+    // "key" — EmergencyNumber jadvalining (cityId, key) unique cheklovi
+    // uchun kerak, lekin bu yozuvlar uchun ma'nosi yo'q — shu sabab har
+    // doim yagona (uuid) qiymat beriladi.
+    const row = await db.emergencyNumber.create({
+      data: {
+        cityId,
+        key: `local_${crypto.randomUUID()}`,
+        label: label.trim(),
+        phoneNumber: phoneNumber.trim(),
+        jargonWords: cleanJargon,
+      },
+    });
+    return { success: true, number: row };
+  });
+
+  fastify.put('/admin/local-numbers/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { id } = req.params;
+    const { label, phoneNumber, jargonWords } = req.body as { label?: string; phoneNumber?: string; jargonWords?: string[] };
+    if (!label?.trim() || !phoneNumber?.trim()) {
+      return reply.status(400).send({ success: false, message: "Nomi va telefon raqami talab qilinadi" });
+    }
+    const cleanJargon = Array.isArray(jargonWords) ? jargonWords.map((w) => w.trim().toLowerCase()).filter(Boolean) : [];
+    const row = await db.emergencyNumber.update({
+      where: { id },
+      data: { label: label.trim(), phoneNumber: phoneNumber.trim(), jargonWords: cleanJargon },
+    });
+    return { success: true, number: row };
+  });
+
+  fastify.delete('/admin/local-numbers/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { id } = req.params;
+    await db.emergencyNumber.delete({ where: { id } }).catch(() => {});
+    return { success: true };
+  });
+
   // --- 5b. UMUMIY SOZLAMALAR (kalit-qiymat) — masalan "Kanal/Guruhga
   // o'tish" tugmasi havolasi. Bot bu qiymatni to'g'ridan-to'g'ri
   // bazadan o'qiydi (bir necha soniyalik keshlash bilan) — admin

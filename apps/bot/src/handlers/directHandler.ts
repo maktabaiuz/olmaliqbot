@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -192,6 +192,26 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   }
 
   const activeCityId = session.cityId || defaultCityId;
+
+  // Mahalliy dispecher/xizmat raqamlari (2026-09) — guruh pipeline'idagi
+  // bilan bir xil mantiq, qarang: groupHandler.ts.
+  const localDispatcherMatch = await findLocalDispatcherMatch(messageText, activeCityId);
+  if (localDispatcherMatch) {
+    await ctx.reply(`🏢 <b>${localDispatcherMatch.label}</b>\n📞 <code>${localDispatcherMatch.phoneNumber}</code>`, { parse_mode: 'HTML' });
+    db.queryLog.create({
+      data: {
+        cityId: activeCityId,
+        telegramUserId: telegramUserIdBigInt,
+        rawMessage: messageText,
+        intent: 'CONTACT',
+        categoryName: localDispatcherMatch.label,
+        isResolved: true,
+        confidence: 1,
+      },
+    }).catch((err) => console.error('Failed to log local-dispatcher QueryLog:', err));
+    return;
+  }
+
   const classification = await classifyQuery(messageText, activeCityId, telegramUserIdBigInt);
   const dictMatch = matchCategoryFromText(normalizeText(messageText));
   const categoryGuess = classification.category || dictMatch?.canonicalName || null;

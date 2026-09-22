@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -25,6 +25,35 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // 1. 0-qavat: Free Regex & Keyword Filter
   const passedZeroLayer = zeroLayerFilter(messageText);
   if (!passedZeroLayer) return; // 90% non-search group chatter ignored silently
+
+  // 1b. Mahalliy dispecher/xizmat raqamlari (2026-09, admin so'roviga ko'ra
+  // qo'shildi) — "Mahalliy raqamlar" ekranida admin qo'shgan qo'shimcha
+  // raqamlar (mahalliy jargon so'zlar bilan). AI'dan OLDIN tekshiriladi —
+  // aniq jargon moslik topilsa, AI so'roviga umuman hojat yo'q va bot
+  // HECH QANDAY "DARHOL bunday qiling" shablonisiz, FAQAT so'ralgan
+  // ma'lumotni (nomi + telefon) qaytaradi (bular hayotiy xavf emas,
+  // oddiy ma'lumot-so'rov).
+  const localDispatcherMatch = await findLocalDispatcherMatch(messageText, cityId);
+  if (localDispatcherMatch) {
+    await ctx.reply(`🏢 <b>${localDispatcherMatch.label}</b>\n📞 <code>${localDispatcherMatch.phoneNumber}</code>`, {
+      parse_mode: 'HTML',
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
+    db.queryLog.create({
+      data: {
+        cityId,
+        chatId,
+        telegramUserId,
+        rawMessage: messageText,
+        intent: 'CONTACT',
+        categoryName: localDispatcherMatch.label,
+        landmarkName: null,
+        isResolved: true,
+        confidence: 1,
+      },
+    }).catch((err) => console.error('Failed to log local-dispatcher QueryLog:', err));
+    return;
+  }
 
   // 2. 1-qavat: AI Classifier
   const classification = await classifyQuery(messageText, cityId, telegramUserId);
