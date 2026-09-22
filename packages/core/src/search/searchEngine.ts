@@ -1,7 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
-import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord } from '../transliteration';
+import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { UZBEK_STOPWORDS } from './uzbekStopwords';
@@ -875,7 +875,19 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // zaif dalil uni ko'rsatish uchun yetarli emas.
   const conditionalJargon = new Map<string, { categoryId: string | null; strength: 'category' | 'weak' }>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
-    const msgCore = coreMatchText(rawMessage);
+    // MUHIM (2026-09, real xato — "...такси килишга ЕМАС..." arenda
+    // so'rovi Taksi yozuviga xato mos kelib qolgan edi): pastdagi "yadro"
+    // (bo'shliqsiz, so'z chegarasiz) substring solishtiruvi ("taksi" jargon
+    // bo'lsa, msgCore uni HAR QANDAY joyda — hatto "taksi EMAS" ichida ham
+    // — topib olardi). Shu sabab msgCore inkor qilingan so'zlar olib
+    // tashlangan xabardan hisoblanadi — "emas"/"yo'q" bilan bekor qilingan
+    // so'z endi substring darajasida ham umuman ko'rinmaydi.
+    const rawTokensForCore = normalizeText(rawMessage).split(/\s+/).filter(Boolean);
+    const negatedForCore = computeNegatedWordIndices(rawTokensForCore);
+    const negationStrippedMessage = rawTokensForCore
+      .filter((_, idx) => !negatedForCore.has(idx))
+      .join(' ');
+    const msgCore = coreMatchText(negationStrippedMessage);
     // MUHIM (2026-09 topilgan JIDDIY xato): yuqoridagi moslik BUTUN iborani
     // (bo'shliqsiz "yadro" shaklda) solishtiradi — bu ko'p so'zli jargon
     // iboralar ("beshbirdagi karvon zaprafka") uchun juda qattiq: agar
@@ -899,16 +911,23 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     // bilan (pastdagi directJargonBonus) g'olib chiqadi — tasodifiylik
     // o'rniga.
     const cityWords = await getCityNameWords(cityId);
-    const msgWords = normalizeText(rawMessage)
-      .split(/\s+/)
+    // "emas"/"yo'q" bilan bevosita inkor qilingan so'zlar (masalan "taksi
+    // qilishga EMAS") jargon moslikka umuman kirmasin — aks holda AI
+    // klassifikator to'g'ri NOT_RELEVANT desa ham, shu inkor qilingan
+    // so'zning o'zi kuchli/kategoriya darajasidagi "qutqaruvchi" moslik
+    // sifatida noto'g'ri javobni tiklab yuborishi mumkin edi.
+    const msgWords = rawTokensForCore
+      .map((w, idx) => ({ w, idx }))
       .filter(
-        (w) =>
+        ({ w, idx }) =>
           w.length >= 5 &&
+          !negatedForCore.has(idx) &&
           !GENERIC_JARGON_WORDS.has(w) &&
           !isGenericFillerWord(w) &&
           !isGenericContactWord(w) &&
           !isCityWord(w, cityWords)
-      );
+      )
+      .map(({ w }) => w);
     const jargonCandidates = await db.listing.findMany({
       where: { cityId, status: 'ACTIVE', jargonSynonyms: { isEmpty: false } },
       select: { id: true, categoryId: true, jargonSynonyms: true },

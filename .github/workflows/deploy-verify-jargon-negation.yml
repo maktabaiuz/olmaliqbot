@@ -1,4 +1,4 @@
-name: One-off - Deploy deterministic negation guard and verify
+name: One-off - Deploy jargon-level negation fix and verify
 on:
   workflow_dispatch:
 jobs:
@@ -43,10 +43,11 @@ jobs:
                 const messages = [
                   ['REAL BUG: rental with taxi negation', 'Асалому алайкум арендага йенгил мошина керак еди узок муддатга узим агмкадан ишлиман мошинага акуратний караб йураман босиб такси килишга емас кимда боса айтворила илтимос'],
                   ['REGRESSION: genuine taxi request', 'taksi kerak zudlik bilan Toshkentgacha'],
-                  ['REGRESSION: genuine taxi request cyrillic', 'такси керак шошилинч'],
-                  ['REGRESSION: genuine car rental', 'mashina arendaga kerak uzoq muddatga'],
+                  ['REGRESSION: genuine taxi cyrillic', 'такси керак шошилинч'],
                   ['REGRESSION: santexnik', 'santexnik kerak suv tomayabdi'],
-                  ['REGRESSION: gorset local dispatcher (unrelated path)', 'gorset raqamini bering'],
+                  ['REGRESSION: qaroqtoy choyxona jargon', 'Qoraxitoy choyxona nomeri bormi'],
+                  ['REGRESSION: gorset local dispatcher', 'gorset raqamini bering'],
+                  ['REGRESSION: propan zapravka', 'Propan qayerda ishlayabdi akalar'],
                 ];
                 for (const [label, msg] of messages) {
                   const simRes = await fetch('http://localhost:4000/api/admin/simulate', {

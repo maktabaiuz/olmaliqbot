@@ -133,6 +133,28 @@ export function containsWholeWord(haystack: string, needle: string): boolean {
 // ham faqat Lotin shaklida sanab o'tilgan.
 const NEGATION_TOKENS = new Set(['emas', 'emes', "yo'q", 'yoq', 'kerakmas']);
 
+// MUHIM (2026-09, real xato — "...такси килишга ЕМАС..." rawMessage
+// orqali jargon qidiruvida (searchEngine.ts) "taksi" so'zi HALI HAM
+// so'z darajasidagi mosликка kirib, AI klassifikator xulosasidan qat'i
+// nazar Taksi yozuvini "qutqarib" yuborardi — inkor faqat kategoriya
+// darajasida (aiClassifier.ts) tekshirilgani YETARLI EMAS edi, chunki
+// searchEngine ATAYLAB AI "NOT_RELEVANT" desa ham kuchli jargon
+// moslikni ustun qo'yadi. Shu sabab bu tekshiruv "yadro" darajasida —
+// so'z ro'yxatini tuzishdan OLDIN — qo'llanilishi kerak: inkor qilingan
+// so'zlar umuman moslashtiruvchi so'zlar ro'yxatiga kirmasin.
+export function computeNegatedWordIndices(tokens: string[], negationWindow = 4): Set<number> {
+  const negated = new Set<number>();
+  for (let i = 0; i < tokens.length; i++) {
+    for (let j = i + 1; j <= Math.min(i + negationWindow, tokens.length - 1); j++) {
+      if (NEGATION_TOKENS.has(tokens[j])) {
+        negated.add(i);
+        break;
+      }
+    }
+  }
+  return negated;
+}
+
 export function containsAffirmedWholeWord(haystack: string, needle: string, negationWindow = 4): boolean {
   if (!needle) return false;
   const isWordChar = (c: string | undefined) => !!c && /[a-z0-9']/i.test(c);
