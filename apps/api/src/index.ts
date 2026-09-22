@@ -10,6 +10,7 @@ import fs from 'fs';
 import { adminRoutes } from './routes/adminRoutes';
 import { moderatorRoutes } from './routes/moderatorRoutes';
 import { UPLOADS_DIR } from './uploadsPath';
+import { db } from '@kimbor/db';
 
 dotenv.config({ path: '../../.env' });
 
@@ -25,14 +26,33 @@ async function main() {
   await fastify.register(cookie);
   // MUHIM (2026-09, standalone web-login): saytdan (Telegram tashqarisida)
   // kirish uchun sessiya cookie'sini imzolash/tekshirish shu kalit bilan
-  // qilinadi. SESSION_SECRET serverda sozlanmagan bo'lsa ham API
-  // ishlashda davom etadi (xavfsizlik uchun EMAS, ishlab chiqishda
-  // qulaylik uchun) — lekin bu holda har bir deploy/qayta ishga
-  // tushirishda barcha web-sessiyalar bekor bo'ladi, shuning uchun
-  // productionda SESSION_SECRET albatta .env'ga qo'yilishi kerak.
-  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
-  if (!process.env.SESSION_SECRET) {
-    fastify.log.warn('SESSION_SECRET .env da sozlanmagan — vaqtinchalik tasodifiy kalit ishlatilmoqda, har deploy sessiyalarni bekor qiladi.');
+  // qilinadi.
+  //
+  // MUHIM TUZATISH (2026-09, real xato bilan tasdiqlangan): avval bu kalit
+  // .env'da sozlanmasa HAR SAFAR qayta tasodifiy generatsiya qilinardi —
+  // ya'ni HAR BIR deploy (bu sessiyada ko'plab bo'lgan) admin panelning
+  // BARCHA saytdan-kirish sessiyalarini bekor qilardi, foydalanuvchi
+  // "Autentifikatsiya ma'lumotlari talab qilinadi" xatosiga duch kelardi —
+  // garchi u to'g'ri kirgan bo'lsa ham. Endi: agar .env'da SESSION_SECRET
+  // yo'q bo'lsa, kalit BAZADA (AppSetting, "session_secret" kaliti) BIR
+  // MARTA generatsiya qilinib saqlanadi va keyingi har bir ishga
+  // tushirishda O'SHA BIR XIL kalit qayta o'qiladi — deploy/restart endi
+  // sessiyalarni bekor qilmaydi, hatto .env'ga hech narsa qo'shilmasa ham.
+  let sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    const SESSION_SECRET_KEY = 'session_secret';
+    const existing = await db.appSetting.findUnique({ where: { key: SESSION_SECRET_KEY } });
+    if (existing?.value) {
+      sessionSecret = existing.value;
+    } else {
+      sessionSecret = crypto.randomBytes(32).toString('hex');
+      await db.appSetting.upsert({
+        where: { key: SESSION_SECRET_KEY },
+        update: { value: sessionSecret },
+        create: { key: SESSION_SECRET_KEY, value: sessionSecret },
+      });
+      fastify.log.warn('SESSION_SECRET .env da sozlanmagan — bazada yangi doimiy kalit yaratildi (endi deploy/restart sessiyalarni bekor qilmaydi).');
+    }
   }
   await fastify.register(jwt, { secret: sessionSecret });
   await fastify.register(multipart, {

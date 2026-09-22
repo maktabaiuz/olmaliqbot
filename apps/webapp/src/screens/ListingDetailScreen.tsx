@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LandmarkPicker } from '../components/LandmarkPicker';
 import { avatarColorForName } from '../utils/avatarColor';
 import { useFeedback } from '../context/FeedbackContext';
+import { DEFAULT_BADGE_OPTIONS, ZAPRAVKA_BADGE_OPTIONS } from '../constants/badges';
 
 export interface ListingDetailScreenProps {
   listingId: string;
@@ -65,6 +66,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [categoryName, setCategoryName] = useState('');
+  const [listingType, setListingType] = useState('');
   const [landmarkName, setLandmarkName] = useState('');
   const [landmarkId, setLandmarkId] = useState('');
   const [workFrom, setWorkFrom] = useState('08:00');
@@ -97,8 +99,6 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   // UI Modals & Menus
   const [showMenu, setShowMenu] = useState(false);
   const [showBotModal, setShowBotModal] = useState(false);
-  const [newBadgeInput, setNewBadgeInput] = useState('');
-  const [showNewBadgeInput, setShowNewBadgeInput] = useState(false);
   const [newJargonInput, setNewJargonInput] = useState('');
   // Shu kategoriyadagi boshqa yozuvlarning jargon so'zlari — taklif
   // sifatida (2026-09). Faqat bazadagi haqiqiy so'zlar, generativ AI emas.
@@ -122,6 +122,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setName(l.name || '');
         setPhone(l.phone || '');
         setCategoryName(l.category?.name || '');
+        setListingType(l.type || '');
         setLandmarkName(l.primaryLandmark?.name || '');
         setLandmarkId(l.primaryLandmark?.id || '');
         setWorkFrom(l.workFrom || '08:00');
@@ -268,12 +269,18 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
     showToast("Ma'lumot nusxalandi!", 'success');
   };
 
-  const handleAddBadge = () => {
-    if (newBadgeInput.trim() && !badges.includes(newBadgeInput.trim())) {
-      setBadges([...badges, newBadgeInput.trim()]);
-      setNewBadgeInput('');
-      setShowNewBadgeInput(false);
-    }
+  // MUHIM (2026-09, real xato bilan tasdiqlangan): avval bu yerda erkin
+  // matn kiritish orqali belgi qo'shilardi — admin "Propan" o'rniga
+  // "propan" yoki boshqa yozilishda kiritsa, qidiruv tizimi (aniq
+  // harfma-harf solishtirish) buni HECH QACHON tanimasdi, garchi belgi
+  // "qo'shilgan" bo'lib ko'rinsa ham. Endi AddListingScreen bilan bir xil,
+  // qat'iy ro'yxatdan (constants/badges.ts) tanlanadi — yozilish xatosi
+  // butunlay istisno qilinadi.
+  const badgeOptions = listingType === 'ZAPRAVKA' ? ZAPRAVKA_BADGE_OPTIONS : DEFAULT_BADGE_OPTIONS;
+  const customBadges = badges.filter((b) => !badgeOptions.includes(b));
+
+  const toggleBadge = (badge: string) => {
+    setBadges(badges.includes(badge) ? badges.filter((b) => b !== badge) : [...badges, badge]);
   };
 
   const handleRemoveBadge = (bToRemove: string) => {
@@ -659,55 +666,44 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
             <SectionLabel>Belgilar</SectionLabel>
             <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden mt-1.5">
               <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
-                {badges.length === 0 && !showNewBadgeInput && (
-                  <span className="text-[13px] text-ios-label-secondary/70">Hali belgi qo'shilmagan</span>
-                )}
-                {badges.map((b) => (
-                  <span
-                    key={b}
-                    className="bg-ios-blue/10 text-ios-blue pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
-                  >
-                    {b}
+                {badgeOptions.map((option) => {
+                  const active = badges.includes(option);
+                  return (
                     <button
-                      onClick={() => handleRemoveBadge(b)}
-                      className="w-4 h-4 rounded-full bg-ios-blue/20 flex items-center justify-center hover:bg-ios-red hover:text-white transition-colors"
-                      aria-label={`${b}ni o'chirish`}
+                      key={option}
+                      onClick={() => toggleBadge(option)}
+                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors ${
+                        active ? 'bg-ios-blue text-white' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+                      }`}
                     >
-                      <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                      {option}
                     </button>
-                  </span>
-                ))}
-
-                {showNewBadgeInput ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      value={newBadgeInput}
-                      onChange={(e) => setNewBadgeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddBadge();
-                      }}
-                      placeholder="belgi..."
-                      autoFocus
-                      className="bg-ios-fill/[0.12] rounded-full px-3 py-1 text-[13px] outline-none text-ios-label"
-                    />
-                    <button
-                      onClick={handleAddBadge}
-                      className="text-ios-blue text-[13px] font-semibold px-1"
-                    >
-                      Qo'shish
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowNewBadgeInput(true)}
-                    className="flex items-center gap-1 pl-2 pr-2.5 py-1 rounded-full border border-dashed border-ios-blue/50 text-ios-blue text-[13px] font-medium active:bg-ios-blue/5"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">add</span>
-                    Qo'shish
-                  </button>
-                )}
+                  );
+                })}
               </div>
+
+              {customBadges.length > 0 && (
+                <div className="px-3.5 pb-3 flex flex-wrap gap-1.5" style={{ borderTop: HAIRLINE, paddingTop: '10px' }}>
+                  <span className="text-[11px] text-ios-label-secondary/60 w-full mb-0.5">
+                    Eski/maxsus belgilar (ro'yxatda yo'q):
+                  </span>
+                  {customBadges.map((b) => (
+                    <span
+                      key={b}
+                      className="bg-ios-fill/[0.12] text-ios-label pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1"
+                    >
+                      {b}
+                      <button
+                        onClick={() => handleRemoveBadge(b)}
+                        className="w-4 h-4 rounded-full bg-ios-fill/20 flex items-center justify-center hover:bg-ios-red hover:text-white transition-colors"
+                        aria-label={`${b}ni o'chirish`}
+                      >
+                        <span className="material-symbols-outlined text-[11px] leading-none">close</span>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
