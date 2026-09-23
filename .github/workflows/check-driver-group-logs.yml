@@ -1,4 +1,4 @@
-name: One-off - Check registered Telegram groups for Olmaliq yollari
+name: One-off - Check QueryLog coverage for driver groups
 on:
   workflow_dispatch:
 jobs:
@@ -18,7 +18,11 @@ jobs:
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
               const db = new PrismaClient();
               (async () => {
-                const groups = await db.cityGroup.findMany({ select: { chatId: true, title: true } });
-                console.log('REGISTERED_GROUPS:', JSON.stringify(groups.map(g => ({ chatId: g.chatId.toString(), title: g.title })), null, 2));
+                for (const chatId of ['-1003196202156', '-1001647665739']) {
+                  const count = await db.queryLog.count({ where: { chatId: BigInt(chatId) } });
+                  console.log('CHAT', chatId, 'LOG COUNT:', count);
+                  const samples = await db.queryLog.findMany({ where: { chatId: BigInt(chatId) }, select: { rawMessage: true, landmarkName: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 15 });
+                  for (const s of samples) console.log('  ', JSON.stringify(s));
+                }
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
