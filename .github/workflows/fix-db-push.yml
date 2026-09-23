@@ -1,0 +1,31 @@
+name: One-off - Fix DB push using correct project command and verify
+on:
+  workflow_dispatch:
+jobs:
+  fix_and_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fix via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            echo "--- correct db push (matching deploy.sh) ---"
+            docker exec kimbor_api pnpm --filter @kimbor/db exec prisma db push --schema=./prisma/schema.prisma --accept-data-loss
+            echo "--- verify schema fields exist now ---"
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const rows = await db.listing.findMany({ take: 1, select: { roomCount: true, rentPrice: true, rentPriceCurrency: true, rentTermType: true } });
+                console.log('SCHEMA_FIELDS_OK:', JSON.stringify(rows));
+                const rentalCats = await db.category.findMany({ where: { OR: [
+                  { name: { contains: 'arendasi' } }, { name: { contains: 'Hostel' } }, { name: { contains: 'Hotel' } }, { name: { contains: 'ijara' } }
+                ] }, select: { name: true } });
+                console.log('RENTAL_CATEGORIES_IN_DB:', JSON.stringify(rentalCats.map(c=>c.name)));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
