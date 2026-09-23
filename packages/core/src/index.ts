@@ -10,6 +10,7 @@ export * from './intent/isSelfOffer';
 export * from './intent/isJobVacancy';
 export * from './intent/isUtilityStatusQuestion';
 export * from './intent/extractRequestedBadges';
+export * from './intent/extractRentalFilters';
 export * from './requests/queryLoop';
 export * from './moderation/moderationFilter';
 export * from './filter/zeroLayerFilter';

@@ -3,6 +3,7 @@ import { LandmarkPicker } from '../components/LandmarkPicker';
 import { avatarColorForName } from '../utils/avatarColor';
 import { useFeedback } from '../context/FeedbackContext';
 import { DEFAULT_BADGE_OPTIONS, ZAPRAVKA_BADGE_OPTIONS } from '../constants/badges';
+import { RENTAL_CATEGORY_NAMES, RENT_TERM_TYPE_OPTIONS, RENT_CURRENCY_OPTIONS } from '../constants/rentalCategories';
 
 export interface ListingDetailScreenProps {
   listingId: string;
@@ -76,6 +77,11 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
   const [jargonSynonyms, setJargonSynonyms] = useState<string[]>([]);
   const [specificServices, setSpecificServices] = useState('');
   const [approxPrice, setApproxPrice] = useState('');
+  // Ko'chmas mulk arenda kategoriyalari uchun strukturaviy maydonlar (2026-09).
+  const [roomCount, setRoomCount] = useState('');
+  const [rentPrice, setRentPrice] = useState('');
+  const [rentPriceCurrency, setRentPriceCurrency] = useState<'UZS' | 'USD'>('USD');
+  const [rentTermType, setRentTermType] = useState<'KUNLIK' | 'OYLIK' | 'YILLIK'>('OYLIK');
   const [description, setDescription] = useState('');
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -132,6 +138,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         setJargonSynonyms(l.jargonSynonyms || []);
         setSpecificServices(l.specificServices || '');
         setApproxPrice(l.approxPrice || '');
+        setRoomCount(l.roomCount != null ? String(l.roomCount) : '');
+        setRentPrice(l.rentPrice != null ? String(l.rentPrice) : '');
+        setRentPriceCurrency(l.rentPriceCurrency || 'USD');
+        setRentTermType(l.rentTermType || 'OYLIK');
         setDescription(l.description || '');
         setPhotoUrls(l.photoUrls || []);
         setVerification(l.verification || 'COMMUNITY_UNVERIFIED');
@@ -168,6 +178,10 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
         status !== originalData.status ||
         specificServices !== (originalData.specificServices || '') ||
         approxPrice !== (originalData.approxPrice || '') ||
+        roomCount !== (originalData.roomCount != null ? String(originalData.roomCount) : '') ||
+        rentPrice !== (originalData.rentPrice != null ? String(originalData.rentPrice) : '') ||
+        rentPriceCurrency !== (originalData.rentPriceCurrency || 'USD') ||
+        rentTermType !== (originalData.rentTermType || 'OYLIK') ||
         description !== (originalData.description || '') ||
         JSON.stringify(badges) !== JSON.stringify(originalData.badges || []) ||
         JSON.stringify(jargonSynonyms) !== JSON.stringify(originalData.jargonSynonyms || []) ||
@@ -203,6 +217,12 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           description,
           photoUrls,
           mapUrl,
+          ...(RENTAL_CATEGORY_NAMES.has(categoryName) && {
+            roomCount: roomCount || null,
+            rentPrice: rentPrice || null,
+            rentPriceCurrency,
+            rentTermType,
+          }),
         }),
       });
       const data = await res.json();
@@ -621,6 +641,71 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                         ? 'Bot javobida yashil "📍 Lokatsiya" tugmasi shu havolaga olib boradi.'
                         : 'Havola bo\'sh bo\'lsa, bot javobida "Lokatsiya" tugmasi umuman chiqmaydi.'}
                     </p>
+                  </div>
+                </>
+              )}
+
+              {RENTAL_CATEGORY_NAMES.has(categoryName) && (
+                <>
+                  <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
+                    <span className="text-[15px] text-ios-label">Xonalar soni</span>
+                  </div>
+                  <div className="px-3.5 pb-3">
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={roomCount}
+                      onChange={(e) => setRoomCount(e.target.value)}
+                      placeholder="masalan: 2"
+                      className="w-full bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
+                    <span className="text-[15px] text-ios-label">Narx</span>
+                  </div>
+                  <div className="px-3.5 pb-3 flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      value={rentPrice}
+                      onChange={(e) => setRentPrice(e.target.value)}
+                      placeholder="masalan: 300"
+                      className="flex-1 bg-ios-fill/[0.12] rounded-ios px-3 py-2 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+                    />
+                    <div className="flex gap-1">
+                      {RENT_CURRENCY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setRentPriceCurrency(opt.value)}
+                          className={`px-3 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+                            rentPriceCurrency === opt.value ? 'bg-ios-blue text-white shadow-sm' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="px-3.5 pt-3 pb-1.5" style={{ borderTop: HAIRLINE }}>
+                    <span className="text-[15px] text-ios-label">Ijara muddati</span>
+                  </div>
+                  <div className="px-3.5 pb-3 flex gap-1.5">
+                    {RENT_TERM_TYPE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRentTermType(opt.value)}
+                        className={`flex-1 px-3 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+                          rentTermType === opt.value ? 'bg-ios-blue text-white shadow-sm' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}

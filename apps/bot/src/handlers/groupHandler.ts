@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -152,6 +152,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     intent: classification.intent,
     name: isSeeking ? classification.name : null,
     requestedBadges: extractRequestedBadges(messageText),
+    rentalFilters: extractRentalFilters(messageText),
   });
 
   if (!searchResult) {

@@ -4,6 +4,7 @@ import { calculateBayesianRating } from '../index';
 import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
+import { RentalFilters } from '../intent/extractRentalFilters';
 import { UZBEK_STOPWORDS } from './uzbekStopwords';
 import { isMalformedCategoryName } from './categoryDictionary';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
@@ -48,6 +49,14 @@ export interface SearchOptions {
    * Botning haqiqiy ishlashiga HECH QANDAY ta'sir qilmaydi (faqat qo'shimcha
    * ma'lumot qaytaradi), standart holatda o'chiq. */
   debug?: boolean;
+  /** MUHIM (2026-09, ko'chmas mulk strukturaviy qidiruvi): xabardan mahalliy
+   * regex orqali ajratilgan xona/narx/muddat talablari (qarang:
+   * extractRentalFilters). `requestedBadges`dan FARQLI o'laroq bu QATTIQ
+   * filtr — foydalanuvchi "2 xonali" desa, 4 xonali yozuv mos deb
+   * ko'rsatilmaydi (real reyting bonusi emas, aniq talab). Faqat tegishli
+   * maydoni TO'LDIRILGAN yozuvlarga qo'llanadi — eski, hali roomCount/
+   * rentPrice kiritilmagan yozuvlar filtrlanib tashlanmaydi. */
+  rentalFilters?: RentalFilters | null;
 }
 
 export interface ScoreBreakdownEntry {
@@ -668,11 +677,29 @@ export const DEFAULT_REPLY_TEMPLATE =
   `<blockquote>{ism} {tasdiq}\n` +
   `📍 {moljal}\n` +
   `🕐 {ish_vaqti}\n` +
+  `🛏 {xona}\n` +
   `🏷 {belgilar}\n` +
   `🛠 {xizmatlar}\n` +
   `💵 {narx}\n` +
   `📝 {tavsif}\n\n` +
   `📞 <code>{telefon}</code></blockquote>`;
+
+// Ko'chmas mulk arenda kategoriyalari uchun narx ko'rsatuvi (2026-09) —
+// eski erkin-matnli `approxPrice`dan FARQLI, strukturaviy `rentPrice`+
+// `rentPriceCurrency`+`rentTermType` bo'lsa, shundan chiroyli formatlanadi
+// ("$300/oy", "500 000 so'm/kecha"). Strukturaviy maydon bo'sh bo'lsa
+// (ko'chmas mulk bo'lmagan yozuvlar, yoki hali to'ldirilmagan eski
+// yozuvlar) — avvalgidek `approxPrice`ga qaytadi, hech narsa buzilmaydi.
+function formatRentPrice(item: any): string {
+  if (typeof item.rentPrice === 'number' && item.rentPriceCurrency) {
+    const amount = item.rentPrice.toLocaleString('ru-RU');
+    const currencyLabel = item.rentPriceCurrency === 'USD' ? '$' : "so'm";
+    const termSuffix =
+      item.rentTermType === 'KUNLIK' ? '/kecha' : item.rentTermType === 'OYLIK' ? '/oy' : item.rentTermType === 'YILLIK' ? '/yil' : '';
+    return item.rentPriceCurrency === 'USD' ? `${currencyLabel}${amount}${termSuffix}` : `${amount} ${currencyLabel}${termSuffix}`;
+  }
+  return item.approxPrice ? escapeHtml(item.approxPrice) : '';
+}
 
 /**
  * Bitta yozuv uchun to'liq xabar (sarlavha + native Telegram <blockquote>
@@ -721,9 +748,10 @@ async function buildListingCard(
     tasdiq: verifiedIcon,
     moljal: moljalValue,
     ish_vaqti: ishVaqtiValue,
+    xona: typeof item.roomCount === 'number' ? `${item.roomCount} xonali` : '',
     belgilar: badgesText ? escapeHtml(badgesText) : '',
     xizmatlar: item.specificServices ? escapeHtml(item.specificServices) : '',
-    narx: item.approxPrice ? escapeHtml(item.approxPrice) : '',
+    narx: formatRentPrice(item),
     tavsif: item.description ? escapeHtml(item.description) : '',
     telefon: escapeHtml(item.phone),
   });
@@ -840,7 +868,7 @@ function deriveTargetAfterLandmark(rawMessage: string | null | undefined): strin
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters } = options;
 
   if (!cityId) return null;
   if (!categoryName && !landmarkName && !rawMessage) return null;
@@ -1681,6 +1709,32 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     }
   }
 
+  // MUHIM (2026-09, ko'chmas mulk strukturaviy qidiruvi): xona soni/narx/
+  // muddat — foydalanuvchi ANIQ talab qilgan, kelishilmaydigan omillar
+  // (yuqoridagi yoqilg'i turi bilan bir xil mantiq: "2 xonali kerak"
+  // deganda 4 xonali yozuvni "eng yaqin" deb ko'rsatish jim turishdan
+  // YOMONROQ). Filtr FAQAT shu maydon TO'LDIRILGAN yozuvlarga qo'llanadi —
+  // eski, hali roomCount/rentPrice kiritilmagan yozuvlar (hozircha deyarli
+  // barchasi) chiqarib tashlanmaydi, aks holda ular "hech qachon
+  // topilmaydigan" bo'lib qolardi.
+  if (rentalFilters) {
+    const { roomCount, roomCountIsMinimum, maxPrice, currency, termType } = rentalFilters;
+    candidateListings = candidateListings.filter((l) => {
+      if (roomCount !== null && typeof l.roomCount === 'number') {
+        if (roomCountIsMinimum ? l.roomCount < roomCount : l.roomCount !== roomCount) return false;
+      }
+      if (maxPrice !== null && typeof l.rentPrice === 'number' && l.rentPriceCurrency) {
+        // Valyuta mos kelmasa solishtirilmaydi (noto'g'ri rad etishdan
+        // ko'ra — masalan so'mda so'ralgan, dollarda kiritilgan yozuvni
+        // chiqarib tashlamaslik xavfsizroq).
+        if (currency && l.rentPriceCurrency === currency && l.rentPrice > maxPrice) return false;
+      }
+      if (termType !== null && l.rentTermType && l.rentTermType !== termType) return false;
+      return true;
+    });
+    if (candidateListings.length === 0) return null;
+  }
+
   // 4. Ranking Formula:
   // Score = BaseVerification + (BayesianRating * 0.5) + (ReviewCount * 0.2) + (RecencyScore * 0.15) + (CompletenessScore * 0.15) + RotationBonus
   const scoredListings = candidateListings.map((item) => {
@@ -1816,7 +1870,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // afzal. Narx kiritilgan bo'lsa (odatiy holat kelajakda) — karta xuddi
   // avvalgidek yuboriladi, chunki u orqali savolga chinakam javob beriladi
   // (buildListingCard'dagi "💵 {narx}" qatori).
-  if (options.intent === 'PRICE' && !bestMatch.approxPrice) {
+  if (options.intent === 'PRICE' && !bestMatch.approxPrice && typeof bestMatch.rentPrice !== 'number') {
     return null;
   }
 

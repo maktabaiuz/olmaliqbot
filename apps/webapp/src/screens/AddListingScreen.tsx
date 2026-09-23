@@ -4,6 +4,7 @@ import { LandmarkPicker } from '../components/LandmarkPicker';
 import { useFeedback } from '../context/FeedbackContext';
 import { IosHeader } from '../components/ios/IosHeader';
 import { DEFAULT_BADGE_OPTIONS, ZAPRAVKA_BADGE_OPTIONS } from '../constants/badges';
+import { RENTAL_CATEGORY_NAMES, RENT_TERM_TYPE_OPTIONS, RENT_CURRENCY_OPTIONS } from '../constants/rentalCategories';
 
 export interface AddListingScreenProps {
   initialCategory?: string;
@@ -92,6 +93,11 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
 
   const [specificServices, setSpecificServices] = useState(() => localStorage.getItem('draft_specificServices') || '');
   const [approxPrice, setApproxPrice] = useState(() => localStorage.getItem('draft_approxPrice') || '');
+  // Ko'chmas mulk arenda kategoriyalari uchun strukturaviy maydonlar (2026-09).
+  const [roomCount, setRoomCount] = useState('');
+  const [rentPrice, setRentPrice] = useState('');
+  const [rentPriceCurrency, setRentPriceCurrency] = useState<'UZS' | 'USD'>('USD');
+  const [rentTermType, setRentTermType] = useState<'KUNLIK' | 'OYLIK' | 'YILLIK'>('OYLIK');
   const [description, setDescription] = useState(() => localStorage.getItem('draft_description') || '');
   const [photoUrls, setPhotoUrls] = useState<string[]>(() => {
     const saved = localStorage.getItem('draft_photoUrls');
@@ -394,6 +400,12 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           description,
           photoUrls,
           mapUrl: listingType === 'ZAPRAVKA' ? mapUrl.trim() : '',
+          ...(RENTAL_CATEGORY_NAMES.has(category) && {
+            roomCount: roomCount || null,
+            rentPrice: rentPrice || null,
+            rentPriceCurrency,
+            rentTermType,
+          }),
         }),
       });
 
@@ -808,6 +820,73 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                   </button>
                 );
               })}
+            </div>
+          </div>
+          )}
+
+          {/* Ko'chmas mulk arenda kategoriyalari uchun strukturaviy
+              maydonlar (2026-09) — faqat shu 6 ta kategoriyada ko'rinadi,
+              qidiruv shundan "2 xonali, 300 dollargacha" kabi ANIQ
+              filtrlashi uchun ishlatiladi (qarang: extractRentalFilters). */}
+          {RENTAL_CATEGORY_NAMES.has(category) && (
+          <div className="flex flex-col gap-3 bg-ios-fill/[0.06] rounded-ios p-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Xonalar soni</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={roomCount}
+                onChange={(e) => setRoomCount(e.target.value)}
+                placeholder="masalan: 2"
+                className="w-full bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Narx</label>
+              <div className="flex gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  value={rentPrice}
+                  onChange={(e) => setRentPrice(e.target.value)}
+                  placeholder="masalan: 300"
+                  className="flex-1 bg-ios-fill/[0.12] border border-transparent rounded-ios px-3 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
+                />
+                <div className="flex gap-1">
+                  {RENT_CURRENCY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRentPriceCurrency(opt.value)}
+                      className={`px-3 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+                        rentPriceCurrency === opt.value ? 'bg-ios-blue text-white shadow-sm' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">Ijara muddati</label>
+              <div className="flex gap-1.5">
+                {RENT_TERM_TYPE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRentTermType(opt.value)}
+                    className={`flex-1 px-3 py-1.5 rounded-full text-[13px] font-semibold transition-all ${
+                      rentTermType === opt.value ? 'bg-ios-blue text-white shadow-sm' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           )}

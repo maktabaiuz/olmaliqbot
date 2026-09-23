@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -960,6 +960,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
         specificServices,
         approxPrice,
         mapUrl,
+        roomCount,
+        rentPrice,
+        rentPriceCurrency,
+        rentTermType,
       } = req.body;
 
       if (!name || !categoryName) {
@@ -1043,6 +1047,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
           specificServices: specificServices || null,
           approxPrice: approxPrice || null,
           mapUrl: mapUrl || null,
+          roomCount: Number.isFinite(Number(roomCount)) && roomCount !== '' && roomCount != null ? parseInt(roomCount, 10) : null,
+          rentPrice: Number.isFinite(Number(rentPrice)) && rentPrice !== '' && rentPrice != null ? parseInt(rentPrice, 10) : null,
+          rentPriceCurrency: ['UZS', 'USD'].includes(rentPriceCurrency) ? rentPriceCurrency : null,
+          rentTermType: ['KUNLIK', 'OYLIK', 'YILLIK'].includes(rentTermType) ? rentTermType : null,
         },
       });
 
@@ -1135,6 +1143,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       jargonSynonyms,
       photoUrls,
       mapUrl,
+      roomCount,
+      rentPrice,
+      rentPriceCurrency,
+      rentTermType,
     } = req.body;
 
     const existing = await db.listing.findUnique({ where: { id } });
@@ -1203,6 +1215,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(Array.isArray(jargonSynonyms) && { jargonSynonyms }),
         ...(Array.isArray(photoUrls) && { photoUrls: photoUrls.slice(0, 8) }),
         ...(mapUrl !== undefined && { mapUrl: mapUrl || null }),
+        ...(roomCount !== undefined && { roomCount: Number.isFinite(Number(roomCount)) && roomCount !== '' && roomCount !== null ? parseInt(roomCount, 10) : null }),
+        ...(rentPrice !== undefined && { rentPrice: Number.isFinite(Number(rentPrice)) && rentPrice !== '' && rentPrice !== null ? parseInt(rentPrice, 10) : null }),
+        ...(rentPriceCurrency !== undefined && { rentPriceCurrency: ['UZS', 'USD'].includes(rentPriceCurrency) ? rentPriceCurrency : null }),
+        ...(rentTermType !== undefined && { rentTermType: ['KUNLIK', 'OYLIK', 'YILLIK'].includes(rentTermType) ? rentTermType : null }),
         categoryId,
         primaryLandmarkId,
         lastVerifiedAt: new Date(),
@@ -1450,6 +1466,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const isSeeking = classification.intent !== 'NOT_RELEVANT';
     const requestedBadges = extractRequestedBadges(messageText);
     steps.requestedBadges = requestedBadges;
+    const rentalFilters = extractRentalFilters(messageText);
+    steps.rentalFilters = rentalFilters;
 
     const searchResult = await searchListings({
       cityId,
@@ -1459,6 +1477,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       intent: classification.intent,
       name: isSeeking ? classification.name : null,
       requestedBadges,
+      rentalFilters,
       debug: true,
     });
 

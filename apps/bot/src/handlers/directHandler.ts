@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -128,19 +128,45 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.offerCategory = undefined;
 
     try {
+      const rawCategoryInput = (cand?.category || '').trim();
       let candCategory = await db.category.findFirst({
         where: {
           OR: [
-            { name: { equals: cand?.category || '', mode: 'insensitive' } },
-            { synonyms: { has: (cand?.category || '').toLowerCase() } },
+            { name: { equals: rawCategoryInput, mode: 'insensitive' } },
+            { synonyms: { has: rawCategoryInput.toLowerCase() } },
           ],
         },
       });
 
+      // MUHIM (2026-09, real xato — foydalanuvchi bu ochiq savolga
+      // ("Qaysi kasb yoki soha?") adashib o'zining butun so'rovini
+      // ("mening documentimni yo'qotib qo'ydim...") yozib yuborgan, va bu
+      // TO'LIQ GAP hech qanday tekshiruvsiz yangi Category.name sifatida
+      // bazaga saqlanib qolgan edi — bazada chiqindi kategoriyalar hosil
+      // bo'lishiga sabab bo'lgan): avval umumiy lug'at (sinonim/yozilish
+      // xatosiga chidamli) orqali mavjud kategoriyaga moslashtirishga
+      // harakat qilinadi, so'ng hali ham topilmasa — kiritilgan matn
+      // HAQIQIY qisqa kasb nomiga o'xshamasa (juda uzun yoki ko'p so'zli,
+      // ya'ni to'liq gap ehtimoli baland) yangi kategoriya UMUMAN
+      // YARATILMAYDI, o'rniga "Umumiy"ga yoziladi.
+      if (!candCategory && rawCategoryInput) {
+        const canonical = resolveCanonicalCategoryName(rawCategoryInput);
+        if (canonical !== rawCategoryInput) {
+          candCategory = await db.category.findFirst({ where: { name: { equals: canonical, mode: 'insensitive' } } });
+        }
+      }
+
       if (!candCategory) {
-        candCategory = await db.category.create({
-          data: { name: cand?.category || 'Umumiy', synonyms: [(cand?.category || '').toLowerCase()] },
-        });
+        const wordCount = rawCategoryInput.split(/\s+/).filter(Boolean).length;
+        const looksLikeSentence = rawCategoryInput.length > 40 || wordCount > 4;
+        const safeName = !rawCategoryInput || looksLikeSentence ? 'Umumiy' : rawCategoryInput;
+
+        candCategory = await db.category.findFirst({ where: { name: { equals: safeName, mode: 'insensitive' } } });
+        if (!candCategory) {
+          candCategory = await db.category.create({
+            data: { name: safeName, synonyms: safeName === 'Umumiy' ? [] : [safeName.toLowerCase()] },
+          });
+        }
       }
 
       let landmarkId: string | undefined;
@@ -311,6 +337,7 @@ async function runPrivateSearch(
     intent: opts.intent,
     name: opts.name,
     requestedBadges: extractRequestedBadges(opts.rawMessage),
+    rentalFilters: extractRentalFilters(opts.rawMessage),
   });
 
   if (!searchResult) {

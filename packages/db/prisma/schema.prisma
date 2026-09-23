@@ -36,6 +36,20 @@ enum VerificationStatus {
   COMMUNITY_UNVERIFIED   // ⚠️ Xalq aytgan / Tekshirilmagan
 }
 
+// Ko'chmas mulk arenda kategoriyalari uchun strukturaviy maydonlar
+// (2026-09) — "N xonali, M dollargacha, kunlik/oylik" kabi aniq
+// so'rovlarni haqiqiy filtrlash imkonini beradi.
+enum RentTermType {
+  KUNLIK
+  OYLIK
+  YILLIK
+}
+
+enum RentCurrency {
+  UZS
+  USD
+}
+
 enum IntentType {
   CONTACT
   SERVICE
@@ -293,7 +307,17 @@ model Listing {
 
   // 3-Daraja: Ixtiyoriy maydonlar
   specificServices    String?            // "kolonka ta'miri, plita o'rnatish"
-  approxPrice         String?            // Taxminiy narx
+  approxPrice         String?            // Taxminiy narx (erkin matn, eski/umumiy maydon)
+
+  // Ko'chmas mulk arenda kategoriyalari uchun strukturaviy maydonlar
+  // (2026-09) — faqat 6 ta arenda kategoriyasida to'ldiriladi, qolgan
+  // barcha listing turlarida hamisha null. `approxPrice`dan farqli —
+  // qidiruvda ANIQ raqamli filtrlash (masalan "2 xonali, 300 dollargacha")
+  // uchun ishlatiladi, qarang: searchEngine.ts `rentalFilters`.
+  roomCount           Int?               // Xonalar soni
+  rentPrice           Int?               // Narx (raqamli, valyutasiz)
+  rentPriceCurrency   RentCurrency?      // UZS yoki USD
+  rentTermType        RentTermType?      // KUNLIK / OYLIK / YILLIK
   photoFileId         String?            // Telegram file_id (mo'ljal/ish namunasi)
   photoUrls           String[]           @default([]) // Ko'p-rasmli e'lonlar uchun (masalan uy arendaga) — admin panelidan yuklangan rasm URL'lari
   description         String?

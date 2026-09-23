@@ -40,6 +40,13 @@ interface SimulateResponse {
     };
     selfOfferCheck?: { isSelfOffer: boolean; isJobVacancy: boolean; isUtilityStatusQuestion: boolean; blocked: boolean };
     requestedBadges?: string[];
+    rentalFilters?: {
+      roomCount: number | null;
+      roomCountIsMinimum: boolean;
+      maxPrice: number | null;
+      currency: 'UZS' | 'USD' | null;
+      termType: 'KUNLIK' | 'OYLIK' | 'YILLIK' | null;
+    };
   };
   finalResult: {
     found: boolean;
@@ -209,6 +216,34 @@ export const BotSimulatorScreen: React.FC<BotSimulatorScreenProps> = ({ onBack }
                 </div>
               </div>
             )}
+
+            {result.steps.rentalFilters &&
+              (result.steps.rentalFilters.roomCount !== null ||
+                result.steps.rentalFilters.maxPrice !== null ||
+                result.steps.rentalFilters.termType !== null) && (
+                <div className="pt-1.5" style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+                  <p className="text-[12px] font-semibold text-ios-label mb-1">Aniqlangan arenda filtrlari</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.steps.rentalFilters.roomCount !== null && (
+                      <span className="bg-ios-orange/[0.12] text-ios-orange text-[11px] px-2.5 py-1 rounded-full font-medium">
+                        {result.steps.rentalFilters.roomCountIsMinimum ? '≥' : ''}
+                        {result.steps.rentalFilters.roomCount} xona
+                      </span>
+                    )}
+                    {result.steps.rentalFilters.maxPrice !== null && (
+                      <span className="bg-ios-orange/[0.12] text-ios-orange text-[11px] px-2.5 py-1 rounded-full font-medium">
+                        ≤ {result.steps.rentalFilters.maxPrice.toLocaleString('ru-RU')}{' '}
+                        {result.steps.rentalFilters.currency === 'USD' ? '$' : "so'm"}
+                      </span>
+                    )}
+                    {result.steps.rentalFilters.termType !== null && (
+                      <span className="bg-ios-orange/[0.12] text-ios-orange text-[11px] px-2.5 py-1 rounded-full font-medium">
+                        {result.steps.rentalFilters.termType}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
           </div>
 
           {/* YAKUNIY NATIJA */}
