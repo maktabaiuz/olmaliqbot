@@ -1,4 +1,4 @@
-name: One-off - Deploy AI-independent area-browse fix and verify
+name: One-off - Deploy stem-matching fix and final verify
 on:
   workflow_dispatch:
 jobs:
@@ -41,14 +41,14 @@ jobs:
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
                 const messages = [
-                  ['area-browse, no ? mark', 'Oydin mahallada nimalar bor'],
-                  ['area-browse with ?', 'Oydinda nima bor?'],
-                  ['area-browse qanday xizmat', 'Oydinda qanday xizmatlar bor'],
+                  ['area-browse with ? (suffixed Oydinda)', 'Oydinda nima bor?'],
+                  ['area-browse qanday xizmat (suffixed)', 'Oydinda qanday xizmatlar bor'],
+                  ['area-browse no ? (bare Oydin)', 'Oydin mahallada nimalar bor'],
                   ['REGRESSION: safety question', 'Raduga tomonlar tinchmi?'],
                   ['REGRESSION: normal combo query', 'Oydinda santexnik kerak'],
                   ['REGRESSION: taksi', 'taksi kerak zudlik bilan'],
-                  ['area with zero listings', \"Bo'stonda nima bor?\"],
                   ['REGRESSION: gorset local dispatcher', 'gorset raqamini bering'],
+                  ['REGRESSION: qorahitoy choyxona', 'Qoraxitoy choyxona nomeri bormi'],
                 ];
                 for (const [label, msg] of messages) {
                   const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
@@ -56,10 +56,8 @@ jobs:
                   });
                   const simData = await simRes.json();
                   console.log('CASE:', label, '| MSG:', msg);
-                  console.log('  zeroLayer:', simData?.steps?.zeroLayer?.passed, ' AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category);
-                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName);
-                  if (simData?.finalResult?.formattedText) console.log('  TEXT:', simData.finalResult.formattedText.replace(/\\n/g,' | ').slice(0, 250));
-                  console.log('  REASON:', simData?.finalResult?.reason);
+                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
+                  if (simData?.finalResult?.formattedText) console.log('  TEXT:', simData.finalResult.formattedText.replace(/\\n/g,' | ').slice(0, 200));
                   console.log('---');
                 }
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
