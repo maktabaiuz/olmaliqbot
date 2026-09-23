@@ -1,4 +1,4 @@
-name: One-off - Redeploy with DB-category cross-check and re-verify
+name: One-off - Final redeploy and verify landmark quality system
 on:
   workflow_dispatch:
 jobs:
@@ -40,15 +40,26 @@ jobs:
                 const initData = buildInitData(superAdmin.telegramId.toString());
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
+                console.log('=== quality-check (final) ===');
                 const qcRes = await fetch('http://localhost:4000/api/admin/landmarks/quality-check', { headers });
                 const qc = await qcRes.json();
                 console.log('notAPlace count:', qc.notAPlace?.length);
-                for (const n of (qc.notAPlace || [])) console.log('  NOT_A_PLACE:', n.name, '->', n.resolvedCategory, '(', n.listingCount, 'listings)');
+                for (const n of (qc.notAPlace || [])) console.log('  NOT_A_PLACE:', n.name, '->', n.resolvedCategory);
+                console.log('duplicatePairs count:', qc.duplicatePairs?.length);
 
                 console.log('');
-                const merge = await fetch('http://localhost:4000/api/admin/landmarks/merge', {
-                  method: 'POST', headers, body: JSON.stringify({ sourceId: 'nonexistent', targetId: 'also-nonexistent' }),
+                console.log('=== creation guard regression: real address must NOT be blocked ===');
+                const r1 = await fetch('http://localhost:4000/api/admin/landmarks', {
+                  method: 'POST', headers, body: JSON.stringify({ name: 'Test Amir Temur 99 uy' }),
                 });
-                console.log('Merge with fake IDs -> status:', merge.status);
+                const d1 = await r1.json();
+                console.log('Real address -> status:', r1.status, JSON.stringify(d1));
+                if (d1.success && d1.landmark) { await db.landmark.delete({ where: { id: d1.landmark.id } }); console.log('(cleaned up)'); }
+
+                const r2 = await fetch('http://localhost:4000/api/admin/landmarks', {
+                  method: 'POST', headers, body: JSON.stringify({ name: 'kamerachi' }),
+                });
+                const d2 = await r2.json();
+                console.log('Profession name -> status:', r2.status, JSON.stringify(d2));
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
