@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1805,11 +1805,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
       },
       select: { name: true },
     });
-    const resolvedAsCategory = existingCategoryMatch?.name || resolveCanonicalCategoryName(cleanName);
-    if (existingCategoryMatch || getDictionarySynonymsForCategory(resolvedAsCategory).length > 0) {
+    // ANIQ (fuzzy EMAS) moslik — qarang: getExactCanonicalCategoryLookup izohi.
+    const exactCategoryMatch = existingCategoryMatch?.name || getExactCanonicalCategoryLookup().get(normalizeText(cleanName));
+    if (exactCategoryMatch) {
       return reply.status(400).send({
         success: false,
-        message: `"${cleanName}" joy nomiga emas, kasb/xizmat turiga o'xshaydi ("${resolvedAsCategory}"). Agar bu chindan ham joy nomi bo'lsa, boshqacharoq yozib ko'ring.`,
+        message: `"${cleanName}" joy nomiga emas, kasb/xizmat turiga o'xshaydi ("${exactCategoryMatch}"). Agar bu chindan ham joy nomi bo'lsa, boshqacharoq yozib ko'ring.`,
       });
     }
 
@@ -1928,6 +1929,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       dbCategoryLookup.set(normalizeText(c.name), c.name);
       for (const s of c.synonyms) dbCategoryLookup.set(normalizeText(s), c.name);
     }
+    const exactDictLookup = getExactCanonicalCategoryLookup();
 
     const duplicatePairs: {
       a: { id: string; name: string; listingCount: number };
@@ -1945,9 +1947,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
       const normI = normalizeText(li.name);
       if (normI.length >= 2) {
-        const dbMatch = dbCategoryLookup.get(normI);
-        const resolved = dbMatch || resolveCanonicalCategoryName(li.name);
-        if (dbMatch || getDictionarySynonymsForCategory(resolved).length > 0) {
+        // ANIQ (fuzzy EMAS) moslik — qarang: getExactCanonicalCategoryLookup izohi.
+        const resolved = dbCategoryLookup.get(normI) || exactDictLookup.get(normI);
+        if (resolved) {
           notAPlace.push({ id: li.id, name: li.name, listingCount: listingCountI, resolvedCategory: resolved });
         }
       }

@@ -100,6 +100,19 @@ export function normalizeDistrictLandmark(text: string): string {
 // Masalan "taxi" ham, "такси" ham -> "Taksi" ga ishora qiladi.
 let canonicalCategoryLookup: Map<string, string> | null = null;
 
+/**
+ * "Manzillar" sifat-tekshiruvida ishlatiladi (2026-09) — ATAYLAB FAQAT
+ * ANIQ (fuzzy emas) moslikni beradi: "amir temur 22 uy" kabi haqiqiy
+ * manzil `resolveCanonicalCategoryName`ning Levenshtein-fuzzy yo'li orqali
+ * tasodifan uzoq, aloqasiz kategoriya nomiga ("Tahriyat") "mos kelib
+ * qolgan" real xato topildi — chunki fuzzy moslik "yozilish xatosini
+ * to'g'rilash" uchun mo'ljallangan, "bu joy nomimi yoki kasbmi" kabi
+ * yuqori ishonch talab qiladigan qarorlar uchun EMAS.
+ */
+export function getExactCanonicalCategoryLookup(): Map<string, string> {
+  return getCanonicalCategoryLookup();
+}
+
 function getCanonicalCategoryLookup(): Map<string, string> {
   if (canonicalCategoryLookup) return canonicalCategoryLookup;
 
