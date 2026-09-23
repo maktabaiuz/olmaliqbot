@@ -1,0 +1,33 @@
+name: One-off - Verify junk-category fix logic
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { resolveCanonicalCategoryName } = require('/app/packages/core/dist/index.js');
+              function simulateCandidateCategoryLogic(rawCategoryInput) {
+                rawCategoryInput = rawCategoryInput.trim();
+                const canonical = resolveCanonicalCategoryName(rawCategoryInput);
+                if (canonical !== rawCategoryInput) return { resolvedTo: canonical, wouldCreateNew: false };
+                const wordCount = rawCategoryInput.split(/\s+/).filter(Boolean).length;
+                const looksLikeSentence = rawCategoryInput.length > 40 || wordCount > 4;
+                const safeName = !rawCategoryInput || looksLikeSentence ? 'Umumiy' : rawCategoryInput;
+                return { resolvedTo: safeName, wouldCreateNew: safeName !== 'Umumiy' };
+              }
+              console.log('Real garbage case 1:', JSON.stringify(simulateCandidateCategoryLogic('Ассалому алайкум мен документами йукотиб куйдим ёрдам беринг илтимос группага ташлаб берсангиз')));
+              console.log('Real garbage case 2:', JSON.stringify(simulateCandidateCategoryLogic('Olmoliqdan kivartira kerak 1 xon a')));
+              console.log('Legit short profession:', JSON.stringify(simulateCandidateCategoryLogic('santexnik')));
+              console.log('Legit typo profession:', JSON.stringify(simulateCandidateCategoryLogic('santehnik')));
+              console.log('Legit new but short:', JSON.stringify(simulateCandidateCategoryLogic('massajchi')));
+            "
