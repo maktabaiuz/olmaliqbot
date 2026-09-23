@@ -1,0 +1,61 @@
+name: One-off - Verify rental search system end-to-end
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const initData = buildInitData(superAdmin.telegramId.toString());
+                const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
+
+                const messages = [
+                  ['2 xonali kunlik ijara filtr bilan', '2 xonali kvartira kerak 300 dollargacha kunlik'],
+                  ['Kunlik ijara kategoriyasi', 'kunlik ijara kvartira kerak'],
+                  ['Hostel so\'rovi', 'hostel bormi shaharda'],
+                  ['Mehmonxona so\'rovi', 'mehmonxona kerak bir kechaga'],
+                  ['Notijorat arendasi', 'ofis arendaga kerak markazda'],
+                  ['REGRESSION: oddiy uy so\'rovi (filtrsiz)', 'uy kerak arendaga'],
+                  ['REGRESSION: santexnik', 'santexnik kerak suv tomayabdi'],
+                  ['REGRESSION: taksi', 'taksi kerak zudlik bilan'],
+                ];
+                for (const [label, msg] of messages) {
+                  const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
+                    method: 'POST', headers, body: JSON.stringify({ message: msg }),
+                  });
+                  const simData = await simRes.json();
+                  console.log('CASE:', label, '| MSG:', msg);
+                  console.log('  AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category);
+                  console.log('  RENTAL_FILTERS:', JSON.stringify(simData?.steps?.rentalFilters));
+                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
+                  console.log('  REASON:', simData?.finalResult?.reason);
+                  console.log('---');
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
