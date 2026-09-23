@@ -1,0 +1,54 @@
+name: One-off - Deploy rental search system and verify
+on:
+  workflow_dispatch:
+jobs:
+  deploy_and_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy and verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 15m
+          script: |
+            cd /root/kimbor
+            git pull origin main || git pull origin master
+            git log -1 --oneline
+            docker compose -f docker-compose.prod.yml up -d --build
+            sleep 25
+            docker exec kimbor_api npx prisma db push --accept-data-loss --schema=/app/packages/db/prisma/schema.prisma
+            echo "--- rename existing rental category to match new dictionary name ---"
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const old = await db.category.findFirst({ where: { name: 'Uy/kvartira arendaga' } });
+                if (old) {
+                  const updated = await db.category.update({
+                    where: { id: old.id },
+                    data: {
+                      name: 'Kvartira arendasi',
+                      synonyms: Array.from(new Set([...old.synonyms, 'kvartira arendaga','kvartira ijaraga','kvartira kerak','kvartira izlayapman','kvartira arendaga beriladi'])),
+                    },
+                  });
+                  console.log('RENAMED:', JSON.stringify({ id: updated.id, name: updated.name }));
+                  const listings = await db.listing.findMany({ where: { categoryId: old.id }, select: { name: true } });
+                  console.log('LISTINGS_UNDER_RENAMED_CATEGORY:', JSON.stringify(listings));
+                } else {
+                  console.log('OLD CATEGORY NOT FOUND (already renamed or never existed)');
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
+            echo "--- verify schema fields exist ---"
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const dmmf = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client/index.js');
+                const rows = await db.listing.findMany({ take: 1, select: { roomCount: true, rentPrice: true, rentPriceCurrency: true, rentTermType: true } });
+                console.log('SCHEMA_FIELDS_OK:', JSON.stringify(rows));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
