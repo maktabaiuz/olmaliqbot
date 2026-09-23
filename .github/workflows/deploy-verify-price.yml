@@ -1,0 +1,70 @@
+name: One-off - Deploy PRICE-intent silence fix and verify
+on:
+  workflow_dispatch:
+jobs:
+  deploy_and_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy and verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 15m
+          script: |
+            cd /root/kimbor
+            git pull origin main || git pull origin master
+            git log -1 --oneline
+            docker compose -f docker-compose.prod.yml up -d --build
+            sleep 20
+            echo "--- check if any listing has approxPrice set (for a positive-case test) ---"
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const withPrice = await db.listing.findFirst({ where: { approxPrice: { not: null } }, select: { name: true, approxPrice: true, category: { select: { name: true } } } });
+                console.log('LISTING_WITH_PRICE:', JSON.stringify(withPrice));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const initData = buildInitData(superAdmin.telegramId.toString());
+                const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
+
+                const messages = [
+                  ['REAL BUG: AI-92 price question', 'Ассалом алайкум группадошлар аи 92 бензин нархи қанақа бўлябди'],
+                  ['REGRESSION: gas station location/contact request', 'zapravka kerak yaqin atrofda'],
+                  ['REGRESSION: santexnik price question (likely no price data either)', 'santexnik xizmati narxi qancha'],
+                  ['REGRESSION: genuine taxi request', 'taksi kerak zudlik bilan'],
+                ];
+                for (const [label, msg] of messages) {
+                  const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
+                    method: 'POST', headers, body: JSON.stringify({ message: msg }),
+                  });
+                  const simData = await simRes.json();
+                  console.log('CASE:', label);
+                  console.log('  AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category);
+                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
+                  console.log('  REASON:', simData?.finalResult?.reason);
+                  console.log('---');
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "

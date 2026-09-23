@@ -1805,6 +1805,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const bestMatch = topMatches[0];
   const bestBayesianRating = rankedTop[0].bayesianRating;
 
+  // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato — "AI 92 bensin
+  // NARXI qanaqa bo'lyabdi" so'roviga bot zaprafkaning MANZILI/KONTAKT
+  // kartasini yuborib yuborgan, narx haqida hech narsa demasdan): PRICE
+  // intent — foydalanuvchi ANIQ narxni so'ragan, "qayerda"/"nomeri bormi"
+  // emas. Agar topilgan eng yaxshi yozuvda narx (`approxPrice`) UMUMAN
+  // kiritilmagan bo'lsa, karta baribir yuborilsa — u savolga umuman javob
+  // bermaydi (faqat aloqasiz kontakt/manzil ko'rsatadi), bu esa loyihaning
+  // "jim turish" tamoyiliga zid: noto'g'ri/to'liqsiz javobdan ko'ra sukut
+  // afzal. Narx kiritilgan bo'lsa (odatiy holat kelajakda) — karta xuddi
+  // avvalgidek yuboriladi, chunki u orqali savolga chinakam javob beriladi
+  // (buildListingCard'dagi "💵 {narx}" qatori).
+  if (options.intent === 'PRICE' && !bestMatch.approxPrice) {
+    return null;
+  }
+
   // Sarlavhada har doim TOPILGAN yozuvning haqiqiy kategoriyasini ko'rsatamiz —
   // klassifikator taxminini emas (masalan Gemini ishlamay qolib, chalkash matn
   // chiqargan bo'lsa ham, foydalanuvchiga toza va to'g'ri nom ko'rinadi).
