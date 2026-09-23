@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LandmarkPicker } from '../components/LandmarkPicker';
+import { MapView } from '../components/MapView';
 import { useFeedback } from '../context/FeedbackContext';
 import { IosHeader } from '../components/ios/IosHeader';
 import { DEFAULT_BADGE_OPTIONS, ZAPRAVKA_BADGE_OPTIONS } from '../constants/badges';
@@ -72,6 +73,11 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [phone, setPhone] = useState(() => localStorage.getItem('draft_phone') || '+998 ');
   const [primaryLandmark, setPrimaryLandmark] = useState(() => localStorage.getItem('draft_landmark') || '');
   const [primaryLandmarkId, setPrimaryLandmarkId] = useState(() => localStorage.getItem('draft_landmarkId') || '');
+  // "Xaritadan belgilash" (2026-09) — ixtiyoriy, tezlashtiruvchi yordamchi:
+  // nuqta bosilganda mos mahalla (Landmark.boundary) topilsa, yuqoridagi
+  // LandmarkPicker tanlovi avtomatik o'rnatiladi.
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [resolvingPoint, setResolvingPoint] = useState(false);
   const [jargonWords, setJargonWords] = useState<string[]>(() => {
     const saved = localStorage.getItem('draft_jargonWords');
     return saved ? JSON.parse(saved) : [];
@@ -735,6 +741,48 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
               }}
               error={fieldErrors.landmark}
             />
+            <button
+              type="button"
+              onClick={() => setShowMapPicker((v) => !v)}
+              className="self-start flex items-center gap-1.5 text-[13px] font-medium text-ios-blue active:opacity-50 mt-1"
+            >
+              <span className="material-symbols-outlined text-[16px]">map</span>
+              {showMapPicker ? "Xaritani yopish" : "Xaritadan belgilash"}
+            </button>
+            {showMapPicker && (
+              <div className="flex flex-col gap-1.5">
+                <MapView
+                  height={260}
+                  onMapClick={async (lat, lng) => {
+                    setResolvingPoint(true);
+                    try {
+                      const initData = window.Telegram?.WebApp?.initData || '';
+                      const res = await fetch('/api/admin/landmarks/resolve-point', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+                        body: JSON.stringify({ lat, lng }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (data.success && data.landmark) {
+                        setPrimaryLandmarkId(data.landmark.id);
+                        setPrimaryLandmark(data.landmark.name);
+                        setFieldErrors(prev => ({ ...prev, landmark: undefined }));
+                        showToast(`Manzil aniqlandi: ${data.landmark.name}`, 'success');
+                      } else {
+                        showToast("Bu nuqta hech qaysi mahalla chegarasiga to'g'ri kelmadi — qo'lda tanlang.", 'error');
+                      }
+                    } catch {
+                      showToast('Aloqa xatosi.', 'error');
+                    } finally {
+                      setResolvingPoint(false);
+                    }
+                  }}
+                />
+                <p className="text-[11px] text-ios-label-secondary/70 -mt-0.5">
+                  {resolvingPoint ? 'Aniqlanmoqda...' : "Xaritada nuqta bosing — mos mahalla topilsa avtomatik tanlanadi."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { db, ListingType, VerificationStatus } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch } from '@kimbor/core';
+import { db, ListingType, VerificationStatus, Prisma } from '@kimbor/db';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -2047,6 +2047,86 @@ export async function adminRoutes(fastify: FastifyInstance) {
     ]);
 
     return { success: true };
+  });
+
+  // Mahalla chegarasi (2026-09) — "Manzillar"dagi istalgan Landmark
+  // ixtiyoriy ravishda poligon chegaraga ega bo'lishi mumkin (qarang:
+  // Landmark.boundary izohi, schema.prisma). Bitta endpoint chizish,
+  // tahrirlash VA o'chirish (boundary: null yuborilsa) uchun yetarli.
+  fastify.put('/admin/landmarks/:id/boundary', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    const { boundary } = req.body as { boundary: [number, number][] | null };
+
+    if (boundary !== null) {
+      if (!Array.isArray(boundary) || boundary.length < 3) {
+        return reply.status(400).send({ success: false, message: 'Poligon kamida 3 ta nuqtadan iborat bo\'lishi kerak' });
+      }
+      for (const p of boundary) {
+        if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'number' || typeof p[1] !== 'number') {
+          return reply.status(400).send({ success: false, message: "Har bir nuqta [lat, lng] juftligi bo'lishi kerak" });
+        }
+      }
+    }
+
+    const existing = await db.landmark.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ success: false, message: "Mo'ljal topilmadi" });
+
+    const updated = await db.landmark.update({
+      where: { id },
+      // MUHIM: Prisma.DbNull (haqiqiy SQL NULL) ishlatiladi, Prisma.JsonNull
+      // EMAS — aks holda "chegarani o'chirish" ustunni SQL NULL emas, JSON
+      // "null" qiymatiga o'rnatib qo'yardi, va boshqa joydagi
+      // `boundary: { not: null }` filtri (resolve-point'da) buni "hali ham
+      // bor" deb noto'g'ri hisoblab qolardi.
+      data: { boundary: boundary === null ? Prisma.DbNull : boundary },
+    });
+    return { success: true, landmark: updated };
+  });
+
+  // Xaritadan bosilgan nuqta qaysi mahalla (boundary'li Landmark) ICHIDA
+  // ekanini topadi — "Xaritadan belgilash" tugmasi (yangi yozuv qo'shishda)
+  // va "Mahalla chegaralari" ekrani shundan foydalanadi.
+  fastify.post('/admin/landmarks/resolve-point', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { lat, lng } = req.body as { lat?: number; lng?: number };
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return reply.status(400).send({ success: false, message: 'lat va lng raqam bo\'lishi kerak' });
+    }
+
+    const landmarksWithBoundary = await db.landmark.findMany({
+      where: { cityId, boundary: { not: Prisma.DbNull } },
+      select: { id: true, name: true, boundary: true },
+    });
+
+    const match = findContainingLandmark(lat, lng, landmarksWithBoundary as any);
+    if (!match) return { success: true, landmark: null };
+    return { success: true, landmark: { id: match.id, name: (match as any).name } };
+  });
+
+  // Mahalla (boundary'li Landmark)ga bog'liq yozuvlarni kategoriya bo'yicha
+  // guruhlab sonini qaytaradi — "qaysi hududda qanday xizmat bor" tahlili.
+  fastify.get('/admin/landmarks/:id/analytics', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+
+    const listings = await db.listing.findMany({
+      where: { primaryLandmarkId: id, status: 'ACTIVE' },
+      select: { category: { select: { name: true } } },
+    });
+
+    const counts = new Map<string, number>();
+    for (const l of listings) {
+      const catName = l.category?.name || "Noma'lum";
+      counts.set(catName, (counts.get(catName) || 0) + 1);
+    }
+
+    const breakdown = Array.from(counts.entries())
+      .map(([categoryName, count]) => ({ categoryName, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return { success: true, totalListings: listings.length, breakdown };
   });
 
   // ──────────────────────────────────────────────────────────────────────────

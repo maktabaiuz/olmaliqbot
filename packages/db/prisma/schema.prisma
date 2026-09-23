@@ -275,6 +275,15 @@ model Landmark {
   synonyms    String[] // Xalq nomlari: ["karzinka", "корзинка"]
   latitude    Float?
   longitude   Float?
+  // Mahalla chegarasi (2026-09) — xaritadan qo'lda chizilgan poligon,
+  // [[lat,lng], [lat,lng], ...] shaklida JSON. Bo'sh (`null`) bo'lsa bu
+  // oddiy nuqta-manzil (masalan "Karzinka") — mahalla EMAS. To'ldirilgan
+  // bo'lsa, xaritada nuqta belgilanganda shu poligon ICHIGA tushadigan
+  // nuqtalar avtomatik shu Landmark'ga bog'lanadi (qarang: packages/core
+  // src/search/pointInPolygon.ts). Aniq rasmiy chegara ma'lumoti mavjud
+  // emasligi sabab, dastlabki qiymatlar TAXMINIY (avtomatik generatsiya
+  // qilingan) — admin xohlasa xaritada qayta chizib to'g'rilashi mumkin.
+  boundary    Json?
   createdAt   DateTime @default(now())
 
   primaryListings   Listing[]  @relation("PrimaryLandmark")

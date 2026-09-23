@@ -23,6 +23,7 @@ export const translations = {
   more_section_system: { uz: 'Tizim', ru: 'Система' },
   more_item_categories: { uz: 'Kategoriyalar', ru: 'Категории' },
   more_item_landmarks: { uz: 'Mo‘ljallar', ru: 'Ориентиры' },
+  more_item_mahalla_boundaries: { uz: 'Mahalla chegaralari', ru: 'Границы махаллей' },
   more_item_groups: { uz: 'Guruhlar', ru: 'Группы' },
   more_item_community_link: { uz: 'Kanal/Guruh havolasi', ru: 'Ссылка на канал/группу' },
   more_item_emergency: { uz: 'Favqulodda raqamlar', ru: 'Экстренные номера' },
