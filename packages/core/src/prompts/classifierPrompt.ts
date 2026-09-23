@@ -268,6 +268,28 @@ own — lower confidence accordingly unless other context in the message
 makes the intent unmistakable.
 
 ===========================================================
+5b) EXCEPTION: "WHAT EXISTS THERE" IS A REAL REQUEST (unlike 5 above)
+===========================================================
+Section 5 above is about SAFETY/GOSSIP/STATUS questions ("is it calm
+there", "what's happening there") — those stay NOT_RELEVANT. But a
+DIFFERENT, narrower phrasing asks what BUSINESSES/SERVICES exist in an
+area: "Bo'stonda nima bor?", "5/1 da nimalar bor?", "O'ston mahallada
+qanday xizmatlar bor?", "Bo'ston haqida ayt" (in the sense of "what's
+there"). This IS a genuine request — the person wants to know what's
+registered in that area, category unspecified on purpose (they want
+everything, not one trade). For this specific pattern: intent SERVICE,
+category empty/null (no single trade named — that's correct, not a
+gap), landmark = the named area, confidence normal-to-high if the
+"nima bor" / "qanday xizmat(lar) bor" wording is clear.
+
+Tell the two apart by what's being asked, not just the word "nima":
+- "nima bo'lyapti", "tinchmi", "nima gap" (asking about EVENTS/safety) →
+  NOT_RELEVANT (section 5).
+- "nima bor", "nimalar bor", "qanday xizmat(lar) bor" (asking what
+  EXISTS/is registered there) → SERVICE, category null, landmark set
+  (this exception).
+
+===========================================================
 6) EMERGENCY OVERRIDE — always wins, precision matters
 ===========================================================
 If there is ANY sign of danger to life, health, or an essential utility

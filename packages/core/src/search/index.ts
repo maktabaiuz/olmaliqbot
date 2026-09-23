@@ -3,3 +3,4 @@ export * from './mediaGroup';
 export * from './categoryDictionary';
 export * from './landmarkDictionary';
 export * from './pointInPolygon';
+export * from './areaListings';

@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -288,6 +288,18 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
       { parse_mode: 'HTML', reply_markup: keyboard }
     );
     return;
+  }
+
+  // Hudud-so'rovi ("Bo'stonda nima bor?") — 2026-09, guruhdagi bilan bir
+  // xil mantiq (qarang: groupHandler.ts). Aniq kategoriya YO'Q, lekin
+  // mo'ljal ANIQ bo'lsa — shu mo'ljaldagi barcha yozuvlar ro'yxat qilib
+  // yuboriladi, oddiy qidiruv/aniqlashtirish oqimidan OLDIN.
+  if (!categoryGuess && classification.landmark) {
+    const areaResult = await findAreaListings(activeCityId, classification.landmark);
+    if (areaResult) {
+      await ctx.reply(areaResult.formattedText, { parse_mode: 'HTML' });
+      return;
+    }
   }
 
   const isSeeking =

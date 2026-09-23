@@ -43,7 +43,7 @@ export function reserveGeminiCallSlot(): boolean {
 // olib keladi, signalni ortiqcha topish (false positive) esa faqat bitta
 // qo'shimcha AI so'rovi sarflaydi. Shubha bo'lsa — signal bor deb hisoblanadi.
 const REQUEST_SIGNAL_RE =
-  /\b(kerak|kerakmi|bormi|bo'?lsa|qolsa|yo'?qmi|qayerda|qaerda|qanaqa|qancha|narxi|nechada|nechiga|nechi|nomeri|raqami|telefoni|qo'?ng'?iroq|murojaat|izlayapman|izlamoqda|izlab|ishlaydimi|ishlaydi|arenda|ijara|sotiladi|sotaman|sotamiz|sotilmoqda|beriladi|beraman|beramiz|kimda|kimdadir|topib|yordam)\b/;
+  /\b(kerak|kerakmi|bormi|bo'?lsa|qolsa|yo'?qmi|qayerda|qaerda|qanaqa|qancha|narxi|nechada|nechiga|nechi|nomeri|raqami|telefoni|qo'?ng'?iroq|murojaat|izlayapman|izlamoqda|izlab|ishlaydimi|ishlaydi|arenda|ijara|sotiladi|sotaman|sotamiz|sotilmoqda|beriladi|beraman|beramiz|kimda|kimdadir|topib|yordam|nima bor|nimalar bor|qanday xizmat|qanday joylar|nima bor ekan)\b/;
 
 // MUHIM (2026-09, real XATO — "Arendaga yengil mashina kerak ... TAKSI
 // QILISHGA EMAS, kimda bo'lsa aytvoring" TAKSI kategoriyasiga xato mos

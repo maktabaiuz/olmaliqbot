@@ -11,7 +11,7 @@ import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessage
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
 // matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

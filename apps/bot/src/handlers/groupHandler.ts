@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -132,6 +132,37 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       reply_parameters: { message_id: ctx.message.message_id },
     });
     return;
+  }
+
+  // 3b. Hudud-so'rovi ("Bo'stonda nima bor?") — 2026-09, foydalanuvchi
+  // talabi bilan qo'shildi. Aniq kategoriya YO'Q, lekin mo'ljal ANIQ
+  // bo'lsa — bu ATAYLAB shunday (odam "hamma narsani" so'ragan, bitta
+  // kasbni emas). Oddiy qidiruvdan ("4"-bosqich) OLDIN, mustaqil
+  // tekshiriladi: agar shu mo'ljalda haqiqiy yozuv(lar) topilsa, ular
+  // ro'yxat qilib yuboriladi; topilmasa — oddiy qidiruv yo'liga davom
+  // etiladi (pastga qarang), xatti-harakat o'zgarmaydi.
+  if (!classification.category && classification.landmark) {
+    const areaResult = await findAreaListings(cityId, classification.landmark);
+    if (areaResult) {
+      await ctx.reply(areaResult.formattedText, {
+        parse_mode: 'HTML',
+        reply_parameters: { message_id: ctx.message.message_id },
+      });
+      db.queryLog.create({
+        data: {
+          cityId,
+          chatId,
+          telegramUserId,
+          rawMessage: messageText,
+          intent: classification.intent,
+          categoryName: null,
+          landmarkName: areaResult.landmarkName,
+          isResolved: true,
+          confidence: classification.confidence,
+        },
+      }).catch((err) => console.error('Failed to log area-listing QueryLog:', err));
+      return;
+    }
   }
 
   // 4. Bazani qidirish — AI klassifikator ishonchsiz/noaniq (masalan

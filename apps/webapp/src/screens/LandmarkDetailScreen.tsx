@@ -43,6 +43,11 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [isSavingBoundary, setIsSavingBoundary] = useState(false);
   const [analytics, setAnalytics] = useState<{ totalListings: number; breakdown: { categoryName: string; count: number }[] } | null>(null);
+  // Xarita bo'limi SODDA holatda faqat bitta qator (boshqa maydonlar
+  // kabi) — bosilganda ochiladi. Aks holda har bir manzil ekranida
+  // doim 260px xarita ko'rinib, ekranni band qilib turardi, garchi
+  // ko'pchilik oddiy nuqta-manzillarda chegara umuman kerak bo'lmasa ham.
+  const [mapExpanded, setMapExpanded] = useState(false);
 
   const fetchLandmarkDetails = async () => {
     try {
@@ -360,43 +365,66 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         {/* Guruh: Xarita chegarasi (2026-09) — shu manzil bir vaqtning
             o'zida "mahalla" bo'lishi ham mumkin: xaritada chegara chizilsa,
             yangi yozuv qo'shishda "Xaritadan belgilash" shu chegara ichiga
-            tushgan nuqtani AVTOMATIK shu manzilga bog'laydi. */}
+            tushgan nuqtani AVTOMATIK shu manzilga bog'laydi, va guruhda
+            "X da nima bor?" so'roviga bot shu manzildagi barcha yozuvlarni
+            sanab beradi. SODDA holatda faqat bitta qator — xarita FAQAT
+            bosilganda ochiladi (har doim 260px joy band qilib turmasin). */}
         <div>
-          <div className="flex items-center justify-between px-1 mb-1.5">
+          <div className="px-1 mb-1.5">
             <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Xarita chegarasi</span>
-            {boundary && !isDrawing && (
-              <button onClick={loadAnalytics} className="text-[13px] font-medium text-[#007AFF] dark:text-[#0A84FF] active:opacity-50">
-                Tahlil
-              </button>
-            )}
           </div>
 
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden p-2">
-            <MapView
-              height={260}
-              polygons={boundary && !isDrawing ? [{ id: landmarkId, name, points: boundary, color: 'red' }] : []}
-              drawingPoints={isDrawing ? drawingPoints : []}
-              onMapClick={isDrawing ? (lat, lng) => setDrawingPoints((prev) => [...prev, [lat, lng]]) : undefined}
-            />
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
+            <button
+              onClick={() => setMapExpanded((v) => !v)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 active:bg-[#F2F2F7] dark:active:bg-[#2C2C2E]"
+            >
+              <span className="text-[15px] text-on-surface dark:text-white flex items-center gap-1.5">
+                {boundary ? (
+                  <>Chegarasi bor <span className="text-ios-red text-[10px]">●</span></>
+                ) : (
+                  <span className="text-[#8E8E93]">Chegara belgilanmagan</span>
+                )}
+              </span>
+              <span className="material-symbols-outlined text-[18px] text-[#8E8E93]">
+                {mapExpanded ? 'expand_less' : 'chevron_right'}
+              </span>
+            </button>
 
-            {analytics && (
-              <div className="px-1.5 pt-2 pb-1">
-                <p className="text-[12px] text-[#8E8E93]">Jami: {analytics.totalListings} ta yozuv</p>
-                {analytics.breakdown.map((b) => (
-                  <p key={b.categoryName} className="text-[12px] text-on-surface dark:text-white">— {b.categoryName}: {b.count}</p>
-                ))}
-              </div>
-            )}
+            {mapExpanded && (
+              <div className="p-2" style={{ borderTop: HAIRLINE }}>
+                <MapView
+                  height={260}
+                  polygons={boundary && !isDrawing ? [{ id: landmarkId, name, points: boundary, color: 'red' }] : []}
+                  drawingPoints={isDrawing ? drawingPoints : []}
+                  onMapClick={isDrawing ? (lat, lng) => setDrawingPoints((prev) => [...prev, [lat, lng]]) : undefined}
+                />
 
-            <div className="flex items-center gap-3 pt-2 px-0.5 flex-wrap">
-              {!isDrawing ? (
-                <button onClick={startDrawing} className="text-[13px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-50">
-                  {boundary ? 'Chegarani tahrirlash' : 'Chegara chizish'}
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={saveBoundary}
+                {analytics && (
+                  <div className="px-1.5 pt-2 pb-1">
+                    <p className="text-[12px] text-[#8E8E93]">Jami: {analytics.totalListings} ta yozuv</p>
+                    {analytics.breakdown.map((b) => (
+                      <p key={b.categoryName} className="text-[12px] text-on-surface dark:text-white">— {b.categoryName}: {b.count}</p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-2 px-0.5 flex-wrap">
+                  {!isDrawing ? (
+                    <>
+                      <button onClick={startDrawing} className="text-[13px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-50">
+                        {boundary ? 'Chegarani tahrirlash' : 'Chegara chizish'}
+                      </button>
+                      {boundary && (
+                        <button onClick={loadAnalytics} className="text-[13px] font-medium text-[#8E8E93] active:opacity-50">
+                          Tahlil
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={saveBoundary}
                     disabled={isSavingBoundary || drawingPoints.length < 3}
                     className="text-[13px] font-semibold text-white bg-[#007AFF] dark:bg-[#0A84FF] rounded-full px-3 py-1.5 active:opacity-60 disabled:opacity-40"
                   >
@@ -415,7 +443,9 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
                   Chegarani o'chirish
                 </button>
               )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
