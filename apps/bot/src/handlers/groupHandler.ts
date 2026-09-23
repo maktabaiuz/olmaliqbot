@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -73,6 +73,9 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
 
   // 2. 1-qavat: AI Classifier
   const classification = await classifyQuery(messageText, cityId, telegramUserId);
+  // QueryLog gigiyenasi — "none"/"null" kabi bekorchi qiymatlar mo'ljal
+  // sifatida yozilib qolmasin (qarang: sanitizeAiLandmarkName izohi).
+  classification.landmark = sanitizeAiLandmarkName(classification.landmark);
 
   // 2b. E'lon vs so'rov. "menda labo bor / yo'lga chiqaman" — odam O'ZIDA
   // bor narsani taklif qiladi, qidirmaydi. Gemini SERVICE deb xato qilsa ham,

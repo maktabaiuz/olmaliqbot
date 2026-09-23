@@ -1786,6 +1786,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
     });
     if (existing) return { success: true, landmark: existing, alreadyExisted: true };
 
+    // MUHIM (2026-09, real production ma'lumotida tasdiqlandi): "Manzillar"
+    // ekranida erkin matn kiritish hech qanday tekshiruvsiz edi — natijada
+    // bazada "santexnik", "kafelchi", "kamerachi" kabi KASB nomlari, hatto
+    // odam ismlari ("husniddin") "mo'ljal" sifatida saqlanib qolgan edi
+    // (57 tadan ~15-20 tasi shunday chiqindi bo'lib chiqdi). Kiritilgan nom
+    // lug'atdagi biror kasb/kategoriya nomiga (aniq yoki sinonim orqali)
+    // mos kelsa — bu deyarli hech qachon haqiqiy joy nomi emas, rad etiladi.
+    const resolvedAsCategory = resolveCanonicalCategoryName(cleanName);
+    if (getDictionarySynonymsForCategory(resolvedAsCategory).length > 0) {
+      return reply.status(400).send({
+        success: false,
+        message: `"${cleanName}" joy nomiga emas, kasb/xizmat turiga o'xshaydi ("${resolvedAsCategory}"). Agar bu chindan ham joy nomi bo'lsa, boshqacharoq yozib ko'ring.`,
+      });
+    }
+
     const created = await db.landmark.create({
       data: {
         cityId,
@@ -1862,6 +1877,147 @@ export async function adminRoutes(fastify: FastifyInstance) {
         message: `AI taklifi muvaffaqiyatsiz bo'ldi: ${err?.message || err}`,
       });
     }
+  });
+
+  // "Manzillar" sifat/dublikat tekshiruvi (2026-09) — `/admin/categories/
+  // duplicates`dagi BIR XIL Levenshtein+compact-name pattern, IKKI turdagi
+  // signal bilan: (1) yaqin-dublikat nomlar ("5/1" / "5/1 dahasi" — real
+  // production ma'lumotida uchtasi ham bog'liqsiz alohida yozuv bo'lib
+  // chiqqan edi), (2) "joy nomiga o'xshamaydi" — nom lug'atdagi biror
+  // kasb/kategoriya nomiga TO'LIQ mos kelsa (masalan "santexnik") — bu
+  // taxmin emas, aniq tekshiriladigan dalil, chunki bunday so'zlar
+  // allaqachon "kasb" sifatida ro'yxatdan o'tgan. Har ikkala holatda ham
+  // bog'liq yozuvlar soni qaytariladi — admin qaysi yozuvlarga ta'sir
+  // qilishini oldindan ko'radi.
+  fastify.get('/admin/landmarks/quality-check', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+
+    const landmarks = await db.landmark.findMany({
+      where: { cityId },
+      select: {
+        id: true,
+        name: true,
+        synonyms: true,
+        _count: { select: { primaryListings: true, serviceAreaListings: true } },
+      },
+    });
+
+    const duplicatePairs: {
+      a: { id: string; name: string; listingCount: number };
+      b: { id: string; name: string; listingCount: number };
+      reason: 'similar_name' | 'name_in_synonyms';
+      detail: string;
+    }[] = [];
+    const notAPlace: { id: string; name: string; listingCount: number; resolvedCategory: string }[] = [];
+
+    const seen = new Set<string>();
+
+    for (let i = 0; i < landmarks.length; i++) {
+      const li = landmarks[i];
+      const listingCountI = li._count.primaryListings + li._count.serviceAreaListings;
+
+      const normI = normalizeText(li.name);
+      if (normI.length >= 2) {
+        const resolved = resolveCanonicalCategoryName(li.name);
+        if (getDictionarySynonymsForCategory(resolved).length > 0) {
+          notAPlace.push({ id: li.id, name: li.name, listingCount: listingCountI, resolvedCategory: resolved });
+        }
+      }
+
+      for (let j = i + 1; j < landmarks.length; j++) {
+        const lj = landmarks[j];
+        const pairKey = [li.id, lj.id].sort().join('|');
+        if (seen.has(pairKey)) continue;
+
+        const normJ = normalizeText(lj.name);
+        if (normI.length < 2 || normJ.length < 2) continue;
+
+        const compactI = normI.replace(/[\s'\-./]+/g, '');
+        const compactJ = normJ.replace(/[\s'\-./]+/g, '');
+        const listingCountJ = lj._count.primaryListings + lj._count.serviceAreaListings;
+
+        if (Math.abs(compactI.length - compactJ.length) <= 3) {
+          const dist = levenshteinDistance(compactI, compactJ);
+          const threshold = Math.max(1, Math.floor(Math.max(compactI.length, compactJ.length) / 6));
+          if (dist > 0 && dist <= threshold) {
+            duplicatePairs.push({
+              a: { id: li.id, name: li.name, listingCount: listingCountI },
+              b: { id: lj.id, name: lj.name, listingCount: listingCountJ },
+              reason: 'similar_name',
+              detail: `Nomlar yozilishi juda o'xshash (${dist} ta harf farqi)`,
+            });
+            seen.add(pairKey);
+            continue;
+          }
+        }
+
+        const iInJ = lj.synonyms.some((s) => normalizeText(s) === normI);
+        const jInI = li.synonyms.some((s) => normalizeText(s) === normJ);
+        if (iInJ || jInI) {
+          duplicatePairs.push({
+            a: { id: li.id, name: li.name, listingCount: listingCountI },
+            b: { id: lj.id, name: lj.name, listingCount: listingCountJ },
+            reason: 'name_in_synonyms',
+            detail: iInJ
+              ? `"${li.name}" so'zi "${lj.name}" mo'ljalining sinonimlar ro'yxatida bor`
+              : `"${lj.name}" so'zi "${li.name}" mo'ljalining sinonimlar ro'yxatida bor`,
+          });
+          seen.add(pairKey);
+        }
+      }
+    }
+
+    return { success: true, duplicatePairs, notAPlace };
+  });
+
+  // Ikki (yoki undan ortiq bosqichma-bosqich) yaqin-dublikat mo'ljalni
+  // BITTAGA birlashtirish — admin "5/1"ni "5/1 dahasi"ga qo'shib, ikkalasi
+  // o'rniga bitta, to'liqroq yozuv qoldirishi uchun. Bog'liq yozuvlar
+  // (asosiy va xizmat-hudud) avtomatik ko'chadi, sinonimlar birlashtiriladi
+  // (eski nom ham sinonim sifatida saqlanadi — eski jargon moslashuvi
+  // buzilmasin), so'ng manba mo'ljal o'chiriladi. Tranzaksiya ichida —
+  // yarim bajarilgan holat qolib ketmasligi uchun.
+  fastify.post('/admin/landmarks/merge', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const { sourceId, targetId } = req.body as { sourceId?: string; targetId?: string };
+    if (!sourceId || !targetId || sourceId === targetId) {
+      return reply.status(400).send({ success: false, message: "sourceId va targetId har xil va to'ldirilgan bo'lishi kerak" });
+    }
+
+    const [source, target] = await Promise.all([
+      db.landmark.findUnique({ where: { id: sourceId } }),
+      db.landmark.findUnique({ where: { id: targetId } }),
+    ]);
+    if (!source || !target) return reply.status(404).send({ success: false, message: "Mo'ljal(lar) topilmadi" });
+
+    const mergedSynonyms = Array.from(
+      new Set([...target.synonyms, ...source.synonyms, source.name.toLowerCase()])
+    );
+
+    // MUHIM: ko'p-ko'pga (serviceAreaLandmarks) bog'lanishlar `source`
+    // mo'ljal o'chirilganda Prisma tomonidan AVTOMATIK olib tashlanadi —
+    // shu sabab ularni ALBATTA o'chirishdan OLDIN o'qib olish va qayta
+    // ulash kerak, aks holda bu yozuvlar hech qanday xato bermasdan,
+    // "jim" ravishda xizmat-hudud bog'lanishini butunlay yo'qotib qo'yardi.
+    const serviceAreaRefs = await db.listing.findMany({
+      where: { serviceAreaLandmarks: { some: { id: sourceId } } },
+      select: { id: true },
+    });
+
+    await db.$transaction([
+      db.listing.updateMany({ where: { primaryLandmarkId: sourceId }, data: { primaryLandmarkId: targetId } }),
+      ...serviceAreaRefs.map((l) =>
+        db.listing.update({
+          where: { id: l.id },
+          data: { serviceAreaLandmarks: { disconnect: { id: sourceId }, connect: { id: targetId } } },
+        })
+      ),
+      db.landmark.update({ where: { id: targetId }, data: { synonyms: mergedSynonyms } }),
+      db.landmark.delete({ where: { id: sourceId } }),
+    ]);
+
+    return { success: true };
   });
 
   // ──────────────────────────────────────────────────────────────────────────

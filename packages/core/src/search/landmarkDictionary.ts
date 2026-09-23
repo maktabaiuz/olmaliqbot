@@ -44,3 +44,26 @@ export async function getRealLandmarkNames(cityId: string): Promise<string[]> {
   landmarkContextCache.set(cityId, { names, expiresAt: Date.now() + LANDMARK_CONTEXT_TTL_MS });
   return names;
 }
+
+// MUHIM (2026-09, "Manzillar" tizimini tozalash chog'ida topilgan): AI
+// klassifikatorning "landmark" maydoni ba'zan bekorchi qiymat qaytaradi —
+// bo'sh javob o'rniga harfiy "none"/"null"/"not_relevant" satri, yoki
+// aniq mo'ljal o'rniga shaharning O'ZI nomi ("Olmaliq" — bu mo'ljal emas,
+// butun shahar). Bunday qiymatlar QueryLog'da 1000+ marta "manzil"
+// sifatida saqlanib, keyinchalik real foydalanish tahlilini (masalan bu
+// yozuvdagi kabi haqiqiy mo'ljal qidiruvi) chalg'itardi. Bu FAQAT log
+// tozaligi uchun — botning haqiqiy qidiruv xatti-harakatiga ta'sir
+// qilmaydi (searchListings hali ham xom `classification.landmark`ni emas,
+// shu sanitizatsiyadan o'tgan qiymatni oladi, lekin ikkalasi ham bir xil
+// natijaga olib keladi, chunki "none"/"Olmaliq" baribir hech qanday real
+// mo'ljalga mos kelmasdi).
+const NON_LANDMARK_SENTINEL_VALUES = new Set(['none', 'null', 'not_relevant', 'n/a', 'yo\'q', 'yoq']);
+
+export function sanitizeAiLandmarkName(landmark: string | null | undefined, cityName?: string): string | null {
+  if (!landmark) return null;
+  const normalized = normalizeText(landmark).trim();
+  if (!normalized) return null;
+  if (NON_LANDMARK_SENTINEL_VALUES.has(normalized)) return null;
+  if (cityName && normalized === normalizeText(cityName)) return null;
+  return landmark;
+}

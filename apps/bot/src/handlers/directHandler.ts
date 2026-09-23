@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -252,6 +252,9 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   }
 
   const classification = await classifyQuery(messageText, activeCityId, telegramUserIdBigInt);
+  // QueryLog gigiyenasi — "none"/"null" kabi bekorchi qiymatlar mo'ljal
+  // sifatida yozilib qolmasin (qarang: sanitizeAiLandmarkName izohi).
+  classification.landmark = sanitizeAiLandmarkName(classification.landmark);
   const dictMatch = matchCategoryFromText(normalizeText(messageText));
   const categoryGuess = classification.category || dictMatch?.canonicalName || null;
 

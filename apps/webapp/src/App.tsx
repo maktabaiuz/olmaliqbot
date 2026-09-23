@@ -897,8 +897,57 @@ const MoreLandmarksSubView: React.FC<{
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // "Manzil sifati" tekshiruvi (2026-09) — real production ma'lumotida
+  // ~15-20 ta yozuv aslida joy nomi emas (kasb/xizmat/ism) bo'lib chiqqan,
+  // va bir nechta yaqin-dublikat ("5/1"/"5/1 dahasi") topilgan edi.
+  const [duplicatePairs, setDuplicatePairs] = useState<{
+    a: { id: string; name: string; listingCount: number };
+    b: { id: string; name: string; listingCount: number };
+    reason: string;
+    detail: string;
+  }[]>([]);
+  const [notAPlace, setNotAPlace] = useState<{ id: string; name: string; listingCount: number; resolvedCategory: string }[]>([]);
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set());
+  const [mergingKey, setMergingKey] = useState<string | null>(null);
+
+  const loadQuality = () => {
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/landmarks/quality-check', { headers: { 'x-init-data': initData } })
+      .then(r => r.json())
+      .then(data => {
+        setDuplicatePairs(data.duplicatePairs || []);
+        setNotAPlace(data.notAPlace || []);
+      })
+      .catch(() => {});
+  };
+
+  const handleMerge = async (sourceId: string, targetId: string, pairKey: string) => {
+    setMergingKey(pairKey);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/landmarks/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ sourceId, targetId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast('Birlashtirildi', 'success');
+        loadLandmarks();
+        loadQuality();
+      } else {
+        showToast(data.message || 'Birlashtirishda xatolik yuz berdi.', 'error');
+      }
+    } catch {
+      showToast('Aloqa xatosi.', 'error');
+    } finally {
+      setMergingKey(null);
+    }
+  };
 
   const loadLandmarks = () => {
     const initData = window.Telegram?.WebApp?.initData || '';
@@ -906,7 +955,7 @@ const MoreLandmarksSubView: React.FC<{
       .then(r => r.json())
       .then(data => setLands(data || []));
   };
-  useEffect(() => { loadLandmarks(); }, []);
+  useEffect(() => { loadLandmarks(); loadQuality(); }, []);
 
   const filtered = lands.filter(l => l.name.toLowerCase().includes(search.toLowerCase()));
   const exactMatchExists = lands.some(l => l.name.toLowerCase() === search.trim().toLowerCase());
@@ -915,6 +964,7 @@ const MoreLandmarksSubView: React.FC<{
     const name = search.trim();
     if (!name) return;
     setCreating(true);
+    setCreateError(null);
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
       const res = await fetch('/api/admin/landmarks', {
@@ -926,7 +976,12 @@ const MoreLandmarksSubView: React.FC<{
       if (res.ok && data.success) {
         setSearch('');
         loadLandmarks();
+        loadQuality();
+      } else {
+        setCreateError(data.message || "Qo'shishda xatolik yuz berdi.");
       }
+    } catch {
+      setCreateError('Aloqa xatosi.');
     } finally {
       setCreating(false);
     }
@@ -1021,10 +1076,82 @@ const MoreLandmarksSubView: React.FC<{
           </button>
         )}
 
+        {createError && (
+          <p className="text-[13px] text-ios-red leading-snug -mt-1 px-0.5">{createError}</p>
+        )}
+
         <p className="text-[13px] text-[#8E8E93] leading-snug -mt-1 px-0.5">
           Yozuv qo'shishda manzil FAQAT shu ro'yxatdan tanlanadi. O'chirish uchun qatorni chapga suring
           yoki "Tahrirlash"ni bosing.
         </p>
+
+        {/* MANZIL SIFATI OGOHLANTIRISHI (2026-09) — real production
+            ma'lumotida topilgan ikki turdagi muammo: yaqin-dublikat nomlar
+            va joy nomiga o'xshamaydigan (kasb/xizmat) yozuvlar. */}
+        {duplicatePairs.filter((d) => !dismissedDuplicates.has([d.a.id, d.b.id].sort().join('|'))).length > 0 && (
+          <div className="flex flex-col gap-2">
+            {duplicatePairs
+              .filter((d) => !dismissedDuplicates.has([d.a.id, d.b.id].sort().join('|')))
+              .map((d) => {
+                const key = [d.a.id, d.b.id].sort().join('|');
+                return (
+                  <div key={key} className="bg-ios-orange/10 border border-ios-orange/30 rounded-ios-lg p-3 flex items-start gap-2.5">
+                    <span className="material-symbols-outlined text-[18px] text-ios-orange mt-0.5">warning</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-ios-label">
+                        "{d.a.name}" ({d.a.listingCount}) va "{d.b.name}" ({d.b.listingCount}) yaqin-dublikat bo'lishi mumkin
+                      </p>
+                      <p className="text-[12px] text-ios-label-secondary/70 mt-0.5">{d.detail}</p>
+                      <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                        <button
+                          disabled={mergingKey === key}
+                          onClick={() => handleMerge(d.b.id, d.a.id, key)}
+                          className="text-[12px] font-semibold text-ios-blue active:opacity-50 disabled:opacity-40"
+                        >
+                          "{d.b.name}"ni "{d.a.name}"ga qo'shish
+                        </button>
+                        <button
+                          disabled={mergingKey === key}
+                          onClick={() => handleMerge(d.a.id, d.b.id, key)}
+                          className="text-[12px] font-semibold text-ios-blue active:opacity-50 disabled:opacity-40"
+                        >
+                          "{d.a.name}"ni "{d.b.name}"ga qo'shish
+                        </button>
+                        <button
+                          onClick={() => setDismissedDuplicates((prev) => new Set(prev).add(key))}
+                          className="text-[12px] font-medium text-ios-label-secondary/60 active:opacity-50"
+                        >
+                          E'tiborsiz qoldirish
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+
+        {notAPlace.length > 0 && (
+          <div className="bg-ios-red/10 border border-ios-red/30 rounded-ios-lg p-3 flex items-start gap-2.5">
+            <span className="material-symbols-outlined text-[18px] text-ios-red mt-0.5">report</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-ios-label">
+                {notAPlace.length} ta yozuv joy nomiga o'xshamaydi (kasb/xizmatga o'xshaydi)
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {notAPlace.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => onSelectLandmark(n.id, n.name)}
+                    className="text-[12px] font-medium text-ios-red bg-ios-red/10 px-2 py-1 rounded-full active:opacity-50"
+                  >
+                    "{n.name}" ({n.listingCount}) → {n.resolvedCategory}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* iOS grouped inset list */}
         <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden max-h-[420px] overflow-y-auto">
