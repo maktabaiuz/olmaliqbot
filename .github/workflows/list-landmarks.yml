@@ -1,0 +1,31 @@
+name: One-off - List all Olmaliq landmarks for TZ analysis
+on:
+  workflow_dispatch:
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const landmarks = await db.landmark.findMany({
+                  select: { id: true, name: true, synonyms: true, latitude: true, longitude: true,
+                    _count: { select: { primaryListings: true, serviceAreaListings: true } } },
+                  orderBy: { name: 'asc' },
+                });
+                console.log('TOTAL:', landmarks.length);
+                for (const l of landmarks) {
+                  console.log(JSON.stringify({ name: l.name, synonyms: l.synonyms, hasCoords: !!(l.latitude && l.longitude), primaryCount: l._count.primaryListings, serviceCount: l._count.serviceAreaListings }));
+                }
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
