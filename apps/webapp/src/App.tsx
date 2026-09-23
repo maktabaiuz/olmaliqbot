@@ -29,7 +29,6 @@ import { BotSimulatorScreen } from './screens/BotSimulatorScreen';
 import { CategoryDetailScreen } from './screens/CategoryDetailScreen';
 import { LandmarkDetailScreen } from './screens/LandmarkDetailScreen';
 import { GroupDetailScreen } from './screens/GroupDetailScreen';
-import { MapView } from './components/MapView';
 import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScreen';
 import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
@@ -79,7 +78,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'mahalla_boundaries' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -401,7 +400,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                         <IosSection title={t('more_section_catalog')}>
                           <MoreRow icon="category" iconColor="rgb(88 86 214)" label={t('more_item_categories')} onClick={() => setMoreSubView('categories')} />
                           <MoreRow icon="location_on" iconColor="rgb(48 176 199)" label={t('more_item_landmarks')} onClick={() => setMoreSubView('landmarks')} />
-                          <MoreRow icon="map" iconColor="rgb(255 59 48)" label={t('more_item_mahalla_boundaries')} onClick={() => setMoreSubView('mahalla_boundaries')} />
                           <MoreRow icon="groups" iconColor="rgb(0 122 255)" label={t('more_item_groups')} onClick={() => setMoreSubView('groups')} />
                           <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} last />
                         </IosSection>
@@ -460,11 +458,6 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           setViewMode('landmark_detail');
                         }}
                       />
-                    )}
-
-                    {/* SUBVIEW: Mahalla Boundaries (map) */}
-                    {moreSubView === 'mahalla_boundaries' && (
-                      <MahallaBoundariesSubView onBack={() => setMoreSubView('menu')} />
                     )}
 
                     {/* SUBVIEW: Connected Groups List */}
@@ -1193,8 +1186,11 @@ const MoreLandmarksSubView: React.FC<{
                     >
                       {l.name.trim()[0]?.toUpperCase() || '?'}
                     </span>
-                    <span className="flex-1 min-w-0 text-[15px] font-normal text-on-surface dark:text-white truncate">
+                    <span className="flex-1 min-w-0 text-[15px] font-normal text-on-surface dark:text-white truncate flex items-center gap-1.5">
                       {l.name}
+                      {Array.isArray(l.boundary) && l.boundary.length >= 3 && (
+                        <span className="text-ios-red text-[10px]" title="Xarita chegarasi bor">●</span>
+                      )}
                     </span>
                     <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
                       {typeof l.listingCount === 'number' && (
@@ -1208,228 +1204,6 @@ const MoreLandmarksSubView: React.FC<{
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// "Mahalla chegaralari" (2026-09) — xaritadan poligon chizib, mavjud
-// Landmark'ga chegara biriktirish. Alohida "Mahalla" modeli EMAS —
-// Landmark.boundary (ixtiyoriy) shu ekran orqali to'ldiriladi/tahrirlanadi.
-// Chegarasi bo'lgan Landmark keyinchalik "Xaritadan belgilash" (yangi
-// yozuv qo'shishda) orqali AVTOMATIK aniqlanadi (POST resolve-point).
-const MahallaBoundariesSubView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { showToast } = useFeedback();
-  const [lands, setLands] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
-  const [saving, setSaving] = useState(false);
-  const [analytics, setAnalytics] = useState<{ id: string; totalListings: number; breakdown: { categoryName: string; count: number }[] } | null>(null);
-  const [newJargonInput, setNewJargonInput] = useState('');
-
-  const loadLandmarks = () => {
-    const initData = window.Telegram?.WebApp?.initData || '';
-    fetch('/api/admin/landmarks', { headers: { 'x-init-data': initData } })
-      .then(r => r.json())
-      .then(data => setLands(data || []))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => { loadLandmarks(); }, []);
-
-  const withBoundary = lands.filter(l => Array.isArray(l.boundary) && l.boundary.length >= 3);
-  const editingLandmark = lands.find(l => l.id === editingId) || null;
-
-  const startEditing = (l: any) => {
-    setEditingId(l.id);
-    setDrawingPoints(Array.isArray(l.boundary) ? l.boundary : []);
-    setAnalytics(null);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setDrawingPoints([]);
-  };
-
-  const saveBoundary = async () => {
-    if (!editingId || drawingPoints.length < 3) {
-      showToast('Poligon kamida 3 ta nuqtadan iborat bo\'lishi kerak', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const initData = window.Telegram?.WebApp?.initData || '';
-      const res = await fetch(`/api/admin/landmarks/${editingId}/boundary`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
-        body: JSON.stringify({ boundary: drawingPoints }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        showToast('Chegara saqlandi', 'success');
-        cancelEditing();
-        loadLandmarks();
-      } else {
-        showToast(data.message || 'Saqlashda xatolik yuz berdi.', 'error');
-      }
-    } catch {
-      showToast('Aloqa xatosi.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const clearBoundary = async (id: string) => {
-    const initData = window.Telegram?.WebApp?.initData || '';
-    const res = await fetch(`/api/admin/landmarks/${id}/boundary`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
-      body: JSON.stringify({ boundary: null }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.success) {
-      showToast('Chegara olib tashlandi', 'success');
-      loadLandmarks();
-    }
-  };
-
-  const loadAnalytics = async (id: string) => {
-    const initData = window.Telegram?.WebApp?.initData || '';
-    const res = await fetch(`/api/admin/landmarks/${id}/analytics`, { headers: { 'x-init-data': initData } });
-    const data = await res.json().catch(() => ({}));
-    if (data.success) setAnalytics({ id, totalListings: data.totalListings, breakdown: data.breakdown });
-  };
-
-  const addJargon = async () => {
-    const word = newJargonInput.trim().toLowerCase();
-    if (!word || !editingLandmark) return;
-    const merged = Array.from(new Set([...(editingLandmark.synonyms || []), word]));
-    const initData = window.Telegram?.WebApp?.initData || '';
-    await fetch(`/api/admin/landmarks/${editingLandmark.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
-      body: JSON.stringify({ synonyms: merged }),
-    });
-    setNewJargonInput('');
-    loadLandmarks();
-  };
-
-  const removeJargon = async (word: string) => {
-    if (!editingLandmark) return;
-    const filtered = (editingLandmark.synonyms || []).filter((s: string) => s !== word);
-    const initData = window.Telegram?.WebApp?.initData || '';
-    await fetch(`/api/admin/landmarks/${editingLandmark.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
-      body: JSON.stringify({ synonyms: filtered }),
-    });
-    loadLandmarks();
-  };
-
-  return (
-    <div className="animate-fade-in -mx-4 -mt-2" style={{ fontFamily: IOS_FONT }}>
-      <div className="px-4 pt-1 pb-3">
-        <button onClick={onBack} className="flex items-center gap-0.5 text-[#007AFF] dark:text-[#0A84FF] text-[15px] font-normal mb-1 -ml-1.5 active:opacity-40">
-          <span className="material-symbols-outlined text-[22px]">chevron_left</span>
-          Orqaga
-        </button>
-        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-on-surface dark:text-white leading-tight">
-          Mahalla chegaralari
-        </h1>
-      </div>
-
-      <div className="px-4 space-y-3">
-        <p className="text-[13px] text-[#8E8E93] leading-snug -mt-1 px-0.5">
-          Xaritada nuqma-nuqta bosib chegara chizing. Boshlang'ich chegaralar (agar bor bo'lsa) OpenStreetMap'dan olingan
-          TAXMINIY joylashuvga asoslangan — aniqlik uchun qayta chizib tuzatishingiz mumkin.
-        </p>
-
-        <MapView
-          polygons={withBoundary.filter(l => l.id !== editingId).map(l => ({ id: l.id, name: l.name, points: l.boundary, color: 'red' }))}
-          drawingPoints={drawingPoints}
-          onMapClick={editingId ? (lat, lng) => setDrawingPoints(prev => [...prev, [lat, lng]]) : undefined}
-          height={340}
-        />
-
-        {editingId ? (
-          <div className="bg-ios-blue/10 border border-ios-blue/30 rounded-ios-lg p-3 flex flex-col gap-2">
-            <p className="text-[13px] font-semibold text-ios-label">
-              "{editingLandmark?.name}" uchun chegara chizilmoqda ({drawingPoints.length} nuqta)
-            </p>
-            <div className="flex items-center gap-3">
-              <button onClick={saveBoundary} disabled={saving || drawingPoints.length < 3} className="text-[13px] font-semibold text-white bg-ios-blue rounded-full px-3 py-1.5 active:opacity-60 disabled:opacity-40">
-                {saving ? 'Saqlanmoqda...' : 'Saqlash'}
-              </button>
-              <button onClick={() => setDrawingPoints([])} className="text-[13px] font-medium text-ios-label-secondary/70 active:opacity-50">
-                Tozalash
-              </button>
-              {Array.isArray(editingLandmark?.boundary) && editingLandmark.boundary.length >= 3 && (
-                <button onClick={() => { clearBoundary(editingLandmark.id); cancelEditing(); }} className="text-[13px] font-medium text-ios-red active:opacity-50">
-                  Chegarani o'chirish
-                </button>
-              )}
-              <button onClick={cancelEditing} className="text-[13px] font-medium text-ios-red active:opacity-50">
-                Bekor qilish
-              </button>
-            </div>
-
-            <div className="pt-2" style={{ borderTop: '0.5px solid rgba(60,60,67,0.29)' }}>
-              <p className="text-[12px] font-semibold text-ios-label mb-1">Mahalliy jargon so'zlar</p>
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {(editingLandmark?.synonyms || []).map((s: string) => (
-                  <span key={s} onClick={() => removeJargon(s)} className="text-[12px] font-medium text-ios-blue bg-ios-blue/10 px-2 py-1 rounded-full active:opacity-50 cursor-pointer">
-                    {s} ×
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={newJargonInput}
-                  onChange={(e) => setNewJargonInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') addJargon(); }}
-                  placeholder="yangi jargon so'z..."
-                  className="flex-1 bg-white dark:bg-black/20 border border-transparent rounded-ios px-3 py-1.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/70 focus:outline-none"
-                />
-                <button onClick={addJargon} className="text-[13px] font-semibold text-ios-blue active:opacity-50 px-2">Qo'shish</button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[12px] text-ios-label-secondary/60 px-0.5">Tahrirlash uchun pastdagi ro'yxatdan mahallani tanlang.</p>
-        )}
-
-        {loading ? (
-          <div className="p-5 text-center text-[15px] text-[#8E8E93]">Yuklanmoqda...</div>
-        ) : (
-          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden max-h-[360px] overflow-y-auto">
-            {lands.map((l, idx) => (
-              <div key={l.id} className="flex flex-col" style={{ borderTop: idx === 0 ? 'none' : '0.5px solid rgba(60,60,67,0.29)' }}>
-                <div className="flex items-center gap-2 px-3.5 py-2.5">
-                  <span className="flex-1 min-w-0 text-[15px] text-on-surface dark:text-white truncate">
-                    {l.name} {Array.isArray(l.boundary) && l.boundary.length >= 3 && <span className="text-ios-red">●</span>}
-                  </span>
-                  <button onClick={() => startEditing(l)} className="text-[13px] font-medium text-ios-blue active:opacity-50 shrink-0">
-                    {Array.isArray(l.boundary) && l.boundary.length >= 3 ? 'Tahrirlash' : 'Chegara chizish'}
-                  </button>
-                  {Array.isArray(l.boundary) && l.boundary.length >= 3 && (
-                    <button onClick={() => loadAnalytics(l.id)} className="text-[13px] font-medium text-ios-label-secondary/70 active:opacity-50 shrink-0">
-                      Tahlil
-                    </button>
-                  )}
-                </div>
-                {analytics && analytics.id === l.id && (
-                  <div className="px-3.5 pb-2.5 -mt-1">
-                    <p className="text-[12px] text-ios-label-secondary/70">Jami: {analytics.totalListings} ta yozuv</p>
-                    {analytics.breakdown.map(b => (
-                      <p key={b.categoryName} className="text-[12px] text-ios-label">— {b.categoryName}: {b.count}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

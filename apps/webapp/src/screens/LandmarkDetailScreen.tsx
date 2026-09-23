@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { avatarColorForName } from '../utils/avatarColor';
 import { useFeedback } from '../context/FeedbackContext';
 import { useAuth } from '../context/AuthContext';
+import { MapView } from '../components/MapView';
 
 interface LandmarkDetailScreenProps {
   landmarkId: string;
@@ -34,6 +35,15 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
 
+  // Xarita chegarasi (2026-09) — avval alohida "Mahalla chegaralari" ekrani
+  // bor edi, lekin bir xil ma'lumot (manzil) ikki xil joyda tahrirlansa
+  // chalkashlik keltirib chiqaradi — endi HAMMASI shu yerda, bitta joyda.
+  const [boundary, setBoundary] = useState<[number, number][] | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
+  const [isSavingBoundary, setIsSavingBoundary] = useState(false);
+  const [analytics, setAnalytics] = useState<{ totalListings: number; breakdown: { categoryName: string; count: number }[] } | null>(null);
+
   const fetchLandmarkDetails = async () => {
     try {
       const initData = window.Telegram?.WebApp?.initData || '';
@@ -44,6 +54,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         setName(data.name || landmarkName);
         setSynonyms(data.synonyms || []);
         setListingCount(typeof data.listingCount === 'number' ? data.listingCount : null);
+        setBoundary(Array.isArray(data.boundary) && data.boundary.length >= 3 ? data.boundary : null);
       } else {
         showToast("Manzil ma'lumotlarini yuklab bo'lmadi.", 'error');
       }
@@ -142,6 +153,76 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
       showToast('Aloqa xatosi.', 'error');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const startDrawing = () => {
+    setDrawingPoints(boundary || []);
+    setIsDrawing(true);
+    setAnalytics(null);
+  };
+
+  const cancelDrawing = () => {
+    setIsDrawing(false);
+    setDrawingPoints([]);
+  };
+
+  const saveBoundary = async () => {
+    if (drawingPoints.length < 3) {
+      showToast("Poligon kamida 3 ta nuqtadan iborat bo'lishi kerak", 'error');
+      return;
+    }
+    setIsSavingBoundary(true);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/landmarks/${landmarkId}/boundary`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ boundary: drawingPoints }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast('Chegara saqlandi', 'success');
+        setBoundary(drawingPoints);
+        cancelDrawing();
+      } else {
+        showToast(data.message || 'Saqlashda xatolik yuz berdi.', 'error');
+      }
+    } catch {
+      showToast('Aloqa xatosi.', 'error');
+    } finally {
+      setIsSavingBoundary(false);
+    }
+  };
+
+  const clearBoundary = async () => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/landmarks/${landmarkId}/boundary`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ boundary: null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast('Chegara olib tashlandi', 'success');
+        setBoundary(null);
+        cancelDrawing();
+        setAnalytics(null);
+      }
+    } catch {
+      showToast('Aloqa xatosi.', 'error');
+    }
+  };
+
+  const loadAnalytics = async () => {
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/landmarks/${landmarkId}/analytics`, { headers: { 'x-init-data': initData } });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) setAnalytics({ totalListings: data.totalListings, breakdown: data.breakdown });
+    } catch {
+      showToast('Aloqa xatosi.', 'error');
     }
   };
 
@@ -272,6 +353,68 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
               >
                 Qo'shish
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Guruh: Xarita chegarasi (2026-09) — shu manzil bir vaqtning
+            o'zida "mahalla" bo'lishi ham mumkin: xaritada chegara chizilsa,
+            yangi yozuv qo'shishda "Xaritadan belgilash" shu chegara ichiga
+            tushgan nuqtani AVTOMATIK shu manzilga bog'laydi. */}
+        <div>
+          <div className="flex items-center justify-between px-1 mb-1.5">
+            <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Xarita chegarasi</span>
+            {boundary && !isDrawing && (
+              <button onClick={loadAnalytics} className="text-[13px] font-medium text-[#007AFF] dark:text-[#0A84FF] active:opacity-50">
+                Tahlil
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden p-2">
+            <MapView
+              height={260}
+              polygons={boundary && !isDrawing ? [{ id: landmarkId, name, points: boundary, color: 'red' }] : []}
+              drawingPoints={isDrawing ? drawingPoints : []}
+              onMapClick={isDrawing ? (lat, lng) => setDrawingPoints((prev) => [...prev, [lat, lng]]) : undefined}
+            />
+
+            {analytics && (
+              <div className="px-1.5 pt-2 pb-1">
+                <p className="text-[12px] text-[#8E8E93]">Jami: {analytics.totalListings} ta yozuv</p>
+                {analytics.breakdown.map((b) => (
+                  <p key={b.categoryName} className="text-[12px] text-on-surface dark:text-white">— {b.categoryName}: {b.count}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-2 px-0.5 flex-wrap">
+              {!isDrawing ? (
+                <button onClick={startDrawing} className="text-[13px] font-semibold text-[#007AFF] dark:text-[#0A84FF] active:opacity-50">
+                  {boundary ? 'Chegarani tahrirlash' : 'Chegara chizish'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={saveBoundary}
+                    disabled={isSavingBoundary || drawingPoints.length < 3}
+                    className="text-[13px] font-semibold text-white bg-[#007AFF] dark:bg-[#0A84FF] rounded-full px-3 py-1.5 active:opacity-60 disabled:opacity-40"
+                  >
+                    {isSavingBoundary ? 'Saqlanmoqda...' : `Saqlash (${drawingPoints.length})`}
+                  </button>
+                  <button onClick={() => setDrawingPoints([])} className="text-[13px] font-medium text-[#8E8E93] active:opacity-50">
+                    Tozalash
+                  </button>
+                  <button onClick={cancelDrawing} className="text-[13px] font-medium text-[#FF3B30] active:opacity-50">
+                    Bekor qilish
+                  </button>
+                </>
+              )}
+              {boundary && !isDrawing && (
+                <button onClick={clearBoundary} className="text-[13px] font-medium text-[#FF3B30] active:opacity-50">
+                  Chegarani o'chirish
+                </button>
+              )}
             </div>
           </div>
         </div>
