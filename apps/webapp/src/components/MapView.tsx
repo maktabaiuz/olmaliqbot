@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Marker, useMapEvents } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Polygon, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -74,6 +74,33 @@ function ClickHandler({ onMapClick }: { onMapClick?: (lat: number, lng: number) 
   return null;
 }
 
+// MUHIM (2026-09, real xato — "karta buzuq/ishlamayapti" shikoyati):
+// Leaflet xarita o'lchamini FAQAT dastlab render bo'lganda bir marta
+// o'lchaydi. Bu komponent ko'pincha shartli render ichida (masalan
+// bo'lim hali ekranda to'liq joylashib ulgurmagan, yoki ota konteyner
+// animatsiya/scroll bilan o'lchamini keyinroq o'zgartiradigan) holatda
+// ochiladi — natijada Leaflet noto'g'ri (ko'pincha 0 yoki juda kichik)
+// o'lchamni "eslab qoladi", xarita qisman kulrang/kesilgan bo'lib
+// qoladi va faqat oyna o'lchami qo'lda o'zgartirilganda tuzalib qoladi.
+// ResizeObserver konteyner o'lchami HAQIQATAN o'zgargan har safar
+// `invalidateSize()`ni chaqirib, Leaflet'ni qayta o'lchashga majbur
+// qiladi — shu bilan bu muammo butunlay bartaraf etiladi.
+function InvalidateSizeOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    map.invalidateSize();
+    const timeoutId = setTimeout(() => map.invalidateSize(), 250);
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(container);
+    return () => {
+      clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 export const MapView: React.FC<MapViewProps> = ({
   polygons = [],
   drawingPoints = [],
@@ -110,6 +137,7 @@ export const MapView: React.FC<MapViewProps> = ({
         )}
         {marker && <Marker position={marker} />}
         <ClickHandler onMapClick={onMapClick} />
+        <InvalidateSizeOnResize />
       </MapContainer>
     </div>
   );
