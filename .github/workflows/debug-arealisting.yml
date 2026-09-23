@@ -1,24 +1,19 @@
-name: One-off - Deploy area-listing feature and verify
+name: One-off - Debug area-listing classification failure
 on:
   workflow_dispatch:
 jobs:
-  deploy_and_verify:
+  debug:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy and verify via SSH
+      - name: Debug via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           timeout: 90s
-          command_timeout: 15m
+          command_timeout: 10m
           script: |
-            cd /root/kimbor
-            git pull origin main || git pull origin master
-            git log -1 --oneline
-            docker compose -f docker-compose.prod.yml up -d --build
-            sleep 25
             docker exec kimbor_api node -e "
               const crypto = require('crypto');
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
@@ -40,25 +35,23 @@ jobs:
                 const initData = buildInitData(superAdmin.telegramId.toString());
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
-                const messages = [
-                  ['NEW FEATURE: area-browse, Oydin has 6 listings', 'Oydinda nima bor?'],
-                  ['NEW FEATURE: area-browse variant', 'Oydin mahallada nimalar bor'],
-                  ['REGRESSION: safety question must stay silent', 'Raduga tomonlar tinchmi?'],
-                  ['REGRESSION: normal combo query unaffected', 'Oydinda santexnik kerak'],
-                  ['REGRESSION: taksi unaffected', 'taksi kerak zudlik bilan'],
-                  ['NEW: area with zero listings -> falls through to normal (silent)', \"Bo'stonda nima bor?\"],
-                ];
-                for (const [label, msg] of messages) {
+                for (const msg of ['Oydinda nima bor?', 'Oydin mahallada nimalar bor', 'Oydinda qanday xizmatlar bor']) {
                   const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
                     method: 'POST', headers, body: JSON.stringify({ message: msg }),
                   });
                   const simData = await simRes.json();
-                  console.log('CASE:', label, '| MSG:', msg);
-                  console.log('  AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category, ' AI_LANDMARK:', simData?.steps?.aiClassification?.landmark);
-                  console.log('  areaListing step:', JSON.stringify(simData?.steps?.areaListing));
-                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
-                  if (simData?.finalResult?.formattedText) console.log('  TEXT:', simData.finalResult.formattedText.slice(0, 300));
-                  console.log('---');
+                  console.log('MSG:', msg);
+                  console.log(JSON.stringify(simData, null, 2));
+                  console.log('===');
                 }
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
+            echo '--- test hasPossibleServiceSignal regex directly ---'
+            docker exec kimbor_api node -e "
+              const { hasPossibleServiceSignal } = require('/app/packages/core/dist/index.js');
+              const { normalizeText } = require('/app/packages/core/dist/transliteration/index.js');
+              for (const msg of ['Oydinda nima bor?', 'Oydin mahallada nimalar bor', 'Oydinda qanday xizmatlar bor']) {
+                const n = normalizeText(msg);
+                console.log(msg, '-> normalized:', n, '-> signal:', hasPossibleServiceSignal(n));
+              }
             "
