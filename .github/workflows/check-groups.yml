@@ -1,0 +1,24 @@
+name: One-off - Check registered Telegram groups for Olmaliq yollari
+on:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const groups = await db.cityGroup.findMany({ select: { chatId: true, title: true } });
+                console.log('REGISTERED_GROUPS:', JSON.stringify(groups.map(g => ({ chatId: g.chatId.toString(), title: g.title })), null, 2));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
