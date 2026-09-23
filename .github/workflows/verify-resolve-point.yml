@@ -1,0 +1,61 @@
+name: One-off - Verify resolve-point and merge regression
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const initData = buildInitData(superAdmin.telegramId.toString());
+                const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
+
+                console.log('=== A) resolve-point: exact center of Bo\'ston mahallasi ===');
+                const r1 = await fetch('http://localhost:4000/api/admin/landmarks/resolve-point', {
+                  method: 'POST', headers, body: JSON.stringify({ lat: 40.883767, lng: 69.575043 }),
+                });
+                console.log(JSON.stringify(await r1.json()));
+
+                console.log('=== B) resolve-point: far outside any boundary (middle of nowhere) ===');
+                const r2 = await fetch('http://localhost:4000/api/admin/landmarks/resolve-point', {
+                  method: 'POST', headers, body: JSON.stringify({ lat: 40.5, lng: 69.2 }),
+                });
+                console.log(JSON.stringify(await r2.json()));
+
+                console.log('=== C) GET /admin/landmarks still works, includes boundary field ===');
+                const r3 = await fetch('http://localhost:4000/api/admin/landmarks', { headers });
+                const list = await r3.json();
+                console.log('TOTAL:', list.length);
+                const dsk = list.find(l => l.name === 'DSK');
+                console.log('DSK has boundary:', Array.isArray(dsk?.boundary), 'points:', dsk?.boundary?.length);
+
+                console.log('=== D) analytics endpoint ===');
+                const r4 = await fetch('http://localhost:4000/api/admin/landmarks/' + dsk.id + '/analytics', { headers });
+                console.log(JSON.stringify(await r4.json()));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
