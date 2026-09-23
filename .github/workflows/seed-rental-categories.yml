@@ -1,0 +1,45 @@
+name: One-off - Seed missing rental categories in DB
+on:
+  workflow_dispatch:
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Seed via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const dict = require('/app/packages/core/dist/dictionary/initialDictionary.json');
+              const db = new PrismaClient();
+              (async () => {
+                const ids = ['uy-hovli-arendasi','kunlik-ijara-kvartira','mehmonxona-hotel','hostel','notijorat-arendasi'];
+                for (const id of ids) {
+                  const seed = dict.categories.find(c => c.id === id);
+                  if (!seed) { console.log('MISSING FROM DICTIONARY:', id); continue; }
+                  const existing = await db.category.findFirst({ where: { name: { equals: seed.name, mode: 'insensitive' } } });
+                  if (existing) { console.log('ALREADY EXISTS:', seed.name); continue; }
+                  const created = await db.category.create({
+                    data: {
+                      name: seed.name,
+                      synonyms: Array.from(new Set([seed.name.toLowerCase(), ...seed.synonyms])),
+                      objectType: seed.object_type,
+                      group: seed.group,
+                      emoji: seed.emoji,
+                    },
+                  });
+                  console.log('CREATED:', JSON.stringify({ id: created.id, name: created.name, objectType: created.objectType }));
+                }
+                const allRental = await db.category.findMany({
+                  where: { name: { in: ['Kvartira arendasi','Uy/Hovli arendasi','Kunlik ijara kvartira','Mehmonxona (Hotel)','Hostel','Notijorat arendasi'] } },
+                  select: { name: true, synonyms: true },
+                });
+                console.log('FINAL_RENTAL_CATEGORIES:', JSON.stringify(allRental.map(c => c.name)));
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
