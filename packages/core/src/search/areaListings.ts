@@ -48,14 +48,30 @@ async function resolveLandmark(cityId: string, cleanName: string) {
   });
 }
 
+// O'zbek tili qo'shimchali (agglutinativ) — "Oydin" + "-da" = "Oydinda",
+// oddiy `containsWholeWord` buni TOPOLMAYDI (harflar orasida bo'shliq
+// yo'q). Xuddi localDispatcher.ts'dagi "Gorset" xatosi bilan bir xil
+// muammo, xuddi shu yechim bilan: qo'shimchali shaklga chidamli, prefiks
+// asosidagi so'z-o'zak solishtirish.
+function wordsShareStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return shorter.length >= 4 && longer.startsWith(shorter);
+}
+
 /**
  * Xabar matnining o'zidan (AI ta'kidlagan `landmark`ga qaramasdan) real
  * mo'ljal nomini qidiradi — shahardagi barcha mo'ljallar nomi/sinonimlari
- * xabar ichida BUTUN SO'Z sifatida uchraydimi tekshiriladi. Mo'ljallar
- * soni odatda kam (~50-100), shu sabab bu tekshiruv arzon.
+ * xabar ichida uchraydimi tekshiriladi. Mo'ljallar soni odatda kam
+ * (~50-100), shu sabab bu tekshiruv arzon. Ikki bosqich: (1) aniq, butun
+ * so'z/ibora moslik — eng ishonchli; (2) topilmasa, qo'shimchaga chidamli
+ * so'z-o'zak moslik (ko'p so'zli nomlar uchun BARCHA so'z ustunlik bilan
+ * mos kelishi shart — yolg'iz umumiy so'z yetarli emas).
  */
 async function findLandmarkMentionInText(cityId: string, rawMessage: string) {
   const normalized = normalizeText(rawMessage);
+  const msgWords = normalized.split(/\s+/).filter(Boolean);
   const landmarks = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } });
   // Uzunroq (aniqroq) nomlar avval tekshiriladi — qisqa umumiy so'z
   // ("bozor") uzunroq, aniqroq nomdan ("katta bozor") oldin mos kelib
@@ -64,8 +80,15 @@ async function findLandmarkMentionInText(cityId: string, rawMessage: string) {
     .flatMap((l) => [l.name, ...l.synonyms].map((n) => ({ landmark: l, norm: normalizeText(n) })))
     .filter((c) => c.norm.length >= 3)
     .sort((a, b) => b.norm.length - a.norm.length);
+
   for (const c of candidates) {
     if (containsWholeWord(normalized, c.norm)) return c.landmark;
+  }
+  for (const c of candidates) {
+    const nameWords = c.norm.split(/\s+/).filter((w) => w.length >= 3);
+    if (nameWords.length === 0) continue;
+    const allMatch = nameWords.every((nw) => msgWords.some((mw) => wordsShareStem(nw, mw)));
+    if (allMatch) return c.landmark;
   }
   return null;
 }
