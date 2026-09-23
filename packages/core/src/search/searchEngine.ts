@@ -1717,6 +1717,18 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // eski, hali roomCount/rentPrice kiritilmagan yozuvlar (hozircha deyarli
   // barchasi) chiqarib tashlanmaydi, aks holda ular "hech qachon
   // topilmaydigan" bo'lib qolardi.
+  // Muddat turi bo'yicha KATEGORIYANING O'ZI (rentTermType maydonidan
+  // mustaqil) allaqachon ma'lum haqiqatni bildiradi — real xato bilan
+  // tasdiqlandi: "kunlik ijara kvartira kerak" so'roviga bot uzoq
+  // muddatli "Kvartira arendasi" kategoriyasidagi (rentTermType hali
+  // to'ldirilmagan) yozuvni kuchli jargon moslik orqali noto'g'ri
+  // ko'rsatib yuborgan edi — kunlik va oylik/yillik ijara MUTLAQO
+  // boshqa-boshqa bozor, xato juda chalg'ituvchi. Bu tekshiruv rentTermType
+  // maydoni bo'sh bo'lsa ham ishlaydi, chunki kategoriyaning o'zi bu
+  // ma'noni allaqachon anglatadi.
+  const LONG_TERM_ONLY_CATEGORIES = new Set(['Kvartira arendasi', 'Uy/Hovli arendasi', 'Notijorat arendasi']);
+  const SHORT_TERM_ONLY_CATEGORIES = new Set(['Kunlik ijara kvartira', 'Mehmonxona (Hotel)', 'Hostel']);
+
   if (rentalFilters) {
     const { roomCount, roomCountIsMinimum, maxPrice, currency, termType } = rentalFilters;
     candidateListings = candidateListings.filter((l) => {
@@ -1729,7 +1741,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         // chiqarib tashlamaslik xavfsizroq).
         if (currency && l.rentPriceCurrency === currency && l.rentPrice > maxPrice) return false;
       }
-      if (termType !== null && l.rentTermType && l.rentTermType !== termType) return false;
+      if (termType !== null) {
+        if (l.rentTermType && l.rentTermType !== termType) return false;
+        const catName = l.category?.name;
+        if (termType === 'KUNLIK' && catName && LONG_TERM_ONLY_CATEGORIES.has(catName)) return false;
+        if ((termType === 'OYLIK' || termType === 'YILLIK') && catName && SHORT_TERM_ONLY_CATEGORIES.has(catName)) return false;
+      }
       return true;
     });
     if (candidateListings.length === 0) return null;
