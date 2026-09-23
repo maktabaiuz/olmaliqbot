@@ -1,5 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
@@ -294,8 +294,8 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   // xil mantiq (qarang: groupHandler.ts). Aniq kategoriya YO'Q, lekin
   // mo'ljal ANIQ bo'lsa — shu mo'ljaldagi barcha yozuvlar ro'yxat qilib
   // yuboriladi, oddiy qidiruv/aniqlashtirish oqimidan OLDIN.
-  if (!categoryGuess && classification.landmark) {
-    const areaResult = await findAreaListings(activeCityId, classification.landmark);
+  if (!categoryGuess && isAreaBrowseQuery(messageText)) {
+    const areaResult = await findAreaListings(activeCityId, classification.landmark, messageText);
     if (areaResult) {
       await ctx.reply(areaResult.formattedText, { parse_mode: 'HTML' });
       return;

@@ -36,6 +36,12 @@ const QUESTION_KEYWORDS = [
   // tarqalgan so'roq shakllari, avval ro'yxatda yo'q edi (haqiqiy xabar
   // "kimda ma'lumot bor" filtrdan sezilmasdan o'tib ketgan holatda topildi)
   'bormi', 'kimda',
+  // "X da nima bor?" — hudud-so'rovi (2026-09, findAreaListings xususiyati
+  // uchun): aniq kasb so'zi yo'q, "?" ham qo'yilmasligi mumkin ("Oydin
+  // mahallada nimalar bor" kabi), shu sabab bu iboralar alohida qo'shiladi
+  // — aks holda bunday xabar 0-qavatning o'zida (AI'ga yetib bormasdan) jim
+  // tashlab yuborilardi.
+  'nima bor', 'nimalar bor', 'qanday xizmat', 'qanday xizmatlar',
   'ким бор', 'ким билади', 'ким билса', 'билаsizми', 'айтинглар', 'айтиб юборинглар',
   'керак', 'зарур', 'номери', 'номер', 'рақами', 'рақам', 'телефони', 'телефон',
   'нечигача', 'нечида', 'очиқми', 'ёпиқми', 'ишлайдими', 'қаерда', 'манзили', 'қанча', 'нархи',

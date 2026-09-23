@@ -1,6 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { escapeHtml } from './searchEngine';
+import { normalizeText, containsWholeWord } from '../transliteration';
 
 /**
  * "Bo'stonda nima bor?" turidagi ochiq hudud-so'rovi (2026-09) — aniq
@@ -23,20 +24,68 @@ export interface AreaListingsResult {
 
 const MAX_AREA_LISTINGS = 20;
 
-export async function findAreaListings(
-  cityId: string,
-  landmarkNameRaw: string | null | undefined
-): Promise<AreaListingsResult | null> {
-  if (!landmarkNameRaw) return null;
-  const cleanName = stripLandmarkSuffixes(landmarkNameRaw).toLowerCase().trim();
-  if (!cleanName || cleanName.length < 2) return null;
+// MUHIM (2026-09, real sinov bilan tasdiqlandi): Gemini bu so'rov turini
+// (kategoriyasiz, faqat "shu yerda nima bor" so'rovi) ISHONCHLI ravishda
+// tanimadi — production'da "Oydinda nima bor?" ga hatto yangi promptdagi
+// aniq ta'lim (classifierPrompt.ts 5b-bo'lim) bilan ham past ishonch
+// (0.35) va bo'sh `landmark` bilan javob berdi. Shu sabab bu yerda AI'dan
+// MUSTAQIL, deterministik ikkinchi yo'l bor: xabar matnining o'zidan
+// (AI aytgan `landmark`dan qat'i nazar) haqiqiy mo'ljal nomini to'g'ridan
+// to'g'ri qidiradi — xuddi localDispatcher.ts'dagi kabi, AI ishonchsiz
+// bo'lgan hollarda ham ishlaydi.
+export const AREA_BROWSE_TRIGGER_RE = /\b(nima bor|nimalar bor|qanday xizmat\w*|qanday joylar|nima bor ekan)\b/;
 
-  const landmark = await db.landmark.findFirst({
+export function isAreaBrowseQuery(rawMessage: string): boolean {
+  return AREA_BROWSE_TRIGGER_RE.test(normalizeText(rawMessage));
+}
+
+async function resolveLandmark(cityId: string, cleanName: string) {
+  return db.landmark.findFirst({
     where: {
       cityId,
       OR: [{ name: { equals: cleanName, mode: 'insensitive' } }, { synonyms: { has: cleanName } }],
     },
   });
+}
+
+/**
+ * Xabar matnining o'zidan (AI ta'kidlagan `landmark`ga qaramasdan) real
+ * mo'ljal nomini qidiradi — shahardagi barcha mo'ljallar nomi/sinonimlari
+ * xabar ichida BUTUN SO'Z sifatida uchraydimi tekshiriladi. Mo'ljallar
+ * soni odatda kam (~50-100), shu sabab bu tekshiruv arzon.
+ */
+async function findLandmarkMentionInText(cityId: string, rawMessage: string) {
+  const normalized = normalizeText(rawMessage);
+  const landmarks = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } });
+  // Uzunroq (aniqroq) nomlar avval tekshiriladi — qisqa umumiy so'z
+  // ("bozor") uzunroq, aniqroq nomdan ("katta bozor") oldin mos kelib
+  // qolmasin.
+  const candidates = landmarks
+    .flatMap((l) => [l.name, ...l.synonyms].map((n) => ({ landmark: l, norm: normalizeText(n) })))
+    .filter((c) => c.norm.length >= 3)
+    .sort((a, b) => b.norm.length - a.norm.length);
+  for (const c of candidates) {
+    if (containsWholeWord(normalized, c.norm)) return c.landmark;
+  }
+  return null;
+}
+
+export async function findAreaListings(
+  cityId: string,
+  landmarkNameRaw: string | null | undefined,
+  rawMessageFallback?: string | null
+): Promise<AreaListingsResult | null> {
+  let landmark: { id: string; name: string } | null = null;
+
+  if (landmarkNameRaw) {
+    const cleanName = stripLandmarkSuffixes(landmarkNameRaw).toLowerCase().trim();
+    if (cleanName && cleanName.length >= 2) {
+      landmark = await resolveLandmark(cityId, cleanName);
+    }
+  }
+  if (!landmark && rawMessageFallback) {
+    landmark = await findLandmarkMentionInText(cityId, rawMessageFallback);
+  }
   if (!landmark) return null;
 
   const listings = await db.listing.findMany({

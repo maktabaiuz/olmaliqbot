@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -141,8 +141,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // tekshiriladi: agar shu mo'ljalda haqiqiy yozuv(lar) topilsa, ular
   // ro'yxat qilib yuboriladi; topilmasa — oddiy qidiruv yo'liga davom
   // etiladi (pastga qarang), xatti-harakat o'zgarmaydi.
-  if (!classification.category && classification.landmark) {
-    const areaResult = await findAreaListings(cityId, classification.landmark);
+  if (!classification.category && isAreaBrowseQuery(messageText)) {
+    const areaResult = await findAreaListings(cityId, classification.landmark, messageText);
     if (areaResult) {
       await ctx.reply(areaResult.formattedText, {
         parse_mode: 'HTML',

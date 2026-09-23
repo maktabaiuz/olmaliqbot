@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus, Prisma } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1463,8 +1463,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     // 4b. Hudud-so'rovi ("Bo'stonda nima bor?") — groupHandler.ts bilan bir xil.
-    if (!classification.category && classification.landmark) {
-      const areaResult = await findAreaListings(cityId, classification.landmark);
+    if (!classification.category && isAreaBrowseQuery(messageText)) {
+      const areaResult = await findAreaListings(cityId, classification.landmark, messageText);
       steps.areaListing = areaResult ? { matched: true, landmarkName: areaResult.landmarkName, totalCount: areaResult.totalCount } : { matched: false };
       if (areaResult) {
         return {
