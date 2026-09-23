@@ -1,4 +1,4 @@
-name: One-off - Deploy landmark quality system and verify
+name: One-off - Redeploy with DB-category cross-check and re-verify
 on:
   workflow_dispatch:
 jobs:
@@ -40,40 +40,15 @@ jobs:
                 const initData = buildInitData(superAdmin.telegramId.toString());
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
-                console.log('=== A) quality-check endpoint ===');
                 const qcRes = await fetch('http://localhost:4000/api/admin/landmarks/quality-check', { headers });
                 const qc = await qcRes.json();
-                console.log('duplicatePairs count:', qc.duplicatePairs?.length);
-                for (const d of (qc.duplicatePairs || [])) console.log('  DUP:', d.a.name, '<->', d.b.name, '|', d.detail);
                 console.log('notAPlace count:', qc.notAPlace?.length);
                 for (const n of (qc.notAPlace || [])) console.log('  NOT_A_PLACE:', n.name, '->', n.resolvedCategory, '(', n.listingCount, 'listings)');
 
                 console.log('');
-                console.log('=== B) creation guard test ===');
-                const createRes = await fetch('http://localhost:4000/api/admin/landmarks', {
-                  method: 'POST', headers, body: JSON.stringify({ name: 'elektrik' }),
+                const merge = await fetch('http://localhost:4000/api/admin/landmarks/merge', {
+                  method: 'POST', headers, body: JSON.stringify({ sourceId: 'nonexistent', targetId: 'also-nonexistent' }),
                 });
-                const createData = await createRes.json();
-                console.log('Create profession-name landmark -> status:', createRes.status, JSON.stringify(createData));
-
-                const createRes2 = await fetch('http://localhost:4000/api/admin/landmarks', {
-                  method: 'POST', headers, body: JSON.stringify({ name: 'Test Real Joy Nomi XYZ' }),
-                });
-                const createData2 = await createRes2.json();
-                console.log('Create genuine new place -> status:', createRes2.status, JSON.stringify(createData2));
-                if (createData2.success && createData2.landmark) {
-                  await db.landmark.delete({ where: { id: createData2.landmark.id } });
-                  console.log('(cleaned up test landmark)');
-                }
-
-                console.log('');
-                console.log('=== C) bot simulator: verify Qorahitoy + Shanxay now recognized ===');
-                for (const msg of ['Qoraxitoy choyxona nomeri bormi', 'Shanxayda taksi kerak', 'Telegrafda santexnik kerak']) {
-                  const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
-                    method: 'POST', headers, body: JSON.stringify({ message: msg }),
-                  });
-                  const simData = await simRes.json();
-                  console.log('MSG:', msg, '| AI_LANDMARK:', simData?.steps?.aiClassification?.landmark, '| FOUND:', simData?.finalResult?.found, '| LISTING:', simData?.finalResult?.listingName);
-                }
+                console.log('Merge with fake IDs -> status:', merge.status);
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
