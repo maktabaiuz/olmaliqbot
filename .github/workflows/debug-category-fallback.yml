@@ -1,11 +1,11 @@
-name: One-off - Verify rental search system end-to-end
+name: One-off - Debug why kunlik ijara query returned Kvartira arendasi listing
 on:
   workflow_dispatch:
 jobs:
-  verify:
+  debug:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify via SSH
+      - name: Debug via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -35,27 +35,18 @@ jobs:
                 const initData = buildInitData(superAdmin.telegramId.toString());
                 const headers = { 'x-init-data': initData, 'Content-Type': 'application/json' };
 
-                const messages = [
-                  ['2 xonali kunlik ijara filtr bilan', '2 xonali kvartira kerak 300 dollargacha kunlik'],
-                  ['Kunlik ijara kategoriyasi', 'kunlik ijara kvartira kerak'],
-                  ['Hostel so\'rovi', 'hostel bormi shaharda'],
-                  ['Mehmonxona so\'rovi', 'mehmonxona kerak bir kechaga'],
-                  ['Notijorat arendasi', 'ofis arendaga kerak markazda'],
-                  ['REGRESSION: oddiy uy so\'rovi (filtrsiz)', 'uy kerak arendaga'],
-                  ['REGRESSION: santexnik', 'santexnik kerak suv tomayabdi'],
-                  ['REGRESSION: taksi', 'taksi kerak zudlik bilan'],
-                ];
-                for (const [label, msg] of messages) {
-                  const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
-                    method: 'POST', headers, body: JSON.stringify({ message: msg }),
-                  });
-                  const simData = await simRes.json();
-                  console.log('CASE:', label, '| MSG:', msg);
-                  console.log('  AI_INTENT:', simData?.steps?.aiClassification?.intent, ' AI_CATEGORY:', simData?.steps?.aiClassification?.category);
-                  console.log('  RENTAL_FILTERS:', JSON.stringify(simData?.steps?.rentalFilters));
-                  console.log('  FOUND:', simData?.finalResult?.found, ' RESULT_CATEGORY:', simData?.finalResult?.categoryName, ' LISTING:', simData?.finalResult?.listingName);
-                  console.log('  REASON:', simData?.finalResult?.reason);
-                  console.log('---');
-                }
+                const simRes = await fetch('http://localhost:4000/api/admin/simulate', {
+                  method: 'POST', headers, body: JSON.stringify({ message: 'kunlik ijara kvartira kerak' }),
+                });
+                const simData = await simRes.json();
+                console.log('AI_CATEGORY:', simData?.steps?.aiClassification?.category);
+                console.log('SCORE_BREAKDOWN:', JSON.stringify(simData?.scoreBreakdown, null, 2));
+
+                const bahtiyor = await db.listing.findFirst({ where: { name: 'Bahtiyor' }, include: { category: true } });
+                console.log('BAHTIYOR:', JSON.stringify({ name: bahtiyor.name, categoryId: bahtiyor.categoryId, categoryName: bahtiyor.category?.name, jargonSynonyms: bahtiyor.jargonSynonyms }));
+
+                const kunlikCat = await db.category.findFirst({ where: { name: 'Kunlik ijara kvartira' } });
+                const kunlikListings = await db.listing.count({ where: { categoryId: kunlikCat.id } });
+                console.log('KUNLIK_CATEGORY_LISTING_COUNT:', kunlikListings);
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
