@@ -1793,8 +1793,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // (57 tadan ~15-20 tasi shunday chiqindi bo'lib chiqdi). Kiritilgan nom
     // lug'atdagi biror kasb/kategoriya nomiga (aniq yoki sinonim orqali)
     // mos kelsa — bu deyarli hech qachon haqiqiy joy nomi emas, rad etiladi.
-    const resolvedAsCategory = resolveCanonicalCategoryName(cleanName);
-    if (getDictionarySynonymsForCategory(resolvedAsCategory).length > 0) {
+    // Statik lug'atdan TASHQARI, haqiqiy DB kategoriyalar ro'yxati ham
+    // tekshiriladi — ba'zi kasblar (masalan "Kamerachi") faqat bazada,
+    // statik lug'atda umuman yo'q bo'lishi mumkin.
+    const existingCategoryMatch = await db.category.findFirst({
+      where: {
+        OR: [
+          { name: { equals: cleanName, mode: 'insensitive' } },
+          { synonyms: { has: cleanName.toLowerCase() } },
+        ],
+      },
+      select: { name: true },
+    });
+    const resolvedAsCategory = existingCategoryMatch?.name || resolveCanonicalCategoryName(cleanName);
+    if (existingCategoryMatch || getDictionarySynonymsForCategory(resolvedAsCategory).length > 0) {
       return reply.status(400).send({
         success: false,
         message: `"${cleanName}" joy nomiga emas, kasb/xizmat turiga o'xshaydi ("${resolvedAsCategory}"). Agar bu chindan ham joy nomi bo'lsa, boshqacharoq yozib ko'ring.`,
@@ -1903,6 +1915,20 @@ export async function adminRoutes(fastify: FastifyInstance) {
       },
     });
 
+    // MUHIM: "joy nomiga o'xshamaydi" tekshiruvi avval FAQAT statik
+    // lug'atga (`initialDictionary.json`) qarardi — lekin ba'zi kasblar
+    // (masalan "Kamerachi") FAQAT bazada, admin tomonidan keyinchalik
+    // qo'shilgan, statik lug'atda umuman yo'q. Shu sabab haqiqiy DB
+    // kategoriyalar ro'yxati ham tekshiruvga qo'shiladi — ikkalasi
+    // birlashtirilganda haqiqatan ham "hamma bilgan kasb" bo'yicha to'liq
+    // qamrov ta'minlanadi.
+    const dbCategories = await db.category.findMany({ select: { name: true, synonyms: true } });
+    const dbCategoryLookup = new Map<string, string>();
+    for (const c of dbCategories) {
+      dbCategoryLookup.set(normalizeText(c.name), c.name);
+      for (const s of c.synonyms) dbCategoryLookup.set(normalizeText(s), c.name);
+    }
+
     const duplicatePairs: {
       a: { id: string; name: string; listingCount: number };
       b: { id: string; name: string; listingCount: number };
@@ -1919,8 +1945,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
       const normI = normalizeText(li.name);
       if (normI.length >= 2) {
-        const resolved = resolveCanonicalCategoryName(li.name);
-        if (getDictionarySynonymsForCategory(resolved).length > 0) {
+        const dbMatch = dbCategoryLookup.get(normI);
+        const resolved = dbMatch || resolveCanonicalCategoryName(li.name);
+        if (dbMatch || getDictionarySynonymsForCategory(resolved).length > 0) {
           notAPlace.push({ id: li.id, name: li.name, listingCount: listingCountI, resolvedCategory: resolved });
         }
       }
