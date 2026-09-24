@@ -17,8 +17,7 @@ jobs:
           command_timeout: 5m
           script: |
             docker exec kimbor_bot node -e "
-              const { classifyQuery } = require('/app/apps/bot/dist/filter/aiClassifier.js');
-              const { zeroLayerFilter } = require('/app/apps/bot/dist/filter/zeroLayerFilter.js');
+              const { classifyQuery, zeroLayerFilter } = require('/app/packages/core/dist/index.js');
               (async () => {
                 const cases = [
                   // Bugning aynan o'zi (regressiya emas, aynan shu xato)
