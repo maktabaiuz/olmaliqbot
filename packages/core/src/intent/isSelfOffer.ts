@@ -51,32 +51,39 @@ export function isSelfOffer(text: string): boolean {
   }
   if (/\b(dm|lichkaga|shaxsiyga)\s+(yozing|yozin|murojaat)\b/.test(n)) return true;
 
-  // Birinchi shaxsda o'z xizmatini reklama qilish: "elektrika ishlarini
-  // qilamiz", "santexnika xizmatlarini ko'rsatamiz", "eshikni tuzataman" +
-  // odatda telefon raqami bilan. Bu haqiqiy so'rov ("elektrik kerak") bilan
-  // deyarli bir xil so'zlardan iborat, faqat fe'l shaxsi farq qiladi —
-  // "qilamiz/bajaramiz" (biz/men qilamiz) doim taklif, "kerak/bormi" doim so'rov.
+  // MUHIM (2026-09-24, "Labo usti yopiq termosbutka hizmati yuklarni
+  // yetqazib beraman" — real skrinshot bilan tasdiqlangan xato): shu
+  // qatorlar avval FAQAT qo'lda terilgan, reaktiv fe'l ro'yxati edi
+  // (qilamiz, bajaramiz, tuzataman, sotaman...) — har safar yangi
+  // skrinshotdan keyin YANA bitta so'z qo'shilardi. "Yetkazib beraman"
+  // ro'yxatda yo'q edi, shu sabab o'tkazib yuborildi va bot boshqa
+  // (aloqasiz) haydovchining haqiqiy raqamini chiqarib yubordi.
   //
-  // MUHIM (2026-09 topilgan xato): "olaman" ("metall olaman" — mahalliy
-  // metall-yig'uvchi "sizdan metall SOTIB OLAMAN" degan e'lon shakli)
-  // ro'yxatda yo'q edi — natijada bu bitta so'z ham qidiruv, ham taklif
-  // ma'nosida ishlatilishi mumkinligi sabab (masalan "usta olib kelaman"
-  // kabi neytral holatlar bilan farqlanmasdan) e'lon SIFATIDA emas, SO'ROV
-  // sifatida ko'rilib, bot xato ravishda mavjud "metalchi" (temirchi/usta)
-  // yozuvlarini ko'rsatib yuborardi.
-  if (/\b(qilamiz|bajaramiz|ko'?rsatamiz|tuzatamiz|o'?rnatamiz|qilaman|bajaraman|tuzataman|o'?rnataman|olaman|olamiz)\b/.test(n)) {
-    return true;
-  }
+  // Endi BUTUN grammatik klassni bitta qoida bilan qamrab olamiz:
+  // o'zbek tilida "men/biz nimadir QILAMAN/QILAMIZ" (hozirgi-kelasi
+  // zamon, birinchi shaxs) fe'llari deyarli doim "-aman/-ayman" (birlik)
+  // yoki "-amiz/-aymiz" (ko'plik) bilan tugaydi — qilaman, bajaraman,
+  // tuzataman, o'rnataman, olaman, sotaman, beraman, yetkazib beraman,
+  // olib boraman, ishlayman, va h.k. — kategoriyadan qat'i nazar. Bu
+  // qoliplashtirma orqali hali ro'yxatga tushmagan HAR QANDAY yangi fe'l
+  // ham avtomatik qamrab olinadi, faqat ushbu bitta so'z uchun emas.
+  // isClearSeek yuqorida ALLAQACHON aniq so'rov so'zlarini ("kerak",
+  // "qancha", "qayerda" va h.k.) ajratib, ERTA qaytib ketgani uchun —
+  // shu yergacha yetib kelgan xabarda bunday fe'l bo'lsa, deyarli har
+  // doim o'z xizmatini taklif qilish (E'LON), so'rov emas.
+  //
+  // DIQQAT: `\w` standart regex sinfi apostrofni ("qo'yaman", "qo'shaman"
+  // kabi o'zbekcha so'zlarda) so'z belgisi deb hisoblamaydi — natijada
+  // "qo'yaman" ikkiga bo'linib ("qo'" + "yaman"), qoliplashma ishlamay
+  // qolardi. Shu sabab bu yerda maxsus `[a-z0-9']` sinfi ishlatiladi
+  // (transliteration/index.ts'dagi `isWordChar` bilan bir xil yondashuv).
+  if (/\b[a-z0-9']{2,}(aman|ayman|amiz|aymiz)\b/.test(n)) return true;
 
-  // "X sotaman/sotiladi/beriladi" — o'zbek tilida e'lon berishning ENG
-  // KENG TARQALGAN shakli, ko'pincha "menda" so'zisiz ("Kvartiram bor
-  // sotiladi", "Kvartira sotaman", "1 xonali kvartira sotiladi
-  // shoshilinch") — avval faqat "menda ... bor" talab qilinardi, bu
-  // ko'plab haqiqiy e'lonlarni o'tkazib yuborar edi (production'da
-  // tasdiqlangan xato). isClearSeek yuqorida allaqachon narx savoli
-  // ("qancha sotiladi?") kabi holatlarni himoya qiladi.
-  if (/\b(sotaman|sotamiz|sotiladi|sotilmoqda)\b/.test(n)) return true;
-  if (/\b(beriladi|beraman|beramiz)\b/.test(n) && /\b(arenda|ijara)/.test(n)) return true;
+  // Passiv/uchinchi shaxs e'lon shakllari — yuqoridagi qoliplashmaga
+  // to'g'ri kelmaydi ("sotiladi", "beriladi" birinchi shaxs emas), shu
+  // sabab alohida qoladi. "X sotiladi", "Kvartiram bor sotiladi" —
+  // o'zbek tilida e'lon berishning eng keng tarqalgan shakllaridan biri.
+  if (/\b(sotiladi|sotilmoqda|beriladi)\b/.test(n)) return true;
 
   return false;
 }
