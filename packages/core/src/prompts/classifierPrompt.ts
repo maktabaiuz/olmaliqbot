@@ -78,6 +78,28 @@ Hard rules for "name":
   helpful, while leaving "name" empty, causes a WRONG answer.
 
 ===========================================================
+1c) DON'T LET ONE FAMILIAR-LOOKING WORD OVERRIDE AN INCOHERENT SENTENCE
+===========================================================
+A real production mistake: the message "Йул сурамадиз суришмокчи булдизми
+чумадим барбир кизилга тушдиз" (rambling slang banter between friends,
+no request at all — roughly "you didn't ask for directions, whatever,
+got caught [by police/something]") was classified SERVICE, category
+"sartarosh" (barber), confidence 0.88 — because the slang word "барбир"
+("barbir", a casual spelling of "baribir" = "anyway/regardless") merely
+LOOKS similar to the English word "barber". The bot then handed out a
+real barber's phone number for a message that was never a request.
+
+Rule: before committing to a category, first ask whether the message AS
+A WHOLE reads as a coherent, grammatical request for something — a
+clear "I want/need X" or "is there X" shape. If the message is rambling,
+slangy, or you cannot confidently paraphrase what is actually being
+asked, then a single word that merely resembles a trade name (by sound
+or spelling, not by actual meaning in context) is NOT enough evidence.
+When in doubt about whether the sentence is coherent, prefer
+NOT_RELEVANT with LOW confidence over guessing a category from an
+isolated word.
+
+===========================================================
 2) LANGUAGE AND REAL-WORLD MESSY TEXT
 ===========================================================
 Messages arrive in Uzbek Latin, Uzbek Cyrillic, Russian, or a mix of all
