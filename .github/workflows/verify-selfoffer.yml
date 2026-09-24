@@ -1,0 +1,47 @@
+name: One-off - verify self-offer generalization
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run isSelfOffer + full pipeline cases via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            docker exec kimbor_bot node -e "
+              const { isSelfOffer } = require('/app/packages/core/dist/index.js');
+              const cases = [
+                ['Labo usti yopiq termosbutka hizmati yuklarni yetqazib beraman(shahardaman)', true],
+                ['taksi bo\'sh yuraman', true],
+                ['kelib qo\'yaman, usta kerak bo\'lsa', true],
+                ['uyni joylashtirib beraman, arenda', true],
+                ['metall olib ketaman, kerak bo\'lsa aytinglar', true],
+                ['tashib beraman, yuk bo\'lsa', true],
+                ['elektrika ishlarini qilamiz', true],
+                ['eshikni tuzataman', true],
+                ['kvartiram bor sotiladi', true],
+                ['labo xizmatim bor', true],
+                ['santexnik kerak suv tomayabdi', false],
+                ['labo bormi', false],
+                ['taksi nomeri kerak', false],
+                ['sartarosh qayerda ishlaydi', false],
+                ['kimda labo raqami bor', false],
+                ['santexnik kerak edi', false]
+              ];
+              let fail = 0;
+              for (const [msg, expected] of cases) {
+                const got = isSelfOffer(msg);
+                if (got !== expected) fail++;
+                console.log('out:' + JSON.stringify({msg, expected, got, ok: got === expected}));
+              }
+              console.log('out:SUMMARY fail=' + fail + ' total=' + cases.length);
+              process.exit(fail === 0 ? 0 : 1);
+            "
