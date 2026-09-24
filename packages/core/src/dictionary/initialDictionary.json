@@ -185,7 +185,6 @@
       "id": "gisht-teruvchi",
       "name": "G'isht teruvchi",
       "synonyms": [
-        "quruvchi",
         "kamenshik",
         "каменщик",
         "ғишт теровчи"
@@ -198,7 +197,6 @@
       "id": "temirchi",
       "name": "Temirchi",
       "synonyms": [
-        "kuznets",
         "metall ustasi",
         "кузнец",
         "темирчи"
@@ -327,7 +325,6 @@
       "name": "Avtomexanik",
       "synonyms": [
         "mashina ustasi",
-        "motorist",
         "автомеханик",
         "машина устаси"
       ],
@@ -353,7 +350,6 @@
       "name": "Avtomoyka",
       "synonyms": [
         "mashina yuvish",
-        "moyka",
         "автомойка"
       ],
       "object_type": "DOKON_OBYEKT",
@@ -402,7 +398,6 @@
       "name": "Gruzchik",
       "synonyms": [
         "yuk ko'taruvchi",
-        "ko'chirish",
         "грузчик",
         "юк кўтарувчи"
       ],
@@ -427,7 +422,6 @@
       "name": "Non do'koni",
       "synonyms": [
         "nonvoyxona",
-        "tandir",
         "pekarnya",
         "пекарня",
         "нон дўкони"
@@ -441,7 +435,6 @@
       "name": "Oziq-ovqat",
       "synonyms": [
         "produkt",
-        "magazin",
         "продукты",
         "магазин"
       ],
@@ -636,7 +629,7 @@
       "synonyms": [
         "kosmetolog",
         "salon krasoti",
-        "манikyur",
+        "manikyur",
         "салон красоты",
         "гўзаллик салони"
       ],
@@ -701,7 +694,6 @@
       "synonyms": [
         "kiyim tikish",
         "atele",
-        "portnoy",
         "ателье",
         "тикувчи"
       ],
@@ -728,7 +720,6 @@
       "name": "Poyabzal ustasi",
       "synonyms": [
         "botinka ta'mirlash",
-        "sapojnik",
         "сапожник",
         "пойабзал устаси"
       ],
@@ -844,7 +835,6 @@
       "synonyms": [
         "boshlovchi",
         "tadbir boshlovchisi",
-        "vediting",
         "тамада",
         "ведущий"
       ],
@@ -921,7 +911,6 @@
       "name": "Kiyim do'koni",
       "synonyms": [
         "kiyim-kechak",
-        "boutik",
         "магазин одежды",
         "кийим дўкони"
       ],
@@ -1060,7 +1049,6 @@
       "synonyms": [
         "texosmotr",
         "tehosmotr",
-        "osmotr",
         "tex osmotr",
         "техосмотр"
       ],
@@ -1119,7 +1107,6 @@
       "synonyms": [
         "lesa arenda",
         "stroy lesa",
-        "leса arenda",
         "lesa ijara",
         "qurilish lesasi",
         "bolgarka arenda",
@@ -1285,7 +1272,6 @@
         "sklad ijaraga",
         "tijorat maydoni ijaraga",
         "notijorat arendaga",
-        "nежилой",
         "нежилое помещение",
         "офис в аренду",
         "склад в аренду",

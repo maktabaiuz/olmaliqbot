@@ -1,5 +1,5 @@
 import initialDictionaryData from './initialDictionary.json';
-import { normalizeText, levenshteinDistance, containsAffirmedWholeWord } from '../transliteration';
+import { normalizeText, levenshteinDistance, containsAffirmedWholeWord, fuzzyMatchThreshold } from '../transliteration';
 import { db } from '@kimbor/db';
 
 // MUHIM (2026-09, "Global Lug'at" ekranini chin backend bilan qurish):
@@ -153,7 +153,7 @@ export function resolveCanonicalCategoryName(inputName: string): string {
     const patternCompact = p.pattern.replace(/[\s'-]+/g, '');
     if (patternCompact.length < 4 || Math.abs(patternCompact.length - compact.length) > 3) continue;
     const dist = levenshteinDistance(compact, patternCompact);
-    const threshold = Math.max(1, Math.floor(patternCompact.length / 6));
+    const threshold = fuzzyMatchThreshold(patternCompact.length);
     if (dist <= threshold && (!best || dist < best.distance)) {
       best = { canonicalName: p.canonicalName, distance: dist };
     }

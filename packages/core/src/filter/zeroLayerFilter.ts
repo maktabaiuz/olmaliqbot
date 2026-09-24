@@ -100,7 +100,11 @@ function hasFuzzyTradeKeyword(normalized: string): boolean {
     if (kw.length < 4) continue;
     for (const word of words) {
       if (Math.abs(kw.length - word.length) > 3) continue;
-      const threshold = Math.max(1, Math.round(kw.length / 4));
+      // 5 harfdan qisqa so'zda fuzzy moslik berilmaydi (aniq moslik shart) —
+      // bu yerning o'zi boshqa joylardan bo'shroq (izohga qarang), lekin
+      // "barber"/"barbir" turidagi tasodifiy qisqa-so'z to'qnashuvining
+      // oldi baribir olinishi kerak.
+      const threshold = kw.length < 5 ? 0 : Math.max(1, Math.round(kw.length / 4));
       if (levenshteinDistance(word, kw) <= threshold) return true;
     }
   }
@@ -129,8 +133,13 @@ export function zeroLayerFilter(text: string): boolean {
   );
 
   // 4. Kasb / Obyekt lug'atidan biror so'z bormi?
+  // MUHIM (2026-09): avval `.includes()` — oddiy substring — ishlatilardi,
+  // ya'ni qisqa kalit so'z ("komp" kabi) "kompaniya"/"kompot" kabi
+  // MUTLAQO aloqasiz uzunroq so'z ICHIDA ham "topilib" qolaverardi (xuddi
+  // ilgari "kafe"/"kafel" bilan bo'lgan xato kabi). Endi butun loyihada
+  // shu maqsad uchun ishlatiladigan `containsWholeWord` qo'llanadi.
   const hasTradeKeyword =
-    TRADE_KEYWORDS.some((kw) => kw.length > 2 && normalized.includes(kw)) || hasFuzzyTradeKeyword(normalized);
+    TRADE_KEYWORDS.some((kw) => kw.length > 2 && containsWholeWord(normalized, kw)) || hasFuzzyTradeKeyword(normalized);
 
   // O'tkazish qoidasi:
   // 1. Kasb/xizmat nomi aniq mavjud bo'lsa (masalan: "karzinka oldida santexnik", "gazavik bormi")

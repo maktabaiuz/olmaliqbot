@@ -1,7 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
-import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices } from '../transliteration';
+import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices, fuzzyMatchThreshold } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { RentalFilters } from '../intent/extractRentalFilters';
@@ -581,7 +581,7 @@ async function fuzzyFindCategory(searchText: string): Promise<{ id: string; name
       for (const cand of candidates) {
         if (Math.abs(target.length - cand.length) > 3) continue;
         const dist = levenshteinDistance(cand, target);
-        const threshold = Math.max(1, Math.floor(target.length / 6)); // ~6 harfga 1 ta xato ruxsat
+        const threshold = fuzzyMatchThreshold(target.length); // ~6 harfga 1 ta xato ruxsat, 7dan qisqa so'zda aniq moslik shart
         if (dist > threshold) continue;
         const isBetter =
           !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
@@ -619,7 +619,7 @@ async function fuzzyFindLandmark(cityId: string, searchText: string): Promise<st
       for (const cand of candidates) {
         if (Math.abs(target.length - cand.length) > 3) continue;
         const dist = levenshteinDistance(cand, target);
-        const threshold = Math.max(1, Math.floor(target.length / 6));
+        const threshold = fuzzyMatchThreshold(target.length);
         if (dist > threshold) continue;
         const isBetter =
           !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
@@ -994,7 +994,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             jargonDistinct.length >= MIN_JARGON_PHRASE_LENGTH &&
             Math.abs(msgDistinct.length - jargonDistinct.length) <= 3
           ) {
-            const threshold = Math.max(1, Math.floor(Math.max(msgDistinct.length, jargonDistinct.length) / 6));
+            const threshold = fuzzyMatchThreshold(Math.max(msgDistinct.length, jargonDistinct.length));
             if (levenshteinDistance(msgDistinct, jargonDistinct) <= threshold) {
               strength = 'strong';
               break;

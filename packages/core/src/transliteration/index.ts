@@ -72,6 +72,25 @@ export function levenshteinDistance(a: string, b: string): number {
   return prev[n];
 }
 
+// MUHIM (2026-09, real xato — "barbir" (="baribir"ning so'zlashuv shakli,
+// oddiy hazil xabarida) "barber" (sartarosh) so'zi bilan FAQAT 1 harf
+// farq bilan mos kelib, botni aloqasiz xabarga sartaroshning haqiqiy
+// raqamini berishga majbur qilgan): butun loyihada bir nechta joyda
+// (dictionary.ts, searchEngine.ts) "har ~6 harfga 1 xato ruxsat"
+// formulasi ishlatiladi — lekin `Math.max(1, ...)` QISQA so'zlar uchun
+// ham HAR DOIM kamida 1 ta xato ruxsat berardi. 6-7 harfli so'zda 1
+// xato — so'zning ~15-20%i, bu band emas, HAQIQIY yozilish xatosi
+// bilan TASODIFIY, aloqasiz so'z o'rtasidagi farqni deyarli aniqlab
+// bo'lmaydigan darajaga olib keladi. Endi 7 harfdan QISQA so'zlar uchun
+// fuzzy moslik UMUMAN berilmaydi (faqat aniq moslik) — uzunroq
+// so'zlarda odatiy nisbat saqlanadi, chunki uzun so'zda 1 xato ancha
+// KAMROQ ehtimol bilan mutlaqo boshqa, aloqasiz so'zga to'g'ri kelib
+// qoladi.
+export function fuzzyMatchThreshold(len: number): number {
+  if (len < 7) return 0;
+  return Math.max(1, Math.floor(len / 6));
+}
+
 // So'roq/umumiy so'zlar — jargon iborani yoki xabarni solishtirishdan oldin
 // olib tashlanadi, shunda faqat "yadro" (masalan "baliq haus") qoladi va
 // "nomeri", "kerak" kabi qo'shimchalar solishtirishga xalaqit bermaydi.
