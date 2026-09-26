@@ -102,6 +102,11 @@ const NOISE_WORDS = new Set([
   'qayoqda', 'qaerda', 'ega', 'bolarkan', 'bolarmikan',
 ]);
 
+/** So'z so'roq/umumiy "shovqin" so'zlaridan biridir (nomeri, kerak, bormi...). */
+export function isNoiseWord(word: string): boolean {
+  return NOISE_WORDS.has(word);
+}
+
 /**
  * Xabar/jargon iborasini solishtirish uchun "yadro" shaklga keltiradi:
  * kichik harf, so'roq/umumiy so'zlar olib tashlanadi, bo'shliq va tinish

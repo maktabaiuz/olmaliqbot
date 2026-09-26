@@ -37,13 +37,39 @@ jobs:
                   'Уйдаги газ плитани ремонт киладиган усталар номери кимда бор ёзиб юборинглар илтимос',
                   'Assalomu alaykum akalar qayerda kompyuter noutbook remont qiladigan usta bor',
                   'Assalomu alaykum akalar yaxshimisizlar sunnat qiladigan yaxshi duxtir bormi',
+                  'Fartunani nomeri bormi',
+                  'Beshbirdagi zaprafka ochiqmi',
+                  'beshbir zaprafka nechigacha ishlaydi',
+                  'deska zaprafka ishlayabdimi',
+                  'moshina moyi almashtirish kerak',
+                  'арендага механика мошин керак',
+                  'Taksi kerak zudlik bilan',
+                  'Metan quyadigan zapravka qayerda',
+                  'Olmaliq mib nechigacha ishlaydi',
+                  'stol stul arendaga beradigan odamni nomeri kimda bor',
+                  'Propan qayerda ishlayabdi akalar',
+                  'kafel yotqizadigan usta kerak',
+                  'mashina ochib qolgan, kimda perekrutel bor',
+                  'moshina eshigini remont qiladigan usta qayerda ishlaydi',
+                  'santexnik kerak suv tomayabdi',
+                  'sartarosh kerak',
+                  'kvartira arendaga kerak',
+                  'elektrik kerak svet ochdi',
+                  'gazavik bormi',
+                  'balon kerak',
+                  'kompyuter ustasi bormi',
+                  'noutbook remont qiladigan usta kerak',
+                  'Oydinda nima bor?',
                 ];
-                for (const msg of messages) {
+                const run = async (msg) => {
                   const r = await fetch('http://localhost:4000/api/admin/simulate', { method: 'POST', headers, body: JSON.stringify({ message: msg }) });
                   const d = await r.json();
-                  console.log('out:' + JSON.stringify({ msg, steps: d.steps, final: d.finalResult && { found: d.finalResult.found, listing: d.finalResult.listingName, cat: d.finalResult.categoryName }, breakdown: d.scoreBreakdown }));
+                  const top = d.scoreBreakdown && d.scoreBreakdown[0];
+                  return 'out:' + JSON.stringify({ m: msg.slice(0, 70), ai: d.steps && d.steps.aiClassification && d.steps.aiClassification.category, found: d.finalResult && d.finalResult.found, who: d.finalResult && d.finalResult.listingName, cat: d.finalResult && d.finalResult.categoryName, str: top && top.jargonStrength, ph: top && top.matchedJargonPhrase });
+                };
+                for (let i = 0; i < messages.length; i += 5) {
+                  const outs = await Promise.all(messages.slice(i, i + 5).map(run));
+                  outs.forEach(o => console.log(o));
                 }
-                const cats = await db.category.findMany({ select: { name: true } });
-                console.log('out:CATS ' + cats.map(c => c.name).join(' | '));
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "

@@ -1,7 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
-import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices, fuzzyMatchThreshold } from '../transliteration';
+import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices, fuzzyMatchThreshold, isNoiseWord } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
 import { RentalFilters } from '../intent/extractRentalFilters';
@@ -68,6 +68,7 @@ export interface ScoreBreakdownEntry {
   jargonBonus: number;
   directJargonBonus: number;
   jargonStrength: 'strong' | 'category' | 'weak' | null;
+  matchedJargonPhrase?: string | null;
   badgeBonus: number;
   matchedBadgeCount: number;
   ratingScore: number;
@@ -170,8 +171,15 @@ const GENERIC_QUY_VERB_FORMS = new Set([
 // ro'yxatlar (GENERIC_ACTION_STEMS, GENERIC_NOUN_STEMS) endi ZAXIRA —
 // ular DOMENGA XOS (santexnik/mashina ta'mirlash sohasi), lug'atda
 // yo'q so'zlar uchun qoladi.
+// "-adigan" (o'zbekcha sifatdosh: "qiladigan", "biladigan", "yuradigan",
+// "olib keladigan", ko'plik/kelishik qo'shimchalari bilan ham) — HAR DOIM
+// fe'l shakli, hech qachon biznes nomi emas. Stop-so'z lug'atida hamma
+// fe'lning hamma shakli yo'q (2026-09-26, "remont QILADIGAN usta" xatosi).
+const PARTICIPLE_RE = /(adigan|aydigan)(lar|ni|ga|dan|ning|lari)?$/;
+
 function isGenericFillerWord(word: string): boolean {
   if (UZBEK_STOPWORDS.has(word)) return true;
+  if (PARTICIPLE_RE.test(word)) return true;
   if (word.startsWith('ishla')) return true;
   if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
   if (GENERIC_QUY_VERB_FORMS.has(word)) return true;
@@ -245,7 +253,7 @@ const WORD_FREQUENCY_THRESHOLD = 2;
 // ALLAQACHON to'g'ri deb topilgan kategoriya ICHIDA aniqlashtirish uchun
 // ishlatiladi, yoki kategoriya umuman aniqlanmagan bo'lsa (AI xato qilgan,
 // zaxira sifatida) qabul qilinadi.
-type JargonMatchStrength = 'strong' | 'category' | 'weak' | null;
+export type JargonMatchStrength = 'strong' | 'category' | 'weak' | null;
 
 // MUHIM (2026-09, real skrinshot bilan tasdiqlangan JIDDIY xato): SHAHAR
 // NOMI ("Olmaliq") jargon identifikatori sifatida ishlatilib kelingan.
@@ -483,6 +491,110 @@ function wordsShareStem(a: string, b: string): boolean {
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length <= b.length ? b : a;
   return shorter.length >= 5 && longer.startsWith(shorter);
+}
+
+// MUHIM (2026-09-26, uchta real skrinshot bilan tasdiqlangan XATO — "kompyuter
+// noutbook REMONT QILADIGAN USTA bor", "gaz plitani remont qiladigan usta",
+// "sunnat qiladigan yaxshi duxtir bormi" so'rovlariga barchasiga bir xil
+// aloqasiz bo'yoqchi/kafelchi ko'rsatilgan): butun-ibora darajasidagi jargon
+// moslik avval xabar va jargonni bo'shliqsiz "yadro" satrga (coreMatchText)
+// siqib, oddiy `includes` (substring) bilan solishtirardi. Bo'yoqchining
+// jargonida "remont qiladigan usta" iborasi bor edi — u BUTUNLAY umumiy
+// so'zlardan iborat ("remont", "qiladigan", "usta": hech qanday KASBga xos
+// emas), lekin siqilgan satrda har qanday "remont qiladigan usta" xabari ichida
+// substring sifatida topilib, KUCHLI ("strong", +2000 ball) moslik deb
+// hisoblanardi — AI to'g'ri kategoriyani topgan bo'lsa ham (kompyuter ustasi,
+// shifokor) shu bitta jargon ularning hammasidan ustun kelardi.
+//
+// Ildiz sabab — solishtirish UMUMIY so'zlarni ham hisobga olgani. Endi ikkala
+// tomonda ham avval umumiy (stop-so'z, "usta"/"remont"/"mashina", aloqa,
+// shahar nomi va bir necha yozuvda takrorlanadigan) so'zlar olib tashlanadi;
+// qolgan O'ZIGA XOS so'zlar (masalan "beshbirdagi", "baliq haus", "mib")
+// xabardagi so'zlar bilan SO'Z CHEGARASI bo'yicha solishtiriladi. Faqat
+// umumiy so'zlardan iborat jargon ibora hech qachon moslik bera olmaydi.
+function isContentToken(word: string, cityWords: string[]): boolean {
+  return (
+    word.length >= 3 &&
+    !isNoiseWord(word) &&
+    !GENERIC_JARGON_WORDS.has(word) &&
+    !isGenericFillerWord(word) &&
+    !isGenericContactWord(word) &&
+    !isCityWord(word, cityWords)
+  );
+}
+
+export function contentTokensOf(text: string, cityWords: string[]): string[] {
+  return normalizeText(text)
+    .split(/\s+/)
+    .filter((w) => w && isContentToken(w, cityWords));
+}
+
+/** Har bir so'z nechta TURLI yozuvning jargonida uchraydi (3+ harfli so'zlar). */
+export function computeJargonTokenFrequency(jargonCandidates: { jargonSynonyms: string[] }[]): Map<string, number> {
+  const freq = new Map<string, number>();
+  for (const cand of jargonCandidates) {
+    const seen = new Set<string>();
+    for (const phrase of cand.jargonSynonyms) {
+      for (const w of normalizeText(phrase).split(/\s+/)) {
+        if (w.length >= 3) seen.add(w);
+      }
+    }
+    for (const w of seen) freq.set(w, (freq.get(w) || 0) + 1);
+  }
+  return freq;
+}
+
+function tokenCovered(token: string, pool: string[]): boolean {
+  return pool.some((p) => p === token || wordsShareStem(p, token));
+}
+
+// Bo'shliq imlosi farqiga chidamlilik: "baliqhaus" (xabar) ~ "baliq haus" (jargon).
+function compactRunMatches(tokens: string[], compact: string): boolean {
+  if (compact.length < 4) return false;
+  for (let i = 0; i < tokens.length; i++) {
+    let run = '';
+    for (let k = i; k < Math.min(tokens.length, i + 4); k++) {
+      run += tokens[k];
+      if (run === compact) return true;
+      if (run.length > compact.length + 6) break;
+    }
+  }
+  return false;
+}
+
+export function phraseLevelJargonStrength(
+  msgContent: string[],
+  jargonPhrase: string,
+  tokenFrequency: Map<string, number>,
+  categoryWordFrequency: Map<string, number>,
+  cityWords: string[]
+): JargonMatchStrength {
+  if (msgContent.length === 0) return null;
+  const jargonContent = contentTokensOf(jargonPhrase, cityWords).filter(
+    (w) => (tokenFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
+  );
+  if (jargonContent.length === 0) return null;
+
+  const forward =
+    jargonContent.every((jt) => tokenCovered(jt, msgContent)) ||
+    compactRunMatches(msgContent, jargonContent.join(''));
+  // Teskari yo'nalish: foydalanuvchi jargondan QISQAROQ yozgan ("Haus nomeri"
+  // ~ "baliq haus") — xabarning BARCHA o'ziga xos so'zlari jargonda bo'lsa.
+  const reverse =
+    !forward &&
+    msgContent.join('').length >= 4 &&
+    (msgContent.every((mt) => tokenCovered(mt, jargonContent)) ||
+      compactRunMatches(jargonContent, msgContent.join('')));
+  if (!forward && !reverse) return null;
+
+  const matched = forward ? jargonContent : msgContent;
+  let best: JargonMatchStrength = 'weak';
+  for (const t of matched) {
+    const f = categoryWordFrequency.get(t) || 0;
+    if (f === 0) return 'strong';
+    if (f === 1) best = 'category';
+  }
+  return best;
 }
 
 // So'rov ko'rinishidagi xabar signalini tekshiradi. MUHIM (2026-09 topilgan
@@ -902,6 +1014,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // kategoriyani topgan bo'lsa-yu, bu yozuv BOSHQA kategoriyada bo'lsa —
   // zaif dalil uni ko'rsatish uchun yetarli emas.
   const conditionalJargon = new Map<string, { categoryId: string | null; strength: 'category' | 'weak' }>();
+  const jargonEvidence = new Map<string, string>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     // MUHIM (2026-09, real xato — "...такси килишга ЕМАС..." arenda
     // so'rovi Taksi yozuviga xato mos kelib qolgan edi): pastdagi "yadro"
@@ -961,19 +1074,31 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       select: { id: true, categoryId: true, jargonSynonyms: true },
     });
     const wordFrequency = computeJargonWordFrequency(jargonCandidates);
+    const jargonTokenFrequency = computeJargonTokenFrequency(jargonCandidates);
     const categoryWordFrequency = await getCategoryWordFrequency();
+    const msgContentTokens = rawTokensForCore.filter(
+      (w, idx) => !negatedForCore.has(idx) && isContentToken(w, cityWords)
+    );
     for (const cand of jargonCandidates) {
       let strength: JargonMatchStrength = null;
       for (const j of cand.jargonSynonyms) {
+        const phraseStrength = phraseLevelJargonStrength(
+          msgContentTokens,
+          j,
+          jargonTokenFrequency,
+          categoryWordFrequency,
+          cityWords
+        );
+        if (phraseStrength === 'strong') {
+          strength = 'strong';
+          jargonEvidence.set(cand.id, j);
+          break;
+        }
+        if (phraseStrength === 'category' && strength !== 'category') strength = 'category';
+        else if (phraseStrength === 'weak' && strength === null) strength = 'weak';
+
         const jargonCore = coreMatchText(j);
         if (jargonCore.length >= MIN_JARGON_PHRASE_LENGTH && msgCore.length >= MIN_JARGON_PHRASE_LENGTH) {
-          // Ikki tomonlama qamrash: xabar jargon "yadrosi"ni o'z ichiga oladimi,
-          // yoki aksincha (foydalanuvchi qisqaroq yozgan bo'lsa). BUTUN ibora
-          // mos kelishi — eng ishonchli dalil.
-          if (msgCore.includes(jargonCore) || jargonCore.includes(msgCore)) {
-            strength = 'strong';
-            break;
-          }
           // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): oxirgi,
           // yozilish xatosiga chidamli Levenshtein tekshiruvi avval BUTUN,
           // filtrlanmagan "yadro" satrni solishtirar edi. Bu XAVFLI bo'lib
@@ -997,6 +1122,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             const threshold = fuzzyMatchThreshold(Math.max(msgDistinct.length, jargonDistinct.length));
             if (levenshteinDistance(msgDistinct, jargonDistinct) <= threshold) {
               strength = 'strong';
+              jargonEvidence.set(cand.id, j);
               break;
             }
           }
@@ -1004,6 +1130,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         const wordStrength = wordLevelJargonMatchStrength(msgWords, j, wordFrequency, categoryWordFrequency, cityWords);
         if (wordStrength === 'strong') {
           strength = 'strong';
+          jargonEvidence.set(cand.id, j);
           break;
         }
         if (wordStrength === 'category' && strength !== 'category') strength = 'category';
@@ -1853,6 +1980,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             isVerifiedBonus,
             jargonBonus,
             directJargonBonus,
+            matchedJargonPhrase: jargonEvidence.get(item.id) || null,
             jargonStrength: (jargonMatchedIds.has(item.id)
               ? jargonStrengthInfo?.strength || 'strong'
               : null) as 'strong' | 'category' | 'weak' | null,
