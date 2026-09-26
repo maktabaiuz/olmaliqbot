@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contentTokensOf, computeJargonTokenFrequency, phraseLevelJargonStrength, normalizeText } from '@kimbor/core';
+import { contentTokensOf, computeJargonTokenFrequency, phraseLevelJargonStrength, jargonMatchQuality, normalizeText } from '@kimbor/core';
 
 const city = ['olmaliq'];
 // Kategoriya lug'atidagi so'zlar (soha so'zlari) — 1 = bitta kategoriyaga xos.
@@ -62,5 +62,26 @@ describe('contentTokensOf', () => {
     expect(contentTokensOf('remont qiladigan usta kerak', city)).toEqual([]);
     expect(normalizeText('Kompyuter')).toBe('kompyuter');
     expect(contentTokensOf('kompyuter noutbook remont', city)).toContain('kompyuter');
+  });
+});
+
+describe('jargonMatchQuality — to\'liq ibora qisman moslikdan yuqori turadi', () => {
+  const pool = [
+    { jargonSynonyms: ['kanalizatsiyaga teshik ochish kerak'] },
+    { jargonSynonyms: ['moshina ochish', 'qulf ochish'] },
+    { jargonSynonyms: ['natijnoy patalok kim qiladi'] },
+    { jargonSynonyms: ['natijnoy patalok qilish kerak usta kerak'] },
+  ];
+  const freq = computeJargonTokenFrequency(pool);
+  const q = (msg: string, phrase: string) => jargonMatchQuality(contentTokensOf(msg, city), phrase, freq, city);
+
+  it('"qulf ochish" — Qulf ustasi iborasi kanalizatsiya iborasidan yuqori', () => {
+    expect(q('qulf ochish nomeri bormi', 'qulf ochish')).toBeGreaterThan(q('qulf ochish nomeri bormi', 'kanalizatsiyaga teshik ochish kerak'));
+  });
+  it('"kanalizatsiyaga teshik ochish" — to\'liq ibora "moshina ochish"dan yuqori', () => {
+    expect(q('kanalizatsiyaga teshik ochish kerak', 'kanalizatsiyaga teshik ochish kerak')).toBeGreaterThan(q('kanalizatsiyaga teshik ochish kerak', 'moshina ochish'));
+  });
+  it('bir xil kalit so\'zlarda ham aniq ibora yuqori', () => {
+    expect(q('natijnoy patalok kim qiladi', 'natijnoy patalok kim qiladi')).toBeGreaterThan(q('natijnoy patalok kim qiladi', 'natijnoy patalok qilish kerak usta kerak'));
   });
 });

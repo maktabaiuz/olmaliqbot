@@ -69,6 +69,7 @@ export interface ScoreBreakdownEntry {
   directJargonBonus: number;
   jargonStrength: 'strong' | 'category' | 'weak' | null;
   matchedJargonPhrase?: string | null;
+  jargonQuality?: number;
   badgeBonus: number;
   matchedBadgeCount: number;
   ratingScore: number;
@@ -377,6 +378,30 @@ function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[]
  * "Beshbirdagi zaprafka ochiqmi" — "karvon" so'zi yo'q, lekin
  * "beshbirdagi" ikkalasida ham bor (va faqat shu bitta yozuvga xos).
  */
+// MUHIM (2026-09-26, jargon o'z-o'zini sinash testida topilgan XATO): barcha
+// "kuchli" moslik BIR XIL +2000 olardi, shu sabab foydalanuvchi bitta yozuvning
+// jargon iborasini AYNAN yozganda ham (masalan "natijnoy patalok kim qiladi",
+// "kanalizatsiyaga teshik ochish kerak") boshqa yozuv — jargonida faqat BITTA
+// umumiy-ish so'z ("natijnoy", "ochish") mos kelgani — teng ball olib, g'olibni
+// tasodifiy `rotationBonus` yoki tasdiqlanganlik (+1000) hal qilardi. Endi
+// moslik SIFATI ham hisoblanadi: jargon ibora o'ziga xos so'zlarining qanchasi
+// xabarda topildi (qamrov) va nechta so'z mos keldi. To'liq ibora moslik
+// qisman moslikdan har doim yuqori turadi.
+export function jargonMatchQuality(
+  msgContent: string[],
+  jargonPhrase: string,
+  tokenFrequency: Map<string, number>,
+  cityWords: string[]
+): number {
+  const jc = contentTokensOf(jargonPhrase, cityWords).filter(
+    (w) => (tokenFrequency.get(w) || 0) <= WORD_FREQUENCY_THRESHOLD
+  );
+  if (jc.length === 0 || msgContent.length === 0) return 0;
+  let covered = jc.filter((t) => tokenCovered(t, msgContent)).length;
+  if (covered < jc.length && compactRunMatches(msgContent, jc.join(''))) covered = jc.length;
+  return Math.round((covered / jc.length) * 1200) + Math.min(covered, 4) * 100;
+}
+
 /**
  * Iboradan FAQAT o'ziga xos (umumiy bo'lmagan) so'zlarni ajratib oladi —
  * "zaprafka", "nechigacha", "ishlaydi" kabi filler so'zlar, shahar nomi va
@@ -1015,6 +1040,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // zaif dalil uni ko'rsatish uchun yetarli emas.
   const conditionalJargon = new Map<string, { categoryId: string | null; strength: 'category' | 'weak' }>();
   const jargonEvidence = new Map<string, string>();
+  const jargonQuality = new Map<string, number>();
   if (rawMessage && looksLikeSearchRequest(rawMessage)) {
     // MUHIM (2026-09, real xato — "...такси килишга ЕМАС..." arenda
     // so'rovi Taksi yozuviga xato mos kelib qolgan edi): pastdagi "yadro"
@@ -1138,6 +1164,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       }
       if (strength === 'strong') {
         jargonMatchedIds.add(cand.id);
+        let bestQ = -1;
+        let bestPhrase: string | null = null;
+        for (const j of cand.jargonSynonyms) {
+          const q = jargonMatchQuality(msgContentTokens, j, jargonTokenFrequency, cityWords);
+          if (q > bestQ) {
+            bestQ = q;
+            bestPhrase = j;
+          }
+        }
+        jargonQuality.set(cand.id, Math.max(0, bestQ));
+        if (bestQ > 0 && bestPhrase) jargonEvidence.set(cand.id, bestPhrase);
       } else if (strength === 'category' || strength === 'weak') {
         jargonMatchedIds.add(cand.id);
         conditionalJargon.set(cand.id, { categoryId: cand.categoryId, strength });
@@ -1931,7 +1968,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         ? 150
         : jargonStrengthInfo?.strength === 'weak'
           ? 0
-          : 2000;
+          : 2000 + (jargonQuality.get(item.id) || 0);
 
     // Admin kategoriya ichida "1/2/3-o'rin" deb belgilagan yozuv — bu HAR
     // QANDAY boshqa signaldan (tasdiqlanganlik, reyting, jargon) ustunroq
@@ -1981,6 +2018,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             jargonBonus,
             directJargonBonus,
             matchedJargonPhrase: jargonEvidence.get(item.id) || null,
+            jargonQuality: jargonQuality.get(item.id) || 0,
             jargonStrength: (jargonMatchedIds.has(item.id)
               ? jargonStrengthInfo?.strength || 'strong'
               : null) as 'strong' | 'category' | 'weak' | null,
