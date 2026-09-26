@@ -399,7 +399,7 @@ export function jargonMatchQuality(
   if (jc.length === 0 || msgContent.length === 0) return 0;
   let covered = jc.filter((t) => tokenCovered(t, msgContent)).length;
   if (covered < jc.length && compactRunMatches(msgContent, jc.join(''))) covered = jc.length;
-  return Math.round((covered / jc.length) * 1200) + Math.min(covered, 4) * 100;
+  return Math.round((covered / jc.length) * 2400) + Math.min(covered, 4) * 100;
 }
 
 /**
