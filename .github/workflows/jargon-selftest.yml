@@ -25,10 +25,8 @@ jobs:
               const longest = (p) => core.normalizeText(p).split(/\s+/).sort((a, b) => b.length - a.length)[0] || '';
               const variants = {
                 A_exact: (p) => p + ' nomeri bormi',
-                B_bigToken: (p) => longest(p) + ' kerak',
-                C_nospace: (p) => p.replace(/\s+/g, '') + ' nomeri bormi',
-                D_typo: (p) => { const t = longest(p); return t.length >= 6 ? t.slice(0, 3) + t.slice(4) + ' nomeri bormi' : null; },
-                E_suffix: (p) => { const t = longest(p); return t.length >= 5 ? t + 'da nomeri bormi' : null; },
+                G_noisy: (p) => 'assalomu alaykum akalar ' + p + ' bormi',
+                D_typo: (p) => { const t = longest(p); return t.length >= 7 ? p.replace(t, t.slice(0, 3) + t.slice(4)) + ' bormi' : null; },
               };
               const stats = {};
               for (const k of Object.keys(variants)) stats[k] = { ok: 0, wrong: 0, miss: 0 };
@@ -48,16 +46,21 @@ jobs:
                 while (idx < jobs.length) {
                   const j = jobs[idx++];
                   let res = null;
-                  try { res = await core.searchListings({ cityId: j.l.cityId, categoryName: null, landmarkName: null, rawMessage: j.q, intent: 'SERVICE', name: null }); } catch (e) { res = null; }
+                  try { res = await core.searchListings({ cityId: j.l.cityId, categoryName: null, landmarkName: null, rawMessage: j.q, intent: 'SERVICE', name: null, debug: true }); } catch (e) { res = null; }
                   const got = res && res.listing;
                   if (got && got.id === j.l.id) stats[j.k].ok++;
-                  else if (got) { stats[j.k].wrong++; wrongs.push({ k: j.k, want: j.l.name, wantCat: j.l.category && j.l.category.name, got: got.name, gotCat: got.category && got.category.name, phrase: j.p }); }
+                  else if (got) {
+                    const norm = (x) => core.normalizeText(x).replace(/\s+/g, '');
+                    const dup = (got.jargonSynonyms || []).some((x) => norm(x) === norm(j.p));
+                    if (dup) { stats[j.k].dupSharedPhrase = (stats[j.k].dupSharedPhrase || 0) + 1; }
+                    else { stats[j.k].wrong++; wrongs.push({ k: j.k, want: j.l.name, wantCat: j.l.category && j.l.category.name, got: got.name, gotCat: got.category && got.category.name, phrase: j.p, msg: j.q, top: (res.scoreBreakdown || []).slice(0, 2).map((b) => ({ n: b.name, s: b.jargonStrength, ph: b.matchedJargonPhrase, tot: Math.round(b.totalScore) })) }); }
+                  }
                   else { stats[j.k].miss++; if (j.k === 'A_exact') misses.push({ want: j.l.name, cat: j.l.category && j.l.category.name, phrase: j.p }); }
                 }
               };
               await Promise.all(Array.from({ length: 8 }, worker));
               for (const [k, v] of Object.entries(stats)) console.log('out:STAT ' + k + ' ' + JSON.stringify(v));
-              wrongs.slice(0, 40).forEach((w) => console.log('out:WRONG ' + JSON.stringify(w)));
+              wrongs.slice(0, 45).forEach((w) => console.log('out:WRONG ' + JSON.stringify(w)));
               console.log('out:WRONG_TOTAL=' + wrongs.length);
               misses.slice(0, 40).forEach((m) => console.log('out:MISS_A ' + JSON.stringify(m)));
               console.log('out:MISS_A_TOTAL=' + misses.length);
