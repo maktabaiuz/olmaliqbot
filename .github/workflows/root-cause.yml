@@ -1,0 +1,26 @@
+name: One-off - investigate why webhook got cleared
+on:
+  workflow_dispatch:
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Investigate via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 5m
+          script: |
+            echo "=== caddy container status ==="
+            docker ps -a --format '{{.Names}}: {{.Status}}' | grep caddy
+            echo "=== caddy logs mentioning webhook, last 3 days ==="
+            docker logs --since 72h kimbor_caddy 2>&1 | grep -i "webhook" | tail -60
+            echo "=== caddy logs: 5xx or error entries, last 3 days ==="
+            docker logs --since 72h kimbor_caddy 2>&1 | grep -iE '"status":5|error|tls' | tail -60
+            echo "=== bot restarts (container events) ==="
+            docker inspect kimbor_bot --format 'StartedAt: {{.State.StartedAt}}  RestartCount: {{.RestartCount}}'
+            echo "=== full bot log tail (500 lines, unfiltered) ==="
+            docker logs --tail 500 kimbor_bot 2>&1 | grep -iE "webhook|error|xato|❌|⚠️" | tail -100
