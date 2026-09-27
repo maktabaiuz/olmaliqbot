@@ -326,6 +326,31 @@ async function startBot() {
       console.log(`🚀 BOT WEBHOOK MODE DA ISHGA TUSHDI! (Port: 3001)`);
       console.log(`======================================================`);
     });
+
+    // MUHIM (2026-09-27, real ishlab chiqarish uzilishi): bot 30+ soat
+    // "ishlagandek" ko'rinib (konteyner Up, hech qanday xato/qulash yo'q,
+    // Caddy loglarida bironta 5xx yo'q), lekin foydalanuvchilarga UMUMAN
+    // javob bermay qolgan edi — Telegram tomonidan webhook TASHQARIDAN
+    // (bizning kodimiz hech qachon deleteWebhook/setWebhook("") chaqirmaydi)
+    // tozalanib qolgan, va bu HECH QANDAY xato/log qoldirmagan, shu sabab
+    // hech kim buni darhol payqamagan. Endi bot davriy ravishda o'zining
+    // webhook holatini tekshiradi va kerak bo'lsa avtomatik qayta tiklaydi —
+    // shunda bunday uzilish soatlab emas, bir necha daqiqada tuzatiladi.
+    const WEBHOOK_HEALTHCHECK_INTERVAL_MS = 5 * 60 * 1000;
+    setInterval(async () => {
+      try {
+        const info = await bot.api.getWebhookInfo();
+        if (info.url !== webhookUrl) {
+          console.error(`⚠️ Webhook tashqaridan o'zgargan/tozalangan (kutilgan: ${webhookUrl}, hozirgi: "${info.url}") — qayta o'rnatilmoqda...`);
+          await bot.api.setWebhook(webhookUrl, {
+            allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member'],
+          });
+          console.log(`✅ Webhook avtomatik qayta tiklandi: ${webhookUrl}`);
+        }
+      } catch (err) {
+        console.error('❌ Webhook health-check xatosi:', err);
+      }
+    }, WEBHOOK_HEALTHCHECK_INTERVAL_MS).unref();
   } else {
     await bot.start({
       onStart(botInfo) {
