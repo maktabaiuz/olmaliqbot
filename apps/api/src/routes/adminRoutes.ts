@@ -1407,6 +1407,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       const seenInRow = new Set<string>();
       for (const t of tokens) {
         if (t.length < 5) continue; // juda qisqa so'zlar tasodifiy shovqin
+        if (/\d{4,}/.test(t)) continue; // telefon raqami/kod — so'z emas
         if (categoryVocab.has(t) || landmarkVocab.has(t)) continue; // ALLAQACHON bazada bor
         if (decided.has(t)) continue; // admin allaqachon qaror qabul qilgan
         if (GREETING_POLITENESS_WORDS.has(t)) continue; // salomlashuv, joy/biznes nomi emas
