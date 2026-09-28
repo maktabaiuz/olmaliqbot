@@ -1635,9 +1635,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     // 1) BUTUN tarixiy arxivdan ("guruhlarda odamlar nima deb so'ragan")
     // shu kasb/sohaga aloqador bo'lishi mumkin bo'lgan xabarlarni ajratib
-    // olamiz: (a) AI o'zi o'sha paytda SHU kategoriyani aniqlagan bo'lsa,
-    // YOKI (b) xabar matnida shu kategoriyaning nomi/sinonimlaridan biri
-    // SO'Z CHEGARASI bilan (substring emas) uchrasa.
+    // olamiz. MUHIM (2026-09-28, sinovda topilgan): dastlab AI'ning O'ZI
+    // o'sha payt bergan (ba'zan XATO) tarixiy categoryName belgisiga ham
+    // ishonilardi — bu eski xato tasnifni ("probka" haqidagi umuman
+    // aloqasiz xabar "bank" deb noto'g'ri belgilangan edi) qayta tirilтirib,
+    // shovqin qo'shardi. Endi FAQAT xabar matnining o'zida shu kategoriya
+    // nomi/sinonimlaridan biri SO'Z CHEGARASI bilan (substring emas)
+    // haqiqatan uchrashi talab qilinadi — kamroq, lekin ishonchliroq natija.
     const rows = await db.queryLog.findMany({
       where: { cityId, intent: { not: 'NOT_RELEVANT' } },
       select: { rawMessage: true, categoryName: true, landmarkName: true },
@@ -1645,7 +1649,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
       orderBy: { createdAt: 'desc' },
     });
     const relevant = rows.filter((r) => {
-      if (r.categoryName && normalizeText(r.categoryName) === normalizedTarget) return true;
       const normMsg = normalizeText(r.rawMessage);
       return categoryWordsForMatch.some((w) => containsWholeWord(normMsg, w));
     });
