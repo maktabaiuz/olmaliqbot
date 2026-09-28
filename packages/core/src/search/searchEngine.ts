@@ -2078,6 +2078,39 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     return null;
   }
 
+  // MUHIM (2026-09-29, real skrinshot bilan tasdiqlangan xato): "Кайси
+  // заправка бу катдаги" (avvalgi xabarga — bir surat-e'longa — reply
+  // qilingan, "QAYSI zapravka SHU (rasmdagi)" degan savol; bot rasmni
+  // ko'rmaydi, faqat matnni) so'roviga bot HECH QANDAY mo'ljal/jargon
+  // signalisiz, FAQAT tasodifiy `rotationBonus` orqali BITTA aloqasiz
+  // zapravkani "aniq javob" sifatida ko'rsatib yuborgan edi — bir xil
+  // so'rov har safar BOSHQA-BOSHQA natija berishi buni tasdiqladi
+  // (rotationBonus'ning o'zi `Math.random()`ga asoslangan).
+  //
+  // "Qaysi" so'zi — foydalanuvchi bizdan bir nechta variant orasidan
+  // ANIQ IDENTIFIKATSIYA so'ramoqda, "eng yaxshisini tavsiya qil" emas.
+  // Agar buni ajratib bera oladigan hech qanday dalil (mo'ljal yoki
+  // jargon moslik) yo'q bo'lsa-yu, shu kategoriyada BIR NECHTA yozuv
+  // bo'lsa — tasodifiy tanlovni "aniq javob" deb ko'rsatishdan ko'ra jim
+  // turish TO'G'RIROQ (loyihaning "jim turish" tamoyili).
+  //
+  // MUHIM: aynan skrinshotdagi xabar ("Кайси...") oddiy kirill "к" bilan
+  // yozilgan (maxsus o'zbekcha "қ" harfi bilan EMAS) — normalizeText buni
+  // "kaysi" (k bilan) ga o'giradi, "qaysi" (q bilan) ga EMAS, chunki "к"
+  // va "қ" alifboda alohida-alohida harflar. Ko'p odamlar oddiy klaviatura
+  // sabab maxsus "қ" harfini emas, oddiy "к"ni yozadi — shu sabab ikkala
+  // shakl ham (haqiqiy imlo "qaysi" va keng tarqalgan noto'g'ri-klaviatura
+  // shakli "kaysi") tekshiriladi.
+  const normalizedRawMessage = rawMessage ? normalizeText(rawMessage) : '';
+  if (
+    scoredListings.length > 1 &&
+    !cleanLandmarkName &&
+    !jargonMatchedIds.has(bestMatch.id) &&
+    (containsWholeWord(normalizedRawMessage, 'qaysi') || containsWholeWord(normalizedRawMessage, 'kaysi'))
+  ) {
+    return null;
+  }
+
   // Sarlavhada har doim TOPILGAN yozuvning haqiqiy kategoriyasini ko'rsatamiz —
   // klassifikator taxminini emas (masalan Gemini ishlamay qolib, chalkash matn
   // chiqargan bo'lsa ham, foydalanuvchiga toza va to'g'ri nom ko'rinadi).
