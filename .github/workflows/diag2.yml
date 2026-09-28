@@ -39,7 +39,7 @@ jobs:
                 const since = new Date(Date.now() - 60*60*1000);
                 const logs = await db.queryLog.findMany({ where: { createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 20, select: { rawMessage: true, intent: true, categoryName: true, landmarkName: true, isResolved: true, confidence: true, createdAt: true, chatId: true } });
                 console.log('out:COUNT_LAST_HOUR=' + logs.length);
-                for (const l of logs) console.log('out:' + JSON.stringify(l));
+                for (const l of logs) console.log('out:' + JSON.stringify(l, (k,v) => typeof v === 'bigint' ? v.toString() : v));
                 const msgEvCount = await db.groupMessageEvent.count({ where: { createdAt: { gte: since } } });
                 console.log('out:GROUP_MESSAGE_EVENT_LAST_HOUR=' + msgEvCount);
                 await db.\$disconnect();
