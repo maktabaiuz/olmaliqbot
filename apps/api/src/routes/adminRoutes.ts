@@ -1375,9 +1375,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const categoryIdByNormalizedName = new Map(allCategories.map((c) => [normalizeText(c.name), c.id]));
     const landmarkIdByNormalizedName = new Map(landmarks.map((l) => [normalizeText(l.name), l.id]));
 
+    // MUHIM (2026-09-28, sinovda topilgan sifat muammosi): `contentTokensOf`
+    // (stopwords + umumiy so'zlar filtri) QIDIRUV moslashtiruvi uchun
+    // yetarli, lekin bu yerda — "bu so'z HAQIQIY mahalliy jargon/nom
+    // ekanmi" degan ancha qattiqroq savol — kifoya emas edi. Birinchi
+    // sinovda "assalom", "raxmat", "bilganlar", "bulsa", "narxi",
+    // "aytvorilar" kabi ODDIY, HAR QANDAY so'rovda uchraydigan so'zlashuv
+    // so'zlari chiqib qoldi — bular hech qanday joy/biznes nomiga xos emas.
+    // Ikki qo'shimcha himoya qo'shildi (pastda): (1) kichik, ANIQ yopiq
+    // to'plam — salomlashuv/xushmuomalalik so'zlari (bular chekli, cheksiz
+    // "yangi jargon" bilan bir xil muammoga ega EMAS, shu sabab qo'lda
+    // ro'yxat qilish xavfsiz); (2) KATEGORIYA KONSENTRATSIYASI — agar so'z
+    // 3+ TURLI kategoriyada baravar tarqalgan bo'lsa (bironta ustunlik
+    // qilmasa) — bu so'z biror SOHAGA emas, umumiy so'zlashuvga xos,
+    // demak jargon EMAS (xuddi searchEngine.ts'dagi "usta"/"arenda" kabi
+    // ko'p-kategoriyali so'zlarni chiqarib tashlash mantig'i bilan bir xil
+    // tamoyil).
+    const GREETING_POLITENESS_WORDS = new Set([
+      'assalom', 'assalomu', 'alaykum', 'alekum', 'aleykum', 'alaykumassalom',
+      'salom', 'rahmat', 'raxmat', 'iltimos', 'oldindan', 'hurmatli', 'hammaga',
+      'akalar', 'ukalar', 'opalar', 'bolalar', 'birodarlar', 'aylanay',
+    ]);
+
     const candidates = new Map<
       string,
-      { count: number; sample: string; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
+      { count: number; sample: string; distinctMessages: Set<string>; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
     >();
 
     for (const row of rows) {
@@ -1387,15 +1409,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
         if (t.length < 5) continue; // juda qisqa so'zlar tasodifiy shovqin
         if (categoryVocab.has(t) || landmarkVocab.has(t)) continue; // ALLAQACHON bazada bor
         if (decided.has(t)) continue; // admin allaqachon qaror qabul qilgan
+        if (GREETING_POLITENESS_WORDS.has(t)) continue; // salomlashuv, joy/biznes nomi emas
         if (seenInRow.has(t)) continue; // bitta xabar bitta so'zni bir marta "ovoz" bersin
         seenInRow.add(t);
 
         let entry = candidates.get(t);
         if (!entry) {
-          entry = { count: 0, sample: row.rawMessage, categoryVotes: new Map(), landmarkVotes: new Map() };
+          entry = { count: 0, sample: row.rawMessage, distinctMessages: new Set(), categoryVotes: new Map(), landmarkVotes: new Map() };
           candidates.set(t, entry);
         }
         entry.count++;
+        entry.distinctMessages.add(normalizeText(row.rawMessage).slice(0, 80));
         if (row.categoryName) entry.categoryVotes.set(row.categoryName, (entry.categoryVotes.get(row.categoryName) || 0) + 1);
         if (row.landmarkName) entry.landmarkVotes.set(row.landmarkName, (entry.landmarkVotes.get(row.landmarkName) || 0) + 1);
       }
@@ -1408,8 +1432,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return best;
     };
 
+    // So'z BIR SOHAGA xosmi, yoki umumiy so'zlashuvga tarqalganmi? 3+ turli
+    // kategoriyada uchrab, hech biri ovozlarning yarmidan ko'pini olmasa —
+    // umumiy so'z, chiqarib tashlanadi.
+    const isConcentratedEnough = (votes: Map<string, number>): boolean => {
+      if (votes.size === 0) return true; // kategoriya bilan bog'lanmagan (masalan faqat mo'ljal so'zi) — boshqa mezon hal qiladi
+      if (votes.size < 3) return true;
+      const total = [...votes.values()].reduce((s, v) => s + v, 0);
+      const top = Math.max(...votes.values());
+      return top / total >= 0.5;
+    };
+
     return [...candidates.entries()]
-      .filter(([, v]) => v.count >= 2) // kamida 2 marta uchrasin — tasodifiy yozilish xatosi emas
+      // Kamida 2 marta, VA kamida 2 ta HAQIQIY TURLI xabarda uchrasin —
+      // aks holda bitta ko'p marta qayta joylangan xabar shabloni ("Akalar
+      // arendaga yegil moshina...") o'zining barcha so'zlarini (hech qanday
+      // jargon bo'lmasa ham) "chastotali" qilib ko'rsatib yuborardi.
+      .filter(([, v]) => v.count >= 2 && v.distinctMessages.size >= 2)
+      .filter(([, v]) => isConcentratedEnough(v.categoryVotes))
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, limit)
       .map(([term, v]) => {
