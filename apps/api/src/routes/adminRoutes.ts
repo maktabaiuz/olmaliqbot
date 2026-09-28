@@ -114,6 +114,88 @@ async function analyzeLinkWithGemini(url: string, geminiKey: string): Promise<st
 const LANDMARK_SYNONYM_SCHEMA = { type: 'ARRAY', items: { type: 'STRING' } };
 const MESSAGE_TEMPLATE_SCHEMA = { type: 'ARRAY', items: { type: 'STRING' } };
 
+const TERM_VALIDATION_SCHEMA = {
+  type: 'ARRAY',
+  items: {
+    type: 'OBJECT',
+    properties: {
+      term: { type: 'STRING' },
+      isLocalName: { type: 'BOOLEAN' },
+    },
+    required: ['term', 'isLocalName'],
+  },
+};
+
+// 2026-09-28, "Mahalliy so'zlar" — foydalanuvchi aniq so'radi: "professional
+// prompt engineering" darajasida, so'zlarni SHU KASB/SOHA uchun HAQIQIY
+// nom/jargonmi yoki tasodifan bir jumlada kelib qolgan oddiy so'zlashuv
+// so'zimi ekanini aniqlashtirish. MUHIM (bu loyihada bir necha marta
+// tasdiqlangan saboq): Gemini nozik ko'rsatmalarni har doim ham to'g'ri
+// bajarmaydi, shu sabab bu funksiya HECH QACHON yagona/qat'iy filtr sifatida
+// ishlatilmaydi — faqat allaqachon deterministik (chastota, skelet-dedup,
+// kategoriya-konsentratsiyasi) filtrlangan ro'yxat ustiga QO'SHIMCHA,
+// KO'RSATMA sifatidagi belgi ("AI tasdiqladi") qo'yiladi; xato taxmin qilsa
+// ham faqat bitta belgi ko'rinmay qoladi, hech narsa buzilmaydi yoki
+// avtomatik o'chib/qo'shilib ketmaydi.
+async function validateLocalTermsWithGemini(
+  categoryName: string,
+  items: { term: string; sample: string }[],
+  geminiKey: string
+): Promise<Map<string, boolean>> {
+  const result = new Map<string, boolean>();
+  if (items.length === 0) return result;
+
+  const listText = items
+    .map((it) => `- "${it.term}" (namuna xabar: "${it.sample.slice(0, 140)}")`)
+    .join('\n');
+  const prompt =
+    `Sen o'zbek tilini va O'zbekistondagi mahalliy so'zlashuv/jargon uslubini yaxshi bilasan. ` +
+    `Quyida "${categoryName}" degan kasb/soha bilan bog'liq bo'lishi mumkin deb gumon qilingan so'zlar ro'yxati bor — ` +
+    `har biri HAQIQIY foydalanuvchi xabaridan olingan namuna bilan birga.\n\n${listText}\n\n` +
+    `Har bir so'z uchun aniqla: bu so'z HAQIQATAN HAM shu kasb/soha uchun ISHLATILADIGAN NOM, brend, taxallus ` +
+    `yoki o'ziga xos JARGON so'zmi (isLocalName: true) — YOKI oddiy, umumiy so'zlashuv so'zi/fe'l shakli, ` +
+    `bu soha bilan TASODIFAN bir jumlada kelib qolgan, lekin uni ATAMAYDIGAN so'zmi (isLocalName: false)? ` +
+    `Har bir so'z uchun aynan shu "term" qiymatini va "isLocalName" (true/false) ni qaytar. ` +
+    `Faqat JSON massiv qaytar, boshqa hech qanday matn yozma.`;
+
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), 12000);
+  try {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+      {
+        method: 'POST',
+        headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: TERM_VALIDATION_SCHEMA,
+            maxOutputTokens: 500,
+          },
+        }),
+        signal: abortController.signal,
+      }
+    );
+    if (!response.ok) return result;
+    const json = await response.json();
+    const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) return result;
+    const parsed = JSON.parse(rawText);
+    if (!Array.isArray(parsed)) return result;
+    for (const item of parsed) {
+      if (item && typeof item.term === 'string' && typeof item.isLocalName === 'boolean') {
+        result.set(item.term, item.isLocalName);
+      }
+    }
+    return result;
+  } catch {
+    return result; // Gemini ishlamasa — indikatorsiz, deterministik ro'yxat baribir to'liq ishlaydi
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // "Mahalliy raqamlar" — admin "AI'dan taklif so'rash" bosganda, shu
 // raqamga mos 3 ta QISQA xabar shablonini taklif qiladi (mavzuga mos
 // emoji bilan). MUHIM: {phone} joy-belgisi HAR DOIM aynan shu ko'rinishda
@@ -1529,6 +1611,102 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     return all.slice(0, Math.min(Number(limit) || 60, 250));
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "Kategoriya bo'yicha mahalliy nomlar" (2026-09-28) — foydalanuvchi aniq
+  // shunday so'radi: "bitta soha necha xil mahalliy so'z bilan ataladi —
+  // hammasini uyg'unlashtirib yig'ishimiz kerak". Yuqoridagi flat ro'yxat
+  // o'rniga, HAR BIR kategoriya uchun: uning hozirgi (allaqachon qabul
+  // qilingan) sinonimlari + yangi nomzod so'zlar birga, bitta joyda
+  // ko'rsatiladi — bu orqali admin "bu soha to'liq qamrovlimi" degan
+  // savolga bir qarashda javob oladi. Eng ko'p nomzodli kategoriyalar
+  // (e'tibor eng ko'p kerak bo'lganlar) tepada.
+  //
+  // Qo'shimcha, "professional prompt engineering" darajasida (aniq
+  // so'ralgan): eng ko'p nomzodli ~12 ta kategoriya uchun Gemini'ga
+  // BIR MARTA (kategoriya boshiga, so'z boshiga emas — tezlik/xarajat
+  // uchun) so'rov yuboriladi, har bir so'zni "bu HAQIQATAN shu soha nomi"
+  // yoki "tasodifan tushib qolgan oddiy so'z" deb ADVISORY (faqat
+  // ko'rsatma, qat'iy filtr EMAS) belgi bilan bezaydi. Butun natija
+  // (guruhlash + AI belgisi) bazaviy 10-daqiqalik kesh bilan birga
+  // saqlanadi, shu sabab AI har sahifa yuklanishida emas, faqat kesh
+  // yangilanganda chaqiriladi.
+  const byCategoryCache = new Map<string, { data: any; expiresAt: number }>();
+  const BY_CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000;
+  const AI_VALIDATION_CATEGORY_LIMIT = 12;
+  const AI_VALIDATION_WORDS_PER_CATEGORY = 10;
+
+  fastify.get('/admin/learned-terms/by-category', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const forceFresh = req.query?.fresh === 'true';
+
+    const cached = byCategoryCache.get(cityId);
+    if (!forceFresh && cached && cached.expiresAt > Date.now()) return cached.data;
+
+    const all = await getCachedLearnedTerms(cityId, forceFresh);
+    const linked = all.filter((t) => t.suggestedCategoryId);
+
+    const groups = new Map<string, { categoryId: string; categoryName: string; candidates: typeof all }>();
+    for (const t of linked) {
+      const key = t.suggestedCategoryId!;
+      let g = groups.get(key);
+      if (!g) {
+        g = { categoryId: key, categoryName: t.suggestedCategoryName!, candidates: [] };
+        groups.set(key, g);
+      }
+      g.candidates.push(t);
+    }
+
+    const sortedGroups = [...groups.values()].sort((a, b) => b.candidates.length - a.candidates.length);
+
+    const categoryIds = sortedGroups.map((g) => g.categoryId);
+    const categoryRecords = await db.category.findMany({
+      where: { id: { in: categoryIds } },
+      select: { id: true, name: true, synonyms: true },
+    });
+    const categoryById = new Map(categoryRecords.map((c) => [c.id, c]));
+
+    // AI tasdiqlash — faqat eng ko'p nomzodli bir nechta kategoriya uchun,
+    // parallel, bittasi muvaffaqiyatsiz bo'lsa boshqalariga ta'sir qilmaydi.
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiConfigured = !!geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key';
+    const aiConfirmedByCategory = new Map<string, Map<string, boolean>>();
+    if (geminiConfigured) {
+      const toValidate = sortedGroups.slice(0, AI_VALIDATION_CATEGORY_LIMIT);
+      const results = await Promise.allSettled(
+        toValidate.map((g) =>
+          validateLocalTermsWithGemini(
+            g.categoryName,
+            g.candidates.slice(0, AI_VALIDATION_WORDS_PER_CATEGORY).map((c) => ({ term: c.term, sample: c.sampleMessage })),
+            geminiKey!
+          )
+        )
+      );
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') aiConfirmedByCategory.set(toValidate[i].categoryId, r.value);
+      });
+    }
+
+    const data = sortedGroups.map((g) => {
+      const cat = categoryById.get(g.categoryId);
+      const aiMap = aiConfirmedByCategory.get(g.categoryId);
+      return {
+        categoryId: g.categoryId,
+        categoryName: cat?.name || g.categoryName,
+        existingSynonyms: cat?.synonyms || [],
+        candidates: g.candidates.map((c) => ({
+          term: c.term,
+          occurrenceCount: c.occurrenceCount,
+          sampleMessage: c.sampleMessage,
+          aiConfirmed: aiMap?.has(c.term) ? aiMap.get(c.term) : null,
+        })),
+      };
+    });
+
+    byCategoryCache.set(cityId, { data, expiresAt: Date.now() + BY_CATEGORY_CACHE_TTL_MS });
+    return data;
   });
 
   // So'zni RAD ETISH — bu holda kelajakda qayta ko'rsatilmaydi (shovqin/
