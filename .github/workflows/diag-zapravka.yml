@@ -1,0 +1,56 @@
+name: One-off - diagnose wrong zapravka answer
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Diagnose via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              const j = (o) => JSON.stringify(o, (k,v) => typeof v === 'bigint' ? v.toString() : v);
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const headers = { 'x-init-data': buildInitData(superAdmin.telegramId.toString()), 'Content-Type': 'application/json' };
+                const messages = [
+                  'Кайси заправка бу катдаги',
+                  'qaysi zapravka bu qatdagi',
+                  'qaysi zapravka',
+                  'zapravka qaerda',
+                ];
+                for (const msg of messages) {
+                  const r = await fetch('http://localhost:4000/api/admin/simulate', { method: 'POST', headers, body: JSON.stringify({ message: msg }) });
+                  const d = await r.json();
+                  console.log('out:SIM ' + j({ msg, ai: d.steps && d.steps.aiClassification, final: d.finalResult, top3: (d.scoreBreakdown||[]).slice(0,3) }));
+                }
+                // Zapravka kategoriyasidagi barcha yozuvlar (kim g'olib chiqishi mumkinligini ko'rish uchun)
+                const cat = await db.category.findFirst({ where: { name: { equals: 'Avtomobil zapravkasi', mode: 'insensitive' } } });
+                if (cat) {
+                  const listings = await db.listing.findMany({ where: { categoryId: cat.id, status: 'ACTIVE' }, select: { name: true, verification: true, primaryLandmark: { select: { name: true } }, jargonSynonyms: true } });
+                  console.log('out:ZAPRAVKA_LISTINGS ' + j(listings));
+                }
+                await db.\$disconnect();
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
