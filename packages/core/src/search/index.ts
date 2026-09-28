@@ -4,3 +4,4 @@ export * from './categoryDictionary';
 export * from './landmarkDictionary';
 export * from './pointInPolygon';
 export * from './areaListings';
+export * from './uzbekStopwords';

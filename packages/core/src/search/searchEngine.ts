@@ -267,7 +267,7 @@ export type JargonMatchStrength = 'strong' | 'category' | 'weak' | null;
 const CITY_NAME_TTL_MS = 5 * 60 * 1000;
 const cityNameCache = new Map<string, { words: string[]; expiresAt: number }>();
 
-async function getCityNameWords(cityId: string): Promise<string[]> {
+export async function getCityNameWords(cityId: string): Promise<string[]> {
   const cached = cityNameCache.get(cityId);
   if (cached && cached.expiresAt > Date.now()) return cached.words;
   const city = await db.city.findUnique({ where: { id: cityId }, select: { name: true } });
@@ -337,7 +337,7 @@ async function getCategoryWordFrequency(): Promise<Map<string, number>> {
   return freq;
 }
 
-async function getCategoryVocabulary(): Promise<Set<string>> {
+export async function getCategoryVocabulary(): Promise<Set<string>> {
   if (categoryVocabCache && categoryVocabCache.expiresAt > Date.now()) {
     return categoryVocabCache.words;
   }

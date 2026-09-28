@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus, Prisma } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery, contentTokensOf, getCityNameWords, getCategoryVocabulary } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1331,6 +1331,178 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // qimmat va keraksiz bo'lardi. Shu sabab natija shahar bo'yicha qisqa
   // muddat (5 daqiqa) keshlanadi — Requests ekrani ham, Dashboard'dagi
   // "Yangi ehtiyojlar" bo'limi ham SHU BIR XIL keshdan foydalanadi.
+  // ──────────────────────────────────────────────────────────────────────────
+  // "MAHALLIY SO'ZLAR LUG'ATI" (2026-09-28) — foydalanuvchi aniq so'radi: bot
+  // guruhlardagi odamlarning HAQIQIY so'zlarini/jargonini DOIMIY o'qib,
+  // o'rganib borishi, va bu o'rgangan so'zlar keyinchalik yangi
+  // kategoriya/manzil qo'shishda foydalanilishi kerak.
+  //
+  // "O'rganish" — QueryLog.rawMessage (ALLAQACHON saqlanadigan, faqat
+  // haqiqiy so'rov-shaklidagi xabarlar matni) ustida TALAB BO'YICHA
+  // hisoblanadi, YANGI xom matn saqlanmaydi (maxfiylik izi oshmaydi — bu
+  // ma'lumot allaqachon QueryLog'da bor). Har bir so'z BUTUN lug'atdagi
+  // (kategoriya/manzil) mavjud so'zlar bilan, umumiy so'zlar (stop-so'zlar,
+  // shahar nomi) bilan solishtiriladi — qidiruv dvigatelida ALLAQACHON
+  // ishlatiladigan bir xil `contentTokensOf` filtri qayta ishlatiladi,
+  // shunda "bu so'z haqiqatan YANGI/o'ziga xosmi" degan savolga ikkala
+  // joyda (qidiruv va o'rganish) BIR XIL javob beriladi.
+  async function computeLearnedTermCandidates(cityId: string, limit = 60) {
+    const sinceDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // so'nggi 60 kun
+    const [rows, cityWords, categoryVocab, landmarks, decisions] = await Promise.all([
+      db.queryLog.findMany({
+        where: { cityId, createdAt: { gte: sinceDate }, intent: { not: 'NOT_RELEVANT' } },
+        select: { rawMessage: true, categoryName: true, landmarkName: true },
+        take: 5000,
+        orderBy: { createdAt: 'desc' },
+      }),
+      getCityNameWords(cityId),
+      getCategoryVocabulary(),
+      db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } }),
+      db.learnedTermDecision.findMany({ where: { cityId }, select: { term: true } }),
+    ]);
+
+    const landmarkVocab = new Set<string>();
+    for (const l of landmarks) {
+      for (const w of normalizeText(l.name).split(/\s+/)) if (w.length >= 3) landmarkVocab.add(w);
+      for (const syn of l.synonyms) for (const w of normalizeText(syn).split(/\s+/)) if (w.length >= 3) landmarkVocab.add(w);
+    }
+    const decided = new Set(decisions.map((d) => d.term));
+
+    // Taklif etilgan kategoriya/manzil NOMINI haqiqiy bazadagi yozuvga
+    // (id'siga) bog'lash uchun — shu orqali admin panelida "bir bosishda
+    // qo'shish" tugmasi ishlaydi (QueryLog faqat NOM saqlaydi, ID emas).
+    const allCategories = await db.category.findMany({ select: { id: true, name: true } });
+    const categoryIdByNormalizedName = new Map(allCategories.map((c) => [normalizeText(c.name), c.id]));
+    const landmarkIdByNormalizedName = new Map(landmarks.map((l) => [normalizeText(l.name), l.id]));
+
+    const candidates = new Map<
+      string,
+      { count: number; sample: string; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
+    >();
+
+    for (const row of rows) {
+      const tokens = contentTokensOf(row.rawMessage, cityWords);
+      const seenInRow = new Set<string>();
+      for (const t of tokens) {
+        if (t.length < 5) continue; // juda qisqa so'zlar tasodifiy shovqin
+        if (categoryVocab.has(t) || landmarkVocab.has(t)) continue; // ALLAQACHON bazada bor
+        if (decided.has(t)) continue; // admin allaqachon qaror qabul qilgan
+        if (seenInRow.has(t)) continue; // bitta xabar bitta so'zni bir marta "ovoz" bersin
+        seenInRow.add(t);
+
+        let entry = candidates.get(t);
+        if (!entry) {
+          entry = { count: 0, sample: row.rawMessage, categoryVotes: new Map(), landmarkVotes: new Map() };
+          candidates.set(t, entry);
+        }
+        entry.count++;
+        if (row.categoryName) entry.categoryVotes.set(row.categoryName, (entry.categoryVotes.get(row.categoryName) || 0) + 1);
+        if (row.landmarkName) entry.landmarkVotes.set(row.landmarkName, (entry.landmarkVotes.get(row.landmarkName) || 0) + 1);
+      }
+    }
+
+    const topOf = (m: Map<string, number>) => {
+      let best: string | null = null;
+      let bestCount = 0;
+      for (const [k, v] of m) if (v > bestCount) { best = k; bestCount = v; }
+      return best;
+    };
+
+    return [...candidates.entries()]
+      .filter(([, v]) => v.count >= 2) // kamida 2 marta uchrasin — tasodifiy yozilish xatosi emas
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, limit)
+      .map(([term, v]) => {
+        const catName = topOf(v.categoryVotes);
+        const lmName = topOf(v.landmarkVotes);
+        return {
+          term,
+          occurrenceCount: v.count,
+          sampleMessage: v.sample,
+          suggestedCategoryName: catName,
+          suggestedCategoryId: catName ? categoryIdByNormalizedName.get(normalizeText(catName)) || null : null,
+          suggestedLandmarkName: lmName,
+          suggestedLandmarkId: lmName ? landmarkIdByNormalizedName.get(normalizeText(lmName)) || null : null,
+        };
+      });
+  }
+
+  const learnedTermsCache = new Map<string, { data: Awaited<ReturnType<typeof computeLearnedTermCandidates>>; expiresAt: number }>();
+  const LEARNED_TERMS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+  async function getCachedLearnedTerms(cityId: string, forceFresh = false) {
+    const cached = learnedTermsCache.get(cityId);
+    if (!forceFresh && cached && cached.expiresAt > Date.now()) return cached.data;
+    const fresh = await computeLearnedTermCandidates(cityId);
+    learnedTermsCache.set(cityId, { data: fresh, expiresAt: Date.now() + LEARNED_TERMS_CACHE_TTL_MS });
+    return fresh;
+  }
+
+  // Ro'yxat — hali qaror qilinmagan (bazadagi lug'atda yo'q, admin
+  // qabul/rad qilmagan) nomzod so'zlar, chastota bo'yicha kamayish
+  // tartibida.
+  fastify.get('/admin/learned-terms', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const forceFresh = req.query?.fresh === 'true';
+    return getCachedLearnedTerms(cityId, forceFresh);
+  });
+
+  // So'zni RAD ETISH — bu holda kelajakda qayta ko'rsatilmaydi (shovqin/
+  // umumiy so'z bo'lib chiqdi).
+  fastify.post('/admin/learned-terms/dismiss', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { term } = req.body as { term?: string };
+    if (!term) return reply.status(400).send({ success: false, message: "so'z (term) talab qilinadi" });
+    await db.learnedTermDecision.upsert({
+      where: { cityId_term: { cityId, term } },
+      create: { cityId, term, status: 'DISMISSED' },
+      update: { status: 'DISMISSED' },
+    });
+    return { success: true };
+  });
+
+  // So'zni QABUL QILISH — tanlangan kategoriya yoki manzilning sinonimlar
+  // ro'yxatiga qo'shiladi (adminning o'zi allaqachon qo'lda tekshirgan,
+  // haqiqiy foydalanuvchi so'zi — endi qidiruv shu so'zni ham to'g'ridan-
+  // to'g'ri taniydi).
+  fastify.post('/admin/learned-terms/accept', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { term, targetType, targetId } = req.body as {
+      term?: string;
+      targetType?: 'category' | 'landmark';
+      targetId?: string;
+    };
+    if (!term || !targetType || !targetId) {
+      return reply.status(400).send({ success: false, message: "term, targetType va targetId talab qilinadi" });
+    }
+
+    if (targetType === 'category') {
+      const cat = await db.category.findUnique({ where: { id: targetId } });
+      if (!cat) return reply.status(404).send({ success: false, message: 'Kategoriya topilmadi' });
+      if (!cat.synonyms.includes(term)) {
+        await db.category.update({ where: { id: targetId }, data: { synonyms: [...cat.synonyms, term] } });
+      }
+    } else if (targetType === 'landmark') {
+      const lm = await db.landmark.findUnique({ where: { id: targetId } });
+      if (!lm) return reply.status(404).send({ success: false, message: "Manzil topilmadi" });
+      if (!lm.synonyms.includes(term)) {
+        await db.landmark.update({ where: { id: targetId }, data: { synonyms: [...lm.synonyms, term] } });
+      }
+    } else {
+      return reply.status(400).send({ success: false, message: "targetType 'category' yoki 'landmark' bo'lishi kerak" });
+    }
+
+    await db.learnedTermDecision.upsert({
+      where: { cityId_term: { cityId, term } },
+      create: { cityId, term, status: 'ACCEPTED' },
+      update: { status: 'ACCEPTED' },
+    });
+    return { success: true };
+  });
+
   const clusterCache = new Map<string, { data: Awaited<ReturnType<typeof clusterUnresolvedQueries>>; expiresAt: number }>();
   const CLUSTER_CACHE_TTL_MS = 5 * 60 * 1000;
 

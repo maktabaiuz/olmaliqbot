@@ -33,6 +33,7 @@ import { SettingsLanguageThemeScreen } from './screens/SettingsLanguageThemeScre
 import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
 import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
+import { LearnedTermsScreen } from './screens/LearnedTermsScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
 import { avatarColorForName } from './utils/avatarColor';
@@ -79,7 +80,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -402,6 +403,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           <MoreRow icon="category" iconColor="rgb(88 86 214)" label={t('more_item_categories')} onClick={() => setMoreSubView('categories')} />
                           <MoreRow icon="location_on" iconColor="rgb(48 176 199)" label={t('more_item_landmarks')} onClick={() => setMoreSubView('landmarks')} />
                           <MoreRow icon="groups" iconColor="rgb(0 122 255)" label={t('more_item_groups')} onClick={() => setMoreSubView('groups')} />
+                          <MoreRow icon="translate" iconColor="rgb(52 199 89)" label="Mahalliy so'zlar" onClick={() => setMoreSubView('learned_terms')} />
                           <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} last />
                         </IosSection>
 
@@ -480,6 +482,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     )}
                     {moreSubView === 'moderation_logs' && (
                       <ModerationLogsScreen onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'learned_terms' && (
+                      <LearnedTermsScreen onBack={() => setMoreSubView('menu')} />
                     )}
                     {moreSubView === 'broadcast' && (
                       <BroadcastScreen onBack={() => setMoreSubView('menu')} />

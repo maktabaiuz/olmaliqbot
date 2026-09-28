@@ -589,6 +589,30 @@ model GroupMemberSnapshot {
   @@map("group_member_snapshots")
 }
 
+// 2026-09-28, "Mahalliy so'zlar lug'ati" — foydalanuvchi so'radi: bot
+// guruhlardagi odamlarning HAQIQIY so'zlarini, mahalliy jargon/shevani
+// DOIMIY o'qib, o'rganib borishi, va bu o'rgangan so'zlar keyinchalik
+// yangi ma'lumot (kategoriya/manzil) qo'shishda foydalanilishi kerak.
+//
+// Haqiqiy "o'rganish" (nomzod so'zlarni topish, chastotasini hisoblash,
+// qaysi kategoriya/manzil bilan bog'liqligini taxmin qilish) ALLAQACHON
+// mavjud QueryLog.rawMessage'dan JONLI (talab bo'yicha, keshlangan)
+// hisoblanadi — yangi xom matn saqlash SHART EMAS (aks holda maxfiylik
+// izi ortadi, QueryLog allaqachon bu matnni saqlaydi). Bu jadval FAQAT
+// admin biror so'z bo'yicha qaror qabul qilganini (bazaga QO'SHILDI yoki
+// RAD ETILDI) eslab qolish uchun — aks holda bir xil so'z har safar
+// qaytadan "yangi" bo'lib chiqib, ro'yxatni cheksiz iflos qilib turardi.
+model LearnedTermDecision {
+  id        String   @id @default(uuid())
+  cityId    String
+  term      String   // normallashtirilgan so'z/ibora
+  status    String   // "ACCEPTED" | "DISMISSED"
+  createdAt DateTime @default(now())
+
+  @@unique([cityId, term])
+  @@map("learned_term_decisions")
+}
+
 // Guruhdagi xavfsizlik-moderatsiya filtrlari (so'kinish, spam-havola,
 // qimor reklamasi, firibgarlik, flud) tomonidan o'chirilgan xabarlar
 // tarixi — admin panelida "kim, qachon, nima uchun" jazolangani ko'rinishi
