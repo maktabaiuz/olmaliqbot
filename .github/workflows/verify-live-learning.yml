@@ -28,7 +28,8 @@ jobs:
                 // 2) LIVE yozuvni sinash — core funksiyasini to'g'ridan-to'g'ri chaqiramiz
                 const core = require('/app/packages/core/dist/index.js');
                 const city = await db.city.findFirst();
-                const testTerm = 'sinovsozi' + Date.now().toString().slice(-6);
+                const suffixWords = ['aylanbek','tuynakov','qorovulboy','changiroq','pastanoq'];
+                const testTerm = suffixWords[Math.floor(Math.random()*suffixWords.length)];
                 const testMsg = 'Akalar ' + testTerm + ' ustasi kerak edi kimda bor';
                 await core.recordLearnedTermCandidates(city.id, testMsg, 'TestKategoriya', null);
                 await core.recordLearnedTermCandidates(city.id, 'Boshqa gap: ' + testTerm + ' bormi kimda', 'TestKategoriya', null);
