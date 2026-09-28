@@ -602,15 +602,48 @@ model GroupMemberSnapshot {
 // admin biror so'z bo'yicha qaror qabul qilganini (bazaga QO'SHILDI yoki
 // RAD ETILDI) eslab qolish uchun — aks holda bir xil so'z har safar
 // qaytadan "yangi" bo'lib chiqib, ro'yxatni cheksiz iflos qilib turardi.
-model LearnedTermDecision {
-  id        String   @id @default(uuid())
-  cityId    String
-  term      String   // normallashtirilgan so'z/ibora
-  status    String   // "ACCEPTED" | "DISMISSED"
-  createdAt DateTime @default(now())
+// 2026-09-28, "LIVE rejim" (foydalanuvchi aniq shunday so'radi: "hozirdan
+// boshlab, har bitta user yozganini o'qib, live rejimda saqlab yursin") —
+// avvalgi LearnedTermDecision (faqat qabul/rad qarorini saqlagan, o'zi
+// hech narsani "o'rganmagan" holat) BUTUN nomzod hisob-kitobini o'rniga
+// qo'ydi. Endi har bir kandidat so'z HAR XABAR kelganda (guruh xabar
+// oqimida, botning javob berish tezligiga ta'sir qilmasdan, fon rejimida)
+// shu YAGONA qatorga o'sib boruvchi (upsert) tarzda yoziladi — 10
+// daqiqada bir marta so'nggi 5000 xabarni qayta skanerlash O'RNIGA.
+model LearnedTermAggregate {
+  id                    String    @id @default(uuid())
+  cityId                String
+  term                  String    // normallashtirilgan so'z/ibora
+
+  // Bitta xabar shablonining ko'p marta qayta joylanishi bitta so'zni
+  // sun'iy ravishda "chastotali" qilib ko'rsatmasligi uchun (2026-09-28
+  // aniqlangan sifat muammosi) — har bir XABAR "skeleti" (o'ziga xos
+  // so'zlar to'plami) shu ro'yxatga (cheklangan hajmda) yoziladi, faqat
+  // YANGI skelet uchrasagina son oshadi.
+  distinctSkeletonCount Int       @default(0)
+  skeletonsSeen         String[]  @default([])
+
+  sampleMessage         String
+  // JSON: { "<categoryName>": count, ... } — qaysi kategoriya bilan
+  // ko'proq ko'rilganini (ovoz berish orqali) bilish uchun.
+  categoryVotes         Json      @default("{}")
+  landmarkVotes         Json      @default("{}")
+
+  // PENDING (hali qaror qilinmagan) | ACCEPTED | DISMISSED
+  status                String    @default("PENDING")
+
+  // Gemini'ning (faqat maslahat, qat'iy filtr EMAS) "bu haqiqiy mahalliy
+  // nommi" degan bahosi — har bir so'z uchun FAQAT BIR MARTA (birinchi
+  // marta chegaradan o'tganda) so'raladi, keyin doim shu saqlanadi.
+  aiConfirmed           Boolean?
+  aiCheckedAt           DateTime?
+
+  firstSeenAt           DateTime  @default(now())
+  lastSeenAt            DateTime  @default(now())
 
   @@unique([cityId, term])
-  @@map("learned_term_decisions")
+  @@index([cityId, status, distinctSkeletonCount])
+  @@map("learned_term_aggregates")
 }
 
 // Guruhdagi xavfsizlik-moderatsiya filtrlari (so'kinish, spam-havola,

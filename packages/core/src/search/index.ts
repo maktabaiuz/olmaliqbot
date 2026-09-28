@@ -5,3 +5,4 @@ export * from './landmarkDictionary';
 export * from './pointInPolygon';
 export * from './areaListings';
 export * from './uzbekStopwords';
+export * from './learnedTerms';

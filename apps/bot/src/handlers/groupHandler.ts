@@ -1,5 +1,5 @@
 import { Context } from 'grammy';
-import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
+import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery, recordLearnedTermCandidates } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
@@ -152,6 +152,19 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     });
     return;
   }
+
+  // 3a2. "Mahalliy so'zlar" — LIVE o'rganish (2026-09-28, aniq shunday
+  // so'ralgan: "hozirdan boshlab, har bitta user yozganini o'qib, live
+  // rejimda saqlab yursin"). AI allaqachon kategoriya/mo'ljalni aniqlab
+  // bo'lgan (yoki aniqlay olmagan — baribir foydali signal) shu nuqtada,
+  // xabar HAQIQIY so'rov ekani ham tasdiqlangan (EMERGENCY/o'z-e'lon/ish-
+  // e'loni emasligi yuqorida allaqachon elangan). Fire-and-forget — botning
+  // javob berish tezligiga ta'sir qilmaydi, natija esa DOIM (topilgan-
+  // topilmaganidan qat'i nazar) qayd etiladi, chunki "javobsiz qolgan"
+  // so'rovlar ham qaysi so'zlar bilan so'ralganini ko'rsatadi.
+  recordLearnedTermCandidates(cityId, messageText, classification.category, classification.landmark).catch((err) =>
+    console.error('Failed to record learned term candidates:', err)
+  );
 
   // 3b. Hudud-so'rovi ("Bo'stonda nima bor?") — 2026-09, foydalanuvchi
   // talabi bilan qo'shildi. Aniq kategoriya YO'Q, lekin mo'ljal ANIQ

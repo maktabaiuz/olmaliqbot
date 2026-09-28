@@ -355,6 +355,27 @@ export async function getCategoryVocabulary(): Promise<Set<string>> {
   return words;
 }
 
+// "Mahalliy so'zlar" (2026-09-28, LIVE rejim) uchun — getCategoryVocabulary
+// bilan bir xil naqsh, faqat manzil (Landmark) nomi+sinonimlari uchun.
+// Shahar bo'yicha keshlanadi (bir necha shahar bo'lishi mumkin kelajakda).
+const landmarkVocabCache = new Map<string, { words: Set<string>; expiresAt: number }>();
+
+export async function getLandmarkVocabulary(cityId: string): Promise<Set<string>> {
+  const cached = landmarkVocabCache.get(cityId);
+  if (cached && cached.expiresAt > Date.now()) return cached.words;
+  const landmarks = await db.landmark.findMany({ where: { cityId }, select: { name: true, synonyms: true } });
+  const words = new Set<string>();
+  for (const l of landmarks) {
+    for (const phrase of [l.name, ...l.synonyms]) {
+      for (const w of normalizeText(phrase).split(/\s+/)) {
+        if (w.length >= 3) words.add(w);
+      }
+    }
+  }
+  landmarkVocabCache.set(cityId, { words, expiresAt: Date.now() + CATEGORY_VOCAB_TTL_MS });
+  return words;
+}
+
 function computeJargonWordFrequency(jargonCandidates: { jargonSynonyms: string[] }[]): Map<string, number> {
   const freq = new Map<string, number>();
   for (const cand of jargonCandidates) {

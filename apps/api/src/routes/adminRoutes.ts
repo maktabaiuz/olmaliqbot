@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus, Prisma } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery, contentTokensOf, getCityNameWords, getCategoryVocabulary } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery, reserveGeminiCallSlot } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1414,195 +1414,85 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // muddat (5 daqiqa) keshlanadi — Requests ekrani ham, Dashboard'dagi
   // "Yangi ehtiyojlar" bo'limi ham SHU BIR XIL keshdan foydalanadi.
   // ──────────────────────────────────────────────────────────────────────────
-  // "MAHALLIY SO'ZLAR LUG'ATI" (2026-09-28) — foydalanuvchi aniq so'radi: bot
-  // guruhlardagi odamlarning HAQIQIY so'zlarini/jargonini DOIMIY o'qib,
-  // o'rganib borishi, va bu o'rgangan so'zlar keyinchalik yangi
-  // kategoriya/manzil qo'shishda foydalanilishi kerak.
-  //
-  // "O'rganish" — QueryLog.rawMessage (ALLAQACHON saqlanadigan, faqat
-  // haqiqiy so'rov-shaklidagi xabarlar matni) ustida TALAB BO'YICHA
-  // hisoblanadi, YANGI xom matn saqlanmaydi (maxfiylik izi oshmaydi — bu
-  // ma'lumot allaqachon QueryLog'da bor). Har bir so'z BUTUN lug'atdagi
-  // (kategoriya/manzil) mavjud so'zlar bilan, umumiy so'zlar (stop-so'zlar,
-  // shahar nomi) bilan solishtiriladi — qidiruv dvigatelida ALLAQACHON
-  // ishlatiladigan bir xil `contentTokensOf` filtri qayta ishlatiladi,
-  // shunda "bu so'z haqiqatan YANGI/o'ziga xosmi" degan savolga ikkala
-  // joyda (qidiruv va o'rganish) BIR XIL javob beriladi.
-  // MUHIM (2026-09-28, "yangi yozuv qo'shish" oqimida kategoriya bo'yicha
-  // filtrlash uchun): bu yerda ANIQ, ODDIY kesim (limit) qo'llanmaydi —
-  // to'liq (kengroq, 250 tagacha) nomzod ro'yxati bir marta hisoblanib
-  // keshlanadi, so'ngra HAR IKKALA iste'molchi (umumiy "Mahalliy so'zlar"
-  // ekrani VA yangi yozuv qo'shishda kategoriya bo'yicha taklif) shu BIR
-  // XIL keshdan o'zining kerakli qismini (butun ro'yxat yoki faqat bitta
-  // kategoriyaga tegishlisi) filtrlaydi — kategoriya tanlanganda HAR SAFAR
-  // bazani qayta so'rash shart emas.
-  async function computeLearnedTermCandidates(cityId: string, limit = 250) {
-    const sinceDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // so'nggi 60 kun
-    const [rows, cityWords, categoryVocab, landmarks, decisions] = await Promise.all([
-      db.queryLog.findMany({
-        where: { cityId, createdAt: { gte: sinceDate }, intent: { not: 'NOT_RELEVANT' } },
-        select: { rawMessage: true, categoryName: true, landmarkName: true },
-        take: 5000,
-        orderBy: { createdAt: 'desc' },
-      }),
-      getCityNameWords(cityId),
-      getCategoryVocabulary(),
-      db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } }),
-      db.learnedTermDecision.findMany({ where: { cityId }, select: { term: true } }),
-    ]);
+  // "MAHALLIY SO'ZLAR LUG'ATI" — LIVE rejim (2026-09-28, foydalanuvchi aniq
+  // shunday so'radi: "hozirdan boshlab, har bitta user yozganini o'qib,
+  // live rejimda saqlab yursin"). O'rganish ENDI bu yerda EMAS — har bir
+  // guruh xabari kelganida, botning javob berish tezligiga ta'sir qilmay,
+  // fon rejimida (@kimbor/core'dagi recordLearnedTermCandidates orqali,
+  // qarang: apps/bot/src/handlers/groupHandler.ts) DOIMIY ravishda
+  // `LearnedTermAggregate` jadvaliga yozib boriladi. Bu yerdagi marshrutlar
+  // FAQAT shu allaqachon to'plangan, arzon (indekslangan) jadvalni
+  // o'qiydi/yozadi — 5000 tarixiy xabarni qayta skanerlash endi UMUMAN
+  // shart emas.
+  const LEARNED_TERM_MIN_SKELETONS = 2;
 
-    const landmarkVocab = new Set<string>();
-    for (const l of landmarks) {
-      for (const w of normalizeText(l.name).split(/\s+/)) if (w.length >= 3) landmarkVocab.add(w);
-      for (const syn of l.synonyms) for (const w of normalizeText(syn).split(/\s+/)) if (w.length >= 3) landmarkVocab.add(w);
-    }
-    const decided = new Set(decisions.map((d) => d.term));
+  async function readPendingLearnedTerms(cityId: string, take = 250) {
+    const rows = await db.learnedTermAggregate.findMany({
+      where: { cityId, status: 'PENDING', distinctSkeletonCount: { gte: LEARNED_TERM_MIN_SKELETONS } },
+      orderBy: { distinctSkeletonCount: 'desc' },
+      take,
+    });
 
-    // Taklif etilgan kategoriya/manzil NOMINI haqiqiy bazadagi yozuvga
-    // (id'siga) bog'lash uchun — shu orqali admin panelida "bir bosishda
-    // qo'shish" tugmasi ishlaydi (QueryLog faqat NOM saqlaydi, ID emas).
     const allCategories = await db.category.findMany({ select: { id: true, name: true } });
     const categoryIdByNormalizedName = new Map(allCategories.map((c) => [normalizeText(c.name), c.id]));
+    const landmarks = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true } });
     const landmarkIdByNormalizedName = new Map(landmarks.map((l) => [normalizeText(l.name), l.id]));
 
-    // MUHIM (2026-09-28, sinovda topilgan sifat muammosi): `contentTokensOf`
-    // (stopwords + umumiy so'zlar filtri) QIDIRUV moslashtiruvi uchun
-    // yetarli, lekin bu yerda — "bu so'z HAQIQIY mahalliy jargon/nom
-    // ekanmi" degan ancha qattiqroq savol — kifoya emas edi. Birinchi
-    // sinovda "assalom", "raxmat", "bilganlar", "bulsa", "narxi",
-    // "aytvorilar" kabi ODDIY, HAR QANDAY so'rovda uchraydigan so'zlashuv
-    // so'zlari chiqib qoldi — bular hech qanday joy/biznes nomiga xos emas.
-    // Ikki qo'shimcha himoya qo'shildi (pastda): (1) kichik, ANIQ yopiq
-    // to'plam — salomlashuv/xushmuomalalik so'zlari (bular chekli, cheksiz
-    // "yangi jargon" bilan bir xil muammoga ega EMAS, shu sabab qo'lda
-    // ro'yxat qilish xavfsiz); (2) KATEGORIYA KONSENTRATSIYASI — agar so'z
-    // 3+ TURLI kategoriyada baravar tarqalgan bo'lsa (bironta ustunlik
-    // qilmasa) — bu so'z biror SOHAGA emas, umumiy so'zlashuvga xos,
-    // demak jargon EMAS (xuddi searchEngine.ts'dagi "usta"/"arenda" kabi
-    // ko'p-kategoriyali so'zlarni chiqarib tashlash mantig'i bilan bir xil
-    // tamoyil).
-    const GREETING_POLITENESS_WORDS = new Set([
-      'assalom', 'assalomu', 'alaykum', 'alekum', 'aleykum', 'alaykumassalom',
-      'salom', 'rahmat', 'raxmat', 'iltimos', 'oldindan', 'hurmatli', 'hammaga',
-      'akalar', 'ukalar', 'opalar', 'bolalar', 'birodarlar', 'aylanay',
-    ]);
-
-    // MUHIM (2026-09-28, ikkinchi sifat muammosi — foydalanuvchi "to'g'irlab
-    // chiq" deb so'ragandan keyin): yuqoridagi ikkita himoya (salomlashuv
-    // ro'yxati + kategoriya konsentratsiyasi) bitta katta muammoni hal
-    // qilmadi — guruhda AYNAN BIR XIL shablon ("Akalar arendaga yegil
-    // moshina kerak... akuratniy haydab yuriladi uzoq muddatga") turli
-    // odamlar tomonidan o'nlab marta deyarli so'zma-so'z qayta joylanadi.
-    // Bunday holda "muddatga"/"haydab"/"yegil" kabi ODDIY so'zlar HAM
-    // "kamida 2 ta turli xabar" talabidan o'tib ketadi (chunki xabarlar
-    // haqiqatan turli odamlar tomonidan, turli vaqtda yozilgan — faqat
-    // MAZMUNI bir xil) VA bitta kategoriyaga konsentrlangan bo'ladi (aynan
-    // shu shablonning o'zi bitta soha haqida bo'lgani uchun).
-    //
-    // Tub yechim: so'zni "necha marta uchradi" emas, "necha xil TURDAGI
-    // (skelet) xabarda uchradi" deb sanaymiz. Har bir xabarning "skeleti" —
-    // undagi barcha o'ziga xos so'zlarning (tartibsiz) to'plami. Agar ikki
-    // xabar bir xil so'zlar to'plamidan iborat bo'lsa — bu bitta shablonning
-    // ikki nusxasi, bitta "ovoz" sifatida hisoblanadi, nechta marta qayta
-    // joylanishidan qat'i nazar. Haqiqiy jargon (masalan turli odamlar
-    // "Sardor"ni MUTLAQO boshqa-boshqa jumlalarda tilga oladi) esa har safar
-    // YANGI skelet hosil qiladi, shuning uchun bosilib qolmaydi.
-    const candidates = new Map<
-      string,
-      { skeletons: Set<string>; sample: string; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
-    >();
-
-    for (const row of rows) {
-      const tokens = contentTokensOf(row.rawMessage, cityWords);
-      if (tokens.length === 0) continue;
-      const skeleton = [...new Set(tokens)].sort().join('|');
-      const seenInRow = new Set<string>();
-      for (const t of tokens) {
-        if (t.length < 5) continue; // juda qisqa so'zlar tasodifiy shovqin
-        if (/\d{4,}/.test(t)) continue; // telefon raqami/kod — so'z emas
-        if (categoryVocab.has(t) || landmarkVocab.has(t)) continue; // ALLAQACHON bazada bor
-        if (decided.has(t)) continue; // admin allaqachon qaror qabul qilgan
-        if (GREETING_POLITENESS_WORDS.has(t)) continue; // salomlashuv, joy/biznes nomi emas
-        if (seenInRow.has(t)) continue; // bitta xabar bitta so'zni bir marta "ovoz" bersin
-        seenInRow.add(t);
-
-        let entry = candidates.get(t);
-        if (!entry) {
-          entry = { skeletons: new Set(), sample: row.rawMessage, categoryVotes: new Map(), landmarkVotes: new Map() };
-          candidates.set(t, entry);
-        }
-        entry.skeletons.add(skeleton);
-        if (row.categoryName) entry.categoryVotes.set(row.categoryName, (entry.categoryVotes.get(row.categoryName) || 0) + 1);
-        if (row.landmarkName) entry.landmarkVotes.set(row.landmarkName, (entry.landmarkVotes.get(row.landmarkName) || 0) + 1);
-      }
-    }
-
-    const topOf = (m: Map<string, number>) => {
+    const topOf = (votes: unknown): string | null => {
+      if (!votes || typeof votes !== 'object') return null;
       let best: string | null = null;
       let bestCount = 0;
-      for (const [k, v] of m) if (v > bestCount) { best = k; bestCount = v; }
+      for (const [k, v] of Object.entries(votes as Record<string, number>)) {
+        if (typeof v === 'number' && v > bestCount) {
+          best = k;
+          bestCount = v;
+        }
+      }
       return best;
     };
 
     // So'z BIR SOHAGA xosmi, yoki umumiy so'zlashuvga tarqalganmi? 3+ turli
     // kategoriyada uchrab, hech biri ovozlarning yarmidan ko'pini olmasa —
-    // umumiy so'z, chiqarib tashlanadi.
-    const isConcentratedEnough = (votes: Map<string, number>): boolean => {
-      if (votes.size === 0) return true; // kategoriya bilan bog'lanmagan (masalan faqat mo'ljal so'zi) — boshqa mezon hal qiladi
-      if (votes.size < 3) return true;
-      const total = [...votes.values()].reduce((s, v) => s + v, 0);
-      const top = Math.max(...votes.values());
-      return top / total >= 0.5;
+    // umumiy so'z, chiqarib tashlanadi (xuddi searchEngine.ts'dagi
+    // "usta"/"arenda" kabi ko'p-kategoriyali so'zlarni chiqarib tashlash
+    // mantig'i bilan bir xil tamoyil).
+    const isConcentratedEnough = (votes: unknown): boolean => {
+      if (!votes || typeof votes !== 'object') return true;
+      const entries = Object.entries(votes as Record<string, number>);
+      if (entries.length < 3) return true;
+      const total = entries.reduce((s, [, v]) => s + (typeof v === 'number' ? v : 0), 0);
+      const top = Math.max(...entries.map(([, v]) => (typeof v === 'number' ? v : 0)));
+      return total === 0 || top / total >= 0.5;
     };
 
-    return [...candidates.entries()]
-      // Kamida 2 ta HAQIQIY TURLI skeletda (turli so'z-tuzilishida)
-      // uchrasin — bitta ko'p marta qayta joylangan xabar shabloni
-      // ("Akalar arendaga yegil moshina...") endi bir necha yuz marta
-      // takrorlansa ham, agar deyarli bir xil so'zlar to'plamidan iborat
-      // bo'lsa, faqat 1 (yoki juda kam) skelet sifatida sanaladi.
-      .filter(([, v]) => v.skeletons.size >= 2)
-      .filter(([, v]) => isConcentratedEnough(v.categoryVotes))
-      .sort((a, b) => b[1].skeletons.size - a[1].skeletons.size)
-      .slice(0, limit)
-      .map(([term, v]) => {
-        const catName = topOf(v.categoryVotes);
-        const lmName = topOf(v.landmarkVotes);
+    return rows
+      .filter((r) => isConcentratedEnough(r.categoryVotes))
+      .map((r) => {
+        const catName = topOf(r.categoryVotes);
+        const lmName = topOf(r.landmarkVotes);
         return {
-          term,
-          occurrenceCount: v.skeletons.size,
-          sampleMessage: v.sample,
+          term: r.term,
+          occurrenceCount: r.distinctSkeletonCount,
+          sampleMessage: r.sampleMessage,
           suggestedCategoryName: catName,
           suggestedCategoryId: catName ? categoryIdByNormalizedName.get(normalizeText(catName)) || null : null,
           suggestedLandmarkName: lmName,
           suggestedLandmarkId: lmName ? landmarkIdByNormalizedName.get(normalizeText(lmName)) || null : null,
+          aiConfirmed: r.aiConfirmed,
         };
       });
   }
 
-  const learnedTermsCache = new Map<string, { data: Awaited<ReturnType<typeof computeLearnedTermCandidates>>; expiresAt: number }>();
-  const LEARNED_TERMS_CACHE_TTL_MS = 10 * 60 * 1000;
-
-  async function getCachedLearnedTerms(cityId: string, forceFresh = false) {
-    const cached = learnedTermsCache.get(cityId);
-    if (!forceFresh && cached && cached.expiresAt > Date.now()) return cached.data;
-    const fresh = await computeLearnedTermCandidates(cityId);
-    learnedTermsCache.set(cityId, { data: fresh, expiresAt: Date.now() + LEARNED_TERMS_CACHE_TTL_MS });
-    return fresh;
-  }
-
-  // Ro'yxat — hali qaror qilinmagan (bazadagi lug'atda yo'q, admin
-  // qabul/rad qilmagan) nomzod so'zlar, chastota bo'yicha kamayish
-  // tartibida. Ixtiyoriy `categoryName` — faqat SHU kategoriyaga (yangi
-  // yozuv qo'shishda tanlangan kasb/soha) tegishli so'zlarni qaytaradi
-  // (2026-09-28, "yangi odam qo'shganimda ... mos mahalliy so'zlarni
-  // avtomatik chiqarib bersin" so'roviga ko'ra).
+  // Ro'yxat — hali qaror qilinmagan nomzod so'zlar, chastota bo'yicha
+  // kamayish tartibida. Ixtiyoriy `categoryName` — faqat SHU kategoriyaga
+  // (yangi yozuv qo'shishda tanlangan kasb/soha) tegishli so'zlarni
+  // qaytaradi (2026-09-28, "yangi odam qo'shganimda ... mos mahalliy
+  // so'zlarni avtomatik chiqarib bersin" so'roviga ko'ra).
   fastify.get('/admin/learned-terms', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
-    const forceFresh = req.query?.fresh === 'true';
     const { categoryName, limit } = req.query as { categoryName?: string; limit?: string };
-    const all = await getCachedLearnedTerms(cityId, forceFresh);
+    const all = await readPendingLearnedTerms(cityId);
 
     if (categoryName && categoryName.trim()) {
       const normalizedTarget = normalizeText(categoryName.trim());
@@ -1613,39 +1503,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return all.slice(0, Math.min(Number(limit) || 60, 250));
   });
 
-  // ──────────────────────────────────────────────────────────────────────────
   // "Kategoriya bo'yicha mahalliy nomlar" (2026-09-28) — foydalanuvchi aniq
   // shunday so'radi: "bitta soha necha xil mahalliy so'z bilan ataladi —
-  // hammasini uyg'unlashtirib yig'ishimiz kerak". Yuqoridagi flat ro'yxat
-  // o'rniga, HAR BIR kategoriya uchun: uning hozirgi (allaqachon qabul
-  // qilingan) sinonimlari + yangi nomzod so'zlar birga, bitta joyda
-  // ko'rsatiladi — bu orqali admin "bu soha to'liq qamrovlimi" degan
-  // savolga bir qarashda javob oladi. Eng ko'p nomzodli kategoriyalar
-  // (e'tibor eng ko'p kerak bo'lganlar) tepada.
-  //
-  // Qo'shimcha, "professional prompt engineering" darajasida (aniq
-  // so'ralgan): eng ko'p nomzodli ~12 ta kategoriya uchun Gemini'ga
-  // BIR MARTA (kategoriya boshiga, so'z boshiga emas — tezlik/xarajat
-  // uchun) so'rov yuboriladi, har bir so'zni "bu HAQIQATAN shu soha nomi"
-  // yoki "tasodifan tushib qolgan oddiy so'z" deb ADVISORY (faqat
-  // ko'rsatma, qat'iy filtr EMAS) belgi bilan bezaydi. Butun natija
-  // (guruhlash + AI belgisi) bazaviy 10-daqiqalik kesh bilan birga
-  // saqlanadi, shu sabab AI har sahifa yuklanishida emas, faqat kesh
-  // yangilanganda chaqiriladi.
-  const byCategoryCache = new Map<string, { data: any; expiresAt: number }>();
-  const BY_CATEGORY_CACHE_TTL_MS = 10 * 60 * 1000;
-  const AI_VALIDATION_CATEGORY_LIMIT = 12;
-  const AI_VALIDATION_WORDS_PER_CATEGORY = 10;
-
+  // hammasini uyg'unlashtirib yig'ishimiz kerak". HAR BIR kategoriya uchun:
+  // uning hozirgi sinonimlari + yangi nomzod so'zlar birga ko'rsatiladi.
+  // AI tasdiqlash BU YERDA EMAS, ALLAQACHON (background sweep orqali,
+  // pastga qarang) bajarilgan bo'ladi — shu sabab bu marshrut endi ENG
+  // ODDIY, TEZKOR o'qish, hech qanday Gemini so'rovisiz.
   fastify.get('/admin/learned-terms/by-category', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
-    const forceFresh = req.query?.fresh === 'true';
-
-    const cached = byCategoryCache.get(cityId);
-    if (!forceFresh && cached && cached.expiresAt > Date.now()) return cached.data;
-
-    const all = await getCachedLearnedTerms(cityId, forceFresh);
+    const all = await readPendingLearnedTerms(cityId);
     const linked = all.filter((t) => t.suggestedCategoryId);
 
     const groups = new Map<string, { categoryId: string; categoryName: string; candidates: typeof all }>();
@@ -1660,7 +1528,6 @@ export async function adminRoutes(fastify: FastifyInstance) {
     }
 
     const sortedGroups = [...groups.values()].sort((a, b) => b.candidates.length - a.candidates.length);
-
     const categoryIds = sortedGroups.map((g) => g.categoryId);
     const categoryRecords = await db.category.findMany({
       where: { id: { in: categoryIds } },
@@ -1668,30 +1535,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     });
     const categoryById = new Map(categoryRecords.map((c) => [c.id, c]));
 
-    // AI tasdiqlash — faqat eng ko'p nomzodli bir nechta kategoriya uchun,
-    // parallel, bittasi muvaffaqiyatsiz bo'lsa boshqalariga ta'sir qilmaydi.
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const geminiConfigured = !!geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key';
-    const aiConfirmedByCategory = new Map<string, Map<string, boolean>>();
-    if (geminiConfigured) {
-      const toValidate = sortedGroups.slice(0, AI_VALIDATION_CATEGORY_LIMIT);
-      const results = await Promise.allSettled(
-        toValidate.map((g) =>
-          validateLocalTermsWithGemini(
-            g.categoryName,
-            g.candidates.slice(0, AI_VALIDATION_WORDS_PER_CATEGORY).map((c) => ({ term: c.term, sample: c.sampleMessage })),
-            geminiKey!
-          )
-        )
-      );
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') aiConfirmedByCategory.set(toValidate[i].categoryId, r.value);
-      });
-    }
-
-    const data = sortedGroups.map((g) => {
+    return sortedGroups.map((g) => {
       const cat = categoryById.get(g.categoryId);
-      const aiMap = aiConfirmedByCategory.get(g.categoryId);
       return {
         categoryId: g.categoryId,
         categoryName: cat?.name || g.categoryName,
@@ -1700,27 +1545,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
           term: c.term,
           occurrenceCount: c.occurrenceCount,
           sampleMessage: c.sampleMessage,
-          aiConfirmed: aiMap?.has(c.term) ? aiMap.get(c.term) : null,
+          aiConfirmed: c.aiConfirmed,
         })),
       };
     });
-
-    byCategoryCache.set(cityId, { data, expiresAt: Date.now() + BY_CATEGORY_CACHE_TTL_MS });
-    return data;
   });
 
   // So'zni RAD ETISH — bu holda kelajakda qayta ko'rsatilmaydi (shovqin/
-  // umumiy so'z bo'lib chiqdi).
+  // umumiy so'z bo'lib chiqdi). LIVE o'rganish davom etaveradi (yangi
+  // xabarlar kelaveradi), lekin `recordLearnedTermCandidates` PENDING
+  // BO'LMAGAN qatorlarni o'tkazib yuboradi, shu sabab rad etilgan so'z
+  // qayta "tirilmaydi".
   fastify.post('/admin/learned-terms/dismiss', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
     const { term } = req.body as { term?: string };
     if (!term) return reply.status(400).send({ success: false, message: "so'z (term) talab qilinadi" });
-    await db.learnedTermDecision.upsert({
-      where: { cityId_term: { cityId, term } },
-      create: { cityId, term, status: 'DISMISSED' },
-      update: { status: 'DISMISSED' },
-    });
+    await db.learnedTermAggregate.updateMany({ where: { cityId, term }, data: { status: 'DISMISSED' } });
     return { success: true };
   });
 
@@ -1756,13 +1597,88 @@ export async function adminRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, message: "targetType 'category' yoki 'landmark' bo'lishi kerak" });
     }
 
-    await db.learnedTermDecision.upsert({
-      where: { cityId_term: { cityId, term } },
-      create: { cityId, term, status: 'ACCEPTED' },
-      update: { status: 'ACCEPTED' },
-    });
+    await db.learnedTermAggregate.updateMany({ where: { cityId, term }, data: { status: 'ACCEPTED' } });
     return { success: true };
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // AI tasdiqlash — FON REJIMIDA, DOIMIY ("professional prompt engineering"
+  // darajasida, aniq so'ralgan). Admin ekran ochishini kutmaydi: har 15
+  // daqiqada, hali Gemini tomonidan tekshirilmagan ("aiConfirmed: null")
+  // eng ko'p nomzodli so'zlarni kategoriya bo'yicha guruhlab, BIR MARTA
+  // (butun umr davomida, natija doimiy saqlanadi) tekshiradi. `reserveGeminiCallSlot`
+  // bilan botning JONLI klassifikatsiya byudjetidan ALOHIDA (bu — API
+  // konteyneri, bot esa boshqa konteyner, xotira baham ko'rilmaydi)
+  // o'z chegarasini hurmat qiladi — birorta budjet tugasa, keyingi
+  // "sweep"da davom etadi, hech narsa yo'qolmaydi.
+  const LEARNED_TERM_AI_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+  const LEARNED_TERM_AI_SWEEP_CATEGORY_LIMIT = 10;
+  const LEARNED_TERM_AI_SWEEP_WORDS_PER_CATEGORY = 10;
+
+  async function runLearnedTermAiSweep() {
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey || geminiKey === 'your_gemini_api_key_here' || geminiKey === 'mock_key') return;
+
+    const unchecked = await db.learnedTermAggregate.findMany({
+      where: { status: 'PENDING', aiConfirmed: null, distinctSkeletonCount: { gte: LEARNED_TERM_MIN_SKELETONS } },
+      orderBy: { distinctSkeletonCount: 'desc' },
+      take: 300,
+    });
+    if (unchecked.length === 0) return;
+
+    const topOf = (votes: unknown): string | null => {
+      if (!votes || typeof votes !== 'object') return null;
+      let best: string | null = null;
+      let bestCount = 0;
+      for (const [k, v] of Object.entries(votes as Record<string, number>)) {
+        if (typeof v === 'number' && v > bestCount) {
+          best = k;
+          bestCount = v;
+        }
+      }
+      return best;
+    };
+
+    const byCategory = new Map<string, typeof unchecked>();
+    for (const t of unchecked) {
+      const cat = topOf(t.categoryVotes);
+      if (!cat) continue;
+      const arr = byCategory.get(cat) || [];
+      arr.push(t);
+      byCategory.set(cat, arr);
+    }
+
+    const categoriesToCheck = [...byCategory.entries()]
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, LEARNED_TERM_AI_SWEEP_CATEGORY_LIMIT);
+
+    for (const [categoryName, terms] of categoriesToCheck) {
+      if (!reserveGeminiCallSlot()) break; // byudjet tugadi — keyingi "sweep" davom etadi
+      const batch = terms.slice(0, LEARNED_TERM_AI_SWEEP_WORDS_PER_CATEGORY);
+      const confirmed = await validateLocalTermsWithGemini(
+        categoryName,
+        batch.map((t) => ({ term: t.term, sample: t.sampleMessage })),
+        geminiKey
+      ).catch(() => new Map<string, boolean>());
+
+      for (const t of batch) {
+        if (!confirmed.has(t.term)) continue;
+        await db.learnedTermAggregate
+          .update({ where: { id: t.id }, data: { aiConfirmed: confirmed.get(t.term), aiCheckedAt: new Date() } })
+          .catch((err) => console.error('Failed to save AI confirmation for learned term:', err));
+      }
+    }
+  }
+
+  // Ishga tushgandan 30 soniya o'tib birinchi "sweep", keyin har 15
+  // daqiqada — admin hech qayerni ochmasa ham, tizim FON REJIMIDA doimiy
+  // ishlayveradi ("hozirdan oq saqlab yursin live rejimda ishlasin").
+  setTimeout(() => {
+    runLearnedTermAiSweep().catch((err) => console.error('Learned-term AI sweep failed:', err));
+  }, 30_000).unref?.();
+  setInterval(() => {
+    runLearnedTermAiSweep().catch((err) => console.error('Learned-term AI sweep failed:', err));
+  }, LEARNED_TERM_AI_SWEEP_INTERVAL_MS).unref?.();
 
   const clusterCache = new Map<string, { data: Awaited<ReturnType<typeof clusterUnresolvedQueries>>; expiresAt: number }>();
   const CLUSTER_CACHE_TTL_MS = 5 * 60 * 1000;
