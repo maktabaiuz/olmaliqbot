@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -36,6 +36,7 @@ import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
 import { avatarColorForName } from './utils/avatarColor';
+import { Sparkline } from './components/MiniCharts';
 
 export interface AppProps {
   previewConfig?: {
@@ -1209,20 +1210,46 @@ const MoreLandmarksSubView: React.FC<{
   );
 };
 
+// Ekran ochiq turganda har 20 soniyada yangilanadi — "real live rejim"
+// (2026-09-28, aniq shunday so'ralgan): "bugun nechta userga javob berdi"
+// va har bir guruhning jonli faolligi.
+const GROUPS_LIVE_REFRESH_MS = 20_000;
+
 const MoreGroupsSubView: React.FC<{
   onBack: () => void;
   onSelectGroup: (id: string, title: string) => void;
 }> = ({ onBack, onSelectGroup }) => {
   const [groups, setGroups] = useState<any[]>([]);
+  const [todayStats, setTodayStats] = useState<{ usersAnsweredToday: number; queriesAnsweredToday: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
-    fetch('/api/admin/groups')
-      .then(r => r.json())
-      .then(data => setGroups(data || []))
-      .finally(() => setLoading(false));
+    const initData = window.Telegram?.WebApp?.initData || '';
+    let cancelled = false;
+    const load = () => {
+      Promise.all([
+        fetch('/api/admin/groups', { headers: { 'x-init-data': initData } }).then((r) => (r.ok ? r.json() : [])),
+        fetch('/api/admin/stats?period=today', { headers: { 'x-init-data': initData } }).then((r) => (r.ok ? r.json() : null)),
+      ])
+        .then(([groupsData, statsData]) => {
+          if (cancelled) return;
+          setGroups(groupsData || []);
+          if (statsData) setTodayStats(statsData);
+          loadedOnce.current = true;
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const interval = setInterval(load, GROUPS_LIVE_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   const filtered = groups.filter(g => (g.title || '').toLowerCase().includes(search.toLowerCase()));
@@ -1246,6 +1273,29 @@ const MoreGroupsSubView: React.FC<{
       </div>
 
       <div className="px-4 space-y-3">
+        {/* Bugungi holat — barcha guruhlar bo'yicha jonli umumiy ko'rsatkich
+            (2026-09-28, aniq "bugun nechta userga javob berdi" so'ralgan) */}
+        <div className="rounded-[10px] shadow-sm p-3.5 bg-gradient-to-br from-[#007AFF] to-[#0A5FCC] dark:from-[#0A84FF] dark:to-[#0860BF] text-white">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+            </span>
+            <span className="text-[12px] font-medium opacity-90 uppercase tracking-wide">Bugungi holat · jonli</span>
+          </div>
+          <div className="flex items-end justify-around text-center">
+            <div>
+              <p className="text-[26px] font-bold leading-none">{todayStats?.usersAnsweredToday ?? '—'}</p>
+              <p className="text-[11px] opacity-80 mt-1">userga javob berildi</p>
+            </div>
+            <div className="w-px h-8 bg-white/25" />
+            <div>
+              <p className="text-[26px] font-bold leading-none">{todayStats?.queriesAnsweredToday ?? '—'}</p>
+              <p className="text-[11px] opacity-80 mt-1">so'rov javoblandi</p>
+            </div>
+          </div>
+        </div>
+
         <div className="relative">
           <span
             className={`material-symbols-outlined absolute top-1/2 -translate-y-1/2 text-[17px] text-[#8E8E93] pointer-events-none transition-all ${
@@ -1299,22 +1349,30 @@ const MoreGroupsSubView: React.FC<{
                 >
                   {(g.title || '?').trim()[0]?.toUpperCase() || '?'}
                 </span>
-                <span className="flex-1 min-w-0 flex items-center gap-1.5">
-                  <span className="text-[15px] font-normal text-on-surface dark:text-white truncate">
-                    {g.title}
-                  </span>
-                  {g.hasIssue && (
-                    <span className="material-symbols-outlined text-[16px] text-[#FF9500] shrink-0" title="Bot huquqi yetishmayapti">
-                      warning
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[15px] font-normal text-on-surface dark:text-white truncate">
+                      {g.title}
                     </span>
-                  )}
+                    {g.hasIssue && (
+                      <span className="material-symbols-outlined text-[16px] text-[#FF9500] shrink-0" title="Bot huquqi yetishmayapti">
+                        warning
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`text-[12px] font-medium ${g.todayQueries > 0 ? 'text-ios-blue' : 'text-[#8E8E93]'}`}>
+                      bugun {g.todayQueries}
+                    </span>
+                    {typeof g.memberCount === 'number' && (
+                      <span className="text-[12px] text-[#8E8E93]">· {g.memberCount} a'zo</span>
+                    )}
+                  </span>
                 </span>
-                <span className="flex items-center gap-1 text-[#8E8E93] shrink-0">
-                  {typeof g.memberCount === 'number' && (
-                    <span className="text-[13px]">{g.memberCount} a'zo</span>
-                  )}
-                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                </span>
+                {Array.isArray(g.sparkline) && (
+                  <Sparkline values={g.sparkline} />
+                )}
+                <span className="material-symbols-outlined text-[18px] text-[#8E8E93] shrink-0">chevron_right</span>
               </button>
             ))}
           </div>

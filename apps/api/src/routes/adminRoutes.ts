@@ -13,6 +13,33 @@ const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+// MUHIM (2026-09-28, "Guruhlar" jonli statistikasi uchun): server
+// konteynerlarida TZ sozlanmagan (UTC bo'yicha ishlaydi), lekin
+// foydalanuvchilar Olmaliqda (Toshkent, UTC+5, DST yo'q) yashaydi. Avval
+// "bugun" chegarasi `new Date(); setHours(0,0,0,0)` orqali hisoblanardi —
+// bu SERVER (UTC) vaqti bo'yicha yarim tun, ya'ni haqiqiy Toshkent
+// soati bilan 5 soat oldin/keyin siljigan noto'g'ri chegara berardi
+// (masalan Toshkentda soat 03:00 bo'lganda, server UTC bo'yicha hali
+// "kecha"ning oxirida). Bu yerdagi yordamchilar butun faylda "bugun"/
+// kunlik statistikani BIR XIL, to'g'ri (Toshkent) chegara bilan
+// hisoblash uchun.
+const TASHKENT_TZ = 'Asia/Tashkent';
+const tashkentDateKeyFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: TASHKENT_TZ });
+
+function tashkentDayKey(d: Date): string {
+  return tashkentDateKeyFormatter.format(d); // "YYYY-MM-DD"
+}
+
+function tashkentDayStart(daysAgo: number): Date {
+  const todayKey = tashkentDayKey(new Date());
+  const [y, m, dd] = todayKey.split('-').map(Number);
+  // Toshkent yarim tuni = shu UTC sanadagi 00:00 UTC dan 5 soat OLDIN
+  // (UTC+5 => mahalliy vaqt UTC'dan 5 soat oldinda, demak mahalliy
+  // yarim tun UTC'da hali kechqurun 19:00).
+  const utcMs = Date.UTC(y, m - 1, dd, 0, 0, 0) - 5 * 60 * 60 * 1000;
+  return new Date(utcMs - daysAgo * 24 * 60 * 60 * 1000);
+}
+
 // Javob ichidagi ("steps" massivi ichida chuqur joylashgan bo'lishi mumkin)
 // barcha matn maydonlarini yig'ib oladi — Gemini "Interactions API"ning
 // aniq javob sxemasi hali to'liq hujjatlashtirilmagan (2026-09), shuning
@@ -790,10 +817,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const cityId = await getCityId(req);
     const { period } = req.query || {};
 
+    // MUHIM (2026-09-28 tuzatildi): avval "bugun" chegarasi server (UTC)
+    // vaqti bo'yicha hisoblanardi — Toshkent (UTC+5) haqiqiy kuni bilan
+    // mos kelmasdi (qarang: tashkentDayStart izohi, fayl boshida).
+    const todayStart = tashkentDayStart(0);
     let periodStart: Date | undefined;
     if (period === 'today') {
-      periodStart = new Date();
-      periodStart.setHours(0, 0, 0, 0);
+      periodStart = todayStart;
     } else if (period === 'week') {
       periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     } else if (period === 'month') {
@@ -813,9 +843,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // hisobi sanoqqa kirmay, "ishlamayapti" deb noto'g'ri tuyulgan edi —
     // foydalanuvchi aniq "hammasi ko'rinsin" deb so'radi.
     const totalUsers = await db.user.count({ where: { cityId } });
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
     const newUsersToday = await db.user.count({ where: { cityId, createdAt: { gte: todayStart } } });
+
+    // "Bugun nechta USERga javob berdi" — foydalanuvchi aniq shu ko'rsatkichni
+    // so'radi (2026-09-28). Bir odam kunda bir necha marta so'rasa ham BIR
+    // marta hisoblanishi kerak (haqiqiy "necha KISHI"), shu sabab QueryLog
+    // qatorlar emas, DISTINCT telegramUserId sanaladi. Faqat haqiqatan
+    // javob TOPILGAN (isResolved) va haqiqiy so'rov (NOT_RELEVANT emas)
+    // qatorlar hisoblanadi — jim turilgan/aloqasiz suhbatlar kirmaydi.
+    const usersAnsweredTodayRows = await db.queryLog.findMany({
+      where: { cityId, createdAt: { gte: todayStart }, isResolved: true, intent: { not: 'NOT_RELEVANT' } },
+      select: { telegramUserId: true },
+      distinct: ['telegramUserId'],
+    });
+    const usersAnsweredToday = usersAnsweredTodayRows.length;
+    const queriesAnsweredToday = await db.queryLog.count({
+      where: { cityId, createdAt: { gte: todayStart }, isResolved: true, intent: { not: 'NOT_RELEVANT' } },
+    });
 
     // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
     const resolvedPercent = totalQuestions > 0
@@ -830,6 +874,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       totalListings: activeListings,
       totalUsers,
       newUsersToday,
+      usersAnsweredToday,
+      queriesAnsweredToday,
       // Qo'shimcha (boshqa ekranlar uchun):
       activeListings,
       pendingCandidates,
@@ -2238,12 +2284,41 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     const botToken = process.env.BOT_TOKEN;
 
+    // MUHIM (2026-09-28, "Guruhlar" ro'yxatida jonli faollik ko'rinishi
+    // uchun): har bir guruh qatorida "bugun N ta so'rov" belgisi va
+    // so'nggi 7 kunlik mini-sparkline chizish uchun kerakli sonlar
+    // bir martalik, YENGIL so'rovlar bilan (guruhlar soni odatda kichik,
+    // 2026-09 holatida 4 ta) hisoblanadi — batafsil (kategoriya/moderatsiya)
+    // tahlil FAQAT /admin/groups/:id (bitta guruh) darajasida qoladi.
+    const todayStart = tashkentDayStart(0);
+    const sparklineStart = tashkentDayStart(6);
+    const dayFormatter = tashkentDateKeyFormatter;
+
     const results = await Promise.all(
       groups.map(async (g) => {
         const enabledFeatureKeys = featureKeysByGroupId.get(g.id) || [];
-        const health = botToken
-          ? await fetchGroupHealth(g.chatId, botToken, enabledFeatureKeys).catch(() => null)
-          : null;
+        const [health, todayQueries, sparklineRows] = await Promise.all([
+          botToken ? fetchGroupHealth(g.chatId, botToken, enabledFeatureKeys).catch(() => null) : Promise.resolve(null),
+          db.queryLog.count({
+            where: { chatId: g.chatId, createdAt: { gte: todayStart }, isResolved: true, intent: { not: 'NOT_RELEVANT' } },
+          }),
+          db.queryLog.findMany({
+            where: { chatId: g.chatId, createdAt: { gte: sparklineStart }, isResolved: true, intent: { not: 'NOT_RELEVANT' } },
+            select: { createdAt: true },
+          }),
+        ]);
+
+        const byDay = new Map<string, number>();
+        for (const row of sparklineRows) {
+          const key = dayFormatter.format(row.createdAt);
+          byDay.set(key, (byDay.get(key) || 0) + 1);
+        }
+        const sparkline: number[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const key = dayFormatter.format(tashkentDayStart(i));
+          sparkline.push(byDay.get(key) || 0);
+        }
+
         return {
           id: g.id,
           chatId: g.chatId.toString(),
@@ -2251,9 +2326,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
           createdAt: g.createdAt,
           memberCount: health?.memberCount ?? null,
           hasIssue: health?.hasIssue ?? false,
+          todayQueries,
+          sparkline,
         };
       })
     );
+
+    // Eng faol guruh birinchi ko'rinsin ("live" bo'lim tuyg'usi uchun) —
+    // bugun umuman so'rov bo'lmagan guruhlar oxirida, qolganlari orasida
+    // eng ko'p so'ralgani tepada.
+    results.sort((a, b) => b.todayQueries - a.todayQueries);
 
     return results;
   });
@@ -2281,7 +2363,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         )
       : { memberCount: null, botStatus: null, canDelete: false, canRestrict: false, hasIssue: false, message: 'BOT_TOKEN sozlanmagan' };
 
-    const [totalQueries, resolvedQueries, unresolvedTopics, moderationCounts, recentQueryTimes] = await Promise.all([
+    const [totalQueries, resolvedQueries, unresolvedTopics, moderationCounts, recentQueryTimes, scopedQueryRows] = await Promise.all([
       db.queryLog.count({
         where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
       }),
@@ -2304,6 +2386,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
         where: { chatId: group.chatId, createdAt: { gte: periodStart } },
         select: { createdAt: true },
       }),
+      // 2026-09-28: "bugun" va "kunlik trend" grafigi uchun — telegramUserId
+      // ham olinadi, har kun NECHTA ALOHIDA odamga javob berilganini
+      // bilish uchun. "today" bo'lagi tanlangan 7/30 kunlik oynadan
+      // MUSTAQIL, doim haqiqiy Toshkent "bugun"iga tegishli (bu oyna
+      // ICHIDA, chunki bugun har doim so'nggi 7/30 kun ichida).
+      db.queryLog.findMany({
+        where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
+        select: { createdAt: true, isResolved: true, telegramUserId: true },
+      }),
     ]);
 
     // Server UTC'da ishlaydi (konteynerlarda TZ sozlanmagan) — Olmaliq
@@ -2314,6 +2405,39 @@ export async function adminRoutes(fastify: FastifyInstance) {
     for (const row of recentQueryTimes) {
       const hour = parseInt(hourFormatter.format(row.createdAt), 10) % 24;
       activityByHour[hour]++;
+    }
+
+    // Kunlik trend (dailySeries) — har bir kun uchun jami/javob berilgan
+    // so'rovlar va NECHTA ALOHIDA odamga javob berilgani (distinct user).
+    // "Bugun" (today) ham shu ma'lumotdan hisoblanadi.
+    const todayStart = tashkentDayStart(0);
+    const usersByDay = new Map<string, Set<string>>();
+    const totalByDay = new Map<string, number>();
+    const resolvedByDay = new Map<string, number>();
+    let todayTotal = 0;
+    let todayResolved = 0;
+    const todayUsers = new Set<string>();
+    for (const row of scopedQueryRows) {
+      const dayKey = tashkentDayKey(row.createdAt);
+      totalByDay.set(dayKey, (totalByDay.get(dayKey) || 0) + 1);
+      if (row.isResolved) resolvedByDay.set(dayKey, (resolvedByDay.get(dayKey) || 0) + 1);
+      if (!usersByDay.has(dayKey)) usersByDay.set(dayKey, new Set());
+      usersByDay.get(dayKey)!.add(row.telegramUserId.toString());
+      if (row.createdAt >= todayStart) {
+        todayTotal++;
+        if (row.isResolved) todayResolved++;
+        todayUsers.add(row.telegramUserId.toString());
+      }
+    }
+    const dailySeries: { date: string; total: number; resolved: number; users: number }[] = [];
+    for (let i = periodDays - 1; i >= 0; i--) {
+      const key = tashkentDayKey(tashkentDayStart(i));
+      dailySeries.push({
+        date: key,
+        total: totalByDay.get(key) || 0,
+        resolved: resolvedByDay.get(key) || 0,
+        users: usersByDay.get(key)?.size || 0,
+      });
     }
 
     const moderationTotal = moderationCounts.reduce((sum, m) => sum + m._count.category, 0);
@@ -2340,6 +2464,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
       },
       unresolvedTopics: unresolvedTopics.map((t) => ({ categoryName: t.categoryName, count: t._count.categoryName })),
       activityByHour,
+      today: {
+        total: todayTotal,
+        resolved: todayResolved,
+        users: todayUsers.size,
+      },
+      dailySeries,
       moderationStats: {
         total: moderationTotal,
         byCategory: moderationCounts.map((m) => ({ category: m.category, count: m._count.category })),

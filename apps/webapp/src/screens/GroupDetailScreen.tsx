@@ -1,5 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { avatarColorForName } from '../utils/avatarColor';
+import { TrendAreaChart } from '../components/MiniCharts';
+
+// Ekran ochiq turganda har 20 soniyada yangi ma'lumot so'raladi — "real
+// live rejim" (2026-09-28, aniq shunday so'ralgan). Skelet-yuklanish faqat
+// BIRINCHI marta ko'rsatiladi; fon-yangilanishlarda eski ma'lumot ekranda
+// qolib, jimgina yangisiga almashadi (miltillash bo'lmasligi uchun).
+const LIVE_REFRESH_INTERVAL_MS = 20_000;
 
 interface GroupDetailScreenProps {
   groupId: string;
@@ -39,6 +46,8 @@ interface GroupDetail {
   };
   unresolvedTopics: { categoryName: string | null; count: number }[];
   activityByHour: number[];
+  today: { total: number; resolved: number; users: number };
+  dailySeries: { date: string; total: number; resolved: number; users: number }[];
   moderationStats: {
     total: number;
     byCategory: { category: string; count: number }[];
@@ -49,14 +58,35 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<7 | 30>(7);
+  const [trendMetric, setTrendMetric] = useState<'total' | 'users'>('total');
+  const hasLoadedOnce = useRef(false);
 
   useEffect(() => {
-    setLoading(true);
-    const initData = window.Telegram?.WebApp?.initData || '';
-    fetch(`/api/admin/groups/${groupId}?days=${days}`, { headers: { 'x-init-data': initData } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setDetail(data))
-      .finally(() => setLoading(false));
+    hasLoadedOnce.current = false;
+  }, [groupId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      if (!hasLoadedOnce.current) setLoading(true);
+      const initData = window.Telegram?.WebApp?.initData || '';
+      fetch(`/api/admin/groups/${groupId}?days=${days}`, { headers: { 'x-init-data': initData } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          setDetail(data);
+          hasLoadedOnce.current = true;
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const interval = setInterval(load, LIVE_REFRESH_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [groupId, days]);
 
   const name = detail?.title || groupTitle;
@@ -82,9 +112,20 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
           {name.trim()[0]?.toUpperCase() || '?'}
         </span>
         <h1 className="text-[20px] font-semibold text-ios-label text-center px-6">{name}</h1>
-        <p className="text-[13px] text-ios-label-secondary/70">
-          {detail?.memberCount !== null && detail?.memberCount !== undefined ? `${detail.memberCount} a'zo` : 'Yuklanmoqda...'}
-        </p>
+        <div className="flex items-center gap-1.5 text-[13px] text-ios-label-secondary/70">
+          <span>
+            {detail?.memberCount !== null && detail?.memberCount !== undefined ? `${detail.memberCount} a'zo` : 'Yuklanmoqda...'}
+          </span>
+          {detail && (
+            <span className="flex items-center gap-1 text-ios-green">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ios-green opacity-60" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-ios-green" />
+              </span>
+              <span className="text-[11px] font-medium">live</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {loading || !detail ? (
@@ -113,6 +154,27 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
                   Yoqilgan: {detail.enabledFeatureKeys.map((k) => MODERATION_LABELS[k] || k).join(', ')}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Bugungi holat — jonli, davr almashtirgichidan mustaqil */}
+          <div>
+            <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+              Bugun
+            </span>
+            <div className="bg-ios-card rounded-ios shadow-sm p-3.5 flex items-center justify-around text-center">
+              <div>
+                <p className="text-[22px] font-semibold text-ios-blue">{detail.today.users}</p>
+                <p className="text-[11px] text-ios-label-secondary/70">kishiga javob berildi</p>
+              </div>
+              <div>
+                <p className="text-[22px] font-semibold text-ios-label">{detail.today.total}</p>
+                <p className="text-[11px] text-ios-label-secondary/70">jami so'rov</p>
+              </div>
+              <div>
+                <p className="text-[22px] font-semibold text-ios-green">{detail.today.resolved}</p>
+                <p className="text-[11px] text-ios-label-secondary/70">javob berilgan</p>
+              </div>
             </div>
           </div>
 
@@ -151,6 +213,34 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
                 </p>
                 <p className="text-[11px] text-ios-label-secondary/70">javob foizi</p>
               </div>
+            </div>
+          </div>
+
+          {/* Kunlik trend */}
+          <div>
+            <div className="flex items-center justify-between px-1 mb-1.5">
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide">
+                Kunlik faollik
+              </span>
+              <div className="flex bg-ios-fill/[0.12] rounded-[7px] p-[2px]">
+                {([
+                  { key: 'total', label: "So'rov" },
+                  { key: 'users', label: 'Kishi' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setTrendMetric(opt.key)}
+                    className={`px-2 py-0.5 rounded-[5px] text-[11px] font-medium transition-colors ${
+                      trendMetric === opt.key ? 'bg-ios-card text-ios-label shadow-sm' : 'text-ios-label-secondary/70'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="bg-ios-card rounded-ios shadow-sm p-3.5 pt-4">
+              <TrendAreaChart data={detail.dailySeries} metric={trendMetric} />
             </div>
           </div>
 
