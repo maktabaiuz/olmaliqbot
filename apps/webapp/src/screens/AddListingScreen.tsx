@@ -88,6 +88,13 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   // so'roviga ko'ra qo'shildi). Hech qanday generativ AI emas — faqat
   // bazadagi haqiqiy so'zlar, shuning uchun 100% aniq.
   const [jargonSuggestions, setJargonSuggestions] = useState<{ phrase: string; count: number }[]>([]);
+  // 2026-09-28: "Mahalliy so'zlar" — guruhlardan o'rgangan, shu KATEGORIYAGA
+  // mos, lekin hali hech qaysi yozuvga biriktirilmagan so'zlar. Yuqoridagi
+  // `jargonSuggestions`dan farqi — u BAZADAGI mavjud yozuvlarning jargonini
+  // qaytaradi, bu esa guruh suhbatidan yangi o'rganilgan so'zlarni.
+  const [learnedTermSuggestions, setLearnedTermSuggestions] = useState<
+    { term: string; occurrenceCount: number }[]
+  >([]);
 
   const [workFrom, setWorkFrom] = useState(() => localStorage.getItem('draft_workFrom') || '08:00');
   const [workTo, setWorkTo] = useState(() => localStorage.getItem('draft_workTo') || '20:00');
@@ -281,6 +288,40 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       active = false;
     };
   }, [category]);
+
+  // Kategoriya tanlanganda — guruhlardan o'rgangan, shu sohaga mos
+  // "Mahalliy so'zlar" (2026-09-28, aniq shunday so'ralgan: "bazaga yangi
+  // odam qo'shganimda ... mos mahalliy so'zlarni avtomatik chiqarib bersin").
+  useEffect(() => {
+    let active = true;
+    const clean = category.trim();
+    if (!clean) {
+      setLearnedTermSuggestions([]);
+      return;
+    }
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch(`/api/admin/learned-terms?categoryName=${encodeURIComponent(clean)}`, { headers: { 'x-init-data': initData } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (active) setLearnedTermSuggestions(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (active) setLearnedTermSuggestions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [category]);
+
+  const dismissLearnedTerm = (term: string) => {
+    setLearnedTermSuggestions((prev) => prev.filter((t) => t.term !== term));
+    const initData = window.Telegram?.WebApp?.initData || '';
+    fetch('/api/admin/learned-terms/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+      body: JSON.stringify({ term }),
+    }).catch(() => {});
+  };
 
   // Duplicate checks
   useEffect(() => {
@@ -706,6 +747,48 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                           <span className="text-ios-label-secondary/60 text-[11px]">×{s.count}</span>
                         )}
                       </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* "Mahalliy so'zlar" — guruhlardan o'rgangan, shu kategoriyaga
+                mos so'zlar (2026-09-28). Bosilsa qo'shiladi, × bosilsa
+                butunlay rad etiladi (kelajakda boshqa hech qayerda
+                chiqmaydi). */}
+            {learnedTermSuggestions.filter((s) => !jargonWords.includes(s.term)).length > 0 && (
+              <div className="flex flex-col gap-1.5 mt-1">
+                <p className="text-[11px] text-ios-label-secondary/70">
+                  🎓 Guruhlardan o'rganilgan, shu sohaga mos so'zlar:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {learnedTermSuggestions
+                    .filter((s) => !jargonWords.includes(s.term))
+                    .map((s) => (
+                      <span
+                        key={s.term}
+                        className="bg-ios-green/10 text-ios-label pl-3 pr-1.5 py-1 rounded-full text-[13px] font-medium flex items-center gap-1.5"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleAddJargonSuggestion(s.term)}
+                          className="flex items-center gap-1.5 active:opacity-60"
+                        >
+                          <span className="material-symbols-outlined text-[14px] text-ios-green">add_circle</span>
+                          {s.term}
+                          {s.occurrenceCount > 1 && (
+                            <span className="text-ios-label-secondary/60 text-[11px]">×{s.occurrenceCount}</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismissLearnedTerm(s.term)}
+                          title="Bu so'zni rad etish"
+                          className="w-4 h-4 rounded-full bg-ios-fill/20 flex items-center justify-center text-[11px] leading-none active:opacity-60"
+                        >
+                          ×
+                        </button>
+                      </span>
                     ))}
                 </div>
               </div>

@@ -1346,7 +1346,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // ishlatiladigan bir xil `contentTokensOf` filtri qayta ishlatiladi,
   // shunda "bu so'z haqiqatan YANGI/o'ziga xosmi" degan savolga ikkala
   // joyda (qidiruv va o'rganish) BIR XIL javob beriladi.
-  async function computeLearnedTermCandidates(cityId: string, limit = 60) {
+  // MUHIM (2026-09-28, "yangi yozuv qo'shish" oqimida kategoriya bo'yicha
+  // filtrlash uchun): bu yerda ANIQ, ODDIY kesim (limit) qo'llanmaydi —
+  // to'liq (kengroq, 250 tagacha) nomzod ro'yxati bir marta hisoblanib
+  // keshlanadi, so'ngra HAR IKKALA iste'molchi (umumiy "Mahalliy so'zlar"
+  // ekrani VA yangi yozuv qo'shishda kategoriya bo'yicha taklif) shu BIR
+  // XIL keshdan o'zining kerakli qismini (butun ro'yxat yoki faqat bitta
+  // kategoriyaga tegishlisi) filtrlaydi — kategoriya tanlanganda HAR SAFAR
+  // bazani qayta so'rash shart emas.
+  async function computeLearnedTermCandidates(cityId: string, limit = 250) {
     const sinceDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000); // so'nggi 60 kun
     const [rows, cityWords, categoryVocab, landmarks, decisions] = await Promise.all([
       db.queryLog.findMany({
@@ -1503,12 +1511,24 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
   // Ro'yxat — hali qaror qilinmagan (bazadagi lug'atda yo'q, admin
   // qabul/rad qilmagan) nomzod so'zlar, chastota bo'yicha kamayish
-  // tartibida.
+  // tartibida. Ixtiyoriy `categoryName` — faqat SHU kategoriyaga (yangi
+  // yozuv qo'shishda tanlangan kasb/soha) tegishli so'zlarni qaytaradi
+  // (2026-09-28, "yangi odam qo'shganimda ... mos mahalliy so'zlarni
+  // avtomatik chiqarib bersin" so'roviga ko'ra).
   fastify.get('/admin/learned-terms', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
     const forceFresh = req.query?.fresh === 'true';
-    return getCachedLearnedTerms(cityId, forceFresh);
+    const { categoryName, limit } = req.query as { categoryName?: string; limit?: string };
+    const all = await getCachedLearnedTerms(cityId, forceFresh);
+
+    if (categoryName && categoryName.trim()) {
+      const normalizedTarget = normalizeText(categoryName.trim());
+      const scoped = all.filter((t) => t.suggestedCategoryName && normalizeText(t.suggestedCategoryName) === normalizedTarget);
+      return scoped.slice(0, Math.min(Number(limit) || 20, 50));
+    }
+
+    return all.slice(0, Math.min(Number(limit) || 60, 250));
   });
 
   // So'zni RAD ETISH — bu holda kelajakda qayta ko'rsatilmaydi (shovqin/
