@@ -41,7 +41,7 @@ jobs:
                     rentalFilters: null,
                     isReplyToPhoto: false,
                   });
-                  console.log('out:RESULT=' + JSON.stringify(r ? { name: r.name, id: r.id } : null));
+                  console.log('out:RESULT=' + JSON.stringify(r ? { name: r.listing?.name, id: r.listingId } : null));
                 }
                 await db.\$disconnect();
               })().catch(e=>{console.error('ERR', e.stack); process.exit(1)});
