@@ -57,6 +57,17 @@ export interface SearchOptions {
    * maydoni TO'LDIRILGAN yozuvlarga qo'llanadi — eski, hali roomCount/
    * rentPrice kiritilmagan yozuvlar filtrlanib tashlanmaydi. */
   rentalFilters?: RentalFilters | null;
+  /** MUHIM (2026-09-29, kod tahlilida topilgan bo'shliq — "qaysi" xatosining
+   * jiyani): agar xabar biror RASMga (Telegram reply_to_message.photo)
+   * javoban yozilgan bo'lsa, bot o'sha rasmni KO'RMAYDI — "Bu qaysi?",
+   * "Shu ochiqmi?" kabi savollar odatda AYNAN shu suratdagi narsaga
+   * ishora qiladi, lekin so'zning o'zida "qaysi" bo'lmasligi ham mumkin
+   * ("bu"/"shu" bilan ham aytilishi mumkin — bu so'zlar juda keng
+   * tarqalgan bo'lgani uchun ularni so'z sifatida qidirish ishonchsiz,
+   * shuning uchun Telegram'ning O'ZI bergan "bu reply" belgisi ishlatiladi).
+   * true bo'lsa va mo'ljal/jargon orqali ajratib bo'lmasa — pastdagi
+   * "qaysi" himoyasi bilan BIR XIL qoidaga ko'ra jim turiladi. */
+  isReplyToPhoto?: boolean;
 }
 
 export interface ScoreBreakdownEntry {
@@ -1026,7 +1037,7 @@ function deriveTargetAfterLandmark(rawMessage: string | null | undefined): strin
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters, isReplyToPhoto } = options;
 
   if (!cityId) return null;
   if (!categoryName && !landmarkName && !rawMessage) return null;
@@ -1534,6 +1545,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // yangi nom EMAS), himoya umuman ishlamaydi va oddiy toifa qidiruvi
   // davom etadi. Shu bilan "santexnik kerak" kabi oddiy so'rovlar
   // hech qachon noto'g'ri to'silib qolmaydi.
+  // MUHIM (2026-09-29, kod tahlilida topilgan bo'shliq): avval bu himoya
+  // faqat "bu nom bazada UMUMAN bormi" deb TASDIQLAR edi, lekin natija
+  // ro'yxatini (`candidateListings`, pastda) hech qachon aynan SHU nomga
+  // ChEGARALAMAS edi — agar kategoriya/mo'ljal bo'yicha bir nechta yozuv
+  // topilsa-yu, jargon moslik bo'lmasa, ko'rsatiladigan "g'olib" odatdagi
+  // reyting/tasodifiy tanlov orqali hal qilinardi, garchi foydalanuvchi
+  // ANIQ BIR NOMNI so'ragan bo'lsa ham ("qaysi" xatosi bilan bir xil
+  // shakl, faqat boshqa yo'lda). Endi `namedObjectMatchedIds` pastda
+  // (candidateListings tayyor bo'lgach) natijani ANIQ shu to'plamga
+  // cheklash uchun tashqi ko'lamda e'lon qilinadi.
+  let namedObjectMatchedIds: Set<string> | null = null;
   const askedName = sanitizeAiName(options.name) || deriveTargetAfterLandmark(rawMessage);
   if (askedName) {
     const landmarkWords = new Set(
@@ -1578,6 +1600,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
           l.jargonSynonyms.some((j) => nameRelatesToTarget(nameCore, nameWords, j));
         if (relates) nameMatchedIds.add(l.id);
       }
+      namedObjectMatchedIds = nameMatchedIds;
 
       // (1) Bu nom bazada UMUMAN yo'q — javob berishga asos yo'q.
       if (nameMatchedIds.size === 0) {
@@ -1866,6 +1889,19 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     candidateListings = [...candidateListings, ...extraJargonListings];
   }
 
+  // MUHIM (2026-09-29): foydalanuvchi ANIQ BIR NOMNI so'ragan bo'lsa
+  // (namedObjectMatchedIds yuqorida hisoblangan — bo'sh EMASLIGI allaqachon
+  // tasdiqlangan, aks holda funksiya yuqorida allaqachon null qaytargan),
+  // yakuniy natija FAQAT o'sha nomga mos yozuvlar bilan cheklanadi — aks
+  // holda kategoriya/mo'ljal bo'yicha "eng yaxshi" boshqa (so'ralmagan)
+  // yozuv g'olib chiqishi mumkin edi. Cheklashdan keyin bo'sh qolsa — bu
+  // "nom bor-u, lekin boshqa filtrlarga (mo'ljal/kategoriya) mos kelmadi"
+  // degani, demak jim turish to'g'ri (noto'g'ri, so'ralmagan yozuvni
+  // ko'rsatishdan ko'ra).
+  if (namedObjectMatchedIds) {
+    candidateListings = candidateListings.filter((l) => namedObjectMatchedIds!.has(l.id));
+  }
+
   if (candidateListings.length === 0) {
     return null;
   }
@@ -2101,12 +2137,33 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // sabab maxsus "қ" harfini emas, oddiy "к"ni yozadi — shu sabab ikkala
   // shakl ham (haqiqiy imlo "qaysi" va keng tarqalgan noto'g'ri-klaviatura
   // shakli "kaysi") tekshiriladi.
+  // MUHIM (2026-09-29, kod tahlilida topilgan jiyan-xato): "qaysi" so'zi
+  // ATAYLAB yozilmasdan ham AYNAN shu muammo yuzaga kelishi mumkin — odam
+  // bir RASMga ("bu qaysi zapravka" o'rniga shunchaki "Shu ochiqmi?")
+  // javoban yozsa. "Bu"/"shu" so'zlarini QIDIRISH ishonchsiz (ular juda
+  // keng tarqalgan, ko'plab oddiy gaplarda ham bor), shuning uchun
+  // Telegram'ning o'zi bergan ANIQ signal — bu xabar biror RASMga reply
+  // ekanligi — ishlatiladi (qarang: groupHandler.ts, `isReplyToPhoto`).
   const normalizedRawMessage = rawMessage ? normalizeText(rawMessage) : '';
+  const hasIdentifyingQuestionWord =
+    containsWholeWord(normalizedRawMessage, 'qaysi') || containsWholeWord(normalizedRawMessage, 'kaysi');
+
+  // Agar so'ralgan belgi (masalan "24/7", "Kafolat") aynan shu g'olibda
+  // BOR bo'lsa, yoki admin uni qo'lda "1/2/3-o'rin" qilib belgilagan
+  // bo'lsa — bu HAQIQIY, ataylab qo'yilgan ajratuvchi dalil, tasodifiy
+  // rotationBonus EMAS. Bunday holatda jim turishning hojati yo'q (kod
+  // tahlilida topilgan "opportunity cost" — foydasiz jim qolish xavfi).
+  const bestMatchHasRealSignal =
+    (requestedBadges && requestedBadges.length > 0 && Array.isArray((bestMatch as any).badges) &&
+      (bestMatch as any).badges.some((b: string) => requestedBadges.includes(b))) ||
+    (typeof (bestMatch as any).priorityRank === 'number' && (bestMatch as any).priorityRank > 0);
+
   if (
     scoredListings.length > 1 &&
     !cleanLandmarkName &&
     !jargonMatchedIds.has(bestMatch.id) &&
-    (containsWholeWord(normalizedRawMessage, 'qaysi') || containsWholeWord(normalizedRawMessage, 'kaysi'))
+    !bestMatchHasRealSignal &&
+    (hasIdentifyingQuestionWord || isReplyToPhoto)
   ) {
     return null;
   }

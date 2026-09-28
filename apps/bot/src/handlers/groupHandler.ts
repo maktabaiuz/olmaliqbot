@@ -10,6 +10,15 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
   if (!messageText) return;
 
+  // 2026-09-29, kod tahlilida topilgan bo'shliq: xabar biror RASMga
+  // (masalan reklama-e'lon posti) javoban ("reply") yozilgan bo'lsa, bot
+  // o'sha rasmni KO'RMAYDI — "Bu qaysi?"/"Shu ochiqmi?" kabi savollar
+  // odatda AYNAN shu suratdagi narsaga ishora qiladi. Bu — Telegram'ning
+  // o'zi bergan, hech qanday qo'shimcha ruxsat/so'rov talab qilmaydigan
+  // TAYYOR signal (searchEngine.ts'dagi "qaysi" himoyasi bilan bir xil
+  // qoida bo'yicha ishlatiladi — pastga qarang).
+  const isReplyToPhoto = !!(ctx.message as any)?.reply_to_message?.photo;
+
   // 2026-09-28, "Guruhlar" chuqur tahlili ("javob tezligi" ko'rsatkichi
   // uchun) — funksiya boshidan oxirigacha (yoki JIM qolish qaroriga
   // qadar) ketgan vaqt, har bir QueryLog yozuviga qo'shiladi.
@@ -220,6 +229,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     name: isSeeking ? classification.name : null,
     requestedBadges: extractRequestedBadges(messageText),
     rentalFilters: extractRentalFilters(messageText),
+    isReplyToPhoto,
   });
 
   if (!searchResult) {
