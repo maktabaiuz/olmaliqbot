@@ -1,11 +1,11 @@
-name: One-off - diagnose wrong zapravka answer
+name: One-off - verify qaysi fix + audit historical occurrences
 on:
   workflow_dispatch:
 jobs:
-  diag:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose via SSH
+      - name: Verify via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -34,23 +34,41 @@ jobs:
               (async () => {
                 const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
                 const headers = { 'x-init-data': buildInitData(superAdmin.telegramId.toString()), 'Content-Type': 'application/json' };
-                const messages = [
-                  'Кайси заправка бу катдаги',
-                  'qaysi zapravka bu qatdagi',
-                  'qaysi zapravka',
-                  'zapravka qaerda',
+
+                // 1) Aynan skrinshotdagi xabar (va lotin/krill variantlari) — endi JIM bo'lishi kerak
+                const regressionMsgs = [
+                  ['BUG (kirill k)', 'Кайси заправка бу катдаги'],
+                  ['BUG (kirill q)', 'Қайси заправка бу катдаги'],
+                  ['BUG (lotin)', 'qaysi zapravka bu qatdagi'],
+                  ['REGRESSION: landmark bor bolsa hali ishlashi kerak', 'Deskadagi qaysi zapravka ochiq'],
+                  ['REGRESSION: oddiy sorov hali ishlashi kerak', 'zapravka qaerda'],
+                  ['REGRESSION: boshqa kategoriya qaysi so\'zi bilan', 'Qaysi santexnik yaxshi'],
+                  ['REGRESSION: jargon aniq moslik bolsa ishlashi kerak', 'Gondra qaysi tomonda'],
                 ];
-                for (const msg of messages) {
+                for (const [label, msg] of regressionMsgs) {
                   const r = await fetch('http://localhost:4000/api/admin/simulate', { method: 'POST', headers, body: JSON.stringify({ message: msg }) });
                   const d = await r.json();
-                  console.log('out:SIM ' + j({ msg, ai: d.steps && d.steps.aiClassification, final: d.finalResult, top3: (d.scoreBreakdown||[]).slice(0,3) }));
+                  console.log('out:' + label + ' | msg=' + msg + ' | found=' + (d.finalResult && d.finalResult.found) + ' | listing=' + (d.finalResult && d.finalResult.listingName));
                 }
-                // Zapravka kategoriyasidagi barcha yozuvlar (kim g'olib chiqishi mumkinligini ko'rish uchun)
-                const cat = await db.category.findFirst({ where: { name: { equals: 'Avtomobil zapravkasi', mode: 'insensitive' } } });
-                if (cat) {
-                  const listings = await db.listing.findMany({ where: { categoryId: cat.id, status: 'ACTIVE' }, select: { name: true, verification: true, primaryLandmark: { select: { name: true } }, jargonSynonyms: true } });
-                  console.log('out:ZAPRAVKA_LISTINGS ' + j(listings));
-                }
+
+                // 2) Tarixiy QueryLog'da 'qaysi'/'kaysi'/'кайси'/'қайси' bilan JAVOB BERILGAN so'rovlar
+                const historical = await db.queryLog.findMany({
+                  where: {
+                    isResolved: true,
+                    OR: [
+                      { rawMessage: { contains: 'qaysi', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'kaysi', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'кайси', mode: 'insensitive' } },
+                      { rawMessage: { contains: 'қайси', mode: 'insensitive' } },
+                    ],
+                  },
+                  select: { rawMessage: true, categoryName: true, landmarkName: true, createdAt: true },
+                  orderBy: { createdAt: 'desc' },
+                  take: 30,
+                });
+                console.log('out:HISTORICAL_COUNT=' + historical.length);
+                for (const h of historical) console.log('out:HIST ' + j(h));
+
                 await db.\$disconnect();
               })().catch(e=>{console.error('ERR', e); process.exit(1)});
             "
