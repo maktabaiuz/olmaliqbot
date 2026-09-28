@@ -1397,13 +1397,35 @@ export async function adminRoutes(fastify: FastifyInstance) {
       'akalar', 'ukalar', 'opalar', 'bolalar', 'birodarlar', 'aylanay',
     ]);
 
+    // MUHIM (2026-09-28, ikkinchi sifat muammosi — foydalanuvchi "to'g'irlab
+    // chiq" deb so'ragandan keyin): yuqoridagi ikkita himoya (salomlashuv
+    // ro'yxati + kategoriya konsentratsiyasi) bitta katta muammoni hal
+    // qilmadi — guruhda AYNAN BIR XIL shablon ("Akalar arendaga yegil
+    // moshina kerak... akuratniy haydab yuriladi uzoq muddatga") turli
+    // odamlar tomonidan o'nlab marta deyarli so'zma-so'z qayta joylanadi.
+    // Bunday holda "muddatga"/"haydab"/"yegil" kabi ODDIY so'zlar HAM
+    // "kamida 2 ta turli xabar" talabidan o'tib ketadi (chunki xabarlar
+    // haqiqatan turli odamlar tomonidan, turli vaqtda yozilgan — faqat
+    // MAZMUNI bir xil) VA bitta kategoriyaga konsentrlangan bo'ladi (aynan
+    // shu shablonning o'zi bitta soha haqida bo'lgani uchun).
+    //
+    // Tub yechim: so'zni "necha marta uchradi" emas, "necha xil TURDAGI
+    // (skelet) xabarda uchradi" deb sanaymiz. Har bir xabarning "skeleti" —
+    // undagi barcha o'ziga xos so'zlarning (tartibsiz) to'plami. Agar ikki
+    // xabar bir xil so'zlar to'plamidan iborat bo'lsa — bu bitta shablonning
+    // ikki nusxasi, bitta "ovoz" sifatida hisoblanadi, nechta marta qayta
+    // joylanishidan qat'i nazar. Haqiqiy jargon (masalan turli odamlar
+    // "Sardor"ni MUTLAQO boshqa-boshqa jumlalarda tilga oladi) esa har safar
+    // YANGI skelet hosil qiladi, shuning uchun bosilib qolmaydi.
     const candidates = new Map<
       string,
-      { count: number; sample: string; distinctMessages: Set<string>; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
+      { skeletons: Set<string>; sample: string; categoryVotes: Map<string, number>; landmarkVotes: Map<string, number> }
     >();
 
     for (const row of rows) {
       const tokens = contentTokensOf(row.rawMessage, cityWords);
+      if (tokens.length === 0) continue;
+      const skeleton = [...new Set(tokens)].sort().join('|');
       const seenInRow = new Set<string>();
       for (const t of tokens) {
         if (t.length < 5) continue; // juda qisqa so'zlar tasodifiy shovqin
@@ -1416,11 +1438,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
         let entry = candidates.get(t);
         if (!entry) {
-          entry = { count: 0, sample: row.rawMessage, distinctMessages: new Set(), categoryVotes: new Map(), landmarkVotes: new Map() };
+          entry = { skeletons: new Set(), sample: row.rawMessage, categoryVotes: new Map(), landmarkVotes: new Map() };
           candidates.set(t, entry);
         }
-        entry.count++;
-        entry.distinctMessages.add(normalizeText(row.rawMessage).slice(0, 80));
+        entry.skeletons.add(skeleton);
         if (row.categoryName) entry.categoryVotes.set(row.categoryName, (entry.categoryVotes.get(row.categoryName) || 0) + 1);
         if (row.landmarkName) entry.landmarkVotes.set(row.landmarkName, (entry.landmarkVotes.get(row.landmarkName) || 0) + 1);
       }
@@ -1445,20 +1466,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
     };
 
     return [...candidates.entries()]
-      // Kamida 2 marta, VA kamida 2 ta HAQIQIY TURLI xabarda uchrasin —
-      // aks holda bitta ko'p marta qayta joylangan xabar shabloni ("Akalar
-      // arendaga yegil moshina...") o'zining barcha so'zlarini (hech qanday
-      // jargon bo'lmasa ham) "chastotali" qilib ko'rsatib yuborardi.
-      .filter(([, v]) => v.count >= 2 && v.distinctMessages.size >= 2)
+      // Kamida 2 ta HAQIQIY TURLI skeletda (turli so'z-tuzilishida)
+      // uchrasin — bitta ko'p marta qayta joylangan xabar shabloni
+      // ("Akalar arendaga yegil moshina...") endi bir necha yuz marta
+      // takrorlansa ham, agar deyarli bir xil so'zlar to'plamidan iborat
+      // bo'lsa, faqat 1 (yoki juda kam) skelet sifatida sanaladi.
+      .filter(([, v]) => v.skeletons.size >= 2)
       .filter(([, v]) => isConcentratedEnough(v.categoryVotes))
-      .sort((a, b) => b[1].count - a[1].count)
+      .sort((a, b) => b[1].skeletons.size - a[1].skeletons.size)
       .slice(0, limit)
       .map(([term, v]) => {
         const catName = topOf(v.categoryVotes);
         const lmName = topOf(v.landmarkVotes);
         return {
           term,
-          occurrenceCount: v.count,
+          occurrenceCount: v.skeletons.size,
           sampleMessage: v.sample,
           suggestedCategoryName: catName,
           suggestedCategoryId: catName ? categoryIdByNormalizedName.get(normalizeText(catName)) || null : null,
