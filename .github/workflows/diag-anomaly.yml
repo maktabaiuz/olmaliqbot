@@ -1,0 +1,47 @@
+name: One-off - check two regression-test anomalies
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Diagnose via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              const j = (o) => JSON.stringify(o, (k,v) => typeof v === 'bigint' ? v.toString() : v);
+              function buildInitData(telegramId) {
+                const botToken = process.env.BOT_TOKEN;
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test', last_name: 'Admin' });
+                const params = { auth_date: Math.floor(Date.now()/1000).toString(), user };
+                const paramsArray = Object.entries(params).sort((a,b)=>a[0].localeCompare(b[0]));
+                const dataCheckString = paramsArray.map(([k,v])=>k+'='+v).join('\\n');
+                const secretKey = crypto.createHmac('sha256','WebAppData').update(botToken).digest();
+                const hash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+                const usp = new URLSearchParams(params);
+                usp.set('hash', hash);
+                return usp.toString();
+              }
+              (async () => {
+                const superAdmin = await db.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+                const headers = { 'x-init-data': buildInitData(superAdmin.telegramId.toString()), 'Content-Type': 'application/json' };
+                for (const msg of ['Deskadagi qaysi zapravka ochiq', 'Gondra qaysi tomonda']) {
+                  const r = await fetch('http://localhost:4000/api/admin/simulate', { method: 'POST', headers, body: JSON.stringify({ message: msg }) });
+                  const d = await r.json();
+                  console.log('out:MSG=' + msg);
+                  console.log('out:AI ' + j(d.steps && d.steps.aiClassification));
+                  console.log('out:FINAL ' + j(d.finalResult));
+                  console.log('out:TOP3 ' + j((d.scoreBreakdown||[]).slice(0,3)));
+                }
+                await db.\$disconnect();
+              })().catch(e=>{console.error('ERR', e); process.exit(1)});
+            "
