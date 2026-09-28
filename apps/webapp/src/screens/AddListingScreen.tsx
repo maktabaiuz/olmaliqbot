@@ -95,6 +95,10 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   const [learnedTermSuggestions, setLearnedTermSuggestions] = useState<
     { term: string; occurrenceCount: number }[]
   >([]);
+  // "Chuqur qidiruv" (2026-09-28) — pastga qarang (runDeepSearch).
+  const [deepSearching, setDeepSearching] = useState(false);
+  const [deepSearchExamples, setDeepSearchExamples] = useState<string[]>([]);
+  const [deepSearchDone, setDeepSearchDone] = useState(false);
 
   const [workFrom, setWorkFrom] = useState(() => localStorage.getItem('draft_workFrom') || '08:00');
   const [workTo, setWorkTo] = useState(() => localStorage.getItem('draft_workTo') || '20:00');
@@ -294,6 +298,8 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
   // odam qo'shganimda ... mos mahalliy so'zlarni avtomatik chiqarib bersin").
   useEffect(() => {
     let active = true;
+    setDeepSearchDone(false);
+    setDeepSearchExamples([]);
     const clean = category.trim();
     if (!clean) {
       setLearnedTermSuggestions([]);
@@ -321,6 +327,30 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
       headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
       body: JSON.stringify({ term }),
     }).catch(() => {});
+  };
+
+  const runDeepSearch = async () => {
+    if (!category.trim()) return;
+    setDeepSearching(true);
+    setDeepSearchDone(false);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch('/api/admin/learned-terms/deep-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ categoryName: category.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLearnedTermSuggestions(Array.isArray(data.terms) ? data.terms : []);
+        setDeepSearchExamples(Array.isArray(data.examples) ? data.examples : []);
+      }
+    } catch {
+      // jim — pastdagi "hech narsa topilmadi" holati o'zi ko'rinadi
+    } finally {
+      setDeepSearching(false);
+      setDeepSearchDone(true);
+    }
   };
 
   // Duplicate checks
@@ -790,6 +820,41 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
                         </button>
                       </span>
                     ))}
+                </div>
+              </div>
+            )}
+
+            {/* "Chuqur qidiruv" (2026-09-28, aniq so'ralgan) — agar shu
+                soha uchun LIVE o'rganish hali hech narsa topmagan bo'lsa,
+                admin bosib, botning BUTUN tarixiy so'rov arxividan darhol
+                qidirtirishi mumkin. */}
+            {category.trim() && learnedTermSuggestions.length === 0 && !deepSearchDone && (
+              <button
+                type="button"
+                onClick={runDeepSearch}
+                disabled={deepSearching}
+                className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-ios-blue bg-ios-blue/10 rounded-ios py-2 mt-1 active:opacity-60 disabled:opacity-50"
+              >
+                <span className={`material-symbols-outlined text-[16px] ${deepSearching ? 'animate-spin' : ''}`}>{deepSearching ? 'progress_activity' : 'travel_explore'}</span>
+                {deepSearching ? "Guruhlar tarixidan qidirilmoqda..." : "AI bilan chuqur qidirish (guruhlar tarixidan)"}
+              </button>
+            )}
+
+            {deepSearchDone && !deepSearching && learnedTermSuggestions.length === 0 && (
+              <p className="text-[12px] text-ios-label-secondary/70 text-center py-1">
+                Guruhlar tarixida bu soha uchun hech qanday mos so'z topilmadi.
+              </p>
+            )}
+
+            {deepSearchExamples.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1">
+                <p className="text-[11px] text-ios-label-secondary/70">
+                  📋 Guruhlarda odamlar aynan shunday so'ragan:
+                </p>
+                <div className="bg-ios-fill/[0.08] rounded-ios p-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+                  {deepSearchExamples.map((ex, i) => (
+                    <p key={i} className="text-[12px] text-ios-label-secondary/90 italic">"{ex}"</p>
+                  ))}
                 </div>
               </div>
             )}

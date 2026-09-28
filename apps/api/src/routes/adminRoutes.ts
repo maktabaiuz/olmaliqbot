@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, ListingType, VerificationStatus, Prisma } from '@kimbor/db';
-import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery, reserveGeminiCallSlot } from '@kimbor/core';
+import { notifyUsersOnNewListingAdded, clusterUnresolvedQueries, resolveCanonicalCategoryName, stripLandmarkSuffixes, getDictionarySynonymsForCategory, getExactCanonicalCategoryLookup, USEFUL_BOTS, normalizeText, levenshteinDistance, zeroLayerFilter, classifyQuery, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, extractRentalFilters, detectEmergencyCategory, isValidEmergencyCategory, CORE_EMERGENCY_KEYS, findLocalDispatcherMatch, findContainingLandmark, findAreaListings, isAreaBrowseQuery, reserveGeminiCallSlot, recordLearnedTermCandidates, containsWholeWord, contentTokensOf, getCityNameWords } from '@kimbor/core';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -1599,6 +1599,118 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     await db.learnedTermAggregate.updateMany({ where: { cityId, term }, data: { status: 'ACCEPTED' } });
     return { success: true };
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // "Chuqur qidiruv" tugmasi (2026-09-28) — foydalanuvchi aniq shunday
+  // so'radi: yangi yozuv qo'shishda tanlangan kasb/soha uchun LIVE
+  // o'rganish hali hech narsa to'plamagan bo'lsa (tizim yaqinda ishga
+  // tushgani uchun, yoki bu soha kam so'ralgani uchun), admin BIR
+  // TUGMA bosib, botning BUTUN TARIXIY so'rov arxividan ("guruhlarda
+  // odamlar aynan shu kasb haqida NIMA deb, QANDAY so'zlar bilan
+  // so'ragan") darhol, jonli qidiruv qildirishi mumkin bo'lishi kerak.
+  //
+  // Bu FAQAT bir martalik hisoblash EMAS — topilgan har bir so'z xuddi
+  // LIVE tizim kabi (recordLearnedTermCandidates orqali) doimiy
+  // `LearnedTermAggregate` jadvaliga yoziladi, shunda bu "orqaga
+  // to'ldirish" natijasi keyinchalik "Mahalliy so'zlar" ekranida ham
+  // ko'rinadi — vaqtinchalik, alohida natija emas.
+  fastify.post('/admin/learned-terms/deep-search', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { categoryName } = req.body as { categoryName?: string };
+    if (!categoryName || !categoryName.trim()) {
+      return reply.status(400).send({ success: false, message: "categoryName talab qilinadi" });
+    }
+    const cleanCategoryName = categoryName.trim();
+    const normalizedTarget = normalizeText(cleanCategoryName);
+
+    const category = await db.category.findFirst({
+      where: { name: { equals: cleanCategoryName, mode: 'insensitive' } },
+      select: { id: true, name: true, synonyms: true },
+    });
+    const categoryWordsForMatch = (category ? [category.name, ...category.synonyms] : [cleanCategoryName])
+      .map(normalizeText)
+      .filter((w) => w.length >= 4);
+
+    // 1) BUTUN tarixiy arxivdan ("guruhlarda odamlar nima deb so'ragan")
+    // shu kasb/sohaga aloqador bo'lishi mumkin bo'lgan xabarlarni ajratib
+    // olamiz: (a) AI o'zi o'sha paytda SHU kategoriyani aniqlagan bo'lsa,
+    // YOKI (b) xabar matnida shu kategoriyaning nomi/sinonimlaridan biri
+    // SO'Z CHEGARASI bilan (substring emas) uchrasa.
+    const rows = await db.queryLog.findMany({
+      where: { cityId, intent: { not: 'NOT_RELEVANT' } },
+      select: { rawMessage: true, categoryName: true, landmarkName: true },
+      take: 8000,
+      orderBy: { createdAt: 'desc' },
+    });
+    const relevant = rows.filter((r) => {
+      if (r.categoryName && normalizeText(r.categoryName) === normalizedTarget) return true;
+      const normMsg = normalizeText(r.rawMessage);
+      return categoryWordsForMatch.some((w) => containsWholeWord(normMsg, w));
+    });
+
+    if (relevant.length === 0) {
+      return { examples: [], termsFound: 0 };
+    }
+
+    // 2) Har bir mos xabar — xuddi LIVE tizim (bitta xabar kelganda)
+    // qanday o'rganilsa, aynan SHUNDAY o'rganiladi, faqat hozir BIR
+    // NECHTASI ustida, ketma-ket (bitta bo'lishi mumkin bo'lgan Gemini
+    // so'rovidan farqli, bu qism butunlay deterministik — tezkor).
+    for (const r of relevant) {
+      await recordLearnedTermCandidates(cityId, r.rawMessage, r.categoryName, r.landmarkName).catch((err) =>
+        console.error('Deep-search: failed to record term:', err)
+      );
+    }
+
+    // 3) Shu kategoriya uchun ENDI to'plangan (yangi + avvaldan bor)
+    // nomzod so'zlarni darhol Gemini bilan tasdiqlaymiz — bu yerda
+    // (fon "sweep"dan farqli) ADMIN kutayotgani uchun to'g'ridan-to'g'ri,
+    // navbatsiz bajariladi.
+    const allPending = await readPendingLearnedTerms(cityId, 250);
+    const scoped = allPending.filter((t) => t.suggestedCategoryName && normalizeText(t.suggestedCategoryName) === normalizedTarget);
+
+    const geminiKey = process.env.GEMINI_API_KEY;
+    const geminiConfigured = !!geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key';
+    if (geminiConfigured && scoped.length > 0) {
+      const uncheckedRows = await db.learnedTermAggregate.findMany({
+        where: { cityId, term: { in: scoped.map((t) => t.term) }, aiConfirmed: null },
+      });
+      if (uncheckedRows.length > 0 && reserveGeminiCallSlot()) {
+        const confirmed = await validateLocalTermsWithGemini(
+          cleanCategoryName,
+          uncheckedRows.slice(0, 15).map((t) => ({ term: t.term, sample: t.sampleMessage })),
+          geminiKey!
+        ).catch(() => new Map<string, boolean>());
+        for (const t of uncheckedRows) {
+          if (!confirmed.has(t.term)) continue;
+          await db.learnedTermAggregate
+            .update({ where: { id: t.id }, data: { aiConfirmed: confirmed.get(t.term), aiCheckedAt: new Date() } })
+            .catch(() => {});
+        }
+      }
+    }
+
+    // 4) Noyob NAMUNA jumlalar (skeletga qarab, deyarli bir xil qayta
+    // joylangan xabarlar bittaga tushiriladi) — admin haqiqiy so'rov
+    // qanday yozilganini o'z ko'zi bilan ko'rishi uchun.
+    const cityWords = await getCityNameWords(cityId);
+    const seenSkeletons = new Set<string>();
+    const examples: string[] = [];
+    for (const r of relevant) {
+      const tokens = contentTokensOf(r.rawMessage, cityWords);
+      const skeleton = [...new Set(tokens)].sort().join('|');
+      if (seenSkeletons.has(skeleton)) continue;
+      seenSkeletons.add(skeleton);
+      examples.push(r.rawMessage);
+      if (examples.length >= 12) break;
+    }
+
+    const finalTerms = await readPendingLearnedTerms(cityId, 250);
+    const finalScoped = finalTerms.filter((t) => t.suggestedCategoryName && normalizeText(t.suggestedCategoryName) === normalizedTarget);
+
+    return { examples, terms: finalScoped, scannedMessages: relevant.length };
   });
 
   // ──────────────────────────────────────────────────────────────────────────
