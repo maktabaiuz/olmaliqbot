@@ -2363,7 +2363,40 @@ export async function adminRoutes(fastify: FastifyInstance) {
         )
       : { memberCount: null, botStatus: null, canDelete: false, canRestrict: false, hasIssue: false, message: 'BOT_TOKEN sozlanmagan' };
 
-    const [totalQueries, resolvedQueries, unresolvedTopics, moderationCounts, recentQueryTimes, scopedQueryRows] = await Promise.all([
+    // 2026-09-28, guruh o'z suratini (snapshot) yozib qo'yamiz — pastda
+    // "a'zolar soni tendensiyasi" grafigi shu tarixga tayanadi. Alohida
+    // fon-vazifa (cron) shart emas: ekran ochiq turganda (har 20 soniyada)
+    // shu marshrut chaqirilaveradi, shu YETARLI.
+    if (typeof health.memberCount === 'number') {
+      const todayKey = tashkentDayKey(new Date());
+      await db.groupMemberSnapshot
+        .upsert({
+          where: { cityGroupId_date: { cityGroupId: id, date: todayKey } },
+          create: { cityGroupId: id, date: todayKey, memberCount: health.memberCount },
+          update: { memberCount: health.memberCount },
+        })
+        .catch((err) => console.error('Failed to upsert GroupMemberSnapshot:', err));
+    }
+
+    // Boshqa BARCHA guruhlarning shu davrdagi o'rtacha ko'rsatkichlari —
+    // "qiyosiy reyting" (benchmark) uchun: bu guruh o'rtachadan
+    // faolroqmi/sustroqmi. Faqat 4 ta chatId (guruhlar soni odatda kichik)
+    // ro'yxati oldindan olinadi, shu orqali DM trafigi (chatId null)
+    // aralashib ketmaydi.
+    const allGroupChatIds = (await db.cityGroup.findMany({ select: { chatId: true } })).map((g) => g.chatId);
+    const otherChatIds = allGroupChatIds.filter((cid) => cid !== group.chatId);
+
+    const [
+      totalQueries,
+      resolvedQueries,
+      unresolvedTopics,
+      moderationCounts,
+      recentQueryTimes,
+      scopedQueryRows,
+      messageEvents,
+      memberSnapshots,
+      joinEvents,
+    ] = await Promise.all([
       db.queryLog.count({
         where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
       }),
@@ -2393,9 +2426,58 @@ export async function adminRoutes(fastify: FastifyInstance) {
       // ICHIDA, chunki bugun har doim so'nggi 7/30 kun ichida).
       db.queryLog.findMany({
         where: { chatId: group.chatId, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
-        select: { createdAt: true, isResolved: true, telegramUserId: true },
+        select: {
+          createdAt: true,
+          isResolved: true,
+          telegramUserId: true,
+          categoryName: true,
+          landmarkName: true,
+          rawMessage: true,
+          responseTimeMs: true,
+        },
+      }),
+      // 2026-09-28, "Guruhlar" chuqur tahlili — HAQIQIY umumiy faollik
+      // (faol/jim a'zolar, eng faol odamlar, kunlik xabar hajmi, bot
+      // foydaliligi %) — QueryLog'dan MUSTAQIL, BARCHA xabarlarni o'z
+      // ichiga oladi (qarang: GroupMessageEvent izohi).
+      db.groupMessageEvent.findMany({
+        where: { chatId: group.chatId, createdAt: { gte: periodStart } },
+        select: { telegramUserId: true },
+      }),
+      db.groupMemberSnapshot.findMany({
+        where: { cityGroupId: id },
+        orderBy: { date: 'asc' },
+        take: 60,
+      }),
+      db.groupMemberJoinEvent.findMany({
+        where: { chatId: group.chatId, joinedAt: { gte: periodStart } },
+        select: { telegramUserId: true, joinedAt: true },
       }),
     ]);
+
+    // Qiyosiy reyting (benchmark) — boshqa guruhlarning o'rtacha so'rov soni
+    // va javob foizi (mavjud bo'lsa).
+    let benchmark: { avgTotalQueries: number; avgResolvedPercent: number | null; groupCount: number } | null = null;
+    if (otherChatIds.length > 0) {
+      const [otherTotal, otherResolved] = await Promise.all([
+        db.queryLog.count({
+          where: { chatId: { in: otherChatIds }, createdAt: { gte: periodStart }, intent: { not: 'NOT_RELEVANT' } },
+        }),
+        db.queryLog.count({
+          where: {
+            chatId: { in: otherChatIds },
+            createdAt: { gte: periodStart },
+            intent: { not: 'NOT_RELEVANT' },
+            isResolved: true,
+          },
+        }),
+      ]);
+      benchmark = {
+        avgTotalQueries: Math.round(otherTotal / otherChatIds.length),
+        avgResolvedPercent: otherTotal > 0 ? Math.round((otherResolved / otherTotal) * 100) : null,
+        groupCount: otherChatIds.length,
+      };
+    }
 
     // Server UTC'da ishlaydi (konteynerlarda TZ sozlanmagan) — Olmaliq
     // (Toshkent, UTC+5, DST yo'q) mahalliy soatiga to'g'ri o'girish uchun
@@ -2417,6 +2499,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
     let todayTotal = 0;
     let todayResolved = 0;
     const todayUsers = new Set<string>();
+
+    // Talab (kategoriya/mo'ljal) taqsimoti — endi BARCHA so'rovlardan
+    // (faqat javobsizlaridan emas), 2026-09-28.
+    const categoryDemandMap = new Map<string, number>();
+    const landmarkDemandMap = new Map<string, number>();
+    // Til taqsimoti — lotin/krill/aralash yozuv ulushi (2026-09-28).
+    const langCounts = { latin: 0, cyrillic: 0, mixed: 0 };
+    // Har bir odam necha marta so'ragani — "sodiq" (2+ marta) vs "bir martalik".
+    const userQueryCounts = new Map<string, number>();
+    // Javob tezligi (2026-09-28) — faqat responseTimeMs mavjud (yangi)
+    // yozuvlar hisobga olinadi, tarixiy null yozuvlar chetlab o'tiladi.
+    const responseTimes: number[] = [];
+    // Bazada topilmagan, lekin ANIQ NOM so'ralgan (kategoriya aniqlanmagan,
+    // javob berilmagan) so'rovlar — "bazada yo'q, lekin so'ralayotgan
+    // nomlar" ro'yxati uchun klasterlanadi.
+    const missingNamedMap = new Map<string, { sample: string; count: number }>();
+
     for (const row of scopedQueryRows) {
       const dayKey = tashkentDayKey(row.createdAt);
       totalByDay.set(dayKey, (totalByDay.get(dayKey) || 0) + 1);
@@ -2427,6 +2526,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
         todayTotal++;
         if (row.isResolved) todayResolved++;
         todayUsers.add(row.telegramUserId.toString());
+      }
+
+      if (row.categoryName) categoryDemandMap.set(row.categoryName, (categoryDemandMap.get(row.categoryName) || 0) + 1);
+      if (row.landmarkName) landmarkDemandMap.set(row.landmarkName, (landmarkDemandMap.get(row.landmarkName) || 0) + 1);
+
+      const cyrillicCount = (row.rawMessage.match(/[а-яёʼ]/gi) || []).length;
+      const latinCount = (row.rawMessage.match(/[a-zʻʼ']/gi) || []).length;
+      if (cyrillicCount > 0 || latinCount > 0) {
+        if (cyrillicCount > latinCount * 1.5) langCounts.cyrillic++;
+        else if (latinCount > cyrillicCount * 1.5) langCounts.latin++;
+        else langCounts.mixed++;
+      }
+
+      const uidKey = row.telegramUserId.toString();
+      userQueryCounts.set(uidKey, (userQueryCounts.get(uidKey) || 0) + 1);
+
+      if (typeof row.responseTimeMs === 'number') responseTimes.push(row.responseTimeMs);
+
+      if (!row.isResolved && !row.categoryName) {
+        const key = normalizeText(row.rawMessage).split(/\s+/).slice(0, 3).join(' ');
+        if (key.length >= 3) {
+          const existing = missingNamedMap.get(key);
+          if (existing) existing.count++;
+          else missingNamedMap.set(key, { sample: row.rawMessage, count: 1 });
+        }
       }
     }
     const dailySeries: { date: string; total: number; resolved: number; users: number }[] = [];
@@ -2439,6 +2563,105 @@ export async function adminRoutes(fastify: FastifyInstance) {
         users: usersByDay.get(key)?.size || 0,
       });
     }
+
+    const categoryDemand = [...categoryDemandMap.entries()]
+      .map(([categoryName, count]) => ({ categoryName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+    const landmarkDistribution = [...landmarkDemandMap.entries()]
+      .map(([landmarkName, count]) => ({ landmarkName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+    const langTotal = langCounts.latin + langCounts.cyrillic + langCounts.mixed;
+    const languageDistribution = langTotal > 0
+      ? {
+          latinPercent: Math.round((langCounts.latin / langTotal) * 100),
+          cyrillicPercent: Math.round((langCounts.cyrillic / langTotal) * 100),
+          mixedPercent: Math.round((langCounts.mixed / langTotal) * 100),
+        }
+      : { latinPercent: 0, cyrillicPercent: 0, mixedPercent: 0 };
+    let loyalUsersCount = 0;
+    let oneTimeUsersCount = 0;
+    for (const count of userQueryCounts.values()) {
+      if (count >= 2) loyalUsersCount++;
+      else oneTimeUsersCount++;
+    }
+    responseTimes.sort((a, b) => a - b);
+    const avgResponseTimeMs = responseTimes.length > 0
+      ? Math.round(responseTimes.reduce((s, v) => s + v, 0) / responseTimes.length)
+      : null;
+    const p95ResponseTimeMs = responseTimes.length > 0
+      ? responseTimes[Math.min(responseTimes.length - 1, Math.floor(responseTimes.length * 0.95))]
+      : null;
+    const topMissingNamed = [...missingNamedMap.values()]
+      .filter((v) => v.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // Xabar hajmi va faol/jim a'zolar (GroupMessageEvent — BARCHA xabarlar,
+    // 2026-09-28).
+    const totalMessages = messageEvents.length;
+    const activeUserIdCounts = new Map<string, number>();
+    for (const ev of messageEvents) {
+      const uid = ev.telegramUserId.toString();
+      activeUserIdCounts.set(uid, (activeUserIdCounts.get(uid) || 0) + 1);
+    }
+    const activeMembersCount = activeUserIdCounts.size;
+    const activeMembersRatio =
+      typeof health.memberCount === 'number' && health.memberCount > 0
+        ? Math.round((activeMembersCount / health.memberCount) * 100)
+        : null;
+    const botUsefulnessPercent = totalMessages > 0 ? Math.round((totalQueries / totalMessages) * 100) : null;
+
+    const topActiveUserIds = [...activeUserIdCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([uid, count]) => ({ uid, count }));
+    const topActiveUserRecords = topActiveUserIds.length > 0
+      ? await db.user.findMany({
+          where: { telegramId: { in: topActiveUserIds.map((u) => BigInt(u.uid)) } },
+          select: { telegramId: true, firstName: true, username: true },
+        })
+      : [];
+    const userInfoById = new Map(topActiveUserRecords.map((u) => [u.telegramId.toString(), u]));
+    const topActiveUsers = topActiveUserIds.map(({ uid, count }) => {
+      const info = userInfoById.get(uid);
+      return {
+        name: info?.firstName || (info?.username ? `@${info.username}` : `Foydalanuvchi #${uid.slice(-4)}`),
+        messageCount: count,
+      };
+    });
+
+    // A'zolar soni tendensiyasi (2026-09-28) — bugundan boshlab yig'ilgan
+    // suratlar (snapshot); tarix chuqur emas, chunki eski ma'lumot yo'q.
+    const memberTrend = memberSnapshots.map((s) => ({ date: s.date, memberCount: s.memberCount }));
+
+    // "Yangi a'zo -> birinchi so'rov" konversiyasi (2026-09-28) — shu davrda
+    // qo'shilgan odamlarning nechtasi keyinchalik botdan HAQIQATAN
+    // foydalangan (qo'shilgandan keyingi istalgan vaqtda so'ragan).
+    let joinConversionRate: number | null = null;
+    if (joinEvents.length > 0) {
+      const joinedUserIds = new Set(joinEvents.map((j) => j.telegramUserId.toString()));
+      const convertedCount = await db.queryLog.findMany({
+        where: { chatId: group.chatId, telegramUserId: { in: [...joinedUserIds].map((s) => BigInt(s)) } },
+        select: { telegramUserId: true },
+        distinct: ['telegramUserId'],
+      });
+      joinConversionRate = Math.round((convertedCount.length / joinedUserIds.size) * 100);
+    }
+
+    // Guruh salomatlik balli (2026-09-28) — mavjud ko'rsatkichlarning
+    // birlashtirilgan, 0-100 oraliqdagi yakuniy bahosi: javob foizi (eng
+    // og'irlikli — botning asosiy vazifasi), faol a'zolar nisbati,
+    // moderatsiya hodisalari (kamroq — yaxshiroq) va bot texnik holati.
+    const resolvedPercentForScore = totalQueries > 0 ? (resolvedQueries / totalQueries) * 100 : 100;
+    const moderationPenalty = Math.min(30, moderationCounts.reduce((s, m) => s + m._count.category, 0) * 3);
+    const healthScoreRaw =
+      resolvedPercentForScore * 0.5 +
+      (activeMembersRatio !== null ? Math.min(100, activeMembersRatio * 2) : 50) * 0.3 +
+      (health.hasIssue ? 0 : 100) * 0.2 -
+      moderationPenalty;
+    const healthScore = Math.max(0, Math.min(100, Math.round(healthScoreRaw)));
 
     const moderationTotal = moderationCounts.reduce((sum, m) => sum + m._count.category, 0);
 
@@ -2474,6 +2697,32 @@ export async function adminRoutes(fastify: FastifyInstance) {
         total: moderationTotal,
         byCategory: moderationCounts.map((m) => ({ category: m.category, count: m._count.category })),
       },
+      healthScore,
+      activity: {
+        totalMessages,
+        activeMembers: activeMembersCount,
+        activeMembersRatio,
+        botUsefulnessPercent,
+      },
+      topActiveUsers,
+      memberTrend,
+      categoryDemand,
+      landmarkDistribution,
+      benchmark,
+      loyalUsers: {
+        loyal: loyalUsersCount,
+        oneTime: oneTimeUsersCount,
+      },
+      languageDistribution,
+      joinConversion: {
+        joined: joinEvents.length,
+        conversionRatePercent: joinConversionRate,
+      },
+      responseTime: {
+        avgMs: avgResponseTimeMs,
+        p95Ms: p95ResponseTimeMs,
+      },
+      topMissingNamed,
     };
   });
 

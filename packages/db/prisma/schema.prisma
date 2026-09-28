@@ -528,11 +528,65 @@ model QueryLog {
   notifiedAt        DateTime?   // User faqat 1 marta xabardor qilinadi
   clusterKey        String?     // O'xshash so'rovlarni birlashtirish klyuchi
   confidence        Float?      // AI klassifikator ishonchlilik darajasi — chegaradosh (0.5-0.75) holatlarni kuzatish uchun
+  // 2026-09-28, "Guruhlar" chuqur tahlili — bot javob berish tezligi
+  // (millisekundda): xabar qabul qilingandan javob (yoki jim qolish
+  // qarori) yakunlanguncha. Guruh darajasidagi texnik sog'liq ko'rsatkichi
+  // (sekinlashuvni erta payqash) uchun.
+  responseTimeMs    Int?
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])
   @@index([chatId, createdAt])
   @@map("query_logs")
+}
+
+// 2026-09-28, "Guruhlar" chuqur tahlili uchun (foydalanuvchi so'radi: "nechta
+// jonli odam, nechtasi faol emas", eng faol a'zolar, umumiy xabar hajmi,
+// bot foydaliligi %). QueryLog FAQAT bot uchun tegishli so'rovlarni (0-qavat
+// filtrdan o'tganlarini, taxminan 10%) saqlaydi — guruhning HAQIQIY umumiy
+// faolligini bilish uchun BARCHA matnli xabarlar (matnisiz, faqat kim va
+// qachon — shaxsiy hayotga aralashmaslik uchun ATAYLAB xabar matni
+// SAQLANMAYDI) alohida, ushbu YENGIL jadvalda qayd etiladi.
+model GroupMessageEvent {
+  id             String   @id @default(uuid())
+  chatId         BigInt
+  telegramUserId BigInt
+  createdAt      DateTime @default(now())
+
+  @@index([chatId, createdAt])
+  @@index([chatId, telegramUserId])
+  @@map("group_message_events")
+}
+
+// 2026-09-28, "Guruhlar" chuqur tahlili uchun — yangi a'zo guruhga qachon
+// qo'shilgani (Telegram'ning `new_chat_members` hodisasi orqali). "Yangi
+// a'zo → birinchi so'rov" konversiyasini (botning shu guruhda qanchalik
+// "topilishi/foydaliligi") hisoblash uchun kerak.
+model GroupMemberJoinEvent {
+  id             String   @id @default(uuid())
+  chatId         BigInt
+  telegramUserId BigInt
+  joinedAt       DateTime @default(now())
+
+  @@index([chatId, joinedAt])
+  @@map("group_member_join_events")
+}
+
+// 2026-09-28, "Guruhlar" chuqur tahlili — a'zolar soni vaqt bo'yicha qanday
+// o'zgarayotganini ko'rsatish uchun kunlik "suratlar" (snapshot). Alohida
+// fon-vazifa (cron) o'rniga, admin panel "Guruhlar" ekrani ochiq turganda
+// (har 20 soniyada) so'ralayotgan jonli a'zolar soni ustiga QO'SHIMCHA
+// ravishda, bir martalik (kun uchun) yoziladi — arzon, qo'shimcha infra
+// talab qilmaydi.
+model GroupMemberSnapshot {
+  id          String   @id @default(uuid())
+  cityGroupId String
+  date        String   // "YYYY-MM-DD", Toshkent kuni
+  memberCount Int
+  createdAt   DateTime @default(now())
+
+  @@unique([cityGroupId, date])
+  @@map("group_member_snapshots")
 }
 
 // Guruhdagi xavfsizlik-moderatsiya filtrlari (so'kinish, spam-havola,

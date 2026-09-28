@@ -205,6 +205,20 @@ async function startBot() {
       const introText = `Assalomu alaykum! Men "Kim bor?" — ${olmaliqCity?.name} shahri bo'yicha yordamchi botman. 🚀\n\nGuruhda savollaringizni bemalol berishingiz mumkin:\n• *"karzinka oldida gazavik bormi?"*\n• *"santexnik kerak 3-mavze"*`;
       await ctx.reply(introText);
     }
+
+    // 2026-09-28, "Guruhlar" chuqur tahlili — "yangi a'zo -> birinchi
+    // so'rov" konversiyasini hisoblash uchun (bot qanchalik "topilyapti"),
+    // ODDIY (bot o'zi emas) yangi a'zolar ham qachon qo'shilgani bilan
+    // qayd etiladi.
+    const realNewMembers = newMembers.filter((m) => m.id !== botInfo.id && !m.is_bot);
+    if (realNewMembers.length > 0) {
+      const chatId = BigInt(ctx.chat.id);
+      db.groupMemberJoinEvent
+        .createMany({
+          data: realNewMembers.map((m) => ({ chatId, telegramUserId: BigInt(m.id) })),
+        })
+        .catch((err) => console.error('Failed to log GroupMemberJoinEvent:', err));
+    }
   });
 
   // 3b. Botning guruh/kanaldagi a'zolik holati o'zgarishi (qo'shildi, admin

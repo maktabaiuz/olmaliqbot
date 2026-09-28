@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { avatarColorForName } from '../utils/avatarColor';
-import { TrendAreaChart } from '../components/MiniCharts';
+import { TrendAreaChart, GenericTrendChart, HorizontalBarList, RatioBar, HealthScoreRing } from '../components/MiniCharts';
 
 // Ekran ochiq turganda har 20 soniyada yangi ma'lumot so'raladi — "real
 // live rejim" (2026-09-28, aniq shunday so'ralgan). Skelet-yuklanish faqat
@@ -52,6 +52,23 @@ interface GroupDetail {
     total: number;
     byCategory: { category: string; count: number }[];
   };
+  healthScore: number;
+  activity: {
+    totalMessages: number;
+    activeMembers: number;
+    activeMembersRatio: number | null;
+    botUsefulnessPercent: number | null;
+  };
+  topActiveUsers: { name: string; messageCount: number }[];
+  memberTrend: { date: string; memberCount: number }[];
+  categoryDemand: { categoryName: string; count: number }[];
+  landmarkDistribution: { landmarkName: string; count: number }[];
+  benchmark: { avgTotalQueries: number; avgResolvedPercent: number | null; groupCount: number } | null;
+  loyalUsers: { loyal: number; oneTime: number };
+  languageDistribution: { latinPercent: number; cyrillicPercent: number; mixedPercent: number };
+  joinConversion: { joined: number; conversionRatePercent: number | null };
+  responseTime: { avgMs: number | null; p95Ms: number | null };
+  topMissingNamed: { sample: string; count: number }[];
 }
 
 export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, groupTitle, onBack }) => {
@@ -136,6 +153,25 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
         </div>
       ) : (
         <div className="px-4 space-y-6">
+          {/* Guruh salomatlik balli — yagona, bir qarashda tushunarli
+              yakuniy baho (javob foizi + faol a'zolar + moderatsiya + bot
+              holati birlashtirilgan) */}
+          <div className="bg-ios-card rounded-ios shadow-sm p-3.5 flex items-center gap-4">
+            <HealthScoreRing score={detail.healthScore} size={84} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide mb-1">
+                Guruh salomatligi
+              </p>
+              <p className="text-[15px] text-ios-label leading-snug">
+                {detail.healthScore >= 80
+                  ? "A'lo — javob foizi va a'zolar faolligi yaxshi"
+                  : detail.healthScore >= 50
+                    ? "O'rtacha — ba'zi ko'rsatkichlarga e'tibor bering"
+                    : "Past — javobsiz so'rovlar yoki moderatsiya hodisalari ko'p"}
+              </p>
+            </div>
+          </div>
+
           {/* Bot holati */}
           <div
             className={`rounded-ios shadow-sm p-3.5 flex items-center gap-3 ${
@@ -177,6 +213,80 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
               </div>
             </div>
           </div>
+
+          {/* Guruh faolligi — chuqur tahlil (2026-09-28): nechta odam
+              JONLI (xabar yozgan), nechta a'zo "jim" (aktiv emas), bot
+              qanchalik foydali */}
+          <div>
+            <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+              Guruh faolligi ({detail.periodDays} kunda)
+            </span>
+            <div className="bg-ios-card rounded-ios shadow-sm p-3.5 space-y-3">
+              <div className="flex items-center justify-around text-center">
+                <div>
+                  <p className="text-[22px] font-semibold text-ios-green">{detail.activity.activeMembers}</p>
+                  <p className="text-[11px] text-ios-label-secondary/70">jonli (yozgan)</p>
+                </div>
+                <div>
+                  <p className="text-[22px] font-semibold text-ios-label">{detail.activity.totalMessages}</p>
+                  <p className="text-[11px] text-ios-label-secondary/70">jami xabar</p>
+                </div>
+                <div>
+                  <p className="text-[22px] font-semibold text-ios-blue">
+                    {detail.activity.botUsefulnessPercent !== null ? `${detail.activity.botUsefulnessPercent}%` : '—'}
+                  </p>
+                  <p className="text-[11px] text-ios-label-secondary/70">bot foydaliligi</p>
+                </div>
+              </div>
+              {detail.activity.activeMembersRatio !== null && typeof detail.memberCount === 'number' && (
+                <div>
+                  <div className="flex items-center justify-between text-[12px] text-ios-label-secondary/70 mb-1">
+                    <span>Faol a'zolar</span>
+                    <span>
+                      {detail.activity.activeMembers} / {detail.memberCount} a'zo ({detail.activity.activeMembersRatio}%)
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-ios-fill/[0.12] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-ios-green"
+                      style={{ width: `${Math.min(100, detail.activity.activeMembersRatio)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-ios-label-secondary/60 mt-1">
+                    Qolgan {Math.max(0, detail.memberCount - detail.activity.activeMembers)} a'zo bu davrda hech narsa yozmagan (aktiv emas).
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Eng faol a'zolar */}
+          <div>
+            <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+              Eng faol a'zolar
+            </span>
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+              <HorizontalBarList
+                items={detail.topActiveUsers.map((u) => ({ label: u.name, count: u.messageCount }))}
+                emptyText="Hali ma'lumot yo'q"
+              />
+            </div>
+          </div>
+
+          {/* A'zolar soni tendensiyasi */}
+          {detail.memberTrend.length >= 2 && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                A'zolar soni
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5 pt-4">
+                <GenericTrendChart
+                  data={detail.memberTrend.map((m) => ({ date: m.date, value: m.memberCount }))}
+                  tooltipSuffix=" a'zo"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Davr almashtirgich */}
           <div className="flex bg-ios-fill/[0.12] rounded-ios p-[2px]">
@@ -267,6 +377,138 @@ export const GroupDetailScreen: React.FC<GroupDetailScreenProps> = ({ groupId, g
                 ))
               )}
             </div>
+          </div>
+
+          {/* Bazada yo'q, lekin tez-tez so'ralayotgan nomlar */}
+          {detail.topMissingNamed.length > 0 && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                Bazada yo'q, lekin so'ralmoqda
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+                {detail.topMissingNamed.map((m, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3.5 py-2.5" style={idx === 0 ? undefined : HAIRLINE}>
+                    <span className="text-[14px] text-ios-label truncate flex-1 min-w-0">{m.sample}</span>
+                    <span className="text-[13px] text-ios-orange shrink-0 ml-2">{m.count} marta</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Kategoriya talabi */}
+          <div>
+            <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+              Eng ko'p so'ralgan xizmatlar
+            </span>
+            <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+              <HorizontalBarList
+                items={detail.categoryDemand.map((c) => ({ label: c.categoryName, count: c.count }))}
+                emptyText="Bu davrda so'rov bo'lmagan"
+              />
+            </div>
+          </div>
+
+          {/* Mahalla/hudud taqsimoti */}
+          {detail.landmarkDistribution.length > 0 && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                Eng ko'p so'ralgan hududlar
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+                <HorizontalBarList
+                  items={detail.landmarkDistribution.map((l) => ({ label: l.landmarkName, count: l.count }))}
+                  emptyText="Mo'ljal so'ralmagan"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Qiyosiy reyting (benchmark) */}
+          {detail.benchmark && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                Boshqa guruhlar bilan solishtirganda
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between text-[14px]">
+                  <span className="text-ios-label-secondary/70">Jami so'rov (bu guruh vs o'rtacha)</span>
+                  <span className="text-ios-label font-medium">
+                    {detail.queryStats.total} <span className="text-ios-label-secondary/50">vs</span> {detail.benchmark.avgTotalQueries}
+                  </span>
+                </div>
+                {detail.benchmark.avgResolvedPercent !== null && detail.queryStats.resolvedPercent !== null && (
+                  <div className="flex items-center justify-between text-[14px]">
+                    <span className="text-ios-label-secondary/70">Javob foizi (bu guruh vs o'rtacha)</span>
+                    <span className="text-ios-label font-medium">
+                      {detail.queryStats.resolvedPercent}% <span className="text-ios-label-secondary/50">vs</span> {detail.benchmark.avgResolvedPercent}%
+                    </span>
+                  </div>
+                )}
+                <p className="text-[11px] text-ios-label-secondary/60">
+                  {detail.benchmark.groupCount} ta boshqa guruh o'rtachasiga solishtirilgan
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Sodiq vs bir martalik foydalanuvchilar */}
+          {(detail.loyalUsers.loyal > 0 || detail.loyalUsers.oneTime > 0) && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                Sodiq foydalanuvchilar
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5">
+                <RatioBar
+                  segments={[
+                    { label: 'Sodiq (2+ marta so\'ragan)', value: detail.loyalUsers.loyal, color: 'rgb(var(--ios-blue))' },
+                    { label: 'Bir martalik', value: detail.loyalUsers.oneTime, color: 'rgb(var(--ios-fill) / 0.4)' },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Til taqsimoti */}
+          {(detail.languageDistribution.latinPercent + detail.languageDistribution.cyrillicPercent + detail.languageDistribution.mixedPercent) > 0 && (
+            <div>
+              <span className="text-[13px] font-normal text-ios-label-secondary/70 uppercase tracking-wide px-1 mb-1.5 block">
+                Yozuv tili
+              </span>
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5">
+                <RatioBar
+                  segments={[
+                    { label: 'Lotin', value: detail.languageDistribution.latinPercent, color: 'rgb(var(--ios-blue))' },
+                    { label: 'Krill', value: detail.languageDistribution.cyrillicPercent, color: 'rgb(var(--ios-green))' },
+                    { label: 'Aralash', value: detail.languageDistribution.mixedPercent, color: 'rgb(var(--ios-orange))' },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Yangi a'zo -> birinchi so'rov konversiyasi + javob tezligi */}
+          <div className="grid grid-cols-2 gap-3">
+            {detail.joinConversion.joined > 0 && (
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5">
+                <p className="text-[20px] font-semibold text-ios-label">
+                  {detail.joinConversion.conversionRatePercent !== null ? `${detail.joinConversion.conversionRatePercent}%` : '—'}
+                </p>
+                <p className="text-[11px] text-ios-label-secondary/70 mt-0.5">
+                  {detail.joinConversion.joined} ta yangi a'zodan botdan foydalandi
+                </p>
+              </div>
+            )}
+            {detail.responseTime.avgMs !== null && (
+              <div className="bg-ios-card rounded-ios shadow-sm p-3.5">
+                <p className="text-[20px] font-semibold text-ios-label">
+                  {detail.responseTime.avgMs < 1000 ? `${detail.responseTime.avgMs} ms` : `${(detail.responseTime.avgMs / 1000).toFixed(1)} s`}
+                </p>
+                <p className="text-[11px] text-ios-label-secondary/70 mt-0.5">
+                  o'rtacha javob tezligi{detail.responseTime.p95Ms !== null ? ` (95%: ${(detail.responseTime.p95Ms / 1000).toFixed(1)}s)` : ''}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Faollik vaqti */}

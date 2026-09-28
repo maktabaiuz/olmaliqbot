@@ -10,10 +10,29 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   const messageText = ctx.message?.text;
   if (!messageText) return;
 
+  // 2026-09-28, "Guruhlar" chuqur tahlili ("javob tezligi" ko'rsatkichi
+  // uchun) — funksiya boshidan oxirigacha (yoki JIM qolish qaroriga
+  // qadar) ketgan vaqt, har bir QueryLog yozuviga qo'shiladi.
+  const startTime = Date.now();
+
   const telegramUserId = ctx.from?.id ? BigInt(ctx.from.id) : BigInt(0);
   // "Guruhlar" bo'limidagi so'rov/javob statistikasi uchun (2026-09) —
   // shu guruhning chatId'si har bir QueryLog yozuviga qo'shiladi.
   const chatId = ctx.chat?.id ? BigInt(ctx.chat.id) : null;
+
+  // 2026-09-28, "Guruhlar" chuqur tahlili — QueryLog FAQAT bot uchun
+  // tegishli so'rovlarni (0-qavat filtrdan o'tganlarini, ~10%) saqlaydi,
+  // shuning uchun guruhning HAQIQIY umumiy faolligi (faol/jim a'zolar
+  // nisbati, eng faol odamlar, kunlik xabar hajmi, bot foydaliligi %)
+  // bu yerdan bilinmaydi. Shu sabab BUTUN filtrlashdan OLDIN, HAR bir
+  // matnli xabar (matnisiz — faqat kim va qachon) alohida, yengil
+  // jadvalga yoziladi. Fire-and-forget: botning javob berish tezligiga
+  // ta'sir qilmasin.
+  if (chatId) {
+    db.groupMessageEvent
+      .create({ data: { chatId, telegramUserId } })
+      .catch((err) => console.error('Failed to log GroupMessageEvent:', err));
+  }
 
   // 0. Xavfsizlik-moderatsiya ("Foydali botlar", 2026-09) — har bir filtr
   // GURUH DARAJASIDA admin panelida yoqiladi/o'chiriladi (standart holat:
@@ -159,6 +178,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
           landmarkName: areaResult.landmarkName,
           isResolved: true,
           confidence: classification.confidence,
+          responseTimeMs: Date.now() - startTime,
         },
       }).catch((err) => console.error('Failed to log area-listing QueryLog:', err));
       return;
@@ -245,6 +265,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       landmarkName: classification.landmark,
       isResolved: true,
       confidence: classification.confidence,
+      responseTimeMs: Date.now() - startTime,
     },
   }).catch((err) => console.error('Failed to log resolved QueryLog:', err));
 }
