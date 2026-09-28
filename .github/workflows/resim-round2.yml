@@ -1,0 +1,52 @@
+name: One-off - resimulate round2 suspects
+on:
+  workflow_dispatch:
+jobs:
+  resim:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resimulate via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const crypto = require('crypto');
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              function buildInitData(telegramId) {
+                const user = JSON.stringify({ id: telegramId, first_name: 'Test' });
+                const params = new URLSearchParams();
+                params.set('user', user);
+                params.set('auth_date', Math.floor(Date.now()/1000).toString());
+                params.set('query_id', 'AAtest');
+                const dataCheckString = [...params.entries()].sort((a,b)=>a[0]<b[0]?-1:1).map(([k,v])=>k+'='+v).join('\n');
+                const secret = crypto.createHmac('sha256','WebAppData').update(process.env.BOT_TOKEN || '').digest();
+                const hash = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+                params.set('hash', hash);
+                return params.toString();
+              }
+              const messages = [
+                'Акалар леса скадаги металлом номери кимда бор пропан заправка ёнидаги',
+                'Прпан канч бобди бугун заправка киганлар борми',
+                'Нижний газ заправка нечида очилади?'
+              ];
+              (async () => {
+                const city = await db.city.findFirst();
+                for (const m of messages) {
+                  const res = await fetch('http://localhost:3001/api/admin/simulate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: m, cityId: city.id, debug: true }),
+                  });
+                  const j = await res.json();
+                  console.log('out:MSG=' + m.slice(0,50));
+                  console.log('out:RESULT=' + JSON.stringify({ category: j.classification?.category, landmark: j.classification?.landmark, confidence: j.classification?.confidence, resolvedName: j.result?.name, resolvedId: j.result?.id, silence: j.result === null }));
+                }
+                await db.\$disconnect();
+              })().catch(e=>{console.error('ERR', e.message); process.exit(1)});
+            "
