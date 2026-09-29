@@ -2170,10 +2170,35 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       (bestMatch as any).badges.some((b: string) => requestedBadges.includes(b))) ||
     (typeof (bestMatch as any).priorityRank === 'number' && (bestMatch as any).priorityRank > 0);
 
+  // MUHIM (2026-09-29, qayta tekshiruvda topilgan XATO — yuqoridagi
+  // "qanaqa"/"qanday" qo'shimchasi o'zi YETARLI emas edi): `!cleanLandmarkName`
+  // va `!jargonMatchedIds.has(bestMatch.id)` FAQAT "biror narsa bormi"ni
+  // tekshirardi, "bu narsa CHINDAN AJRATIB BERADIMI"ni emas. Real
+  // skrinshotda ("29 linya kanechnik tomondan qanaqa choyxona bor")
+  // g'olib xabardagi "choyxona" so'zi (bu — kategoriyaning O'ZI, "N1
+  // Choyxona"dan "Fayz Choyxona"gacha DEYARLI hammaning jargonida
+  // uchraydi) orqali `jargonMatchedIds`ga "weak" darajada tushib qolgan
+  // edi — bu esa `!jargonMatchedIds.has(...)` shartini yolg'on ravishda
+  // "yo'q" qilib, guard'ni butunlay ishlamay qoldirardi, garchi bu moslik
+  // g'olibni boshqa nomzoddan HECH QANDAY ajratmasa ham (deyarli barcha
+  // choyxona shu so'zga "weak" mos keladi). Xuddi shunday, `cleanLandmarkName`
+  // AI qanday matn chiqarganini emas, bazada haqiqatan RO'YXATDAN o'TGAN
+  // (`matchedLandmarkIds`) mo'ljalni tekshirishi kerak — "29 linya" kabi
+  // bazada UMUMAN yo'q mo'ljal matni ham "dalil bor" deb noto'g'ri
+  // hisoblanardi. Endi ikkalasi ham FAQAT chindan ajratuvchi (kuchli/soha
+  // darajali jargon, yoki bazada haqiqatan topilgan mo'ljal) dalilni
+  // hisobga oladi — "weak" (umumiy, kategoriya nomiga o'xshash) moslik
+  // endi bu yerda "dalil" sifatida qabul qilinmaydi.
+  const bestMatchJargonStrength = jargonMatchedIds.has(bestMatch.id)
+    ? conditionalJargon.get(bestMatch.id)?.strength || 'strong'
+    : null;
+  const hasMeaningfulJargonMatch = bestMatchJargonStrength === 'strong' || bestMatchJargonStrength === 'category';
+  const hasResolvedLandmark = matchedLandmarkIds.length > 0;
+
   if (
     scoredListings.length > 1 &&
-    !cleanLandmarkName &&
-    !jargonMatchedIds.has(bestMatch.id) &&
+    !hasResolvedLandmark &&
+    !hasMeaningfulJargonMatch &&
     !bestMatchHasRealSignal &&
     (hasIdentifyingQuestionWord || isReplyToPhoto)
   ) {
