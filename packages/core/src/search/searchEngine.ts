@@ -2144,9 +2144,21 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // keng tarqalgan, ko'plab oddiy gaplarda ham bor), shuning uchun
   // Telegram'ning o'zi bergan ANIQ signal — bu xabar biror RASMga reply
   // ekanligi — ishlatiladi (qarang: groupHandler.ts, `isReplyToPhoto`).
+  // MUHIM (2026-09-29, screenshot orqali topilgan real xato): "qaysi"/
+  // "kaysi" bilan bir xil ma'noda ishlatiladigan "qanaqa"/"qanday" so'zlari
+  // ("29 linya tomondan QANAQA choyxona bor?") shu paytgacha bu ro'yxatda
+  // YO'Q edi — natijada aynan shu skrinshotda 6 ta choyxonadan bittasi
+  // (Qaroqtoy) hech qanday mo'ljal/jargon moslikisiz, FAQAT rotationBonus
+  // (Math.random()) orqali "aniq javob" sifatida ko'rsatilgan edi. Qayta
+  // simulyatsiya buni tasdiqladi: bir xil so'rov 3 marta qayta yuborilganda
+  // 3 xil g'olib chiqdi (Gagarin, Gagarin, keyin Fayz) — barchasida
+  // jargonBonus=0, badgeBonus=0, faqat rotationBonus farq qildi.
   const normalizedRawMessage = rawMessage ? normalizeText(rawMessage) : '';
   const hasIdentifyingQuestionWord =
-    containsWholeWord(normalizedRawMessage, 'qaysi') || containsWholeWord(normalizedRawMessage, 'kaysi');
+    containsWholeWord(normalizedRawMessage, 'qaysi') ||
+    containsWholeWord(normalizedRawMessage, 'kaysi') ||
+    containsWholeWord(normalizedRawMessage, 'qanaqa') ||
+    containsWholeWord(normalizedRawMessage, 'qanday');
 
   // Agar so'ralgan belgi (masalan "24/7", "Kafolat") aynan shu g'olibda
   // BOR bo'lsa, yoki admin uni qo'lda "1/2/3-o'rin" qilib belgilagan
