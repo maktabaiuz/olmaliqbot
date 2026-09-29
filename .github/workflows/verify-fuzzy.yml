@@ -1,0 +1,30 @@
+name: One-off - inspect fuzzy landmark match for 29 linya
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const db = new PrismaClient();
+              (async () => {
+                const gagarin = await db.listing.findUnique({ where: { id: '48ee1a39-d96c-4f5f-b64b-3f61463e1c64' }, select: { primaryLandmarkId: true, jargonSynonyms: true } });
+                const fayz = await db.listing.findUnique({ where: { id: '982b6f32-f9ab-447a-b7ae-d3acb37e3094' }, select: { primaryLandmarkId: true, jargonSynonyms: true } });
+                console.log('out:GAGARIN=' + JSON.stringify(gagarin));
+                console.log('out:FAYZ=' + JSON.stringify(fayz));
+                const lmIds = [gagarin.primaryLandmarkId, fayz.primaryLandmarkId].filter(Boolean);
+                const lms = await db.landmark.findMany({ where: { id: { in: lmIds } } });
+                console.log('out:LANDMARKS=' + JSON.stringify(lms.map(l => ({id: l.id, name: l.name, synonyms: l.synonyms}))));
+                await db.\$disconnect();
+              })().catch(e=>{console.error('ERR', e.stack); process.exit(1)});
+            "
