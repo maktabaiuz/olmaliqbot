@@ -1,0 +1,55 @@
+name: One-off - verify two screenshot bugs
+on:
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 10m
+          script: |
+            docker exec kimbor_api node -e "
+              const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
+              const core = require('/app/packages/core/dist/index.js');
+              const db = new PrismaClient();
+              const messages = [
+                'Assalomu aleykum akalar 29 linya kanechnik tomondan qanaqa choyxona bor',
+                'Ассалом алекум.ночда ишлашга мошина керак.такси клишга'
+              ];
+              (async () => {
+                const city = await db.city.findFirst();
+                for (const m of messages) {
+                  const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
+                  console.log('out:MSG=' + m.slice(0,60));
+                  console.log('out:CLASSIFY=' + JSON.stringify(c));
+                  const isSeeking = c.intent !== 'NOT_RELEVANT' && c.intent !== 'SELF_OFFER';
+                  const r = await core.searchListings({
+                    cityId: city.id,
+                    categoryName: isSeeking ? c.category : null,
+                    landmarkName: isSeeking ? c.landmark : null,
+                    rawMessage: m,
+                    intent: c.intent,
+                    name: isSeeking ? c.name : null,
+                    requestedBadges: [],
+                    rentalFilters: null,
+                    isReplyToPhoto: false,
+                    debug: true,
+                  });
+                  console.log('out:RESULT=' + JSON.stringify(r ? { name: r.listing?.name, id: r.listingId, total: r.totalMatches } : null));
+                }
+                const choyxonaCat = await db.category.findFirst({ where: { name: { contains: 'choyxona', mode: 'insensitive' } } });
+                if (choyxonaCat) {
+                  const n = await db.listing.count({ where: { categoryId: choyxonaCat.id, status: 'ACTIVE' } });
+                  console.log('out:CHOYXONA_COUNT=' + n);
+                }
+                const lm = await db.landmark.findMany({ where: { OR: [{ name: { contains: 'liniya', mode: 'insensitive' } }, { name: { contains: 'kanechnik', mode: 'insensitive' } }] }, select: { name: true, synonyms: true } });
+                console.log('out:LANDMARKS=' + JSON.stringify(lm));
+                await db.\$disconnect();
+              })().catch(e=>{console.error('ERR', e.stack); process.exit(1)});
+            "
