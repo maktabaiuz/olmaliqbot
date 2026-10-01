@@ -65,7 +65,24 @@ export async function getMissingChannels(api: Api, userId: number): Promise<Chan
         MEMBER_STATUSES.has(member.status) && !(member.status === 'restricted' && !(member as any).is_member);
       if (!isMember) missing.push(ch);
     } catch (err) {
-      console.warn(`⚠️ Obuna tekshiruvi ishlamadi (${chatId}):`, (err as Error).message);
+      // MUHIM (2026-10-01, real xato — admin bot'ni kanalga admin qilib
+      // qo'shgandan keyin ham "obuna bo'ling" gate'i hech kimga chiqmagan):
+      // Telegram GURUHlar uchun hech qachon a'zo bo'lmagan odamni
+      // so'ralganda oddiy status="left" qaytaradi, lekin KANALlar uchun
+      // BUTUNLAY BOSHQACHA ishlaydi — aniq XATO qaytaradi
+      // ("PARTICIPANT_ID_INVALID"). Bu xato avval "bot sozlamasi noto'g'ri,
+      // bu kanalni o'tkazib yuboramiz" deb (fail-open) talqin qilingan edi —
+      // natijada aynan "bu odam obuna emas" degan signalning O'ZI
+      // yo'q qilib yuborilardi, va gate HECH QACHON ishlamasdi. Endi ikki
+      // xato turi ANIQ ajratiladi: "bu foydalanuvchi topilmadi/a'zo emas"
+      // (aniq, kutilgan holat — demak obuna emas) va "bot huquqi yo'q/kanal
+      // topilmadi" (haqiqiy sozlama xatosi — shundagina o'tkazib yuboramiz).
+      const desc = String((err as any)?.description || (err as Error).message || '');
+      if (/PARTICIPANT_ID_INVALID|USER_NOT_PARTICIPANT|user not found|chat not found/i.test(desc)) {
+        missing.push(ch);
+      } else {
+        console.warn(`⚠️ Obuna tekshiruvi ishlamadi (${chatId}):`, desc);
+      }
     }
   }
 
