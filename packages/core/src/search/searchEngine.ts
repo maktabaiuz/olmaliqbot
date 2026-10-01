@@ -1275,36 +1275,41 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // Behruzning QAYSI SOHADA ishlashini UMUMAN ko'rsatmasa ham (bu — qayerda
   // joylashganini tasvirlovchi so'z, "balon" kabi SOHA so'zi emas).
   //
-  // Farqni ajratish uchun: agar shu yozuvning BARCHA jargonSynonyms
-  // yozuvlari FAQAT shahar bo'yicha ma'lum mo'ljal (Landmark) so'zlaridan
-  // (yoki umumiy/filler so'zlardan) iborat bo'lsa — demak bu yozuvda
-  // UMUMAN haqiqiy, sohaga xos jargon yo'q, faqat manzil tavsifi bor. Bunday
-  // holatda "category" darajali moslik ham "zaif" bilan bir xil ishonchsiz —
-  // NOT_RELEVANT xulosasini bekor qilishga haqli emas.
+  // Farqni ajratish uchun: xabar bilan yozuv jargoni o'rtasidagi UMUMIY
+  // so'zlar tekshiriladi. Agar ularning hammasi shahar mo'ljallari (Landmark
+  // lug'ati, qo'shimchaga chidamli) bo'lsa — moslik faqat joy nomi orqali
+  // bo'lgan, "category" darajasida bo'lsa ham "zaif" bilan bir xil
+  // ishonchsiz. "balon" kabi haqiqiy soha so'zi (mo'ljal emas) avvalgidek
+  // NOT_RELEVANT xulosasini bekor qila oladi.
   if (options.intent === 'NOT_RELEVANT') {
     const categoryLevelIds: string[] = [];
     for (const [id, info] of conditionalJargon) {
       if (info.strength === 'weak') jargonMatchedIds.delete(id);
       else if (info.strength === 'category') categoryLevelIds.push(id);
     }
-    if (categoryLevelIds.length > 0) {
-      const landmarkVocab = await getLandmarkVocabulary(cityId);
-      const cityWordsNR = await getCityNameWords(cityId);
-      const isLocationOrFillerWord = (w: string) =>
-        landmarkVocab.has(w) || isGenericFillerWord(w) || isNoiseWord(w) || isCityWord(w, cityWordsNR);
+    if (categoryLevelIds.length > 0 && rawMessage) {
+      // Qo'shimchaga chidamli: "radugada" ~ "raduga", "karzinkani" ~ "karzinka".
+      const landmarkVocab = [...(await getLandmarkVocabulary(cityId))];
+      const isLandmarkWord = (w: string) => landmarkVocab.some((v) => v === w || wordsShareStem(v, w));
+      const msgTokens = normalizeText(rawMessage).split(/\s+/).filter((w) => w.length >= 3);
       const rows = await db.listing.findMany({
         where: { id: { in: categoryLevelIds } },
         select: { id: true, jargonSynonyms: true },
       });
       for (const row of rows) {
-        if (row.jargonSynonyms.length === 0) continue;
-        const onlyLocationPhrases = row.jargonSynonyms.every((phrase) =>
-          normalizeText(phrase)
-            .split(/\s+/)
-            .filter((w) => w.length >= 3)
-            .every(isLocationOrFillerWord)
+        const jargonTokens = row.jargonSynonyms.flatMap((p) =>
+          normalizeText(p).split(/\s+/).filter((w) => w.length >= 3)
         );
-        if (onlyLocationPhrases) jargonMatchedIds.delete(row.id);
+        // Moslikni AYNAN qaysi so'zlar yuzaga keltirgan — xabar va jargondagi
+        // umumiy (o'zakdosh) so'zlar. Agar ularning HAMMASI faqat joy nomi
+        // bo'lsa, bu yozuv "nima" so'ralganiga emas, faqat "qayerda"ga mos
+        // kelgan — NOT_RELEVANT xulosasini bekor qilishga dalil emas.
+        const sharedJargonWords = jargonTokens.filter((jt) =>
+          msgTokens.some((mt) => mt === jt || wordsShareStem(mt, jt))
+        );
+        if (sharedJargonWords.length > 0 && sharedJargonWords.every(isLandmarkWord)) {
+          jargonMatchedIds.delete(row.id);
+        }
       }
     }
   }
