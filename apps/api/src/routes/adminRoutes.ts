@@ -3628,6 +3628,77 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, broadcast: { ...broadcast, targetChatIds: broadcast.targetChatIds.map((c) => c.toString()) } };
   });
 
+  // ===========================================================
+  // OMMAVIY XABAR (2026-10) — yuqoridagi rejalashtirilgan/takrorlanuvchi
+  // post tizimidan FARQLI: bitta matn (+ixtiyoriy rasm) yozib, "Foydalanuvchilarga"
+  // va/yoki "Guruhlarga" tugmachalarini yoqib-o'chirib, DARHOL yuborish
+  // uchun. Yangi yuborish yo'li QURILMAYDI — xuddi shu BroadcastMessage
+  // jadvali va mavjud, productionda sinalgan `broadcastQueue.ts` worker'i
+  // ishlatiladi (`nextSendAt = hozir`, `repeatIntervalMinutes = null`) —
+  // bot tomonidagi har daqiqalik "tick" buni keyingi tsiklda (eng ko'pi
+  // bilan ~60 soniyada) yuboradi. Shu bilan rasm-slayder, havola-tugma
+  // tekshiruvi, "eskisi o'chib-yangisi qo'yiladi" mantig'i bepul meros
+  // qolinadi — alohida yuborish yo'li DUBLIKAT qilinmaydi.
+  fastify.get('/admin/broadcast-instant/audience', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const [userCount, groupCount] = await Promise.all([
+      db.user.count({ where: { cityId } }),
+      db.cityGroup.count({ where: { cityId } }),
+    ]);
+    return { userCount, groupCount };
+  });
+
+  fastify.post('/admin/broadcast-instant', async (req: any, reply) => {
+    if (!await requireSuperAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { text, photoUrls, sendToUsers, sendToGroups } = (req.body || {}) as {
+      text?: string; photoUrls?: string[]; sendToUsers?: boolean; sendToGroups?: boolean;
+    };
+
+    if (!text || !text.trim()) {
+      return reply.status(400).send({ success: false, message: 'Xabar matni majburiy' });
+    }
+    if (!sendToUsers && !sendToGroups) {
+      return reply.status(400).send({ success: false, message: "Kamida bitta qabul qiluvchi (Foydalanuvchilar yoki Guruhlar) yoqilgan bo'lishi kerak" });
+    }
+
+    // MUHIM: audience HAR SAFAR "Yuborish" bosilgan ONDA, joriy (eng yangi)
+    // ro'yxatdan hisoblanadi — forma ochilgandan keyin yangi odam
+    // qo'shilgan bo'lsa ham, u ham qamrab olinadi.
+    const targetChatIds: bigint[] = [];
+    let userCount = 0;
+    let groupCount = 0;
+    if (sendToUsers) {
+      const users = await db.user.findMany({ where: { cityId }, select: { telegramId: true } });
+      userCount = users.length;
+      targetChatIds.push(...users.map((u) => u.telegramId));
+    }
+    if (sendToGroups) {
+      const groups = await db.cityGroup.findMany({ where: { cityId }, select: { chatId: true } });
+      groupCount = groups.length;
+      targetChatIds.push(...groups.map((g) => g.chatId));
+    }
+    if (targetChatIds.length === 0) {
+      return reply.status(400).send({ success: false, message: "Hozircha hech kim topilmadi (na foydalanuvchi, na guruh)" });
+    }
+
+    const broadcast = await db.broadcastMessage.create({
+      data: {
+        cityId,
+        text,
+        photoUrls: Array.isArray(photoUrls) ? photoUrls.slice(0, 8) : [],
+        targetChatIds,
+        nextSendAt: new Date(),
+        repeatIntervalMinutes: null,
+        isEnabled: true,
+      },
+    });
+    await auditChannelChange(req, 'INSTANT_BROADCAST', { id: broadcast.id, userCount, groupCount, textPreview: text.slice(0, 100) });
+
+    return { success: true, userCount, groupCount, totalRecipients: targetChatIds.length };
+  });
+
   fastify.put('/admin/broadcasts/:id', async (req: any, reply) => {
     if (!await requireSuperAdmin(req, reply)) return;
     const { id } = req.params;

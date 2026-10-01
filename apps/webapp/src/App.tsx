@@ -35,6 +35,7 @@ import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
 import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
 import { LearnedTermsScreen } from './screens/LearnedTermsScreen';
 import { RequiredChannelsScreen } from './screens/RequiredChannelsScreen';
+import { InstantBroadcastScreen } from './screens/InstantBroadcastScreen';
 import { CandidatesScreen } from './screens/CandidatesScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
@@ -82,7 +83,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -421,6 +422,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           <IosSection title={t('more_section_moderation')}>
                             <MoreRow icon="badge" iconColor="rgb(175 82 222)" label={t('more_item_moderators')} onClick={() => setViewMode('moderators')} />
                             <MoreRow icon="campaign" iconColor="rgb(88 86 214)" label={t('more_item_broadcast')} onClick={() => setMoreSubView('broadcast')} />
+                          <MoreRow icon="send" iconColor="rgb(255 149 0)" label="Ommaviy xabar" onClick={() => setMoreSubView('instant_broadcast')} />
                             <MoreRow icon="smart_toy" iconColor="rgb(48 176 199)" label={t('more_item_useful_bots')} onClick={() => setMoreSubView('useful_bots')} />
                             <MoreRow icon="block" iconColor="rgb(255 45 85)" label={t('more_item_moderation_logs')} onClick={() => setMoreSubView('moderation_logs')} last />
                           </IosSection>
@@ -501,6 +503,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     )}
                     {moreSubView === 'learned_terms' && (
                       <LearnedTermsScreen onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'instant_broadcast' && (
+                      <InstantBroadcastScreen onBack={() => setMoreSubView('menu')} />
                     )}
                     {moreSubView === 'broadcast' && (
                       <BroadcastScreen onBack={() => setMoreSubView('menu')} />

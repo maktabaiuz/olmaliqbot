@@ -27,7 +27,7 @@ export const translations = {
   more_item_community_link: { uz: 'Kanal/Guruh havolasi', ru: 'Ссылка на канал/группу' },
   more_item_emergency: { uz: 'Favqulodda raqamlar', ru: 'Экстренные номера' },
   more_item_moderators: { uz: 'Moderatorlar', ru: 'Модераторы' },
-  more_item_useful_bots: { uz: 'Moderatsiya filtrlari', ru: 'Фильтры модерации' },
+  more_item_useful_bots: { uz: 'Foydali botlar', ru: 'Полезные боты' },
   more_item_moderation_logs: { uz: 'Moderatsiya jurnali', ru: 'Журнал модерации' },
   more_item_broadcast: { uz: 'Xabar yuborish', ru: 'Рассылка' },
   more_item_bot_messages: { uz: 'Bot xabarlari', ru: 'Сообщения бота' },
