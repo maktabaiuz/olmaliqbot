@@ -14,11 +14,32 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
-            docker exec kimbor_api node -e "
-              const { db } = require('/app/packages/db/dist/index.js');
+            docker exec kimbor_bot node -e "
+              const https = require('https');
+              const token = process.env.BOT_TOKEN;
+              function call(method, params) {
+                return new Promise((resolve) => {
+                  const data = JSON.stringify(params);
+                  const req = https.request({
+                    hostname: 'api.telegram.org',
+                    path: '/bot' + token + '/' + method,
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) },
+                  }, (res) => {
+                    let body = '';
+                    res.on('data', (c) => body += c);
+                    res.on('end', () => resolve(JSON.parse(body)));
+                  });
+                  req.write(data);
+                  req.end();
+                });
+              }
               (async () => {
-                const rows = await db.requiredChannel.findMany();
-                console.log('out:CHANNELS=' + JSON.stringify(rows));
-                await db.\$disconnect();
+                const me = await call('getMe', {});
+                console.log('out:ME=' + JSON.stringify(me.result && { id: me.result.id, username: me.result.username }));
+                const chat = await call('getChat', { chat_id: '@Olmaliqlik' });
+                console.log('out:CHAT=' + JSON.stringify(chat.ok ? { id: chat.result.id, type: chat.result.type, title: chat.result.title } : chat));
+                const member = await call('getChatMember', { chat_id: '@Olmaliqlik', user_id: me.result.id });
+                console.log('out:BOT_MEMBER=' + JSON.stringify(member.ok ? { status: member.result.status } : member));
               })();
             "
