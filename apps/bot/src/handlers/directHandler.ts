@@ -328,6 +328,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     intent: classification.intent,
     confidence: classification.confidence,
     name: isSeeking ? classification.name : null,
+    objectType: isSeeking ? classification.object_type : null,
   });
 }
 
@@ -342,6 +343,7 @@ async function runPrivateSearch(
     intent?: IntentType;
     confidence?: number;
     name?: string | null;
+    objectType?: string | null;
   }
 ) {
   const searchResult = await searchListings({
@@ -351,6 +353,7 @@ async function runPrivateSearch(
     rawMessage: opts.rawMessage,
     intent: opts.intent,
     name: opts.name,
+    objectType: opts.objectType,
     requestedBadges: extractRequestedBadges(opts.rawMessage),
     rentalFilters: extractRentalFilters(opts.rawMessage),
   });

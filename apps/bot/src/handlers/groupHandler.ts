@@ -230,6 +230,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     requestedBadges: extractRequestedBadges(messageText),
     rentalFilters: extractRentalFilters(messageText),
     isReplyToPhoto,
+    objectType: isSeeking ? classification.object_type : null,
   });
 
   if (!searchResult) {

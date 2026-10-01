@@ -2007,6 +2007,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
       name: isSeeking ? classification.name : null,
       requestedBadges,
       rentalFilters,
+      objectType: isSeeking ? classification.object_type : null,
       debug: true,
     });
 

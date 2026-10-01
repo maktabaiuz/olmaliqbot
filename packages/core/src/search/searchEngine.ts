@@ -43,6 +43,19 @@ export interface SearchOptions {
    * intentlarda "nomlangan ob'ekt himoyasi" uchun ishlatiladi — pastga
    * qarang. */
   name?: string | null;
+  /** MUHIM (2026-09-30/01, real skrinshot bilan tasdiqlangan xato — "Alisa
+   * aqlli kalonka qayerda sotadi" so'roviga AI to'g'ri object_type=
+   * "DOKON_OBYEKT" (do'kon/xizmat ko'rsatish shart emas, SOTUV nuqtasi)
+   * deb topgan bo'lsa ham, bazada mos kategoriya bo'sh bo'lgani uchun
+   * "kuchli" jargon moslik kategoriya chegarasidan chiqib, ALOQASIZ bir
+   * USTA (individual ta'mirchi, "kalonka ustasi" — gaz kolonkasi ustasi,
+   * "aqlli kalonka"/smart speaker bilan faqat so'z darajasida tasodifan
+   * mos kelgan)ni ko'rsatib yuborgan edi. AI klassifikatorning object_type
+   * taxmini — pastda, faqat DOKON_OBYEKT (do'kon/sotuv nuqtasi) so'ralganda
+   * USTA (shaxsiy ta'mirchi) turidagi "qutqaruvchi" moslikni bekor qilish
+   * uchun ishlatiladi: bitta odam biror narsani TA'MIRLASHI, uni SOTISHI
+   * bilan bir xil emas. */
+  objectType?: string | null;
   /** MUHIM (2026-09, admin panel "Bot sinovi" xususiyati uchun): true
    * bo'lsa, natijaga `scoreBreakdown` — barcha nomzodlarning reyting
    * ballari tafsiloti (har bir bonus komponenti alohida) — qo'shiladi.
@@ -169,6 +182,25 @@ const GENERIC_QUY_VERB_FORMS = new Set([
   'quyaman', 'quyamiz', 'quysin', 'quysinmi', 'quydi', 'quyibdi', 'quyib',
   'quying', 'quyiladi', 'quyilgan', 'quyilsin',
 ]);
+// MUHIM (2026-09-30/01, real skrinshot bilan tasdiqlangan xato — "Alisa
+// aqlli kalonka qayerda SOTADI bilmislami" so'roviga aloqasiz "Largo"
+// (shina do'koni) ikki marta "Yana ko'rish"ga chiqib qolgan): Largoning
+// jargonida "balon qata SOTADI" iborasi bor edi, "sotadi" so'zi orqali
+// so'z darajasida mos kelib, "strong" moslik deb hisoblangan. "Sot-"
+// (sotmoq/sotish — sotish/sellish) — xuddi "remont"/"mashina"/"usta"/
+// "quy-" kabi, deyarli HAR QANDAY savdo/xizmat turidagi jargonda
+// uchraydigan, hech bir sohaga xos BO'LMAGAN umumiy fe'l. O'zagi ("sot")
+// atigi 3 harf bo'lgani uchun (xuddi "quy-" kabi) Levenshtein-stem usuli
+// ISHLATILMAYDI — 3 harfli prefiksda 1-ta xatoga yo'l qo'yish haqiqiy,
+// sohaga xos so'zlarni ("sotsial" kabi) ham noto'g'ri "umumiy" qilib
+// qo'yishi mumkin. Shu sabab faqat "sot" o'zagidan ANIQ fe'l qo'shimchalari
+// bilan yasalgan, tekshirilgan shakllarning qat'iy ro'yxati ishlatiladi.
+const GENERIC_SOT_VERB_FORMS = new Set([
+  'sotadi', 'sotadimi', 'sotaman', 'sotamiz', 'sotasiz', 'sotasan',
+  'sotildi', 'sotilgan', 'sotiladi', 'sotiladimi', 'sotib', 'sotilmoqda',
+  'sotish', 'sotishi', 'sotishadi', 'sotuvchi', 'sotuvchisi', 'sotdi',
+  'sotibdi', 'sotgan', 'sotganlar',
+]);
 // MUHIM (2026-09, tub yechim): yuqoridagilarning barchasi ("remont",
 // "mashina", "usta"...) bitta ILDIZ muammoning turli ko'rinishlari edi —
 // bizning KICHIK bazamizda kam takrorlangani uchun o'zbek tilining ODDIY,
@@ -195,6 +227,7 @@ function isGenericFillerWord(word: string): boolean {
   if (word.startsWith('ishla')) return true;
   if (GENERIC_NOUN_STEMS.some((stem) => word.startsWith(stem))) return true;
   if (GENERIC_QUY_VERB_FORMS.has(word)) return true;
+  if (GENERIC_SOT_VERB_FORMS.has(word)) return true;
   const bare = word.replace(/'/g, '');
   return GENERIC_ACTION_STEMS.some((stem) => {
     if (bare.length < stem.length - 1) return false;
@@ -1037,7 +1070,7 @@ function deriveTargetAfterLandmark(rawMessage: string | null | undefined): strin
  */
 export async function searchListings(options: SearchOptions): Promise<FormattedListingResult | null> {
   const startTime = Date.now();
-  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters, isReplyToPhoto } = options;
+  const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters, isReplyToPhoto, objectType } = options;
 
   if (!cityId) return null;
   if (!categoryName && !landmarkName && !rawMessage) return null;
@@ -1229,9 +1262,50 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // mosligi ("balon") esa boshqacha: AI "toy tepada balon kerak" ni xato
   // ravishda NOT_RELEVANT desa ham, "balon" so'zi qaysi soha kerakligini
   // aniq ko'rsatib turibdi — bu holatda javob berish to'g'ri.
+  // MUHIM (2026-09-30/01, real skrinshot bilan tasdiqlangan xato): "Radugada
+  // korzinkani yonida TELEFON.UZB" (bu — biror narsa SO'RASH emas, ELON/
+  // reklama matni edi, AI buni to'g'ri NOT_RELEVANT deb topdi) so'roviga
+  // aloqasiz bo'yoqchi (Behruz) javob berib yuborgan edi. Sabab: Behruzning
+  // jargonSynonyms maydoniga xizmat turi EMAS, balki FAQAT UNING O'Z
+  // MANZILINI tasvirlovchi iboralar yozilgan ("karzinka", "eski bozor",
+  // "radugada most oldida") — bular bazadagi haqiqiy Landmark (mo'ljal)
+  // so'zlari bilan bir xil. "karzinka" so'zi kamdan-kam takrorlangani uchun
+  // "category" darajali ("soha so'zi") dalil deb hisoblanib, yuqoridagi
+  // qoida bo'yicha NOT_RELEVANT xulosasini bekor qildi — garchi "karzinka"
+  // Behruzning QAYSI SOHADA ishlashini UMUMAN ko'rsatmasa ham (bu — qayerda
+  // joylashganini tasvirlovchi so'z, "balon" kabi SOHA so'zi emas).
+  //
+  // Farqni ajratish uchun: agar shu yozuvning BARCHA jargonSynonyms
+  // yozuvlari FAQAT shahar bo'yicha ma'lum mo'ljal (Landmark) so'zlaridan
+  // (yoki umumiy/filler so'zlardan) iborat bo'lsa — demak bu yozuvda
+  // UMUMAN haqiqiy, sohaga xos jargon yo'q, faqat manzil tavsifi bor. Bunday
+  // holatda "category" darajali moslik ham "zaif" bilan bir xil ishonchsiz —
+  // NOT_RELEVANT xulosasini bekor qilishga haqli emas.
   if (options.intent === 'NOT_RELEVANT') {
+    const categoryLevelIds: string[] = [];
     for (const [id, info] of conditionalJargon) {
       if (info.strength === 'weak') jargonMatchedIds.delete(id);
+      else if (info.strength === 'category') categoryLevelIds.push(id);
+    }
+    if (categoryLevelIds.length > 0) {
+      const landmarkVocab = await getLandmarkVocabulary(cityId);
+      const cityWordsNR = await getCityNameWords(cityId);
+      const isLocationOrFillerWord = (w: string) =>
+        landmarkVocab.has(w) || isGenericFillerWord(w) || isNoiseWord(w) || isCityWord(w, cityWordsNR);
+      const rows = await db.listing.findMany({
+        where: { id: { in: categoryLevelIds } },
+        select: { id: true, jargonSynonyms: true },
+      });
+      for (const row of rows) {
+        if (row.jargonSynonyms.length === 0) continue;
+        const onlyLocationPhrases = row.jargonSynonyms.every((phrase) =>
+          normalizeText(phrase)
+            .split(/\s+/)
+            .filter((w) => w.length >= 3)
+            .every(isLocationOrFillerWord)
+        );
+        if (onlyLocationPhrases) jargonMatchedIds.delete(row.id);
+      }
     }
   }
 
@@ -1824,6 +1898,28 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // kategoriyadan yozuv "botqoqlab" chiqishi kerak emas.
   if (missingJargonIds.length > 0 && hasResolvedCategory && !categoryHasAnyListings) {
     missingJargonIds = missingJargonIds.filter((id) => conditionalJargon.get(id)?.strength !== 'weak');
+
+    // MUHIM (2026-10-01, real skrinshot bilan tasdiqlangan xato): "Alisa
+    // aqlli kalonka qayerda SOTADI" — AI to'g'ri DOKON_OBYEKT ("elektr
+    // jihozlar do'koni", bazada 0 ta yozuv) deb topdi, lekin shu bo'sh
+    // kategoriyadan "kuchli" jargon qutqaruvi "Televizor ustasi"ni olib
+    // keldi: uning jargonidagi "kalonka ustasi"/"remont kalonka" (gaz
+    // KOLONKASI ta'miri) "aqlli kalonka" (smart speaker) bilan faqat
+    // OMONIM so'z orqali mos kelgan. Ta'mirchi (USTA) narsani SOTMAYDI —
+    // "X qayerda sotiladi" degan XARID so'roviga u hech qachon to'g'ri
+    // javob bo'la olmaydi. Shart ataylab TOR: faqat AI do'kon so'ralganini
+    // aytgan VA xabarda sotuv fe'li bor bo'lsagina — "balon kerak",
+    // "kalonka ustasi kerak" kabi oddiy xizmat so'rovlariga ta'sir qilmaydi.
+    const msgTokensForSell = rawMessage ? normalizeText(rawMessage).split(/\s+/) : [];
+    const isPurchaseQuestion = msgTokensForSell.some((w) => GENERIC_SOT_VERB_FORMS.has(w));
+    if (missingJargonIds.length > 0 && objectType === 'DOKON_OBYEKT' && isPurchaseQuestion) {
+      const rescuedTypes = await db.listing.findMany({
+        where: { id: { in: missingJargonIds } },
+        select: { id: true, category: { select: { objectType: true } } },
+      });
+      const ustaIds = new Set(rescuedTypes.filter((l) => l.category?.objectType === 'USTA').map((l) => l.id));
+      missingJargonIds = missingJargonIds.filter((id) => !ustaIds.has(id));
+    }
   }
   if (missingJargonIds.length > 0 && hasResolvedCategory && categoryHasAnyListings) {
     const resolvedCategoryIds = new Set(
