@@ -160,6 +160,11 @@ model GroupFeatureToggle {
   // hisoblash ishlamay qolgan bo'lardi.
   linkLabel       String?
   linkButtonStyle String?
+  // (2026-10, real test natijasi) Admin qo'shimcha tugma QAYERGA olib
+  // borishini ham belgilaydi (masalan @olmaliq_bot yoki kanal). Bu
+  // TAKLIF hisoblanishiga tegishli EMAS — taklif tugmasi alohida, har
+  // doim shaxsiy havolani "Ulashish" oynasi orqali yuboradi.
+  linkUrl         String?
   updatedAt   DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 

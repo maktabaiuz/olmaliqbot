@@ -3397,6 +3397,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         requiredCount: toggle?.requiredCount ?? null,
         linkLabel: toggle?.linkLabel ?? null,
         linkButtonStyle: toggle?.linkButtonStyle ?? null,
+        linkUrl: toggle?.linkUrl ?? null,
       };
     });
   });
@@ -3411,6 +3412,22 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const { isEnabled, requiredCount, linkLabel, linkButtonStyle } = req.body as {
       isEnabled: boolean; requiredCount?: number | null; linkLabel?: string | null; linkButtonStyle?: string | null;
     };
+    // "@olmaliq_bot" / "t.me/kanal" kabi qisqa yozuvlarni to'liq havolaga
+    // aylantiramiz — admin eng ko'p shunday yozadi (real test natijasi).
+    const rawLinkUrl = (req.body as { linkUrl?: string | null }).linkUrl;
+    let linkUrl: string | null | undefined = rawLinkUrl === undefined ? undefined : null;
+    if (rawLinkUrl && rawLinkUrl.trim()) {
+      const v = rawLinkUrl.trim();
+      const normalized = /^@[A-Za-z0-9_]{4,}$/.test(v)
+        ? `https://t.me/${v.slice(1)}`
+        : /^(t\.me|telegram\.me)\//i.test(v)
+          ? `https://${v}`
+          : v;
+      if (!isValidButtonUrl(normalized)) {
+        return reply.status(400).send({ success: false, message: "Havola noto'g'ri — masalan @olmaliq_bot yoki https://t.me/kanal" });
+      }
+      linkUrl = normalized;
+    }
     if (!USEFUL_BOTS.some((b) => b.key === key)) {
       return reply.status(404).send({ success: false, message: "Bunday bot topilmadi" });
     }
@@ -3431,6 +3448,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(requiredCount !== undefined ? { requiredCount } : {}),
         ...(linkLabel !== undefined ? { linkLabel: linkLabel?.trim() || null } : {}),
         ...(linkButtonStyle !== undefined ? { linkButtonStyle: linkButtonStyle || null } : {}),
+        ...(linkUrl !== undefined ? { linkUrl } : {}),
       },
       create: {
         cityGroupId: groupId,
@@ -3439,10 +3457,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
         requiredCount: requiredCount ?? null,
         linkLabel: linkLabel?.trim() || null,
         linkButtonStyle: linkButtonStyle || null,
+        linkUrl: linkUrl ?? null,
       },
     });
 
-    return { success: true };
+    return { success: true, linkUrl: linkUrl ?? null };
   });
 
   // ──────────────────────────────────────────────────────────────────────────

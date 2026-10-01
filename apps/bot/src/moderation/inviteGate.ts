@@ -46,14 +46,31 @@ interface GateConfig {
   requiredCount: number;
   linkLabel: string | null;
   linkButtonStyle: 'primary' | 'success' | 'danger' | null;
+  linkUrl: string | null;
 }
 const configCache = new Map<number, GateConfig & { expiresAt: number }>();
+
+/**
+ * Admin qo'shimcha tugmasining manzili. MUHIM (2026-10, real test): admin
+ * havolani "Tugma matni" maydoniga yozib qo'ygan edi ("@olmaliq_bot") —
+ * o'sha paytda havola maydoni umuman yo'q edi. Shunday eski yozuvlar
+ * ham ishlashi uchun, matn o'zi @username/havola ko'rinishida bo'lsa,
+ * manzil shundan olinadi.
+ */
+function resolveAdminLinkUrl(linkUrl: string | null | undefined, linkLabel: string | null | undefined): string | null {
+  if (linkUrl) return linkUrl;
+  const label = (linkLabel || '').trim();
+  if (/^@[A-Za-z0-9_]{4,}$/.test(label)) return `https://t.me/${label.slice(1)}`;
+  if (/^https?:\/\/\S+$/i.test(label)) return label;
+  if (/^(t\.me|telegram\.me)\/\S+$/i.test(label)) return `https://${label}`;
+  return null;
+}
 
 async function getGateConfig(chatId: number): Promise<GateConfig> {
   const cached = configCache.get(chatId);
   if (cached && cached.expiresAt > Date.now()) return cached;
 
-  const empty: GateConfig = { enabled: false, requiredCount: 0, linkLabel: null, linkButtonStyle: null };
+  const empty: GateConfig = { enabled: false, requiredCount: 0, linkLabel: null, linkButtonStyle: null, linkUrl: null };
   try {
     const group = await db.cityGroup.findUnique({ where: { chatId: BigInt(chatId) } });
     if (!group) {
@@ -72,6 +89,7 @@ async function getGateConfig(chatId: number): Promise<GateConfig> {
       requiredCount: toggle?.requiredCount || 0,
       linkLabel: toggle?.linkLabel || null,
       linkButtonStyle: (toggle?.linkButtonStyle as GateConfig['linkButtonStyle']) || null,
+      linkUrl: resolveAdminLinkUrl(toggle?.linkUrl, toggle?.linkLabel),
     };
     configCache.set(chatId, { ...result, expiresAt: Date.now() + CONFIG_TTL_MS });
     return result;
@@ -203,7 +221,7 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
   const messageId = ctx.message?.message_id;
   if (!chatId || !userId || !messageId) return false;
 
-  const { enabled, requiredCount, linkLabel, linkButtonStyle } = await getGateConfig(chatId);
+  const { enabled, requiredCount, linkLabel, linkButtonStyle, linkUrl } = await getGateConfig(chatId);
   if (!enabled) return false;
 
   const cityGroupId = await resolveCityGroupId(chatId);
@@ -262,19 +280,35 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
     `Nega? Ko'proq odam bo'lsa — hammaga foyda: savolingizga tezroq javob topiladi 🙌\n\n` +
     `<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`;
 
-  const replyMarkup = personalLink
-    ? {
-        inline_keyboard: [
-          [
-            {
-              text: linkLabel || '🔗 Taklif havolam',
-              url: personalLink,
-              ...(linkButtonStyle ? { style: linkButtonStyle } : {}),
-            },
-          ],
-        ],
-      }
-    : undefined;
+  // 1) TAKLIF tugmasi: Telegram'ning o'zining "Ulashish" oynasini ochadi —
+  //    odam do'stlarini tanlaydi, shaxsiy havola ularga O'ZI yuboriladi
+  //    (mashhur "do'st taklif qiling" botlari aynan shunday ishlaydi). Avval
+  //    tugma guruhning o'z havolasini ochardi — guruhda allaqachon turgan
+  //    odam uchun bu hech narsa qilmagandek ko'rinardi (real test natijasi).
+  // 2) Admin belgilagan QO'SHIMCHA tugma (ixtiyoriy) — matni va rangi admin
+  //    panelidan, masalan @olmaliq_bot yoki kanal.
+  const rows: { text: string; url: string; style?: 'primary' | 'success' | 'danger' }[][] = [];
+  if (personalLink) {
+    const groupTitle = (ctx.chat && 'title' in ctx.chat && ctx.chat.title) || 'guruh';
+    const shareText = `"${groupTitle}" guruhiga qo'shiling 👇`;
+    rows.push([
+      {
+        text: "📤 Do'stlarni taklif qilish",
+        url: `https://t.me/share/url?url=${encodeURIComponent(personalLink)}&text=${encodeURIComponent(shareText)}`,
+        style: 'success',
+      },
+    ]);
+  }
+  if (linkUrl) {
+    rows.push([
+      {
+        text: linkLabel || 'Havola',
+        url: linkUrl,
+        ...(linkButtonStyle ? { style: linkButtonStyle } : {}),
+      },
+    ]);
+  }
+  const replyMarkup = rows.length > 0 ? { inline_keyboard: rows } : undefined;
 
   try {
     const sent = await ctx.reply(text, { parse_mode: 'HTML', reply_markup: replyMarkup as any });

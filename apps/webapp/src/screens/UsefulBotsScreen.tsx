@@ -25,6 +25,7 @@ interface GroupToggle {
   requiredCount: number | null;
   linkLabel: string | null;
   linkButtonStyle: string | null;
+  linkUrl: string | null;
 }
 
 // Telegram Bot API'ning HAQIQIY, cheklangan 3 ta tugma rangi — boshqa
@@ -188,6 +189,7 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
   // bosilgach bittada saqlaydi (boshqa botlarga tegishli emas).
   const [requiredCountDraft, setRequiredCountDraft] = useState<Record<string, string>>({});
   const [linkLabelDraft, setLinkLabelDraft] = useState<Record<string, string>>({});
+  const [linkUrlDraft, setLinkUrlDraft] = useState<Record<string, string>>({});
   const [linkStyleDraft, setLinkStyleDraft] = useState<Record<string, string | null>>({});
   const [savingRequiredCountFor, setSavingRequiredCountFor] = useState<string | null>(null);
 
@@ -200,17 +202,18 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
       return;
     }
     const linkLabel = linkLabelDraft[group.id] ?? group.linkLabel ?? '';
+    const linkUrl = (linkUrlDraft[group.id] ?? group.linkUrl ?? '').trim();
     const linkButtonStyle = group.id in linkStyleDraft ? linkStyleDraft[group.id] : group.linkButtonStyle;
     setSavingRequiredCountFor(group.id);
     try {
       const res = await apiFetch(`/api/admin/useful-bots/${selectedBot.key}/groups/${group.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n, linkLabel, linkButtonStyle }),
+        body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n, linkLabel, linkButtonStyle, linkUrl: linkUrl || null }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n, linkLabel: linkLabel || null, linkButtonStyle } : g)));
+        setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n, linkLabel: linkLabel || null, linkButtonStyle, linkUrl: data.linkUrl ?? null } : g)));
         // Draft'ni tozalab, keyingi input HAR DOIM bazadagi eng so'nggi
         // qiymatdan boshlansin — "istalgan payt qayta o'zgartirish" shart.
         setRequiredCountDraft((prev) => {
@@ -219,6 +222,7 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
           return next;
         });
         setLinkLabelDraft((prev) => { const next = { ...prev }; delete next[group.id]; return next; });
+        setLinkUrlDraft((prev) => { const next = { ...prev }; delete next[group.id]; return next; });
         setLinkStyleDraft((prev) => { const next = { ...prev }; delete next[group.id]; return next; });
         showToast(`Saqlandi: ${n} kishi`, 'success');
       } else {
@@ -455,13 +459,23 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
                         yaratiladi, bu yerda faqat tugmaning ko'rinishi sozlanadi. */}
                     <div className="mt-2.5 pt-2.5" style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
                       <p className="text-[10px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1.5">
-                        Taklif tugmasi ko'rinishi (ixtiyoriy)
+                        Qo'shimcha havola tugmasi (ixtiyoriy)
                       </p>
+                      <p className="text-[10px] text-ios-label-secondary/60 mb-1.5">
+                        "Do'stlarni taklif qilish" tugmasi har doim avtomatik chiqadi. Bu yerda uning ostiga yana bitta tugma qo'shasiz — masalan botingiz yoki kanalingiz.
+                      </p>
+                      <input
+                        type="text"
+                        value={linkUrlDraft[g.id] ?? (g.linkUrl ?? '')}
+                        onChange={(e) => setLinkUrlDraft((prev) => ({ ...prev, [g.id]: e.target.value }))}
+                        placeholder="Havola: @olmaliq_bot yoki https://t.me/kanal"
+                        className="w-full bg-ios-fill/[0.08] rounded-full px-3 py-1.5 text-[12px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none mb-1.5"
+                      />
                       <input
                         type="text"
                         value={linkLabelDraft[g.id] ?? (g.linkLabel ?? '')}
                         onChange={(e) => setLinkLabelDraft((prev) => ({ ...prev, [g.id]: e.target.value }))}
-                        placeholder="Tugma matni, masalan: 🔗 Taklif havolam"
+                        placeholder="Tugma matni, masalan: 🤖 Botga o'tish"
                         className="w-full bg-ios-fill/[0.08] rounded-full px-3 py-1.5 text-[12px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none mb-1.5"
                       />
                       <div className="flex items-center gap-1.5 flex-wrap">
