@@ -17,7 +17,7 @@ jobs:
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
               (async () => {
-                const rows = await db.emergencyNumber.findMany({ select: { key: true, label: true, jargonSynonyms: true } });
+                const rows = await db.emergencyNumber.findMany({ select: { key: true, label: true, jargonWords: true } });
                 console.log('out:DISPATCHER=' + JSON.stringify(rows));
                 process.exit(0);
               })().catch(e => { console.error('ERR', e.message); process.exit(1); });
