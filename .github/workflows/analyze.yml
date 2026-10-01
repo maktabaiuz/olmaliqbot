@@ -35,7 +35,13 @@ jobs:
                 });
               }
               (async () => {
-                const admins = await call('getChatAdministrators', { chat_id: '@Olmaliqlik' });
-                console.log('out:ADMINS=' + JSON.stringify(admins.ok ? admins.result.map(a => ({ status: a.status, username: a.user.username, is_bot: a.user.is_bot })) : admins));
+                // Haqiqatan a'zo bo'lmagan tasodifiy foydalanuvchi ID
+                const r1 = await call('getChatMember', { chat_id: '@Olmaliqlik', user_id: 123456789 });
+                console.log('out:NON_MEMBER=' + JSON.stringify(r1));
+                // Admin (b7can) - a'zo bo'lishi kerak
+                const r2 = await call('getChatMember', { chat_id: '@Olmaliqlik', user_id: 358795989 });
+                console.log('out:KNOWN_ADMIN=' + JSON.stringify(r2.ok ? r2.result.status : r2));
               })();
             "
+            echo '--- redis sub_ok cache (eskirgan bo lishi mumkin) ---'
+            docker exec kimbor_redis redis-cli KEYS 'kimbor:sub_ok:*'
