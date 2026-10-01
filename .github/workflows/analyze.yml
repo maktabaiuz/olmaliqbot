@@ -17,55 +17,8 @@ jobs:
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
               (async () => {
-                const since30 = new Date(Date.now() - 30*24*60*60*1000);
-
-                console.log('=== BAZADAGI BARCHA KATEGORIYALAR HOLATI ===');
-                const allCats = await db.category.findMany({ select: { id: true, name: true } });
-                const listingCounts = await db.listing.groupBy({ by: ['categoryId'], where: { status: 'ACTIVE' }, _count: { categoryId: true } });
-                const catIdToCount = {}; for (const l of listingCounts) catIdToCount[l.categoryId] = l._count.categoryId;
-                const withListings = allCats.filter(c => (catIdToCount[c.id]||0) > 0).length;
-                const withoutListings = allCats.length - withListings;
-                console.log(JSON.stringify({ totalCategories: allCats.length, withListings, withoutListings }));
-
-                console.log('');
-                console.log('=== GURUH SO\'ROVLARI (oxirgi 30 kun, intent != NOT_RELEVANT) — kategoriya bo\'yicha chastota, hal qilingan+qilinmagan JAMI ===');
-                const all30 = await db.queryLog.findMany({
-                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' } },
-                  select: { categoryName: true, isResolved: true },
-                });
-                console.log(JSON.stringify({ totalQueries: all30.length }));
-                const freq = {};
-                for (const r of all30) {
-                  const k = (r.categoryName || '(nomsiz/aniqlanmagan)').toLowerCase().trim();
-                  if (!freq[k]) freq[k] = { total: 0, resolved: 0, unresolved: 0 };
-                  freq[k].total++;
-                  if (r.isResolved) freq[k].resolved++; else freq[k].unresolved++;
-                }
-                const sorted = Object.entries(freq).sort((a,b) => b[1].total - a[1].total).slice(0, 50);
-
-                // Har bir nom uchun bazada mos kategoriya (nomi/sinonim) va yozuv soni bor-yo'qligini tekshiramiz
-                const catsForMatch = await db.category.findMany({ select: { id: true, name: true, synonyms: true } });
-                const normalize = (s) => s.toLowerCase().trim();
-                const result = sorted.map(([name, stats]) => {
-                  const match = catsForMatch.find(c => normalize(c.name) === name || (c.synonyms||[]).some(s => normalize(s) === name));
-                  const listingCount = match ? (catIdToCount[match.id]||0) : 0;
-                  return {
-                    name,
-                    ...stats,
-                    dbStatus: !match ? 'YOQ_KATEGORIYA' : listingCount === 0 ? 'KATEGORIYA_BOR_YOZUV_YOQ' : 'YOZUV_BOR',
-                    listingCount,
-                  };
-                });
-                console.log(JSON.stringify(result));
-
-                console.log('');
-                console.log('=== GURUHLAR RO\'YXATI VA FAOLLIK (oxirgi 30 kun) ===');
-                const groups = await db.cityGroup.findMany({ select: { id: true, title: true, chatId: true } });
-                for (const g of groups) {
-                  const cnt = await db.queryLog.count({ where: { createdAt: { gte: since30 } } }); // umumiy (groupId yo'q QueryLog'da ko'rinadi)
-                }
-                console.log(JSON.stringify(groups.map(g => ({ title: g.title }))));
-
+                const rows = await db.emergencyNumber.findMany({ select: { key: true, label: true, jargonSynonyms: true } });
+                console.log('out:DISPATCHER=' + JSON.stringify(rows));
                 process.exit(0);
-              })().catch(e => { console.error('ERR', e.message, e.stack); process.exit(1); });
+              })().catch(e => { console.error('ERR', e.message); process.exit(1); });
             "
