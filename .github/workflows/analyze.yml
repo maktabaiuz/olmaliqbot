@@ -35,10 +35,15 @@ jobs:
                 }));
 
                 console.log('');
-                console.log('=== GURUHLAR QAMROVI (a\'zolar soni) ===');
-                const groups = await db.cityGroup.findMany({ select: { title: true, memberCount: true } });
-                const totalReach = groups.reduce((s,g) => s + (g.memberCount||0), 0);
-                console.log(JSON.stringify({ groupCount: groups.length, totalReach, groups: groups.sort((a,b)=>(b.memberCount||0)-(a.memberCount||0)).slice(0,15) }));
+                console.log('=== GURUHLAR QAMROVI (eng oxirgi snapshot a\'zolar soni) ===');
+                const groups = await db.cityGroup.findMany({ select: { id: true, title: true } });
+                const groupInfo = [];
+                for (const g of groups) {
+                  const snap = await db.groupMemberSnapshot.findFirst({ where: { cityGroupId: g.id }, orderBy: { date: 'desc' } });
+                  groupInfo.push({ title: g.title, memberCount: snap ? snap.memberCount : null });
+                }
+                const totalReach = groupInfo.reduce((s,g) => s + (g.memberCount||0), 0);
+                console.log(JSON.stringify({ groupCount: groups.length, totalReach, groups: groupInfo.sort((a,b)=>(b.memberCount||0)-(a.memberCount||0)) }));
 
                 console.log('');
                 console.log('=== HAL QILINMAGAN SO\'ROVLAR — ENG KO\'P TAKRORLANGAN KATEGORIYA (30 kun, bazada bo\'shliq) ===');
