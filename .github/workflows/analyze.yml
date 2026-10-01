@@ -35,7 +35,21 @@ jobs:
                 });
               }
               (async () => {
+                const me = await call('getMe', {});
                 const admins = await call('getChatAdministrators', { chat_id: '@Olmaliqlik' });
-                console.log('out:ADMINS=' + JSON.stringify(admins.ok ? admins.result.map(a => ({ status: a.status, id: a.user.id, username: a.user.username, is_bot: a.user.is_bot })) : admins));
+                console.log('out:ADMINS=' + JSON.stringify(admins.ok ? admins.result.map(a => ({ status: a.status, username: a.user.username })) : admins));
               })();
             "
+            echo '--- required_channels row ---'
+            docker exec kimbor_api node -e "
+              const { db } = require('/app/packages/db/dist/index.js');
+              (async () => {
+                const rows = await db.requiredChannel.findMany();
+                console.log('out:CHANNELS=' + JSON.stringify(rows));
+                await db.\$disconnect();
+              })();
+            "
+            echo '--- bot code check ---'
+            docker exec kimbor_bot sh -c "find /app/apps/bot/dist -name index.js | xargs grep -o 'passesSubscriptionGate' | head -1 || echo NOT_FOUND"
+            echo '--- redis sub_ok cache keys ---'
+            docker exec kimbor_redis redis-cli KEYS 'kimbor:sub_ok:*'
