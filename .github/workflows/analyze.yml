@@ -14,7 +14,15 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
-            echo "--- node resolve path ---"
-            docker exec kimbor_bot node -e "console.log(require.resolve('grammy'))"
-            echo "--- verify requiredChannels.js has the fix ---"
-            docker exec kimbor_bot sh -c "grep -o 'PARTICIPANT_ID_INVALID' /app/apps/bot/dist/subscription/requiredChannels.js"
+            docker exec -w /app/apps/bot kimbor_bot node -e "
+              const { Bot } = require('grammy');
+              const sub = require('./dist/subscription/requiredChannels.js');
+              const bot = new Bot(process.env.BOT_TOKEN);
+              (async () => {
+                await bot.init();
+                const missing1 = await sub.getMissingChannels(bot.api, 123456789);
+                console.log('out:NON_MEMBER_missing=' + JSON.stringify(missing1.map(c => c.title)));
+                const missing2 = await sub.getMissingChannels(bot.api, 358795989);
+                console.log('out:ADMIN_USER_missing=' + JSON.stringify(missing2.map(c => c.title)));
+              })();
+            "
