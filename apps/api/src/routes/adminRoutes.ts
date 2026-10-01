@@ -3383,30 +3383,42 @@ export async function adminRoutes(fastify: FastifyInstance) {
     ]);
     const enabledGroupIds = new Set(toggles.filter((t) => t.isEnabled).map((t) => t.cityGroupId));
     // "Majburiy taklif" uchun — har bir guruhda admin belgilagan talab son
-    // (boshqa botlar bu maydondan foydalanmaydi, har doim null qaytadi).
-    const requiredCountByGroupId = new Map(toggles.map((t) => [t.cityGroupId, t.requiredCount]));
+    // va taklif-havola tugmasining matni/rangi (boshqa botlar bu
+    // maydonlardan foydalanmaydi, har doim null qaytadi).
+    const toggleByGroupId = new Map(toggles.map((t) => [t.cityGroupId, t]));
 
-    return groups.map((g) => ({
-      id: g.id,
-      chatId: g.chatId.toString(),
-      title: g.title || 'Nomsiz guruh',
-      isEnabled: enabledGroupIds.has(g.id),
-      requiredCount: requiredCountByGroupId.get(g.id) ?? null,
-    }));
+    return groups.map((g) => {
+      const toggle = toggleByGroupId.get(g.id);
+      return {
+        id: g.id,
+        chatId: g.chatId.toString(),
+        title: g.title || 'Nomsiz guruh',
+        isEnabled: enabledGroupIds.has(g.id),
+        requiredCount: toggle?.requiredCount ?? null,
+        linkLabel: toggle?.linkLabel ?? null,
+        linkButtonStyle: toggle?.linkButtonStyle ?? null,
+      };
+    });
   });
 
   // Bitta guruhda bitta botni yoqish/o'chirish (va, "Majburiy taklif" uchun,
-  // talab qilinadigan odamlar sonini ham saqlash).
+  // talab qilinadigan odamlar sonini hamda taklif-havola tugmasining
+  // matni/rangini ham saqlash).
   fastify.put('/admin/useful-bots/:key/groups/:groupId', async (req: any, reply) => {
     if (!await requireSuperAdmin(req, reply)) return;
 
     const { key, groupId } = req.params as { key: string; groupId: string };
-    const { isEnabled, requiredCount } = req.body as { isEnabled: boolean; requiredCount?: number | null };
+    const { isEnabled, requiredCount, linkLabel, linkButtonStyle } = req.body as {
+      isEnabled: boolean; requiredCount?: number | null; linkLabel?: string | null; linkButtonStyle?: string | null;
+    };
     if (!USEFUL_BOTS.some((b) => b.key === key)) {
       return reply.status(404).send({ success: false, message: "Bunday bot topilmadi" });
     }
     if (requiredCount !== undefined && requiredCount !== null && (!Number.isInteger(requiredCount) || requiredCount < 1 || requiredCount > 1000)) {
       return reply.status(400).send({ success: false, message: "Talab son 1 dan 1000 gacha butun son bo'lishi kerak" });
+    }
+    if (linkButtonStyle && !VALID_BUTTON_STYLES.includes(linkButtonStyle)) {
+      return reply.status(400).send({ success: false, message: "Tugma rangi noto'g'ri" });
     }
 
     const group = await db.cityGroup.findUnique({ where: { id: groupId } });
@@ -3417,12 +3429,16 @@ export async function adminRoutes(fastify: FastifyInstance) {
       update: {
         isEnabled: !!isEnabled,
         ...(requiredCount !== undefined ? { requiredCount } : {}),
+        ...(linkLabel !== undefined ? { linkLabel: linkLabel?.trim() || null } : {}),
+        ...(linkButtonStyle !== undefined ? { linkButtonStyle: linkButtonStyle || null } : {}),
       },
       create: {
         cityGroupId: groupId,
         featureKey: key,
         isEnabled: !!isEnabled,
         requiredCount: requiredCount ?? null,
+        linkLabel: linkLabel?.trim() || null,
+        linkButtonStyle: linkButtonStyle || null,
       },
     });
 

@@ -149,6 +149,17 @@ model GroupFeatureToggle {
   // ochish o'rniga, bitta ixtiyoriy maydon — kelajakda sonli sozlamaga
   // muhtoj yangi "foydali bot" chiqsa ham shu ustun qayta ishlatiladi.
   requiredCount Int?
+  // Yana ikkita umumiy, FEATURE-GA XOS sozlama (2026-10) — hozircha faqat
+  // "MANDATORY_INVITE" ishlatadi: guruhdagi taklif-havola tugmasining
+  // matni va rangi (Telegram'ning haqiqiy 3 ta qiymati — "primary"/
+  // "success"/"danger"). MUHIM: bu yerda tugmaning o'zi URL'ni EMAS,
+  // faqat MATN va RANGni belgilaydi — havolaning o'zi har doim shu
+  // ANIQ foydalanuvchi uchun avtomatik yaratiladigan shaxsiy taklif
+  // havolasi (GroupInviteLink) bo'lib qoladi, chunki kim kimni taklif
+  // qilgani FAQAT shu orqali hisoblanadi — admin ixtiyoriy URL kiritsa,
+  // hisoblash ishlamay qolgan bo'lardi.
+  linkLabel       String?
+  linkButtonStyle String?
   updatedAt   DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 

@@ -14,17 +14,13 @@
  *     YAGONA signal: qaysi taklif-havola orqali kirilgani (`invite_link`).
  *     Shu orqali "kim kimni taklif qildi" aniqlanadi.
  *
- * Xabar bloklanganda: xabar o'chiriladi, shaxsiy taklif havolasi bilan
- * TO'LIQ eslatma — mashhur "do'stlaringizni taklif qiling" botlari
- * qilgani kabi — ENG AVVAL shaxsiy xabar (DM) orqali yuboriladi, chunki
- * Telegram guruh ichida "faqat bitta odamga ko'rinadigan" xabar degan
- * narsa UMUMAN yo'q (bu — platforma cheklovi, kodning kamchiligi emas).
- * Guruhning o'zida esa faqat QISQA, shaxsiy havolani FOSH qilmaydigan,
- * 5 daqiqada o'zi o'chib ketadigan umumiy eslatma qoldiriladi. Agar
- * foydalanuvchi botga shaxsiy hali /start bosmagan bo'lsa (DM
- * yuborib bo'lmaydi — Telegram'ning o'zi taqiqlaydi), ZAXIRA sifatida
- * to'liq ma'lumot (havola bilan) guruhning o'zida, baribir 5 daqiqada
- * o'chadigan qilib qoldiriladi.
+ * Xabar bloklanganda: xabar o'chiriladi, GURUHNING O'ZIDA (2026-10,
+ * foydalanuvchi so'rovi bo'yicha — avval DM orqali sinalgan edi, lekin
+ * guruhda, qisqa va tushunarli ko'rinishni afzal ko'rdi) qisqa, aniq
+ * eslatma qoldiriladi: nechta odam kerakligi, qancha qolgani va nega
+ * foydali ekani — pastida esa HAQIQIY Telegram tugma (rang — admin
+ * tanlagan, 3 ta variantdan biri) orqali shaxsiy taklif havolasi.
+ * 5 daqiqada o'zi o'chib ketadi.
  */
 
 import { Context } from 'grammy';
@@ -45,18 +41,24 @@ const lastNudgeAt = new Map<string, number>();
 // moderatsiya filtrlari bilan bir xil 1 daqiqalik kesh naqshi
 // (admin panel alohida jarayonda ishlagani uchun).
 const CONFIG_TTL_MS = 60 * 1000;
-const configCache = new Map<number, { enabled: boolean; requiredCount: number; expiresAt: number }>();
+interface GateConfig {
+  enabled: boolean;
+  requiredCount: number;
+  linkLabel: string | null;
+  linkButtonStyle: 'primary' | 'success' | 'danger' | null;
+}
+const configCache = new Map<number, GateConfig & { expiresAt: number }>();
 
-async function getGateConfig(chatId: number): Promise<{ enabled: boolean; requiredCount: number }> {
+async function getGateConfig(chatId: number): Promise<GateConfig> {
   const cached = configCache.get(chatId);
   if (cached && cached.expiresAt > Date.now()) return cached;
 
+  const empty: GateConfig = { enabled: false, requiredCount: 0, linkLabel: null, linkButtonStyle: null };
   try {
     const group = await db.cityGroup.findUnique({ where: { chatId: BigInt(chatId) } });
     if (!group) {
-      const result = { enabled: false, requiredCount: 0, expiresAt: Date.now() + CONFIG_TTL_MS };
-      configCache.set(chatId, result);
-      return result;
+      configCache.set(chatId, { ...empty, expiresAt: Date.now() + CONFIG_TTL_MS });
+      return empty;
     }
     const toggle = await db.groupFeatureToggle.findUnique({
       where: { cityGroupId_featureKey: { cityGroupId: group.id, featureKey: FEATURE_KEY } },
@@ -65,12 +67,17 @@ async function getGateConfig(chatId: number): Promise<{ enabled: boolean; requir
     // bo'lsa ham xavfsiz tomonga (ochiq) og'amiz — raqam yo'q holda hech
     // kimni cheklash ma'nosiz va xavfli.
     const enabled = !!toggle?.isEnabled && !!toggle.requiredCount && toggle.requiredCount > 0;
-    const result = { enabled, requiredCount: toggle?.requiredCount || 0, expiresAt: Date.now() + CONFIG_TTL_MS };
-    configCache.set(chatId, result);
+    const result: GateConfig = {
+      enabled,
+      requiredCount: toggle?.requiredCount || 0,
+      linkLabel: toggle?.linkLabel || null,
+      linkButtonStyle: (toggle?.linkButtonStyle as GateConfig['linkButtonStyle']) || null,
+    };
+    configCache.set(chatId, { ...result, expiresAt: Date.now() + CONFIG_TTL_MS });
     return result;
   } catch (err) {
     console.error("Majburiy taklif sozlamasini o'qishda xato:", err);
-    return { enabled: false, requiredCount: 0 };
+    return empty;
   }
 }
 
@@ -196,7 +203,7 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
   const messageId = ctx.message?.message_id;
   if (!chatId || !userId || !messageId) return false;
 
-  const { enabled, requiredCount } = await getGateConfig(chatId);
+  const { enabled, requiredCount, linkLabel, linkButtonStyle } = await getGateConfig(chatId);
   if (!enabled) return false;
 
   const cityGroupId = await resolveCityGroupId(chatId);
@@ -235,7 +242,7 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
     console.error("Majburiy taklif: xabarni o'chirishda xato:", err);
   }
 
-  // Sovish davri: xabarni o'chirib qo'yamiz, lekin yangi DM/eslatma
+  // Sovish davri: xabarni o'chirib qo'yamiz, lekin yangi eslatma bilan
   // SPAM qilmaymiz — odam qisqa vaqt ichida qayta-qayta yozsa ham.
   const cooldownKey = `${chatId}:${userId}`;
   const lastAt = lastNudgeAt.get(cooldownKey) || 0;
@@ -245,41 +252,32 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
   const personalLink = await getOrCreatePersonalInviteLink(ctx, chatId, cityGroupId, userId);
   const remaining = requiredCount - progress.invitedCount;
   const firstName = ctx.from?.first_name || 'Do‘stim';
-  const groupTitle = (ctx.chat && 'title' in ctx.chat && ctx.chat.title) || 'guruh';
 
-  const dmText =
-    `Salom, ${firstName}! 👋\n\n` +
-    `<b>${escapeHtml(groupTitle)}</b> guruhida yozish uchun avval kamida <b>${requiredCount}</b> kishini taklif qilishingiz kerak — ` +
-    `hozircha <b>${progress.invitedCount}</b> kishi qo'shgansiz, yana <b>${remaining}</b> kishi qoldi.\n\n` +
-    `Nega? Ko'proq odam bitta guruhda bo'lsa — hammaga foyda: savolingizga tezroq javob topiladi, siz ham boshqalarga yordam bera olasiz 🙌\n\n` +
-    (personalLink
-      ? `🔗 Shu SHAXSIY havola orqali taklif qiling (faqat siz uchun — kimdir shu orqali qo'shilsa, avtomatik hisoblanadi):\n${personalLink}`
-      : "⚠️ Hozircha shaxsiy havola yarata olmadim — bot guruhda kerakli huquqqa ega emas, adminlarga ayting.");
+  // Qisqa, mazmunli matn: kim, nechta kerak, nechta qoldi, nega foydali —
+  // havolaning o'zi matn ICHIDA emas, pastdagi HAQIQIY Telegram tugmada
+  // (shu bilan "silka" chiroyli, rangli tugma ko'rinishida chiqadi).
+  const text =
+    `👋 <a href="tg://user?id=${userId}">${escapeHtml(firstName)}</a>, bu guruhda yozish uchun odam taklif qiling!\n\n` +
+    `Kerak: <b>${requiredCount}</b> kishi · Qo'shdingiz: <b>${progress.invitedCount}</b> · Qoldi: <b>${remaining}</b>\n\n` +
+    `Nega? Ko'proq odam bo'lsa — hammaga foyda: savolingizga tezroq javob topiladi 🙌\n\n` +
+    `<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`;
 
-  let dmSent = false;
-  try {
-    await ctx.api.sendMessage(userId, dmText, { parse_mode: 'HTML' });
-    dmSent = true;
-  } catch (err) {
-    // Eng keng tarqalgan sabab: bu odam botga hali shaxsiy /start
-    // bosmagan — Telegram botlarga notanish odamga DM yozishni UMUMAN
-    // taqiqlaydi. Bu xato emas, oddiy holat — pastda guruhning o'zida
-    // zaxira (to'liq) xabar bilan davom etamiz.
-    console.warn(`Majburiy taklif: DM yuborib bo'lmadi (${userId}), guruhda zaxira xabar yuboriladi:`, (err as Error).message);
-  }
-
-  // Guruhdagi xabar: DM ketgan bo'lsa — QISQA, shaxsiy havolani FOSH
-  // qilmaydigan umumiy eslatma (faqat "DM'ingizga qarang" deydi). DM
-  // ketmagan bo'lsa — to'liq ma'lumot (havola bilan) shu yerning o'zida,
-  // boshqa iloj yo'qligi uchun. Ikkalasi ham 5 daqiqada o'chadi.
-  const groupText = dmSent
-    ? `👋 <a href="tg://user?id=${userId}">${escapeHtml(firstName)}</a>, guruhda yozish uchun odam taklif qilishingiz kerak — batafsil ma'lumotni shaxsiy xabaringizga yubordim 📩`
-    : dmText + `\n\n<i>Bu xabar botga shaxsiy yozilmaganingiz uchun shu yerda, barchaga ko'rinadi — keyingi safar botga /start bossangiz, shaxsiy yuboraman.</i>`;
+  const replyMarkup = personalLink
+    ? {
+        inline_keyboard: [
+          [
+            {
+              text: linkLabel || '🔗 Taklif havolam',
+              url: personalLink,
+              ...(linkButtonStyle ? { style: linkButtonStyle } : {}),
+            },
+          ],
+        ],
+      }
+    : undefined;
 
   try {
-    const sent = await ctx.reply(groupText + `\n\n<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`, {
-      parse_mode: 'HTML',
-    });
+    const sent = await ctx.reply(text, { parse_mode: 'HTML', reply_markup: replyMarkup as any });
     scheduleMessageDeletion(chatId, sent.message_id, NUDGE_AUTO_DELETE_MS).catch(() => {});
   } catch (err) {
     console.error("Majburiy taklif eslatmasini yuborishda xato:", err);

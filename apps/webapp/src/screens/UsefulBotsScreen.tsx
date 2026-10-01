@@ -23,7 +23,18 @@ interface GroupToggle {
   title: string;
   isEnabled: boolean;
   requiredCount: number | null;
+  linkLabel: string | null;
+  linkButtonStyle: string | null;
 }
+
+// Telegram Bot API'ning HAQIQIY, cheklangan 3 ta tugma rangi — boshqa
+// joylardagi (Ommaviy xabar, Xabar yuborish) bilan bir xil.
+const BUTTON_STYLES: { value: string | null; label: string; swatchClass: string }[] = [
+  { value: null, label: 'Standart', swatchClass: 'bg-ios-label-secondary/40' },
+  { value: 'primary', label: "Ko'k", swatchClass: 'bg-ios-blue' },
+  { value: 'success', label: 'Yashil', swatchClass: 'bg-ios-green' },
+  { value: 'danger', label: 'Qizil', swatchClass: 'bg-ios-red' },
+];
 
 interface AllowedDomainItem {
   id: string;
@@ -172,9 +183,12 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
     }
   };
 
-  // "Majburiy taklif" — har bir guruh uchun "necha kishi" sonini qo'lda
-  // kiritib, "Saqlash" bosilgach saqlaydi (boshqa botlarga tegishli emas).
+  // "Majburiy taklif" — har bir guruh uchun "necha kishi" sonini VA
+  // taklif-havola tugmasining matni/rangini qo'lda kiritib, "Saqlash"
+  // bosilgach bittada saqlaydi (boshqa botlarga tegishli emas).
   const [requiredCountDraft, setRequiredCountDraft] = useState<Record<string, string>>({});
+  const [linkLabelDraft, setLinkLabelDraft] = useState<Record<string, string>>({});
+  const [linkStyleDraft, setLinkStyleDraft] = useState<Record<string, string | null>>({});
   const [savingRequiredCountFor, setSavingRequiredCountFor] = useState<string | null>(null);
 
   const saveRequiredCount = async (group: GroupToggle) => {
@@ -185,16 +199,18 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
       showToast('1 dan 1000 gacha butun son kiriting', 'error');
       return;
     }
+    const linkLabel = linkLabelDraft[group.id] ?? group.linkLabel ?? '';
+    const linkButtonStyle = group.id in linkStyleDraft ? linkStyleDraft[group.id] : group.linkButtonStyle;
     setSavingRequiredCountFor(group.id);
     try {
       const res = await apiFetch(`/api/admin/useful-bots/${selectedBot.key}/groups/${group.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n }),
+        body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n, linkLabel, linkButtonStyle }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n } : g)));
+        setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n, linkLabel: linkLabel || null, linkButtonStyle } : g)));
         // Draft'ni tozalab, keyingi input HAR DOIM bazadagi eng so'nggi
         // qiymatdan boshlansin — "istalgan payt qayta o'zgartirish" shart.
         setRequiredCountDraft((prev) => {
@@ -202,6 +218,8 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
           delete next[group.id];
           return next;
         });
+        setLinkLabelDraft((prev) => { const next = { ...prev }; delete next[group.id]; return next; });
+        setLinkStyleDraft((prev) => { const next = { ...prev }; delete next[group.id]; return next; });
         showToast(`Saqlandi: ${n} kishi`, 'success');
       } else {
         showToast(data.message || 'Saqlashda xatolik yuz berdi', 'error');
@@ -430,6 +448,40 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
                       >
                         {savingRequiredCountFor === g.id ? 'Saqlanmoqda...' : 'Saqlash'}
                       </button>
+                    </div>
+
+                    {/* Taklif-havola tugmasining matni va rangi (ixtiyoriy) —
+                        havolaning O'ZI har doim shu odam uchun avtomatik
+                        yaratiladi, bu yerda faqat tugmaning ko'rinishi sozlanadi. */}
+                    <div className="mt-2.5 pt-2.5" style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+                      <p className="text-[10px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide mb-1.5">
+                        Taklif tugmasi ko'rinishi (ixtiyoriy)
+                      </p>
+                      <input
+                        type="text"
+                        value={linkLabelDraft[g.id] ?? (g.linkLabel ?? '')}
+                        onChange={(e) => setLinkLabelDraft((prev) => ({ ...prev, [g.id]: e.target.value }))}
+                        placeholder="Tugma matni, masalan: 🔗 Taklif havolam"
+                        className="w-full bg-ios-fill/[0.08] rounded-full px-3 py-1.5 text-[12px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none mb-1.5"
+                      />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {BUTTON_STYLES.map((s) => {
+                          const current = g.id in linkStyleDraft ? linkStyleDraft[g.id] : g.linkButtonStyle;
+                          return (
+                            <button
+                              key={s.label}
+                              type="button"
+                              onClick={() => setLinkStyleDraft((prev) => ({ ...prev, [g.id]: s.value }))}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border ${
+                                current === s.value ? 'border-ios-blue bg-ios-blue/10 text-ios-blue' : 'border-ios-fill/20 text-ios-label-secondary/70'
+                              }`}
+                            >
+                              <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
+                              {s.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
