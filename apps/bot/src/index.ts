@@ -5,6 +5,7 @@ import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks, sendStartWelcome } from './handlers/directHandler';
 import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
+import { initGateForNewMember, enforceInviteGate, creditInviteIfTracked, announceInviteUnlocked } from './moderation/inviteGate';
 import type { Context } from 'grammy';
 import { startDeletionWorker, redisConnection } from './queue/deleteQueue';
 import { scheduleBroadcastTicks, startBroadcastWorker } from './queue/broadcastQueue';
@@ -245,6 +246,43 @@ async function startBot() {
           data: realNewMembers.map((m) => ({ chatId, telegramUserId: BigInt(m.id) })),
         })
         .catch((err) => console.error('Failed to log GroupMemberJoinEvent:', err));
+
+      // "Majburiy taklif" (2026-10) — agar shu guruhda yoqilgan bo'lsa,
+      // har bir YANGI a'zoni "kutib turuvchi" deb belgilaydi (eski
+      // a'zolarga tegmaydi, chunki ular uchun bu hodisa umuman kelmaydi).
+      for (const m of realNewMembers) {
+        initGateForNewMember(ctx.chat.id, m.id).catch((err) =>
+          console.error('initGateForNewMember xatosi:', err)
+        );
+      }
+    }
+  });
+
+  // 3c. "Majburiy taklif" uchun: kim qaysi shaxsiy taklif havolasi orqali
+  // kirganini bildiradi (FAQAT bot shu guruhda ADMIN bo'lsa keladi).
+  // Umumiy guruh havolasi orqali kirilgan bo'lsa (bizning tizim
+  // yaratmagan havola) — hech narsa bo'lmaydi, jim o'tkazib yuboriladi.
+  bot.on('chat_member', async (ctx) => {
+    const update = ctx.chatMember;
+    if (!update) return;
+    const chat = update.chat;
+    if (chat.type !== 'group' && chat.type !== 'supergroup') return;
+
+    const prevStatus = update.old_chat_member.status;
+    const newStatus = update.new_chat_member.status;
+    const justJoined =
+      (prevStatus === 'left' || prevStatus === 'kicked') &&
+      (newStatus === 'member' || newStatus === 'administrator' || newStatus === 'restricted');
+    if (!justJoined || update.new_chat_member.user.is_bot) return;
+
+    const usedLink = update.invite_link?.invite_link;
+    try {
+      const result = await creditInviteIfTracked(chat.id, usedLink);
+      if (result) {
+        await announceInviteUnlocked(ctx, chat.id, result.newlyVerifiedUserId);
+      }
+    } catch (err) {
+      console.error('creditInviteIfTracked xatosi:', err);
     }
   });
 
@@ -278,6 +316,10 @@ async function startBot() {
       // Eski (funksiya joriy etilishidan oldin qo'shilgan) guruhlarni ham
       // orqaga qaytib "to'ldiradi" — birinchi xabar kelganda ro'yxatga tushadi
       recordGroupIfNew(ctx.chat.id, ctx.chat.title).catch(() => {});
+      // "Majburiy taklif" — agar shu odam hali yetarli odam taklif
+      // qilmagan bo'lsa, xabar shu yerda o'chirilib, eslatma bilan
+      // to'xtatiladi (handleGroupMessage'ga UMUMAN yetib bormaydi).
+      if (await enforceInviteGate(ctx)) return;
       await handleGroupMessage(ctx, cityId);
     }
   });
@@ -303,7 +345,7 @@ async function startBot() {
     // tushganda TO'LIQ ro'yxat ANIQ ko'rsatiladi, shunday qilib bu holat
     // qayta yuzaga kelmaydi.
     await bot.api.setWebhook(webhookUrl, {
-      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member'],
+      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member', 'chat_member'],
     });
     console.log(`✅ Webhook set to: ${webhookUrl}`);
 
@@ -385,7 +427,7 @@ async function startBot() {
         if (info.url !== webhookUrl) {
           console.error(`⚠️ Webhook tashqaridan o'zgargan/tozalangan (kutilgan: ${webhookUrl}, hozirgi: "${info.url}") — qayta o'rnatilmoqda...`);
           await bot.api.setWebhook(webhookUrl, {
-            allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member'],
+            allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member', 'chat_member'],
           });
           console.log(`✅ Webhook avtomatik qayta tiklandi: ${webhookUrl}`);
         }
@@ -395,6 +437,12 @@ async function startBot() {
     }, WEBHOOK_HEALTHCHECK_INTERVAL_MS).unref();
   } else {
     await bot.start({
+      // MUHIM: Telegram "chat_member" yangilanishlarini HATTO allowed_updates
+      // umuman berilmagan ("hammasi") holatda ham avtomatik YUBORMAYDI — bu
+      // alohida, aniq so'ralishi SHART bo'lgan yagona tur (rasmiy hujjatda
+      // yozilgan). Shu sabab "Majburiy taklif" funksiyasi polling rejimida
+      // ham ishlashi uchun bu yerda ham aniq ro'yxat beriladi.
+      allowed_updates: ['message', 'edited_message', 'channel_post', 'edited_channel_post', 'callback_query', 'my_chat_member', 'chat_member'],
       onStart(botInfo) {
         console.log(`======================================================`);
         console.log(`🚀 BOT POLLING MODE DA ISHGA TUSHDI!`);

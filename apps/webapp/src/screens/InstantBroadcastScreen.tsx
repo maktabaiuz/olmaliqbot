@@ -7,6 +7,15 @@ export interface InstantBroadcastScreenProps {
   onBack: () => void;
 }
 
+// Telegram Bot API'ning HAQIQIY, cheklangan 3 ta tugma rangi — BroadcastScreen'dagi
+// bilan bir xil (boshqa qiymat yo'q, Telegram'ning o'zi shuncha beradi).
+const BUTTON_STYLES: { value: string | null; label: string; swatchClass: string }[] = [
+  { value: null, label: 'Standart', swatchClass: 'bg-ios-label-secondary/40' },
+  { value: 'primary', label: "Ko'k", swatchClass: 'bg-ios-blue' },
+  { value: 'success', label: 'Yashil', swatchClass: 'bg-ios-green' },
+  { value: 'danger', label: 'Qizil', swatchClass: 'bg-ios-red' },
+];
+
 /** iOS-uslubidagi yoqish/o'chirish tugmasi — UsefulBotsScreen'dagi bilan bir xil. */
 const IosToggle: React.FC<{ enabled: boolean; onToggle: () => void; disabled?: boolean }> = ({ enabled, onToggle, disabled }) => (
   <button
@@ -37,6 +46,9 @@ export const InstantBroadcastScreen: React.FC<InstantBroadcastScreenProps> = ({ 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [sendToUsers, setSendToUsers] = useState(false);
   const [sendToGroups, setSendToGroups] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkLabel, setLinkLabel] = useState('');
+  const [linkButtonStyle, setLinkButtonStyle] = useState<string | null>('primary');
   const [userCount, setUserCount] = useState<number | null>(null);
   const [groupCount, setGroupCount] = useState<number | null>(null);
   const [loadingAudience, setLoadingAudience] = useState(true);
@@ -99,6 +111,24 @@ export const InstantBroadcastScreen: React.FC<InstantBroadcastScreenProps> = ({ 
 
   const handleSend = async () => {
     setSendError(null);
+    const trimmedLink = linkUrl.trim();
+    if (trimmedLink) {
+      // "@olmaliq_bot" kabi username'ni to'g'ridan-to'g'ri yozish — eng ko'p
+      // uchraydigan xato (BroadcastScreen'dagi bilan bir xil tekshiruv).
+      if (/^@|t\.me\/@|^https?:\/\/@/i.test(trimmedLink)) {
+        setSendError(
+          `Bot/kanal username'ini shunday yozing: https://t.me/${trimmedLink.replace(/^https?:\/\/|^t\.me\/|@/gi, '')} (@ belgisisiz)`
+        );
+        return;
+      }
+      try {
+        const parsed = new URL(trimmedLink);
+        if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) throw new Error('invalid');
+      } catch {
+        setSendError("Havola to'liq va to'g'ri bo'lishi kerak, masalan: https://t.me/olmaliq_bot");
+        return;
+      }
+    }
     const recipients: string[] = [];
     if (sendToUsers) recipients.push(`${userCount ?? 0} ta foydalanuvchiga`);
     if (sendToGroups) recipients.push(`${groupCount ?? 0} ta guruhga`);
@@ -114,7 +144,15 @@ export const InstantBroadcastScreen: React.FC<InstantBroadcastScreenProps> = ({ 
       const res = await fetch('/api/admin/broadcast-instant', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text, photoUrls, sendToUsers, sendToGroups }),
+        body: JSON.stringify({
+          text,
+          photoUrls,
+          sendToUsers,
+          sendToGroups,
+          linkUrl: trimmedLink || null,
+          linkLabel: linkLabel.trim() || null,
+          linkButtonStyle: trimmedLink ? linkButtonStyle : null,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
@@ -123,6 +161,9 @@ export const InstantBroadcastScreen: React.FC<InstantBroadcastScreenProps> = ({ 
         setPhotoUrls([]);
         setSendToUsers(false);
         setSendToGroups(false);
+        setLinkUrl('');
+        setLinkLabel('');
+        setLinkButtonStyle('primary');
       } else {
         setSendError(data.message || 'Yuborishda xatolik yuz berdi');
       }
@@ -205,6 +246,46 @@ export const InstantBroadcastScreen: React.FC<InstantBroadcastScreenProps> = ({ 
             </label>
           )}
           {photoUploadError && <p className="text-ios-red text-[11px] font-medium">{photoUploadError}</p>}
+        </div>
+
+        {/* HAVOLA (REKLAMA TUGMASI, IXTIYORIY) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide">Havola tugmasi (ixtiyoriy)</label>
+          <p className="text-[10px] text-ios-label-secondary/60 -mt-1">
+            Berilsa, xabar ostida bosiladigan tugma chiqadi — masalan kanalga o'tish uchun.
+          </p>
+          <input
+            type="text"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://t.me/..."
+            className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
+          />
+          <input
+            type="text"
+            value={linkLabel}
+            onChange={(e) => setLinkLabel(e.target.value)}
+            placeholder="Tugma matni, masalan: Kanalga o'tish"
+            className="w-full bg-ios-fill/[0.08] rounded-ios px-3.5 py-2.5 text-[13px] text-ios-label placeholder:text-ios-label-secondary/50 outline-none"
+          />
+          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            <span className="text-[10px] font-semibold text-ios-label-secondary/70 uppercase mr-1">Tugma rangi:</span>
+            {BUTTON_STYLES.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => setLinkButtonStyle(s.value)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
+                  linkButtonStyle === s.value
+                    ? 'border-ios-blue bg-ios-blue/10 text-ios-blue'
+                    : 'border-ios-fill/20 text-ios-label-secondary/70'
+                }`}
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${s.swatchClass}`} />
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* QABUL QILUVCHILAR — Apple-uslub tugmalar */}

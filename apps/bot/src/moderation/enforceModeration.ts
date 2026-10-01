@@ -100,7 +100,7 @@ async function getGroupModerationConfig(chatId: number): Promise<GroupModeration
 // API'ga qayta so'rov yubormaslik uchun.
 const ownerCache = new Map<string, { isOwner: boolean; expiresAt: number }>();
 
-async function isGroupOwner(ctx: Context, chatId: number, userId: number): Promise<boolean> {
+export async function isGroupOwner(ctx: Context, chatId: number, userId: number): Promise<boolean> {
   const cacheKey = `${chatId}:${userId}`;
   const cached = ownerCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.isOwner;
@@ -116,7 +116,7 @@ async function isGroupOwner(ctx: Context, chatId: number, userId: number): Promi
   }
 }
 
-async function isSuperAdmin(telegramUserId: bigint): Promise<boolean> {
+export async function isSuperAdmin(telegramUserId: bigint): Promise<boolean> {
   try {
     const user = await db.user.findUnique({ where: { telegramId: telegramUserId } });
     return user?.role === 'SUPER_ADMIN';

@@ -217,7 +217,7 @@ export function checkEasyModerationFilters(
 // nom/tavsif ikki joyda alohida-alohida yozilib, bir-biridan uzoqlashib
 // qolmaydi.
 export interface UsefulBotDefinition {
-  key: 'PROFANITY' | 'SPAM_LINK' | 'GAMBLING' | 'SCAM' | 'FLOOD';
+  key: 'PROFANITY' | 'SPAM_LINK' | 'GAMBLING' | 'SCAM' | 'FLOOD' | 'MANDATORY_INVITE';
   name: string;
   description: string;
   icon: string;
@@ -253,5 +253,11 @@ export const USEFUL_BOTS: UsefulBotDefinition[] = [
     name: 'Flud filtri',
     description: "Bir zumda ko'p xabar yozishni (spam-bombardimon) to'xtatadi. Haqiqiy so'rovlarga tegmaydi.",
     icon: '🌊',
+  },
+  {
+    key: 'MANDATORY_INVITE',
+    name: 'Majburiy taklif',
+    description: "Yangi qo'shilgan a'zo, belgilangan sondagi odam taklif qilmaguncha, guruhda yoza olmaydi (bot admin bo'lishi shart).",
+    icon: '🎟️',
   },
 ];

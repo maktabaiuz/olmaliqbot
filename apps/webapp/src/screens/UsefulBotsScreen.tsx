@@ -21,6 +21,7 @@ interface GroupToggle {
   chatId: string;
   title: string;
   isEnabled: boolean;
+  requiredCount: number | null;
 }
 
 interface AllowedDomainItem {
@@ -150,6 +151,12 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
     const nextEnabled = !group.isEnabled;
     // Optimistic: darhol ekranda yangilanadi, xato bo'lsa qaytariladi.
     setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, isEnabled: nextEnabled } : g)));
+    // "Majburiy taklif"ni yoqishda, agar hali son kiritilmagan bo'lsa —
+    // kiritish maydonini darhol ochib qo'yamiz (aks holda son=0/bo'sh
+    // holda yoqilgan botning hech qanday ma'nosi yo'q).
+    if (selectedBot.key === 'MANDATORY_INVITE' && nextEnabled && !group.requiredCount) {
+      setExpandedGroupId(group.id);
+    }
     try {
       const res = await apiFetch(`/api/admin/useful-bots/${selectedBot.key}/groups/${group.id}`, {
         method: 'PUT',
@@ -160,6 +167,39 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
     } catch (err) {
       console.error('Failed to toggle bot for group:', err);
       setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, isEnabled: !nextEnabled } : g)));
+    }
+  };
+
+  // "Majburiy taklif" — har bir guruh uchun "necha kishi" sonini qo'lda
+  // kiritib, "Saqlash" bosilgach saqlaydi (boshqa botlarga tegishli emas).
+  const [requiredCountDraft, setRequiredCountDraft] = useState<Record<string, string>>({});
+  const [savingRequiredCountFor, setSavingRequiredCountFor] = useState<string | null>(null);
+
+  const saveRequiredCount = async (group: GroupToggle) => {
+    if (!selectedBot) return;
+    const raw = (requiredCountDraft[group.id] ?? String(group.requiredCount ?? '')).trim();
+    const n = Number(raw);
+    if (!raw || !Number.isInteger(n) || n < 1 || n > 1000) {
+      alert("1 dan 1000 gacha butun son kiriting");
+      return;
+    }
+    setSavingRequiredCountFor(group.id);
+    try {
+      const res = await apiFetch(`/api/admin/useful-bots/${selectedBot.key}/groups/${group.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n }),
+      });
+      if (res.ok) {
+        setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n } : g)));
+      } else {
+        alert('Saqlashda xatolik yuz berdi');
+      }
+    } catch (err) {
+      console.error('Failed to save requiredCount:', err);
+      alert('Aloqa xatoligi');
+    } finally {
+      setSavingRequiredCountFor(null);
     }
   };
 
@@ -298,6 +338,14 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
                         {expandedGroupId === g.id ? 'Yopish' : 'Domenlar'}
                       </button>
                     )}
+                    {selectedBot.key === 'MANDATORY_INVITE' && (
+                      <button
+                        onClick={() => setExpandedGroupId(expandedGroupId === g.id ? null : g.id)}
+                        className="text-[11px] font-semibold text-ios-blue px-2 py-1 rounded-ios active:bg-ios-blue/10"
+                      >
+                        {expandedGroupId === g.id ? 'Yopish' : g.requiredCount ? `${g.requiredCount} kishi` : 'Soni'}
+                      </button>
+                    )}
                     <IosToggle enabled={g.isEnabled} onToggle={() => toggleGroup(g)} />
                   </div>
                 </div>
@@ -341,6 +389,35 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
                         className="bg-ios-blue text-white text-[12px] font-bold px-3 py-1.5 rounded-full shrink-0"
                       >
                         Qo'shish
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* "Necha kishi taklif qilish shart" — faqat Majburiy taklif uchun */}
+                {selectedBot.key === 'MANDATORY_INVITE' && expandedGroupId === g.id && (
+                  <div className="px-4 pb-3.5 pt-1 bg-ios-fill/[0.04]">
+                    <p className="text-[11px] text-ios-label-secondary/70 mb-2">
+                      Yangi a'zo shuncha odam taklif qilmaguncha, bu guruhda yoza olmaydi.
+                      Bot shu guruhda ADMIN bo'lishi (va taklif havolasi yaratish huquqi) shart.
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        value={requiredCountDraft[g.id] ?? (g.requiredCount ?? '')}
+                        onChange={(e) => setRequiredCountDraft((prev) => ({ ...prev, [g.id]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveRequiredCount(g); }}
+                        placeholder="masalan: 10"
+                        className="flex-1 bg-ios-fill/[0.08] rounded-full px-3 py-1.5 text-[12px] text-ios-label outline-none"
+                      />
+                      <button
+                        onClick={() => saveRequiredCount(g)}
+                        disabled={savingRequiredCountFor === g.id}
+                        className="bg-ios-blue text-white text-[12px] font-bold px-3 py-1.5 rounded-full shrink-0 disabled:opacity-50"
+                      >
+                        {savingRequiredCountFor === g.id ? 'Saqlanmoqda...' : 'Saqlash'}
                       </button>
                     </div>
                   </div>

@@ -125,6 +125,8 @@ model CityGroup {
 
   featureToggles GroupFeatureToggle[]
   allowedDomains AllowedDomain[]
+  inviteLinks    GroupInviteLink[]
+  inviteProgress GroupInviteProgress[]
 
   @@map("city_groups")
 }
@@ -139,13 +141,57 @@ model GroupFeatureToggle {
   id          String    @id @default(uuid())
   cityGroupId String
   cityGroup   CityGroup @relation(fields: [cityGroupId], references: [id], onDelete: Cascade)
-  featureKey  String    // "PROFANITY" | "SPAM_LINK" | "GAMBLING" | "SCAM" | "FLOOD"
+  featureKey  String    // "PROFANITY" | "SPAM_LINK" | "GAMBLING" | "SCAM" | "FLOOD" | "MANDATORY_INVITE"
   isEnabled   Boolean   @default(false)
+  // Umumiy, FEATURE-GA XOS sonli sozlama (2026-10) — hozircha faqat
+  // "MANDATORY_INVITE" ishlatadi ("necha kishi taklif qilish shart"),
+  // boshqa botlar uchun har doim null. Har bir bot uchun alohida ustun
+  // ochish o'rniga, bitta ixtiyoriy maydon — kelajakda sonli sozlamaga
+  // muhtoj yangi "foydali bot" chiqsa ham shu ustun qayta ishlatiladi.
+  requiredCount Int?
   updatedAt   DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 
   @@unique([cityGroupId, featureKey])
   @@map("group_feature_toggles")
+}
+
+// "Majburiy taklif" (MANDATORY_INVITE) foydali boti uchun (2026-10):
+// yangi qo'shilgan har bir a'zoga, admin belgilagan sondagi odamni
+// taklif qilmaguncha, shu guruhda yozish TAQIQLANADI. Har bir "kutib
+// turgan" a'zoga o'ziga xos (createChatInviteLink orqali yaratilgan)
+// taklif havolasi beriladi — shu havola orqali qo'shilgan YANGI odamlar
+// sanaladi, umumiy guruh havolasi orqali kirganlar emas (aks holda kim
+// kimni taklif qilganini bilib bo'lmas edi).
+model GroupInviteLink {
+  id                String    @id @default(uuid())
+  cityGroupId       String
+  cityGroup         CityGroup @relation(fields: [cityGroupId], references: [id], onDelete: Cascade)
+  inviterTelegramId BigInt    // shu havolaning egasi — kim ulashishi kerak
+  inviteLink        String    @unique // Telegram'ning to'liq havola matni — chat_member yangilanishida shu orqali tanib olinadi
+  createdAt         DateTime  @default(now())
+
+  @@unique([cityGroupId, inviterTelegramId])
+  @@map("group_invite_links")
+}
+
+// Har bir (guruh, yangi a'zo) juftligi uchun — nechta odam HAQIQATDA
+// taklif qilib qo'shilgani va shu orqali "ochilgan"mi. Qator FAQAT
+// MANDATORY_INVITE yoqilgan guruhga, feature yoqiq PAYTDA qo'shilgan
+// a'zolar uchun yaratiladi — shu sabab eski, oldindan a'zo bo'lganlar
+// avtomatik "mustasno" (qatori yo'q, demak cheklanmagan) hisoblanadi.
+model GroupInviteProgress {
+  id             String    @id @default(uuid())
+  cityGroupId    String
+  cityGroup      CityGroup @relation(fields: [cityGroupId], references: [id], onDelete: Cascade)
+  telegramUserId BigInt    // cheklangan, "kutib turgan" yangi a'zo
+  invitedCount   Int       @default(0)
+  isVerified     Boolean   @default(false) // true bo'lgach cheklov butunlay olib tashlanadi
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([cityGroupId, telegramUserId])
+  @@map("group_invite_progress")
 }
 
 // Admin panelidan yaratiladigan, rejalashtirilgan ommaviy xabar (broadcast) —
