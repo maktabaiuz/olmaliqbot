@@ -1170,9 +1170,29 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const msgContentTokens = rawTokensForCore.filter(
       (w, idx) => !negatedForCore.has(idx) && isContentToken(w, cityWords)
     );
+    // MUHIM (2026-10-02, real skrinshot: "To'ytepa pavarodi ochiqmi" —
+    // yo'l haqidagi savol — "Oqtepa lavash"ni ochib yuborgan edi): kontent
+    // so'zlari 3 harfdan qisqasini tashlab yuboradi, shu sabab "oq tepa"
+    // jargoni amalda faqat "tepa"ga aylanib qolgan va har qanday "...tepa"
+    // joy nomiga (To'ytepa, Qiziltepa) "kuchli" mos kelgan. Qisqa, lekin
+    // ma'no beruvchi so'z ("oq", "n1") xabarda ham bo'lishi SHART —
+    // alohida so'z sifatida yoki keyingi so'zga yopishgan holda ("oqtepa").
+    const msgTokenSetForShort = new Set(rawTokensForCore.filter((_, idx) => !negatedForCore.has(idx)));
+    const jargonMissesShortToken = (phrase: string): boolean => {
+      const toks = normalizeText(phrase).split(/\s+/).filter(Boolean);
+      return toks.some((t, i) => {
+        if (t.length >= 3 || !/^[a-z0-9']+$/.test(t)) return false;
+        if (isNoiseWord(t) || isGenericFillerWord(t) || isGenericContactWord(t)) return false;
+        if (msgTokenSetForShort.has(t)) return false;
+        const glued = i + 1 < toks.length ? t + toks[i + 1] : null;
+        if (glued && [...msgTokenSetForShort].some((m) => m.startsWith(glued))) return false;
+        return true;
+      });
+    };
     for (const cand of jargonCandidates) {
       let strength: JargonMatchStrength = null;
       for (const j of cand.jargonSynonyms) {
+        if (jargonMissesShortToken(j)) continue;
         const phraseStrength = phraseLevelJargonStrength(
           msgContentTokens,
           j,
