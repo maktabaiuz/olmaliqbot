@@ -28,15 +28,10 @@ jobs:
               }
               (async () => {
                 const me = await call('getMe', {});
-                console.log('out:ME=' + JSON.stringify({ username: me.result.username, can_read_all_group_messages: me.result.can_read_all_group_messages }));
-              })();
-            "
-            echo '--- bot status per group ---'
-            docker exec kimbor_api node -e "
-              const { db } = require('/app/packages/db/dist/index.js');
-              (async () => {
-                const groups = await db.cityGroup.findMany({ select: { title: true, chatId: true } });
-                console.log('out:GROUPS=' + JSON.stringify(groups.map(g => ({ title: g.title, chatId: g.chatId.toString() }))));
-                await db.\$disconnect();
+                const groupIds = ['-1003196202156','-1002421893642','-1004480934800','-1001450628134','-1001647665739'];
+                for (const gid of groupIds) {
+                  const m = await call('getChatMember', { chat_id: gid, user_id: me.result.id });
+                  console.log('out:' + gid + '=' + JSON.stringify(m.ok ? { status: m.result.status } : m));
+                }
               })();
             "
