@@ -1,11 +1,6 @@
 name: Analyze production usage (data-driven insights)
-
-# Guruhlardagi haqiqiy foydalanuvchi so'rovlarini, bazadagi bo'shliqlarni va
-# umumiy statistikani tahlil qilish uchun — yangi funksiya tavsiyalarini
-# taxminlar emas, HAQIQIY ma'lumotlarga asoslab berish uchun.
 on:
   workflow_dispatch:
-
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -26,25 +21,7 @@ jobs:
               const j = (o) => JSON.stringify(o, (k,v) => typeof v === 'bigint' ? v.toString() : v);
               (async () => {
                 const city = await db.city.findFirst();
-
-                const allListings = await db.listing.findMany({
-                  where: { cityId: city.id, status: 'ACTIVE' },
-                  select: { id: true, name: true, jargonSynonyms: true, primaryLandmarkId: true, categoryId: true, category: { select: { name: true } } },
-                });
-                const withKalonka = allListings.filter(l => l.jargonSynonyms.some(s => s.toLowerCase().includes('kalonka')) || l.name.toLowerCase().includes('kalonka'));
-                console.log('out:LISTINGS_WITH_KALONKA=' + j(withKalonka));
-
-                const allLandmarks = await db.landmark.findMany({ where: { cityId: city.id }, select: { id: true, name: true, synonyms: true } });
-                const lmWithKalonka = allLandmarks.filter(l => l.name.toLowerCase().includes('kalonka') || l.synonyms.some(s => s.toLowerCase().includes('kalonka')));
-                console.log('out:LANDMARKS_WITH_KALONKA=' + j(lmWithKalonka));
-
-                const behruz = await db.listing.findFirst({ where: { name: { contains: 'Behruz', mode: 'insensitive' }, cityId: city.id }, select: { id: true, name: true, jargonSynonyms: true, primaryLandmarkId: true, category: { select: { name: true } } } });
-                console.log('out:BEHRUZ=' + j(behruz));
-
-                const tvUsta = await db.listing.findMany({ where: { cityId: city.id, category: { name: { contains: 'Televizor', mode: 'insensitive' } } }, select: { id: true, name: true, jargonSynonyms: true, primaryLandmarkId: true, primaryLandmark: { select: { name: true } } } });
-                console.log('out:TV_USTA=' + j(tvUsta));
-
-                const m = 'Akala Alisa aqlli kalonka qayerda sotadi bilmislami';
+                const m = 'Radugada korzinkani yonida TELEFON.UZB';
                 const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
                 console.log('out:CLASSIFY=' + j(c));
                 const isSeeking = c.intent !== 'NOT_RELEVANT' && c.intent !== 'SELF_OFFER';
@@ -61,6 +38,10 @@ jobs:
                   debug: true,
                 });
                 console.log('out:RESULT=' + j(r ? { name: r.listing?.name, id: r.listingId, total: r.totalMatches, breakdown: r.scoreBreakdown } : null));
+
+                // category objectType for Malyar and Televizor ustasi
+                const cats = await db.category.findMany({ where: { name: { in: ['Malyar', 'Televizor ustasi'] } }, select: { name: true, objectType: true } });
+                console.log('out:CAT_OBJTYPES=' + j(cats));
 
                 await db.\$disconnect();
               })().catch(e=>{console.error('ERR', e.stack); process.exit(1)});
