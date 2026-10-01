@@ -14,17 +14,4 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
-            docker exec kimbor_bot node -e "
-              const { Bot } = require('/app/node_modules/.pnpm/grammy@1.21.1/node_modules/grammy');
-              const sub = require('/app/apps/bot/dist/subscription/requiredChannels.js');
-              const bot = new Bot(process.env.BOT_TOKEN);
-              (async () => {
-                await bot.init();
-                // Haqiqatan hech qachon a'zo bo'lmagan tasodifiy test ID
-                const missing1 = await sub.getMissingChannels(bot.api, 123456789);
-                console.log('out:NON_MEMBER_missing=' + JSON.stringify(missing1.map(c => c.title)));
-                // Kanal admini (a'zo) - bo'sh bo'lishi kerak
-                const missing2 = await sub.getMissingChannels(bot.api, 358795989);
-                console.log('out:ADMIN_USER_missing=' + JSON.stringify(missing2.map(c => c.title)));
-              })();
-            "
+            docker exec kimbor_bot sh -c "find /app/node_modules -maxdepth 3 -iname 'grammy' -type d 2>/dev/null | head -5"
