@@ -14,11 +14,4 @@ jobs:
           timeout: 60s
           command_timeout: 5m
           script: |
-            docker exec kimbor_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SHOW max_connections;" -c "SELECT count(*) AS conns FROM pg_stat_activity;" -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 8;" -c "SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size;"'
-            echo "--- per-hour peak queries (last 7 days) ---"
-            docker exec kimbor_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT date_trunc('"'"'hour'"'"', created_at) h, count(*) FROM query_logs WHERE created_at > now() - interval '"'"'7 days'"'"' GROUP BY 1 ORDER BY 2 DESC LIMIT 3;"'
-            echo "--- bot response time p50/p95 (ms, last 7 days) ---"
-            docker exec kimbor_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY response_time_ms) p50, percentile_cont(0.95) WITHIN GROUP (ORDER BY response_time_ms) p95 FROM query_logs WHERE response_time_ms IS NOT NULL AND created_at > now() - interval '"'"'7 days'"'"';"'
-            echo "--- gemini rate-limit / errors in bot logs (last 2000 lines) ---"
-            docker logs --tail 2000 kimbor_bot 2>&1 | grep -ci "429\|rate" || true
-            docker logs --tail 2000 kimbor_bot 2>&1 | grep -ci "Too Many Requests" || true
+            docker exec kimbor_postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT date_trunc('"'"'hour'"'"', \"createdAt\") h, count(*) FROM query_logs WHERE \"createdAt\" > now() - interval '"'"'14 days'"'"' GROUP BY 1 ORDER BY 2 DESC LIMIT 3;" -c "SELECT date_trunc('"'"'minute'"'"', \"createdAt\") m, count(*) FROM query_logs WHERE \"createdAt\" > now() - interval '"'"'14 days'"'"' GROUP BY 1 ORDER BY 2 DESC LIMIT 3;" -c "SELECT round(percentile_cont(0.5) WITHIN GROUP (ORDER BY \"responseTimeMs\")) p50, round(percentile_cont(0.95) WITHIN GROUP (ORDER BY \"responseTimeMs\")) p95, count(*) n FROM query_logs WHERE \"responseTimeMs\" IS NOT NULL;"'
