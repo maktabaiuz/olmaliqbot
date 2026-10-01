@@ -14,9 +14,17 @@
  *     YAGONA signal: qaysi taklif-havola orqali kirilgani (`invite_link`).
  *     Shu orqali "kim kimni taklif qildi" aniqlanadi.
  *
- * Xabar bloklanganda: xabar o'chiriladi, o'rniga muloyim, shaxsan
- * unga qaratilgan (reply) va qisqa muddatli (avtomatik o'chadigan)
- * eslatma yuboriladi — o'zining shaxsiy taklif havolasi bilan.
+ * Xabar bloklanganda: xabar o'chiriladi, shaxsiy taklif havolasi bilan
+ * TO'LIQ eslatma — mashhur "do'stlaringizni taklif qiling" botlari
+ * qilgani kabi — ENG AVVAL shaxsiy xabar (DM) orqali yuboriladi, chunki
+ * Telegram guruh ichida "faqat bitta odamga ko'rinadigan" xabar degan
+ * narsa UMUMAN yo'q (bu — platforma cheklovi, kodning kamchiligi emas).
+ * Guruhning o'zida esa faqat QISQA, shaxsiy havolani FOSH qilmaydigan,
+ * 5 daqiqada o'zi o'chib ketadigan umumiy eslatma qoldiriladi. Agar
+ * foydalanuvchi botga shaxsiy hali /start bosmagan bo'lsa (DM
+ * yuborib bo'lmaydi — Telegram'ning o'zi taqiqlaydi), ZAXIRA sifatida
+ * to'liq ma'lumot (havola bilan) guruhning o'zida, baribir 5 daqiqada
+ * o'chadigan qilib qoldiriladi.
  */
 
 import { Context } from 'grammy';
@@ -25,7 +33,13 @@ import { scheduleMessageDeletion } from '../queue/deleteQueue';
 import { isGroupOwner, isSuperAdmin } from './enforceModeration';
 
 const FEATURE_KEY = 'MANDATORY_INVITE';
-const NUDGE_AUTO_DELETE_MS = 3 * 60 * 1000; // 3 daqiqa — havolani ko'chirib olishga yetarli vaqt
+const NUDGE_AUTO_DELETE_MS = 5 * 60 * 1000; // 5 daqiqa (foydalanuvchi so'ragan muddat)
+
+// Bitta odam ketma-ket bir necha marta yozishga urinsa (hali bloklangan
+// holatda), har safar yangi DM/eslatma yubormasdan, qisqa "sovish" vaqti
+// qo'yamiz — aks holda u DM'da spam ko'rib, botni bloklab qo'yishi mumkin.
+const RENOTIFY_COOLDOWN_MS = 60 * 1000;
+const lastNudgeAt = new Map<string, number>();
 
 // Guruh bo'yicha yoqilgan/o'chirilganligi va talab son — boshqa
 // moderatsiya filtrlari bilan bir xil 1 daqiqalik kesh naqshi
@@ -213,36 +227,69 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
     return false;
   }
 
-  // BLOKLASH: xabarni o'chirib, shaxsiy taklif havolasi bilan muloyim
-  // eslatma yuboramiz.
+  // BLOKLASH: xabarni darhol o'chiramiz — bu qism har doim bajariladi,
+  // "sovish" davrida ham (aks holda odam bloklanmagan his qilib qoladi).
   try {
     await ctx.deleteMessage();
   } catch (err) {
     console.error("Majburiy taklif: xabarni o'chirishda xato:", err);
   }
 
+  // Sovish davri: xabarni o'chirib qo'yamiz, lekin yangi DM/eslatma
+  // SPAM qilmaymiz — odam qisqa vaqt ichida qayta-qayta yozsa ham.
+  const cooldownKey = `${chatId}:${userId}`;
+  const lastAt = lastNudgeAt.get(cooldownKey) || 0;
+  if (Date.now() - lastAt < RENOTIFY_COOLDOWN_MS) return true;
+  lastNudgeAt.set(cooldownKey, Date.now());
+
   const personalLink = await getOrCreatePersonalInviteLink(ctx, chatId, cityGroupId, userId);
   const remaining = requiredCount - progress.invitedCount;
   const firstName = ctx.from?.first_name || 'Do‘stim';
+  const groupTitle = (ctx.chat && 'title' in ctx.chat && ctx.chat.title) || 'guruh';
 
-  const text =
+  const dmText =
     `Salom, ${firstName}! 👋\n\n` +
-    `Bu guruhda yozish uchun avval kamida <b>${requiredCount}</b> kishini taklif qilishingiz kerak — ` +
+    `<b>${escapeHtml(groupTitle)}</b> guruhida yozish uchun avval kamida <b>${requiredCount}</b> kishini taklif qilishingiz kerak — ` +
     `hozircha <b>${progress.invitedCount}</b> kishi qo'shgansiz, yana <b>${remaining}</b> kishi qoldi.\n\n` +
     `Nega? Ko'proq odam bitta guruhda bo'lsa — hammaga foyda: savolingizga tezroq javob topiladi, siz ham boshqalarga yordam bera olasiz 🙌\n\n` +
     (personalLink
-      ? `🔗 Shu shaxsiy havola orqali taklif qiling (avtomatik hisoblanadi):\n${personalLink}\n\n`
-      : '') +
-    `<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`;
+      ? `🔗 Shu SHAXSIY havola orqali taklif qiling (faqat siz uchun — kimdir shu orqali qo'shilsa, avtomatik hisoblanadi):\n${personalLink}`
+      : "⚠️ Hozircha shaxsiy havola yarata olmadim — bot guruhda kerakli huquqqa ega emas, adminlarga ayting.");
+
+  let dmSent = false;
+  try {
+    await ctx.api.sendMessage(userId, dmText, { parse_mode: 'HTML' });
+    dmSent = true;
+  } catch (err) {
+    // Eng keng tarqalgan sabab: bu odam botga hali shaxsiy /start
+    // bosmagan — Telegram botlarga notanish odamga DM yozishni UMUMAN
+    // taqiqlaydi. Bu xato emas, oddiy holat — pastda guruhning o'zida
+    // zaxira (to'liq) xabar bilan davom etamiz.
+    console.warn(`Majburiy taklif: DM yuborib bo'lmadi (${userId}), guruhda zaxira xabar yuboriladi:`, (err as Error).message);
+  }
+
+  // Guruhdagi xabar: DM ketgan bo'lsa — QISQA, shaxsiy havolani FOSH
+  // qilmaydigan umumiy eslatma (faqat "DM'ingizga qarang" deydi). DM
+  // ketmagan bo'lsa — to'liq ma'lumot (havola bilan) shu yerning o'zida,
+  // boshqa iloj yo'qligi uchun. Ikkalasi ham 5 daqiqada o'chadi.
+  const groupText = dmSent
+    ? `👋 <a href="tg://user?id=${userId}">${escapeHtml(firstName)}</a>, guruhda yozish uchun odam taklif qilishingiz kerak — batafsil ma'lumotni shaxsiy xabaringizga yubordim 📩`
+    : dmText + `\n\n<i>Bu xabar botga shaxsiy yozilmaganingiz uchun shu yerda, barchaga ko'rinadi — keyingi safar botga /start bossangiz, shaxsiy yuboraman.</i>`;
 
   try {
-    const sent = await ctx.reply(text, { parse_mode: 'HTML' });
+    const sent = await ctx.reply(groupText + `\n\n<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`, {
+      parse_mode: 'HTML',
+    });
     scheduleMessageDeletion(chatId, sent.message_id, NUDGE_AUTO_DELETE_MS).catch(() => {});
   } catch (err) {
     console.error("Majburiy taklif eslatmasini yuborishda xato:", err);
   }
 
   return true;
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /** Chegaraga yetib, ENDI ochilgan odamni guruhda tabriklaydi. */
