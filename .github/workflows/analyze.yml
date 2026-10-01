@@ -35,11 +35,7 @@ jobs:
                 });
               }
               (async () => {
-                const me = await call('getMe', {});
-                console.log('out:ME=' + JSON.stringify(me.result && { id: me.result.id, username: me.result.username }));
-                const chat = await call('getChat', { chat_id: '@Olmaliqlik' });
-                console.log('out:CHAT=' + JSON.stringify(chat.ok ? { id: chat.result.id, type: chat.result.type, title: chat.result.title } : chat));
-                const member = await call('getChatMember', { chat_id: '@Olmaliqlik', user_id: me.result.id });
-                console.log('out:BOT_MEMBER=' + JSON.stringify(member.ok ? { status: member.result.status } : member));
+                const admins = await call('getChatAdministrators', { chat_id: '@Olmaliqlik' });
+                console.log('out:ADMINS=' + JSON.stringify(admins.ok ? admins.result.map(a => ({ status: a.status, id: a.user.id, username: a.user.username, is_bot: a.user.is_bot })) : admins));
               })();
             "
