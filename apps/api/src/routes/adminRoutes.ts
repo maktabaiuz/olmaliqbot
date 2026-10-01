@@ -1488,6 +1488,155 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // (yangi yozuv qo'shishda tanlangan kasb/soha) tegishli so'zlarni
   // qaytaradi (2026-09-28, "yangi odam qo'shganimda ... mos mahalliy
   // so'zlarni avtomatik chiqarib bersin" so'roviga ko'ra).
+  // ===========================================================
+  // MAJBURIY OBUNA (2026-10) — bot /start va shaxsiy xabarlarda shu
+  // ro'yxatdagi barcha yoqilgan kanallarga obunani talab qiladi.
+  // ===========================================================
+  const telegramApi = async (method: string, params: Record<string, unknown>) => {
+    const token = process.env.BOT_TOKEN;
+    if (!token) return null;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      return (await res.json()) as { ok: boolean; result?: any; description?: string };
+    } catch {
+      return null;
+    }
+  };
+  let cachedBotId: number | null = null;
+  const deriveChannelChatId = (url: string): string | null => {
+    const m = url.trim().match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{4,})\/?$/);
+    return m ? `@${m[1]}` : null;
+  };
+  /** Bot shu kanalda admin ekanini tekshiradi (aks holda obunani tekshira olmaydi). */
+  const checkBotIsAdmin = async (chatId: string | null): Promise<{ ok: boolean; reason?: string }> => {
+    if (!chatId) return { ok: false, reason: "Chat ID aniqlanmadi — yopiq havola bo'lsa, Chat ID'ni qo'lda kiriting" };
+    if (!cachedBotId) {
+      const me = await telegramApi('getMe', {});
+      cachedBotId = me?.result?.id ?? null;
+    }
+    if (!cachedBotId) return { ok: false, reason: 'Telegram bilan bog\'lanib bo\'lmadi' };
+    const r = await telegramApi('getChatMember', { chat_id: chatId, user_id: cachedBotId });
+    if (!r?.ok) return { ok: false, reason: r?.description || 'Kanal topilmadi' };
+    const st = r.result?.status;
+    return st === 'administrator' || st === 'creator' ? { ok: true } : { ok: false, reason: 'Bot bu kanalda admin emas' };
+  };
+
+  const auditChannelChange = async (req: any, action: string, details: Record<string, unknown>) => {
+    try {
+      const { user } = await authenticateRequest(req);
+      await db.auditLog.create({ data: { userId: user?.id, cityId: user?.cityId || undefined, action, details: details as any } });
+    } catch (err) {
+      console.error('Failed to write channel audit log:', err);
+    }
+  };
+
+  // ===========================================================
+  // FOYDALANUVCHILAR YUBORGAN MA'LUMOTLAR (Candidate) — 2026-10.
+  // Avval bot ("Adminga yuborildi") va AI suhbat bu jadvalga yozardi,
+  // lekin admin panelda ularni ko'radigan joy UMUMAN yo'q edi.
+  // ===========================================================
+  fastify.get('/admin/candidates', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const rows = await db.candidate.findMany({
+      where: { cityId, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { category: { select: { name: true } }, primaryLandmark: { select: { name: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      categoryName: r.category?.name || null,
+      landmarkName: r.primaryLandmark?.name || null,
+      source: r.source,
+      submittedBy: r.submittedBy,
+      mentionCount: r.mentionCount,
+      createdAt: r.createdAt,
+    }));
+  });
+
+  fastify.post('/admin/candidates/:id/status', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const cityId = await getCityId(req);
+    const { id } = req.params as { id: string };
+    const { status } = (req.body || {}) as { status?: string };
+    if (status !== 'APPROVED' && status !== 'REJECTED') {
+      return reply.status(400).send({ success: false, message: "status APPROVED yoki REJECTED bo'lishi kerak" });
+    }
+    const result = await db.candidate.updateMany({ where: { id, cityId }, data: { status } });
+    if (result.count === 0) return reply.status(404).send({ success: false, message: 'Topilmadi' });
+    await auditChannelChange(req, `CANDIDATE_${status}`, { id });
+    return { success: true };
+  });
+
+  fastify.get('/admin/required-channels', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const rows = await db.requiredChannel.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    return Promise.all(
+      rows.map(async (r) => {
+        const status = await checkBotIsAdmin(r.chatId || deriveChannelChatId(r.url));
+        return { ...r, botIsAdmin: status.ok, statusReason: status.reason || null };
+      })
+    );
+  });
+
+  fastify.post('/admin/required-channels', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { title, url, chatId } = (req.body || {}) as { title?: string; url?: string; chatId?: string };
+    if (!title?.trim() || !url?.trim()) {
+      return reply.status(400).send({ success: false, message: 'Nomi va havolasi majburiy' });
+    }
+    if (!/^(https?:\/\/)?(t\.me|telegram\.me)\//i.test(url.trim())) {
+      return reply.status(400).send({ success: false, message: 'Havola t.me/... ko\'rinishida bo\'lishi kerak' });
+    }
+    const maxOrder = await db.requiredChannel.aggregate({ _max: { sortOrder: true } });
+    const created = await db.requiredChannel.create({
+      data: {
+        title: title.trim().slice(0, 60),
+        url: url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`,
+        chatId: chatId?.trim() || null,
+        sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
+      },
+    });
+    await auditChannelChange(req, 'CREATE_REQUIRED_CHANNEL', { id: created.id, title: created.title, url: created.url });
+    const status = await checkBotIsAdmin(created.chatId || deriveChannelChatId(created.url));
+    return { ...created, botIsAdmin: status.ok, statusReason: status.reason || null };
+  });
+
+  fastify.put('/admin/required-channels/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    const { title, url, chatId, isEnabled, sortOrder } = (req.body || {}) as {
+      title?: string; url?: string; chatId?: string | null; isEnabled?: boolean; sortOrder?: number;
+    };
+    const updated = await db.requiredChannel.update({
+      where: { id },
+      data: {
+        ...(title !== undefined ? { title: title.trim().slice(0, 60) } : {}),
+        ...(url !== undefined ? { url: url.trim() } : {}),
+        ...(chatId !== undefined ? { chatId: chatId?.trim() || null } : {}),
+        ...(isEnabled !== undefined ? { isEnabled } : {}),
+        ...(sortOrder !== undefined ? { sortOrder } : {}),
+      },
+    });
+    await auditChannelChange(req, 'UPDATE_REQUIRED_CHANNEL', { id, changes: req.body || {} });
+    return updated;
+  });
+
+  fastify.delete('/admin/required-channels/:id', async (req: any, reply) => {
+    if (!await requireAdmin(req, reply)) return;
+    const { id } = req.params as { id: string };
+    const removed = await db.requiredChannel.delete({ where: { id } });
+    await auditChannelChange(req, 'DELETE_REQUIRED_CHANNEL', { id, title: removed.title, url: removed.url });
+    return { success: true };
+  });
+
   fastify.get('/admin/learned-terms', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);

@@ -789,3 +789,20 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+
+// Majburiy obuna (2026-10): /start bosganda va har bir shaxsiy xabarda bot
+// foydalanuvchi shu ro'yxatdagi BARCHA yoqilgan kanal/guruhlarga obuna
+// ekanini tekshiradi. Botning o'zi har birida admin bo'lishi shart
+// (getChatMember faqat shunda ishlaydi). Bot bitta umumiy botligi uchun
+// shaharga bog'lanmagan.
+model RequiredChannel {
+  id        String   @id @default(uuid())
+  title     String
+  url       String
+  chatId    String?  // "@kanal" yoki "-100..." — getChatMember uchun
+  sortOrder Int      @default(0)
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("required_channels")
+}

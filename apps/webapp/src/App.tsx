@@ -34,6 +34,8 @@ import { BroadcastScreen } from './screens/BroadcastScreen';
 import { UsefulBotsScreen } from './screens/UsefulBotsScreen';
 import { ModerationLogsScreen } from './screens/ModerationLogsScreen';
 import { LearnedTermsScreen } from './screens/LearnedTermsScreen';
+import { RequiredChannelsScreen } from './screens/RequiredChannelsScreen';
+import { CandidatesScreen } from './screens/CandidatesScreen';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
 import { avatarColorForName } from './utils/avatarColor';
@@ -80,7 +82,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates'>('menu');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -404,7 +406,9 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           <MoreRow icon="location_on" iconColor="rgb(48 176 199)" label={t('more_item_landmarks')} onClick={() => setMoreSubView('landmarks')} />
                           <MoreRow icon="groups" iconColor="rgb(0 122 255)" label={t('more_item_groups')} onClick={() => setMoreSubView('groups')} />
                           <MoreRow icon="translate" iconColor="rgb(52 199 89)" label="Mahalliy so'zlar" onClick={() => setMoreSubView('learned_terms')} />
-                          <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} last />
+                          <MoreRow icon="inbox" iconColor="rgb(175 82 222)" label="Yangi ma'lumotlar" onClick={() => setMoreSubView('candidates')} />
+                          <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} />
+                          <MoreRow icon="verified_user" iconColor="rgb(255 149 0)" label="Majburiy obuna" onClick={() => setMoreSubView('required_channels')} last />
                         </IosSection>
 
                         {/* Shahar */}
@@ -482,6 +486,18 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                     )}
                     {moreSubView === 'moderation_logs' && (
                       <ModerationLogsScreen onBack={() => setMoreSubView('menu')} />
+                    )}
+                    {moreSubView === 'candidates' && (
+                      <CandidatesScreen
+                        onBack={() => setMoreSubView('menu')}
+                        onAddToDatabase={(cat) => {
+                          setPrefilledCategory(cat);
+                          setActiveTab('add');
+                        }}
+                      />
+                    )}
+                    {moreSubView === 'required_channels' && (
+                      <RequiredChannelsScreen onBack={() => setMoreSubView('menu')} />
                     )}
                     {moreSubView === 'learned_terms' && (
                       <LearnedTermsScreen onBack={() => setMoreSubView('menu')} />

@@ -1,10 +1,11 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
-import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, getBotMessageText, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
+import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
 import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
 import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
+import { getAssistantReply, rememberTurn, clearHistory } from '../ai/chatAssistant';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -22,6 +23,27 @@ const userSessions: Record<number, {
   offerCategory?: string;
   pendingSearch?: { category: string | null; rawMessage: string };
 }> = {};
+
+/** /start xush kelibsiz xabari (obuna tekshiruvidan o'tgach ham chaqiriladi). */
+export async function sendStartWelcome(ctx: Context) {
+  if (ctx.from) await clearHistory(ctx.from.id);
+  const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
+  // Telegram Bot API: style = primary (ko'k) | success (yashil) | danger (qizil)
+  const startKeyboard = {
+    inline_keyboard: [
+      [{ text: "🌐  Webga o'tish", web_app: { url: webappUrl }, style: "primary" }],
+      [{ text: "➕  O'zimni qo'shish", callback_data: "start_add_me", style: "success" }],
+      [{ text: "💬  Chatda so'rash", callback_data: "start_chat", style: "primary" }],
+    ],
+  };
+  const firstName = ctx.from?.first_name ? `, ${escapeHtml(ctx.from.first_name)}` : '';
+  await ctx.reply(
+    `<b>Assalomu alaykum${firstName}! 👋</b>\n\n` +
+      `Men Olmaliq yordamchisiman. Usta, do'kon, xizmat yoki joy — nima kerak bo'lsa, oddiy tilda yozing, ` +
+      `bazamizdan topib beraman.\n\n<i>Masalan: santexnik kerak · 3-mavzeda dorixona bormi?</i>`,
+    { parse_mode: 'HTML', reply_markup: startKeyboard as any }
+  );
+}
 
 export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   const messageText = ctx.message?.text?.trim();
@@ -45,21 +67,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.offerCategory = undefined;
     session.pendingSearch = undefined;
     session.candidateData = undefined;
-
-    const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
-    // Telegram Bot API: style = primary (ko'k) | success (yashil) | danger (qizil)
-    const startKeyboard = {
-      inline_keyboard: [
-        [{ text: "🌐  Webga o'tish", web_app: { url: webappUrl }, style: "primary" }],
-        [{ text: "➕  O'zimni qo'shish", callback_data: "start_add_me", style: "success" }],
-        [{ text: "💬  Chatda so'rash", callback_data: "start_chat", style: "primary" }],
-      ],
-    };
-
-    await ctx.reply(
-      `<b>Assalomu alaykum.</b>\nMen Olmaliq botman.\nSun'iy intellekt asosida ishlayman.`,
-      { parse_mode: 'HTML', reply_markup: startKeyboard as any }
-    );
+    await sendStartWelcome(ctx);
     return;
   }
 
@@ -213,7 +221,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   });
 
   if (queryCountToday >= 20) {
-    await ctx.reply("Bugungi 20 ta savol limitingiz tugadi. Ertaga yozing.");
+    await ctx.reply("Bugun ko'p savol berdingiz 🙂 Kunlik limit tugadi — ertaga yana bemalol yozing, xursand bo'lib yordam beraman!");
     return;
   }
 
@@ -309,15 +317,9 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     classification.intent === 'LOCATION' ||
     classification.intent === 'PRICE';
 
-  if (isSeeking && categoryGuess && !classification.landmark) {
-    session.step = 'CLARIFY_LANDMARK';
-    session.pendingSearch = { category: categoryGuess, rawMessage: messageText };
-    await ctx.reply(
-      `Qaysi hudud?\nMasalan: 3-mavze, Karzinka.\nButun shahar bo'lsa — <b>shahar</b> deb yozing.`,
-      { parse_mode: 'HTML' }
-    );
-    return;
-  }
+  // (2026-10) Avval bu yerda hudud aytilmasa majburiy "Qaysi hudud?" savoli
+  // berilardi — odamlar buni tushunmay suhbat uzilib qolardi. Endi butun
+  // shahar bo'yicha darhol qidiriladi; kerak bo'lsa AI o'zi tabiiy so'raydi.
 
   await runPrivateSearch(ctx, {
     cityId: activeCityId,
@@ -372,14 +374,31 @@ async function runPrivateSearch(
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 
-    const notFoundText = await getBotMessageText(
-      'other_not_found_private',
-      'lotin',
-      "Hozircha bazada yo'q. Yozib qo'ydim, chiqsa aytaman."
-    );
-    await ctx.reply(notFoundText, { parse_mode: 'HTML' });
+    // (2026-10) Quruq "bazada yo'q" o'rniga muloyim AI suhbatdosh: oddiy
+    // gap bo'lsa suhbatlashadi, qidiruv bo'lsa yo'qligini aytib,
+    // foydalanuvchida ma'lumot bo'lsa yuborishini so'raydi.
+    const searchNote = opts.categoryName
+      ? `topilmadi (so'ralgan soha: ${opts.categoryName}${opts.landmarkName ? `, joy: ${opts.landmarkName}` : ''})`
+      : opts.intent === IntentType.NOT_RELEVANT
+        ? "qidiruv emas (oddiy suhbat yoki savol)"
+        : 'topilmadi';
+    await ctx.replyWithChatAction('typing').catch(() => {});
+    const reply = await getAssistantReply({
+      cityId: opts.cityId,
+      userId: Number(opts.telegramUserId),
+      userText: opts.rawMessage,
+      searchNote,
+    });
+    await ctx.reply(reply);
     return;
   }
+
+  rememberTurn(Number(opts.telegramUserId), 'user', opts.rawMessage).catch(() => {});
+  rememberTurn(
+    Number(opts.telegramUserId),
+    'model',
+    `[Bazadan topib, kartochka yuborildi: ${searchResult.listing.name} — ${searchResult.listing.category?.name || ''}]`
+  ).catch(() => {});
 
   // "Raqamni nusxalash" tugmasi olib tashlangan — telefon raqami <code>
   // formatida (bosilsa o'zi nusxalanadi). "📍 Lokatsiya" tugmasi esa
@@ -440,7 +459,7 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
   if (data === 'start_chat') {
     await ctx.answerCallbackQuery();
     session.step = undefined;
-    await ctx.reply('Yozing. Masalan: labo kerak · 3-mavze gazavik');
+    await ctx.reply('Bemalol yozing 🙂 Nima kerak? Masalan: «labo kerak» yoki «3-mavzeda gazavik bormi?»');
     return;
   }
 

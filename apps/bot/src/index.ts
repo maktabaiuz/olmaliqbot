@@ -3,7 +3,9 @@ import http from 'http';
 import dotenv from 'dotenv';
 import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
-import { handleDirectMessage, handleDirectCallbacks } from './handlers/directHandler';
+import { handleDirectMessage, handleDirectCallbacks, sendStartWelcome } from './handlers/directHandler';
+import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
+import type { Context } from 'grammy';
 import { startDeletionWorker, redisConnection } from './queue/deleteQueue';
 import { scheduleBroadcastTicks, startBroadcastWorker } from './queue/broadcastQueue';
 
@@ -153,8 +155,21 @@ async function startBot() {
   }
 
   // 1. /start command in private chat
+  // Majburiy obuna (2026-10): shaxsiy chatda har bir xabar va /start
+  // oldidan tekshiriladi. Obuna bo'lmagan foydalanuvchiga kanallar tugmasi
+  // va "Obuna bo'ldim" tugmasi chiqadi.
+  const passesSubscriptionGate = async (ctx: Context): Promise<boolean> => {
+    if (ctx.chat?.type !== 'private' || !ctx.from) return true;
+    const missing = await getMissingChannels(ctx.api, ctx.from.id);
+    if (missing.length === 0) return true;
+    const gate = buildSubscriptionGate(missing);
+    await ctx.reply(gate.text, { parse_mode: 'HTML', reply_markup: gate.keyboard });
+    return false;
+  };
+
   bot.command('start', async (ctx) => {
     if (ctx.chat.type === 'private') {
+      if (!(await passesSubscriptionGate(ctx))) return;
       await handleDirectMessage(ctx, cityId);
     }
   });
@@ -162,6 +177,18 @@ async function startBot() {
   // 2. Callback query handler
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
+
+    if (data === 'sub_check') {
+      const missing = await getMissingChannels(ctx.api, ctx.from.id);
+      if (missing.length > 0) {
+        await ctx.answerCallbackQuery({ text: "Hali hamma kanalga obuna bo'lmagansiz 🙏", show_alert: true });
+        return;
+      }
+      await ctx.answerCallbackQuery({ text: 'Rahmat! ✅' });
+      await ctx.deleteMessage().catch(() => {});
+      await sendStartWelcome(ctx);
+      return;
+    }
 
     if (data.startsWith('rate_')) {
       await ctx.answerCallbackQuery({ text: "⭐ Rahmat! Bahoyingiz qabul qilindi." });
@@ -245,6 +272,7 @@ async function startBot() {
     const chatType = ctx.chat.type;
 
     if (chatType === 'private') {
+      if (!(await passesSubscriptionGate(ctx))) return;
       await handleDirectMessage(ctx, cityId);
     } else if (chatType === 'group' || chatType === 'supergroup') {
       // Eski (funksiya joriy etilishidan oldin qo'shilgan) guruhlarni ham
