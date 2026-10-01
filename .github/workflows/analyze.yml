@@ -1,11 +1,6 @@
 name: Analyze production usage (data-driven insights)
-
-# Guruhlardagi haqiqiy foydalanuvchi so'rovlarini, bazadagi bo'shliqlarni va
-# umumiy statistikani tahlil qilish uchun — yangi funksiya tavsiyalarini
-# taxminlar emas, HAQIQIY ma'lumotlarga asoslab berish uchun.
 on:
   workflow_dispatch:
-
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -16,109 +11,61 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 5m
+          timeout: 90s
+          command_timeout: 10m
           script: |
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
               (async () => {
-                console.log('=== 1) UMUMIY STATISTIKA ===');
-                const totalUsers = await db.user.count();
-                const totalListings = await db.listing.count({ where: { status: 'ACTIVE' } });
-                const totalGroups = await db.cityGroup.count();
-                const totalQueries = await db.queryLog.count();
-                console.log(JSON.stringify({ totalUsers, totalListings, totalGroups, totalQueries }));
-
-                console.log('');
-                console.log('=== 2) INTENT TAQSIMOTI (oxirgi 30 kun) ===');
                 const since30 = new Date(Date.now() - 30*24*60*60*1000);
-                const intentGroups = await db.queryLog.groupBy({
-                  by: ['intent'],
-                  where: { createdAt: { gte: since30 } },
-                  _count: { intent: true },
-                });
-                console.log(JSON.stringify(intentGroups.map(g => ({ intent: g.intent, count: g._count.intent })).sort((a,b)=>b.count-a.count)));
+
+                console.log('=== BAZADAGI BARCHA KATEGORIYALAR HOLATI ===');
+                const allCats = await db.category.findMany({ select: { id: true, name: true } });
+                const listingCounts = await db.listing.groupBy({ by: ['categoryId'], where: { status: 'ACTIVE' }, _count: { categoryId: true } });
+                const catIdToCount = {}; for (const l of listingCounts) catIdToCount[l.categoryId] = l._count.categoryId;
+                const withListings = allCats.filter(c => (catIdToCount[c.id]||0) > 0).length;
+                const withoutListings = allCats.length - withListings;
+                console.log(JSON.stringify({ totalCategories: allCats.length, withListings, withoutListings }));
 
                 console.log('');
-                console.log('=== 3) HAL QILINMAGAN (isResolved=false, NOT_RELEVANT emas) SO\'ROVLAR — ENG KO\'P TAKRORLANGAN KATEGORIYA NOMLARI (oxirgi 30 kun) ===');
-                const unresolved = await db.queryLog.findMany({
+                console.log('=== GURUH SO\'ROVLARI (oxirgi 30 kun, intent != NOT_RELEVANT) — kategoriya bo\'yicha chastota, hal qilingan+qilinmagan JAMI ===');
+                const all30 = await db.queryLog.findMany({
                   where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' } },
-                  select: { categoryName: true, rawMessage: true, confidence: true },
+                  select: { categoryName: true, isResolved: true },
                 });
-                const catCounts = {};
-                for (const u of unresolved) {
-                  const key = (u.categoryName || '(kategoriyasiz)').toLowerCase().trim();
-                  catCounts[key] = (catCounts[key] || 0) + 1;
+                console.log(JSON.stringify({ totalQueries: all30.length }));
+                const freq = {};
+                for (const r of all30) {
+                  const k = (r.categoryName || '(nomsiz/aniqlanmagan)').toLowerCase().trim();
+                  if (!freq[k]) freq[k] = { total: 0, resolved: 0, unresolved: 0 };
+                  freq[k].total++;
+                  if (r.isResolved) freq[k].resolved++; else freq[k].unresolved++;
                 }
-                const sortedCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0, 30);
-                console.log(JSON.stringify(sortedCats));
+                const sorted = Object.entries(freq).sort((a,b) => b[1].total - a[1].total).slice(0, 50);
+
+                // Har bir nom uchun bazada mos kategoriya (nomi/sinonim) va yozuv soni bor-yo'qligini tekshiramiz
+                const catsForMatch = await db.category.findMany({ select: { id: true, name: true, synonyms: true } });
+                const normalize = (s) => s.toLowerCase().trim();
+                const result = sorted.map(([name, stats]) => {
+                  const match = catsForMatch.find(c => normalize(c.name) === name || (c.synonyms||[]).some(s => normalize(s) === name));
+                  const listingCount = match ? (catIdToCount[match.id]||0) : 0;
+                  return {
+                    name,
+                    ...stats,
+                    dbStatus: !match ? 'YOQ_KATEGORIYA' : listingCount === 0 ? 'KATEGORIYA_BOR_YOZUV_YOQ' : 'YOZUV_BOR',
+                    listingCount,
+                  };
+                });
+                console.log(JSON.stringify(result));
 
                 console.log('');
-                console.log('=== 4) BU KATEGORIYALARDAN QAYSILARI BAZADA UMUMAN YO\'Q (bo\'shliq) ===');
-                const allCategories = await db.category.findMany({ select: { name: true, synonyms: true } });
-                const catNameSet = new Set();
-                for (const c of allCategories) {
-                  catNameSet.add(c.name.toLowerCase());
-                  for (const s of c.synonyms) catNameSet.add(s.toLowerCase());
+                console.log('=== GURUHLAR RO\'YXATI VA FAOLLIK (oxirgi 30 kun) ===');
+                const groups = await db.cityGroup.findMany({ select: { id: true, title: true, chatId: true } });
+                for (const g of groups) {
+                  const cnt = await db.queryLog.count({ where: { createdAt: { gte: since30 } } }); // umumiy (groupId yo'q QueryLog'da ko'rinadi)
                 }
-                const missing = sortedCats.filter(([name]) => {
-                  if (name === '(kategoriyasiz)') return false;
-                  for (const known of catNameSet) {
-                    if (known.includes(name) || name.includes(known)) return false;
-                  }
-                  return true;
-                });
-                console.log(JSON.stringify(missing));
-
-                console.log('');
-                console.log('=== 5) KATEGORIYA BO\'YICHA YOZUVLAR SONI (eng kam/yo\'q yozuvli TOP 15 kategoriya, lekin so\'ralgan) ===');
-                const listingCatCounts = await db.listing.groupBy({
-                  by: ['categoryId'],
-                  where: { status: 'ACTIVE' },
-                  _count: { categoryId: true },
-                });
-                const catIdToCount = {};
-                for (const l of listingCatCounts) catIdToCount[l.categoryId] = l._count.categoryId;
-                const catsWithCounts = allCategories.length ? await db.category.findMany({ select: { id:true, name:true } }) : [];
-                const lowCoverage = catsWithCounts
-                  .map(c => ({ name: c.name, listingCount: catIdToCount[c.id] || 0 }))
-                  .sort((a,b) => a.listingCount - b.listingCount)
-                  .slice(0, 20);
-                console.log(JSON.stringify(lowCoverage));
-
-                console.log('');
-                console.log('=== 6) EMERGENCY SO\'ROVLAR SONI (oxirgi 30 kun) ===');
-                const emergencyCount = await db.queryLog.count({ where: { createdAt: { gte: since30 }, intent: 'EMERGENCY' } });
-                console.log(JSON.stringify({ emergencyCount }));
-
-                console.log('');
-                console.log('=== 7) SHARHLAR (REVIEWS) UMUMIY SONI ===');
-                const reviewCount = await db.review.count();
-                const positiveReviews = await db.review.count({ where: { isPositive: true } });
-                console.log(JSON.stringify({ reviewCount, positiveReviews }));
-
-                console.log('');
-                console.log('=== 8) YANGI USERLAR (oxirgi 7 va 30 kun) ===');
-                const since7 = new Date(Date.now() - 7*24*60*60*1000);
-                const newUsers7 = await db.user.count({ where: { createdAt: { gte: since7 } } });
-                const newUsers30 = await db.user.count({ where: { createdAt: { gte: since30 } } });
-                console.log(JSON.stringify({ newUsers7, newUsers30 }));
-
-                console.log('');
-                console.log('=== 9) ENG KO\'P SO\'ROV YOZILGAN XOM XABARLAR NAMUNASI (tasodifiy 25 ta, hal qilinmagan) ===');
-                const sampleRaw = await db.queryLog.findMany({
-                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' }, confidence: { lt: 0.7 } },
-                  select: { rawMessage: true, confidence: true },
-                  take: 25,
-                  orderBy: { createdAt: 'desc' },
-                });
-                console.log(JSON.stringify(sampleRaw));
-
-                console.log('');
-                console.log('=== 10) BROADCAST FOYDALANISHI ===');
-                const broadcastCount = await db.broadcastMessage.count();
-                console.log(JSON.stringify({ broadcastCount }));
+                console.log(JSON.stringify(groups.map(g => ({ title: g.title }))));
 
                 process.exit(0);
-              })().catch(e => { console.error('ERR', e); process.exit(1); });
+              })().catch(e => { console.error('ERR', e.message, e.stack); process.exit(1); });
             "
