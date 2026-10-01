@@ -3,6 +3,7 @@ import { apiFetch } from '../config';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosCard, IosRow } from '../components/ios/IosCard';
 import { useLanguage } from '../context/LanguageContext';
+import { useFeedback } from '../context/FeedbackContext';
 
 export interface UsefulBotsScreenProps {
   onBack: () => void;
@@ -57,6 +58,7 @@ const IosToggle: React.FC<{ enabled: boolean; onToggle: () => void }> = ({ enabl
  */
 export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) => {
   const { t } = useLanguage();
+  const { showToast } = useFeedback();
   const [bots, setBots] = useState<BotSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBot, setSelectedBot] = useState<BotSummary | null>(null);
@@ -180,7 +182,7 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
     const raw = (requiredCountDraft[group.id] ?? String(group.requiredCount ?? '')).trim();
     const n = Number(raw);
     if (!raw || !Number.isInteger(n) || n < 1 || n > 1000) {
-      alert("1 dan 1000 gacha butun son kiriting");
+      showToast('1 dan 1000 gacha butun son kiriting', 'error');
       return;
     }
     setSavingRequiredCountFor(group.id);
@@ -190,14 +192,23 @@ export const UsefulBotsScreen: React.FC<UsefulBotsScreenProps> = ({ onBack }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isEnabled: group.isEnabled, requiredCount: n }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, requiredCount: n } : g)));
+        // Draft'ni tozalab, keyingi input HAR DOIM bazadagi eng so'nggi
+        // qiymatdan boshlansin — "istalgan payt qayta o'zgartirish" shart.
+        setRequiredCountDraft((prev) => {
+          const next = { ...prev };
+          delete next[group.id];
+          return next;
+        });
+        showToast(`Saqlandi: ${n} kishi`, 'success');
       } else {
-        alert('Saqlashda xatolik yuz berdi');
+        showToast(data.message || 'Saqlashda xatolik yuz berdi', 'error');
       }
     } catch (err) {
       console.error('Failed to save requiredCount:', err);
-      alert('Aloqa xatoligi');
+      showToast('Aloqa xatoligi', 'error');
     } finally {
       setSavingRequiredCountFor(null);
     }
