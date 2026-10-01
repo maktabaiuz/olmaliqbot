@@ -18,31 +18,41 @@ jobs:
               const { PrismaClient } = require('/app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client');
               const core = require('/app/packages/core/dist/index.js');
               const db = new PrismaClient();
-              const j = (o) => JSON.stringify(o, (k,v) => typeof v === 'bigint' ? v.toString() : v);
+              const cases = [
+                ['SILENCE', 'Radugada korzinkani yonida TELEFON.UZB'],
+                ['SILENCE', 'Akala Alisa aqlli kalonka qayerda sotadi bilmislami'],
+                ['SILENCE', 'Assalomu aleykum akalar 29 linya kanechnik tomondan qanaqa choyxona bor'],
+                ['ANSWER', 'kalonka ustasi kerak'],
+                ['ANSWER', 'gaz kolonka ustasi kerak'],
+                ['ANSWER', 'balon kerak'],
+                ['ANSWER', 'toy tepada balon kerak'],
+                ['ANSWER', 'beshbirdagi zaprafka ochiqmi'],
+                ['ANSWER', 'Gagarin tomondagi choyxona nomeri kerak'],
+                ['ANSWER', 'santexnik kerak'],
+                ['ANSWER', 'malyar kerak'],
+                ['ANSWER', 'televizor ustasi kerak'],
+              ];
               (async () => {
                 const city = await db.city.findFirst();
-                const m = 'Radugada korzinkani yonida TELEFON.UZB';
-                const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
-                console.log('out:CLASSIFY=' + j(c));
-                const isSeeking = c.intent !== 'NOT_RELEVANT' && c.intent !== 'SELF_OFFER';
-                const r = await core.searchListings({
-                  cityId: city.id,
-                  categoryName: isSeeking ? c.category : null,
-                  landmarkName: isSeeking ? c.landmark : null,
-                  rawMessage: m,
-                  intent: c.intent,
-                  name: isSeeking ? c.name : null,
-                  requestedBadges: [],
-                  rentalFilters: null,
-                  isReplyToPhoto: false,
-                  debug: true,
-                });
-                console.log('out:RESULT=' + j(r ? { name: r.listing?.name, id: r.listingId, total: r.totalMatches, breakdown: r.scoreBreakdown } : null));
-
-                // category objectType for Malyar and Televizor ustasi
-                const cats = await db.category.findMany({ where: { name: { in: ['Malyar', 'Televizor ustasi'] } }, select: { name: true, objectType: true } });
-                console.log('out:CAT_OBJTYPES=' + j(cats));
-
+                for (const [expect, m] of cases) {
+                  const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
+                  const isSeeking = c.intent !== 'NOT_RELEVANT';
+                  const r = await core.searchListings({
+                    cityId: city.id,
+                    categoryName: isSeeking ? c.category : null,
+                    landmarkName: isSeeking ? c.landmark : null,
+                    rawMessage: m,
+                    intent: c.intent,
+                    name: isSeeking ? c.name : null,
+                    requestedBadges: core.extractRequestedBadges ? core.extractRequestedBadges(m) : [],
+                    rentalFilters: null,
+                    isReplyToPhoto: false,
+                    objectType: isSeeking ? c.object_type : null,
+                  });
+                  const got = r ? 'ANSWER:' + r.listing?.name + ' (+' + (r.totalMatches - 1) + ')' : 'SILENCE';
+                  const ok = (expect === 'SILENCE') === !r;
+                  console.log('out:' + (ok ? 'PASS' : 'FAIL') + ' | expect=' + expect + ' | got=' + got + ' | ' + c.intent + '/' + c.object_type + '/' + c.category + ' | ' + m);
+                }
                 await db.\$disconnect();
               })().catch(e=>{console.error('ERR', e.stack); process.exit(1)});
             "
