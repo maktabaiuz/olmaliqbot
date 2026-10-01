@@ -17,22 +17,28 @@ jobs:
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
               const core = require('/app/packages/core/dist/index.js');
+              const cases = [
+                ['SILENCE', 'Assalom aleykum akalar toy tepa pavarodi ochiqmikan othanlar bormi'],
+                ['SILENCE', 'qiziltepa tomonga yol ochiqmi'],
+                ['Oqtepa', 'oqtepa lavash nomeri kerak'],
+                ['Oqtepa', 'oq tepa lavashni nomeri kerak'],
+                ['Oqtepa', 'oqtepadagi lavash ochiqmi'],
+                ['N1', 'n1 choyxona nomeri kerak'],
+                ['Gagarin', 'Gagarin choyxona nomeri bormi'],
+                ['ANY', 'santexnik kerak'],
+                ['ANY', 'beshbirdagi zaprafka ochiqmi'],
+                ['ANY', 'balon kerak'],
+              ];
               (async () => {
                 const city = await db.city.findFirst();
-                const m = 'Assalom aleykum akalar toy tepa pavarodi ochiqmikan othanlar bormi';
-                const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
-                console.log('out:CLASSIFY=' + JSON.stringify(c));
-                const fb = core.fallbackRuleClassification(core.normalizeText(m), m);
-                console.log('out:FALLBACK=' + JSON.stringify(fb));
-                const isSeeking = c.intent !== 'NOT_RELEVANT';
-                const r = await core.searchListings({ cityId: city.id, categoryName: isSeeking ? c.category : null, landmarkName: isSeeking ? c.landmark : null, rawMessage: m, intent: c.intent, name: isSeeking ? c.name : null, requestedBadges: [], rentalFilters: null, objectType: isSeeking ? c.object_type : null, debug: true });
-                console.log('out:RESULT=' + JSON.stringify(r ? { name: r.listing?.name, breakdown: r.scoreBreakdown } : null));
-                const q = await db.queryLog.findFirst({ where: { rawMessage: { contains: 'pavarodi' } }, orderBy: { createdAt: 'desc' }, select: { intent: true, categoryName: true, landmarkName: true, confidence: true, isResolved: true, createdAt: true } });
-                console.log('out:LOGGED=' + JSON.stringify(q));
-                const lav = await db.listing.findFirst({ where: { name: { contains: 'Oqtepa' } }, select: { name: true, jargonSynonyms: true, primaryLandmark: { select: { name: true } } } });
-                console.log('out:LISTING=' + JSON.stringify(lav));
-                const lm = await db.landmark.findMany({ where: { OR: [{ name: { contains: 'tepa', mode: 'insensitive' } }, { synonyms: { hasSome: ['toytepa','toy tepa'] } }] }, select: { name: true, synonyms: true } });
-                console.log('out:LANDMARKS=' + JSON.stringify(lm));
+                for (const [exp, m] of cases) {
+                  const c = await core.classifyQuery(m, city.id, undefined, process.env.GEMINI_API_KEY);
+                  const s = c.intent !== 'NOT_RELEVANT';
+                  const r = await core.searchListings({ cityId: city.id, categoryName: s ? c.category : null, landmarkName: s ? c.landmark : null, rawMessage: m, intent: c.intent, name: s ? c.name : null, requestedBadges: [], rentalFilters: null, objectType: s ? c.object_type : null });
+                  const got = r ? r.listing?.name : 'SILENCE';
+                  const ok = exp === 'ANY' ? !!r : exp === 'SILENCE' ? !r : !!r && got.toLowerCase().includes(exp.toLowerCase());
+                  console.log('out:' + (ok ? 'PASS' : 'FAIL') + ' | expect=' + exp + ' | got=' + got + ' | ' + m);
+                }
                 process.exit(0);
               })().catch(e => { console.error('ERR', e.stack); process.exit(1); });
             "
