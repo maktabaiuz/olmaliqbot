@@ -39,35 +39,44 @@ function percentTone(p: number | null | undefined, good: number, warn: number): 
   return 'bad';
 }
 
-const Metric: React.FC<{ icon: string; label: string; value: string; tone: Tone; hint: string }> = ({
+const TONE_ICON_BG: Record<Tone, string> = {
+  good: 'bg-ios-green/15 text-ios-green',
+  warn: 'bg-[rgb(255_149_0)]/15 text-[rgb(255_149_0)]',
+  bad: 'bg-ios-red/15 text-ios-red',
+  neutral: 'bg-ios-fill/15 text-ios-label-secondary',
+};
+
+/** Bitta ko'rsatkich qatori: ikonka, oddiy tildagi savol, qiymat va izoh. */
+const Row: React.FC<{ icon: string; title: string; explain: string; value: string; tone: Tone }> = ({
   icon,
-  label,
+  title,
+  explain,
   value,
   tone,
-  hint,
 }) => (
-  <div className="flex flex-col gap-0.5 bg-ios-fill/[0.06] rounded-ios px-2.5 py-2.5 min-w-0">
-    <span className="text-[11px] font-medium text-ios-label-secondary/80 truncate">
-      {icon} {label}
-    </span>
-    <span className={`text-[22px] font-bold leading-tight tabular-nums ${TONE_TEXT[tone]}`}>{value}</span>
-    <span className="text-[10px] text-ios-label-secondary/60 leading-snug">{hint}</span>
+  <div className="flex items-center gap-3 py-2.5">
+    <div className={`w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center text-[18px] ${TONE_ICON_BG[tone]}`}>{icon}</div>
+    <div className="flex flex-col min-w-0 flex-1">
+      <span className="text-[14px] font-semibold text-ios-label leading-tight">{title}</span>
+      <span className="text-[11px] text-ios-label-secondary/70 leading-snug">{explain}</span>
+    </div>
+    <span className={`text-[17px] font-bold tabular-nums shrink-0 ${TONE_TEXT[tone]}`}>{value}</span>
   </div>
 );
 
-const ServiceDot: React.FC<{ ok: boolean; label: string; badLabel?: string }> = ({ ok, label, badLabel }) => (
-  <span className={`flex items-center gap-1.5 text-[11px] font-medium ${ok ? 'text-ios-label-secondary' : 'text-ios-red'}`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-ios-green' : 'bg-ios-red'}`} />
-    {ok ? label : badLabel || label}
-  </span>
+const Service: React.FC<{ ok: boolean; icon: string; label: string; explain: string }> = ({ ok, icon, label, explain }) => (
+  <div className="flex items-center gap-2 bg-ios-fill/[0.06] rounded-ios px-2.5 py-2 min-w-0">
+    <span className="text-[16px]">{icon}</span>
+    <div className="flex flex-col min-w-0 flex-1">
+      <span className="text-[12px] font-semibold text-ios-label truncate">{label}</span>
+      <span className={`text-[10px] truncate ${ok ? 'text-ios-green' : 'text-ios-red'}`}>{ok ? '● ' : '● '}{explain}</span>
+    </div>
+  </div>
 );
 
 /**
- * "Tizim holati" (2026-10-02 qayta loyihalangan). Avvalgi kartada
- * "Javob darajasi (24s)" yozuvi "24 soniya" deb tushunilgan, aslida
- * "24 soat ichida javob topilgan so'rovlar ulushi" edi, va "Gemini:
- * ishlayapti" faqat kalit borligini bildirardi. Endi uchta aniq, haqiqiy
- * ko'rsatkich — tezlik, javob topilgani, AI ulushi — va xizmatlar holati.
+ * "Tizim holati" — admin texnik bilimsiz ham tushunishi uchun har bir
+ * ko'rsatkich oddiy savol shaklida va izoh bilan ko'rsatiladi.
  */
 export const SystemHealthCard: React.FC<{ health: SystemHealth }> = ({ health }) => {
   const webhookOk = health.webhook.reachable && !!health.webhook.urlSet && !!health.webhook.hasCallbackQuery;
@@ -78,58 +87,70 @@ export const SystemHealthCard: React.FC<{ health: SystemHealth }> = ({ health })
   const aTone = percentTone(health.ai?.usedPercent, 80, 50);
 
   const overall: Tone = !servicesOk || sTone === 'bad' ? 'bad' : [sTone, rTone, aTone].includes('warn') || rTone === 'bad' || aTone === 'bad' ? 'warn' : 'good';
-  const overallLabel = overall === 'good' ? 'Hammasi joyida' : overall === 'warn' ? 'Diqqat talab' : 'Muammo bor';
+  const overallLabel = overall === 'good' ? '✅ Hammasi joyida' : overall === 'warn' ? '⚠️ Diqqat talab' : '⛔ Muammo bor';
   const overallBg = overall === 'good' ? 'bg-ios-green/12 text-ios-green' : overall === 'warn' ? 'bg-[rgb(255_149_0)]/12 text-[rgb(255_149_0)]' : 'bg-ios-red/12 text-ios-red';
 
-  const webhookBad = !health.webhook.reachable
-    ? "Webhook: aloqa yo'q"
-    : !health.webhook.urlSet
-      ? 'Webhook: sozlanmagan'
-      : 'Webhook: tugmalar ishlamaydi';
+  const rr = health.responseRate;
+  const aiTotal = (health.ai?.aiUsed ?? 0) + (health.ai?.aiFallback ?? 0);
 
   return (
-    <div className="bg-ios-card rounded-ios-lg p-3.5 shadow-sm flex flex-col gap-3">
+    <div className="bg-ios-card rounded-ios-lg p-3.5 shadow-sm flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <h3 className="text-[15px] font-semibold text-ios-label">Tizim holati</h3>
-          <span className="text-[11px] text-ios-label-secondary/60">Oxirgi 24 soat</span>
+          <h3 className="text-[16px] font-semibold text-ios-label">🩺 Tizim holati</h3>
+          <span className="text-[11px] text-ios-label-secondary/60">Oxirgi 24 soat bo'yicha</span>
         </div>
         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${overallBg}`}>{overallLabel}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <Metric
+      <div className="flex flex-col divide-y divide-ios-separator/40">
+        <Row
           icon="⚡"
-          label="Javob tezligi"
+          title="Bot qancha tez javob beradi?"
+          explain={
+            health.speed?.medianMs != null
+              ? `Odatda shuncha soniyada. Eng sekin holatda: ${formatSeconds(health.speed.p95Ms)}`
+              : "Hali savol bo'lmadi"
+          }
           value={formatSeconds(health.speed?.medianMs)}
           tone={sTone}
-          hint={health.speed?.p95Ms != null ? `Eng sekini: ${formatSeconds(health.speed.p95Ms)}` : "Ma'lumot yo'q"}
         />
-        <Metric
+        <Row
           icon="🎯"
-          label="Javob topildi"
-          value={health.responseRate.last24h != null ? `${health.responseRate.last24h}%` : '—'}
+          title="Savollarga javob topildimi?"
+          explain={`${rr.totalQueries} ta savoldan ${rr.resolvedQueries} tasiga bazadan javob topildi`}
+          value={rr.last24h != null ? `${rr.last24h}%` : '—'}
           tone={rTone}
-          hint={`${health.responseRate.resolvedQueries} / ${health.responseRate.totalQueries} savol`}
         />
-        <Metric
+        <Row
           icon="🤖"
-          label="AI tushundi"
+          title="Sun'iy intellekt ishlayaptimi?"
+          explain={
+            aiTotal > 0
+              ? `${health.ai?.aiUsed} ta savolni AI tushundi, ${health.ai?.aiFallback} tasi zaxira lug'at bilan`
+              : "Yangi o'lchov — savollar kelishi bilan to'ladi"
+          }
           value={health.ai?.usedPercent != null ? `${health.ai.usedPercent}%` : '—'}
           tone={aTone}
-          hint={health.ai ? `Zaxirada: ${health.ai.aiFallback} ta` : "Ma'lumot yo'q"}
         />
       </div>
 
-      <div className="flex flex-wrap gap-x-3.5 gap-y-1.5 pt-0.5">
-        <ServiceDot ok={webhookOk} label="Webhook" badLabel={webhookBad} />
-        <ServiceDot ok={health.database.reachable} label="Baza" badLabel="Baza ulanmagan" />
-        <ServiceDot
-          ok={health.broadcastQueue.healthy}
-          label="Xabar navbati"
-          badLabel={`Navbat: ${health.broadcastQueue.overdueCount} ta kechikkan`}
+      <span className="text-[11px] font-semibold text-ios-label-secondary/70 uppercase tracking-wide pt-1">Xizmatlar</span>
+      <div className="grid grid-cols-2 gap-2">
+        <Service
+          ok={webhookOk}
+          icon="📡"
+          label="Telegram aloqasi"
+          explain={webhookOk ? 'Xabarlar kelyapti' : !health.webhook.reachable ? "Aloqa yo'q" : !health.webhook.urlSet ? 'Ulanmagan' : 'Tugmalar ishlamaydi'}
         />
-        <ServiceDot ok={health.gemini.configured} label="AI kaliti" badLabel="AI kaliti yo'q" />
+        <Service ok={health.database.reachable} icon="🗄️" label="Ma'lumotlar bazasi" explain={health.database.reachable ? 'Ishlayapti' : 'Ulanmagan'} />
+        <Service
+          ok={health.broadcastQueue.healthy}
+          icon="📨"
+          label="Ommaviy xabarlar"
+          explain={health.broadcastQueue.healthy ? "O'z vaqtida ketyapti" : `${health.broadcastQueue.overdueCount} ta kechikkan`}
+        />
+        <Service ok={health.gemini.configured} icon="🔑" label="AI kaliti" explain={health.gemini.configured ? 'Ulangan' : "Kalit yo'q"} />
       </div>
     </div>
   );
