@@ -22,6 +22,7 @@ import {
   PHONE_LIMIT_PER_DAY,
   CANDIDATE_LIMIT_PER_DAY,
 } from './publicSupport';
+import { registerAssistant } from './publicAssistant';
 
 /**
  * Foydalanuvchi ilovasi API'si (2026-10) — `/api/public/*`. Admin
@@ -37,6 +38,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
   });
 
   const ACTIVE = { status: 'ACTIVE' as const };
+  registerAssistant(fastify);
 
   // Obuna holati (onboarding ekrani)
   fastify.get('/public/me/subscription', async (req: any) => {

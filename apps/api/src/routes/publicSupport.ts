@@ -16,7 +16,10 @@ export interface PublicUser {
 /** Telegram initData imzosi tekshiriladi — boshqa kirish usuli yo'q. */
 export function authPublicUser(req: any): PublicUser | null {
   const initData = String(req.headers['x-init-data'] || '');
-  const res = verifyTelegramInitData(initData);
+  // Ilova yangi botda (USER_BOT_TOKEN) ochiladi; asosiy bot ichidan ham
+  // ochilishi mumkin — ikkala imzo ham qabul qilinadi.
+  let res = verifyTelegramInitData(initData, process.env.USER_BOT_TOKEN);
+  if (!res.isValid) res = verifyTelegramInitData(initData, process.env.BOT_TOKEN);
   if (!res.isValid || !res.telegramId) return null;
   return { telegramId: res.telegramId, firstName: res.userRaw?.first_name ?? null };
 }

@@ -9,6 +9,12 @@ olmaliq.online {
         reverse_proxy api:4000
     }
 
+    # Foydalanuvchi ilovasi (alohida konteyner) — /app prefiksi olib tashlanib uzatiladi
+    redir /app /app/ 308
+    handle_path /app/* {
+        reverse_proxy userapp:80
+    }
+
     # Web App Frontend
     handle /* {
         reverse_proxy webapp:80

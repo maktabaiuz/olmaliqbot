@@ -48,6 +48,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-kimbor}:${POSTGRES_PASSWORD:-kimbor_sec_pass_2026}@postgres:5432/${POSTGRES_DB:-kimbor_db}?schema=public
       REDIS_URL: redis://redis:6379
       BOT_TOKEN: ${BOT_TOKEN}
+      USER_BOT_TOKEN: ${USER_BOT_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
@@ -96,6 +97,20 @@ services:
         max-size: "10m"
         max-file: "5"
 
+  # Foydalanuvchi ilovasi (2026-10) — admin webapp'dan alohida konteyner,
+  # https://olmaliq.online/app/ ostida.
+  userapp:
+    build:
+      context: .
+      dockerfile: apps/userapp/Dockerfile
+    container_name: kimbor_userapp
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   caddy:
     image: caddy:2-alpine
     container_name: kimbor_caddy
@@ -117,6 +132,7 @@ services:
     depends_on:
       - api
       - webapp
+      - userapp
 
 volumes:
   postgres_data:

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_blank" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-tertiary":"#ffffff","on-background":"#161d1f","secondary":"#775a00","surface-container":"#e8eff1","surface-container-highest":"#dde4e6","on-error-container":"#93000a","on-secondary-fixed-variant":"#5a4300","on-secondary-fixed":"#251a00","on-surface":"#161d1f","surface":"#f4fafd","tertiary-fixed-dim":"#38debb","on-tertiary-container":"#e0fff3","on-secondary-container":"#6f5400","on-tertiary-fixed":"#002019","surface-bright":"#f4fafd","on-primary-fixed":"#160066","on-tertiary-fixed-variant":"#005142","on-primary-fixed-variant":"#4029ba","tertiary-container":"#00816a","surface-container-high":"#e2e9ec","on-secondary":"#ffffff","surface-container-lowest":"#ffffff","secondary-container":"#fdc73a","on-primary":"#ffffff","error-container":"#ffdad6","surface-dim":"#d4dbdd","error":"#ba1a1a","background":"#f4fafd","tertiary":"#006653","primary-container":"#6c5ce7","outline":"#787586","tertiary-fixed":"#5ffbd6","inverse-surface":"#2b3234","outline-variant":"#c8c4d7","inverse-primary":"#c6bfff","on-primary-container":"#faf6ff","on-error":"#ffffff","surface-variant":"#dde4e6","surface-container-low":"#eef5f7","primary-fixed":"#e4dfff","inverse-on-surface":"#ebf2f4","secondary-fixed-dim":"#f4bf32","primary-fixed-dim":"#c6bfff","on-surface-variant":"#474554","secondary-fixed":"#ffdf9a","surface-tint":"#5847d2","primary":"#5341cd"},"borderRadius":{"DEFAULT":"1rem","lg":"2rem","xl":"3rem","full":"9999px"},"spacing":{"space-sm":"0.5rem","gutter":"0.75rem","space-md":"0.75rem","space-xs":"0.25rem","space-xl":"1.5rem","space-lg":"1rem","margin":"1rem"},"fontFamily":{"headline-sm":["Plus Jakarta Sans"],"headline-xl":["Plus Jakarta Sans"],"body-sm":["Plus Jakarta Sans"],"label-lg":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"label-sm":["Plus Jakarta Sans"],"label-md":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"]},"fontSize":{"headline-sm":["17px",{"lineHeight":"24px","fontWeight":"700"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"800"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"label-lg":["14px",{"lineHeight":"18px","fontWeight":"700"}],"headline-lg":["26px",{"lineHeight":"34px","letterSpacing":"-0.015em","fontWeight":"800"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"800"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"700"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"500"}],"headline-md":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"500"}]}}}}</script></head><body class="bg-surface pt-safe pb-safe min-h-screen flex flex-col font-body-md text-on-surface"><main class="flex flex-col relative w-full bg-surface"><div class="flex flex-col w-full relative overflow-hidden select-none">
+<!-- Dimmed & Blurred Background Content (Listing Screen Context) -->
+<div class="flex flex-col w-full px-margin opacity-40 blur-[1px] pointer-events-none select-none">
+<div class="flex items-center justify-between py-space-md">
+<div class="flex items-center gap-space-sm bg-surface-container-lowest p-space-xs rounded-full shadow-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">arrow_back</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="bg-surface-container-lowest p-space-xs rounded-full shadow-sm material-symbols-outlined text-on-surface-variant text-[20px]">share</span>
+<span class="bg-surface-container-lowest p-space-xs rounded-full shadow-sm material-symbols-outlined text-on-surface-variant text-[20px]">bookmark</span>
+</div>
+</div>
+<!-- Simulated Profile Card behind modal -->
+<div class="bg-surface-container-lowest rounded-lg p-space-lg shadow-sm flex flex-col gap-space-md mt-space-sm">
+<div class="flex items-center gap-space-md">
+<div class="w-14 h-14 rounded-lg bg-primary-fixed flex items-center justify-center text-primary font-headline-md text-headline-md">
+          UZ
+        </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface">Usta Zafarbek</span>
+<span class="material-symbols-outlined text-tertiary text-[18px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Santexnik va Isitish tizimlari</span>
+</div>
+</div>
+<div class="h-10 bg-surface-container-low rounded-full w-full"></div>
+</div>
+</div>
+<!-- Modal Backdrop Overlay -->
+<div class="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-40 transition-opacity duration-300" id="modal-overlay"></div>
+<!-- Clay Bottom Sheet Container -->
+<div class="fixed inset-x-0 bottom-0 z-50 flex flex-col justify-end max-w-[430px] mx-auto pointer-events-auto">
+<div class="bg-surface-container-lowest rounded-t-[32px] px-margin pt-space-md pb-space-xl flex flex-col shadow-2xl relative transition-transform duration-300 ease-out" style="box-shadow: 0 -12px 36px rgba(83, 65, 205, 0.16), inset 0 2px 4px rgba(255, 255, 255, 0.95);">
+<!-- Top Grab Bar -->
+<div class="w-12 h-1.5 bg-surface-container-highest rounded-full mx-auto mb-space-sm"></div>
+<!-- Close Button 'X' -->
+<button class="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-transform active:scale-95 shadow-sm" id="close-modal-btn" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+<!-- Mascot & Speech Bubble Section -->
+<div class="flex flex-col items-center mt-space-xs relative">
+<!-- Floating Reassurance Pill Badge / Chat Bubble -->
+<div class="bg-secondary-container text-on-secondary-container px-space-md py-1.5 rounded-full font-label-md text-label-md shadow-sm mb-space-xs flex items-center gap-1.5 animate-bounce" style="box-shadow: 0 4px 12px rgba(253, 199, 58, 0.35);">
+<span>Bu bepul va atigi 5 soniya vaqt oladi</span>
+<span>😊</span>
+</div>
+<!-- 3D Mascot Character Frame -->
+<div class="relative w-28 h-28 my-space-xs flex items-center justify-center">
+<div class="absolute inset-2 bg-primary-fixed/60 rounded-full blur-xl transform scale-110"></div>
+<img alt="Kim Bor Olmaliq Mascot" class="w-full h-full object-contain relative z-10 drop-shadow-md transform hover:scale-105 transition-transform duration-200" src="https://lh3.googleusercontent.com/aida/AEtjO1XK5rlLqPGumUxoQWaksJnUSP8qJVhQ57JYWTSik0jc24bINzJqstugOPerbT9KwgyEjmL_E4pZIhiOXEyCbxXjgtbHh0YYQKizwlHoI2Ur5oM2AA5z8Vd3UdA-9H8G6pRVEh3kojB2vwuPKD1g2QV0UtlckB6aIygj1YH8uLbOAPSuvzgkEFLwKMPV_ItiJLSnCTsDuNGNYFnVXXUc9Eafej7Q8ve0LbCJ5QJDv4IdYqNBWkD-hJwZG1E"/>
+</div>
+<!-- Title & Subtitle -->
+<h2 class="font-headline-md text-headline-md text-center text-on-surface px-space-sm tracking-tight mt-space-xs">
+          Raqamni ko‘rish uchun kanalimizga obuna bo‘ling
+        </h2>
+<p class="font-body-sm text-body-sm text-center text-on-surface-variant mt-1.5 px-space-md">
+          Olmaliqdagi barcha usta va yangiliklar faqat bizning rasmiy kanallarda bepul e'lon qilinadi.
+        </p>
+</div>
+<!-- Channel Subscription Cards Stack -->
+<div class="flex flex-col gap-space-sm mt-space-md">
+<!-- Channel 1: Kim bor? Olmaliq -->
+<div class="bg-surface-container-low p-space-md rounded-[20px] flex items-center justify-between transition-all" style="box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.9), 0 4px 12px -2px rgba(83, 65, 205, 0.06);">
+<div class="flex items-center gap-space-md min-w-0 pr-2">
+<!-- 3D Telegram Badged Icon -->
+<div class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-on-primary shadow-sm flex-shrink-0" style="box-shadow: 0 4px 10px rgba(108, 92, 231, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.4);">
+<span class="material-symbols-outlined text-[26px]">send</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1">
+<span class="font-label-lg text-label-lg text-on-surface truncate">Kim bor? Olmaliq</span>
+<span class="material-symbols-outlined text-tertiary text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">
+                Rasmiy shahar kanali • <strong class="text-on-surface">42.5k</strong> a'zo
+              </span>
+</div>
+</div>
+<!-- Action Link -->
+<a class="flex-shrink-0 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed px-space-md py-2 rounded-full font-label-md text-label-md flex items-center gap-1 transition-all active:scale-95 shadow-sm" href="https://t.me/" target="_blank">
+<span>A'zo bo‘lish</span>
+<span class="material-symbols-outlined text-[15px]">north_east</span>
+</a>
+</div>
+<!-- Channel 2: Partner / Olmaliq Mahallalari -->
+<div class="bg-surface-container-low p-space-md rounded-[20px] flex items-center justify-between transition-all" style="box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.9), 0 4px 12px -2px rgba(83, 65, 205, 0.06);">
+<div class="flex items-center gap-space-md min-w-0 pr-2">
+<!-- 3D Megaphone Badge -->
+<div class="w-12 h-12 rounded-[16px] bg-gradient-to-tr from-secondary-container to-secondary-fixed flex items-center justify-center text-on-secondary-container shadow-sm flex-shrink-0" style="box-shadow: 0 4px 10px rgba(253, 199, 58, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.5);">
+<span class="material-symbols-outlined text-[24px]">campaign</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1">
+<span class="font-label-lg text-label-lg text-on-surface truncate">Olmaliq E'lonlar</span>
+<span class="bg-tertiary-fixed text-on-tertiary-fixed text-label-sm font-label-sm px-1.5 py-0.5 rounded-full">Yangi</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">
+                Ish o‘rinlari &amp; e'lonlar • <strong class="text-on-surface">18.2k</strong> a'zo
+              </span>
+</div>
+</div>
+<!-- Action Link -->
+<a class="flex-shrink-0 bg-primary-fixed hover:bg-primary-fixed-dim text-on-primary-fixed px-space-md py-2 rounded-full font-label-md text-label-md flex items-center gap-1 transition-all active:scale-95 shadow-sm" href="https://t.me/" target="_blank">
+<span>A'zo bo‘lish</span>
+<span class="material-symbols-outlined text-[15px]">north_east</span>
+</a>
+</div>
+</div>
+<!-- Action Confirmation Area -->
+<div class="flex flex-col gap-2 mt-space-lg">
+<!-- Main Confirmation Button CTA -->
+<button class="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3.5 px-6 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 duration-150" id="verify-subscription-btn" style="box-shadow: 0 8px 24px -2px rgba(83, 65, 205, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.35);" type="button">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span id="btn-text">Tekshirish</span>
+</button>
+<!-- Dynamic Success / Informational Subtext -->
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center px-space-md leading-tight" id="help-text">
+          Obuna bo‘lgach, "Tekshirish" tugmasini bosing — telefon raqami darhol ochiladi.
+        </p>
+</div>
+<!-- Little Mahalla Trust Footnote -->
+<div class="mt-space-md pt-space-xs flex items-center justify-center gap-1.5 opacity-70">
+<span class="material-symbols-outlined text-[14px] text-tertiary">lock</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Olmaliq shahri ishonchli xizmati</span>
+</div>
+</div>
+</div>
+<script>
+    (function () {
+      const verifyBtn = document.getElementById('verify-subscription-btn');
+      const btnText = document.getElementById('btn-text');
+      const helpText = document.getElementById('help-text');
+      const closeBtn = document.getElementById('close-modal-btn');
+      const overlay = document.getElementById('modal-overlay');
+
+      let verified = false;
+
+      verifyBtn.addEventListener('click', function () {
+        if (!verified) {
+          btnText.textContent = 'Tekshirilmoqda...';
+          verifyBtn.classList.add('opacity-80', 'cursor-wait');
+
+          setTimeout(function () {
+            verified = true;
+            verifyBtn.classList.remove('opacity-80', 'cursor-wait');
+            verifyBtn.classList.replace('from-primary', 'from-tertiary');
+            verifyBtn.classList.replace('to-primary-container', 'to-tertiary-container');
+            btnText.textContent = '+998 (90) 123-45-67 ga qo‘ng‘iroq qilish';
+            helpText.innerHTML = '<span class="text-tertiary font-bold">🎉 Rahmat! Obuna tasdiqlandi. Raqam ochiq.</span>';
+          }, 800);
+        } else {
+          window.location.href = 'tel:+998901234567';
+        }
+      });
+
+      function dismissSheet() {
+        const sheet = overlay.nextElementSibling.querySelector('div');
+        if (sheet) {
+          sheet.style.transform = 'translateY(100%)';
+          overlay.style.opacity = '0';
+          setTimeout(() => {
+            overlay.parentElement.style.display = 'none';
+          }, 300);
+        }
+      }
+
+      closeBtn.addEventListener('click', dismissSheet);
+      overlay.addEventListener('click', dismissSheet);
+    })();
+  </script>
+</div></main></body></html>

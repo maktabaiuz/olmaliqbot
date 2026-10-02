@@ -27,8 +27,12 @@ export function verifyPassword(password: string, hash: string): boolean {
 /**
  * Verify Telegram WebApp initData HMAC-SHA256 signature
  */
-export function verifyTelegramInitData(initDataStr: string): { isValid: boolean; telegramId?: bigint; userRaw?: any } {
-  const botToken = process.env.BOT_TOKEN;
+export function verifyTelegramInitData(
+  initDataStr: string,
+  // Foydalanuvchi ilovasi alohida botda ochiladi (USER_BOT_TOKEN) — admin
+  // tekshiruvi esa doim asosiy BOT_TOKEN bilan (standart qiymat).
+  botToken: string | undefined = process.env.BOT_TOKEN
+): { isValid: boolean; telegramId?: bigint; userRaw?: any } {
   if (!botToken || !initDataStr) return { isValid: false };
 
   try {
