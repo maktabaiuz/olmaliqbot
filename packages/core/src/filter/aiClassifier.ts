@@ -81,6 +81,13 @@ function isClassificationNegatedInText(normalizedMessage: string, categoryGuess:
   return sawRawMatch; // so'z bor edi, lekin faqat inkor shaklda
 }
 
+function looksLikeExplicitRequest(normalized: string): boolean {
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length <= 3) return true;
+  if (/\bishla\w*mi\b/.test(normalized)) return true;
+  return /\b(kerak|bormi|bor mi|raqam|nomer|telefon|qayerd|kimda|qanaqa|qancha|narx|qanday|ochiqm|nechida|nechigacha|manzil|kerakmi|topib|bilasizmi|bilmaysizmi|bilganlar|bilmislami)/.test(normalized);
+}
+
 export function hasPossibleServiceSignal(normalized: string): boolean {
   if (!normalized || normalized.length < 3) return false;
   // Favqulodda holat belgisi — buni HECH QACHON o'tkazib yubormaslik kerak.
@@ -102,7 +109,9 @@ export async function classifyQuery(
   userMessage: string,
   cityId?: string,
   telegramUserId?: bigint,
-  apiKey?: string
+  apiKey?: string,
+  /** noCache — 10 daqiqalik keshni chetlab o'tadi (sinov/oltin to'plam uchun). */
+  options?: { noCache?: boolean }
 ): Promise<ClassifierResult> {
   const cleanText = userMessage.trim();
   const normalized = normalizeText(cleanText);
@@ -115,7 +124,7 @@ export async function classifyQuery(
 
   // 1. Keshni tekshirish (10 minutlik)
   const cached = memoryCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!options?.noCache && cached && cached.expiresAt > Date.now()) {
     return { ...cached.data, source: 'cache' };
   }
 
@@ -146,6 +155,15 @@ export async function classifyQuery(
     result = { ...fallbackRuleClassification(normalized, cleanText), source: 'fallback' };
   }
 
+  // MUHIM (2026-10-02, oltin to'plam AI'siz rejimda topgan): zaxira lug'at
+  // MA'NONI tushunmaydi — "kecha labo band bo'lib ketdi" kabi HIKOYAni ham
+  // "labo kerak" deb oladi. AI'siz holatda faqat ANIQ so'rov belgisi bor
+  // (kerak/bormi/nomer/qayerda/qancha...) yoki juda qisqa xabarlar so'rov
+  // deb hisoblanadi — aks holda jim turish xavfsizroq.
+  if (result.source === 'fallback' && result.intent !== IntentType.EMERGENCY && !looksLikeExplicitRequest(normalized)) {
+    result = { ...result, intent: IntentType.NOT_RELEVANT };
+  }
+
   // Qat'iy qoida: confidence < 0.7 bo'lsa bot jim turadi (NOT_RELEVANT)
   if (result.confidence < 0.7) {
     result.intent = IntentType.NOT_RELEVANT;
@@ -161,7 +179,7 @@ export async function classifyQuery(
   }
 
   // 3. 10 daqiqaga keshga saqlash (600,000 ms)
-  memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
+  if (!options?.noCache) memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   // MUHIM (2026-09 topilgan xato, tuzatildi): bu yerda ILGARI har bir
   // klassifikatsiya uchun QueryLog'ga darhol "isResolved: false" qilib

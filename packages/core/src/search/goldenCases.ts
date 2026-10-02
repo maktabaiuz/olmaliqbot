@@ -69,10 +69,16 @@ function describe(e: GoldenExpectation): string {
 
 /** Butun pipeline orqali barcha holatlarni ishga tushiradi. AI limitiga
  * tushmaslik uchun holatlar orasida kutish (`delayMs`) qo'yiladi. */
-export async function runGoldenSuite(cityId: string, delayMs = 5500): Promise<GoldenResult[]> {
+export async function runGoldenSuite(
+  cityId: string,
+  delayMs = 5500,
+  /** true — klassifikator AI'siz (zaxira lug'at) ishlaydi: Gemini ishlamay
+   * qolgan yoki limit tugagan holatni ATAYLAB sinash uchun. */
+  withoutAi = false
+): Promise<GoldenResult[]> {
   const results: GoldenResult[] = [];
   for (const c of GOLDEN_CASES) {
-    const cls = await classifyQuery(c.message, cityId);
+    const cls = await classifyQuery(c.message, cityId, undefined, withoutAi ? 'mock_key' : undefined, { noCache: true });
     const seeking = cls.intent !== IntentType.NOT_RELEVANT;
     const r = await searchListings({
       cityId,
@@ -84,6 +90,7 @@ export async function runGoldenSuite(cityId: string, delayMs = 5500): Promise<Go
       requestedBadges: [],
       rentalFilters: null,
       objectType: seeking ? cls.object_type : null,
+      disableAiVerification: withoutAi,
     });
     const got: string = r ? (r.listing?.name as string) || 'ANSWER' : 'SILENCE';
     const e = c.expect;

@@ -44,13 +44,18 @@ jobs:
               const { runGoldenSuite } = require('/app/packages/core/dist/index.js');
               (async () => {
                 const city = await db.city.findFirst();
-                const results = await runGoldenSuite(city.id);
-                let pass = 0;
-                for (const r of results) {
-                  if (r.pass) pass++;
-                  console.log((r.pass ? 'PASS' : 'FAIL') + ' | kutilgan=' + r.expected + ' | natija=' + r.got + ' | ai=' + r.aiSource + ' | tekshiruv=' + (r.verifiedBy || '-') + ' | ' + r.message);
+                let allOk = true;
+                for (const [label, noAi] of [['ODDIY (AI bilan)', false], ['AI ISHLAMAGANDA (zaxira)', true]]) {
+                  console.log('--- ' + label + ' ---');
+                  const results = await runGoldenSuite(city.id, noAi ? 1500 : 5500, noAi);
+                  let pass = 0;
+                  for (const r of results) {
+                    if (r.pass) pass++;
+                    console.log((r.pass ? 'PASS' : 'FAIL') + ' | kutilgan=' + r.expected + ' | natija=' + r.got + ' | ai=' + r.aiSource + ' | tekshiruv=' + (r.verifiedBy || '-') + ' | ' + r.message);
+                  }
+                  console.log('NATIJA [' + label + ']: ' + pass + '/' + results.length);
+                  if (pass !== results.length) allOk = false;
                 }
-                console.log('NATIJA: ' + pass + '/' + results.length);
-                process.exit(pass === results.length ? 0 : 1);
+                process.exit(allOk ? 0 : 1);
               })().catch(e => { console.error('ERR', e.stack); process.exit(1); });
             "

@@ -57,6 +57,9 @@ export interface SearchOptions {
    * uchun ishlatiladi: bitta odam biror narsani TA'MIRLASHI, uni SOTISHI
    * bilan bir xil emas. */
   objectType?: string | null;
+  /** true — yakuniy AI tekshiruvi o'tkazilmaydi (AI ishlamagan holatni
+   * ataylab sinash uchun; production'da ishlatilmaydi). */
+  disableAiVerification?: boolean;
   /** MUHIM (2026-09, admin panel "Bot sinovi" xususiyati uchun): true
    * bo'lsa, natijaga `scoreBreakdown` — barcha nomzodlarning reyting
    * ballari tafsiloti (har bir bonus komponenti alohida) — qo'shiladi.
@@ -1205,6 +1208,22 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       let strength: JargonMatchStrength = null;
       for (const j of cand.jargonSynonyms) {
         if (jargonMissesShortToken(j)) continue;
+        // Ko'p so'zli atoqli nom qo'shib yozilgan bo'lsa ("oq tepa" →
+        // "oqtepa", "oqtepadagi") — bu aniq nom mosligi, kuchli dalil.
+        // FAQAT ko'p so'zli jargon uchun: bitta so'zli "choyxona" kabi
+        // umumiy jargonni bu yo'l bilan kuchaytirib yubormaslik uchun.
+        const jTokens = normalizeText(j).split(/\s+/).filter(Boolean);
+        if (jTokens.length >= 2 && jTokens.length <= 3) {
+          const compact = jTokens.join('');
+          if (
+            compact.length >= 5 &&
+            [...msgTokenSetForShort].some((m) => m === compact || (m.startsWith(compact) && m.length - compact.length <= 5))
+          ) {
+            strength = 'strong';
+            jargonEvidence.set(cand.id, j);
+            break;
+          }
+        }
         const phraseStrength = phraseLevelJargonStrength(
           msgContentTokens,
           j,
@@ -2356,7 +2375,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const isRiskyAnswer = !hasResolvedCategory || !resolvedCategoryIdSet.has(bestMatch.categoryId);
   let verifiedBy: 'not_needed' | 'ai' | 'rule' = 'not_needed';
   if (isRiskyAnswer && rawMessage) {
-    const verdict = await verifyAnswerRelevance({
+    const verdict = options.disableAiVerification ? 'unknown' : await verifyAnswerRelevance({
       message: rawMessage,
       listingName: bestMatch.name,
       categoryName: bestMatch.category?.name || null,
@@ -2370,6 +2389,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         ? conditionalJargon.get(bestMatch.id)?.strength || 'strong'
         : null;
       if (strength !== 'strong') return null;
+      // "X qayerda sotiladi" — xarid so'rovi; ta'mirchi (USTA) narsa sotmaydi.
+      // AI'siz rejimda object_type ma'lum emas, shuning uchun bu yerda
+      // xabarning o'zidan aniqlanadi (aqlli kalonka → TV usta xatosi).
+      const sellTokens = rawMessage ? normalizeText(rawMessage).split(/\s+/) : [];
+      const isPurchase = sellTokens.some((w) => GENERIC_SOT_VERB_FORMS.has(w));
+      if (isPurchase && bestMatch.category?.objectType === 'USTA') return null;
       verifiedBy = 'rule';
     }
   }
