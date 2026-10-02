@@ -129,7 +129,7 @@ export interface Map3DHandle {
   zoomIn(): void;
   zoomOut(): void;
   toggleTilt(): boolean;
-  flyTo(lng: number, lat: number): void;
+  flyTo(lng: number, lat: number, zoom?: number): void;
 }
 
 export const Map3D: React.FC<{
@@ -183,10 +183,14 @@ export const Map3D: React.FC<{
           (map.getSource('city') as maplibregl.GeoJSONSource).setData(fc);
           for (const f of fc.features as any[]) {
             if (f.properties.k !== 'label') continue;
+            // Tashqi element — MapLibre transform'i uchun; animatsiya faqat ichkida
+            // (aks holda animatsiyadagi transform marker joyini bosib ketadi).
             const el = document.createElement('div');
-            el.className = 'kb-name';
-            el.textContent = `${LABEL_EMOJI[f.properties.c] || '📍'} ${f.properties.name}`;
-            nameMarkers.push(new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -10] }).setLngLat(f.geometry.coordinates).addTo(map));
+            const inner = document.createElement('div');
+            inner.className = 'kb-name';
+            inner.textContent = `${LABEL_EMOJI[f.properties.c] || '📍'} ${f.properties.name}`;
+            el.appendChild(inner);
+            nameMarkers.push(new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -46] }).setLngLat(f.geometry.coordinates).addTo(map));
           }
         })
         .catch(() => console.error('3D xarita ma\'lumoti yuklanmadi'));
@@ -234,7 +238,8 @@ export const Map3D: React.FC<{
         map.easeTo({ pitch: flat ? 0 : TILT, bearing: flat ? 0 : -18, duration: 700 });
         return !flat;
       },
-      flyTo: (lng, lat) => map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16.2), duration: 900 }),
+      flyTo: (lng, lat, zoom) =>
+        map.flyTo({ center: [lng, lat], zoom: zoom ?? Math.max(map.getZoom(), 16.2), pitch: TILT, bearing: map.getBearing() || -18, duration: zoom ? 2400 : 900, essential: true }),
     });
     return () => {
       stopWind();

@@ -10,6 +10,7 @@ import { CloudIntro } from './map/CloudIntro';
 import { MapSheet } from './map/MapSheet';
 import { PIN_STYLE } from './map/pins';
 import { Map3D, type Map3DHandle } from './map/Map3D';
+import { PosterIntro, type Place } from './map/PosterIntro';
 
 const CtrlBtn: React.FC<{ icon: string; label: string; onClick: () => void; active?: boolean }> = ({ icon, label, onClick, active }) => (
   <button
@@ -65,6 +66,31 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   const [tilted, setTilted] = useState(true);
   const [follow, setFollow] = useState(false);
   const handle = useRef<Map3DHandle | null>(null);
+  // Poster — har sessiyada xarita birinchi ochilganda (keyin 🖼️ tugmasi bilan)
+  const [poster, setPoster] = useState(() => {
+    try {
+      return sessionStorage.getItem('kimbor_poster_seen') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  const [clouds, setClouds] = useState(0);
+  const closePoster = () => {
+    try {
+      sessionStorage.setItem('kimbor_poster_seen', '1');
+    } catch {
+      /* xotira yopiq — muhim emas */
+    }
+    setPoster(false);
+    setClouds((c) => c + 1);
+  };
+  const pickPlace = (p: Place) => {
+    closePoster();
+    setFollow(false);
+    setSelListing(null);
+    setTimeout(() => handle.current?.flyTo(p.lng, p.lat, p.zoom), 250);
+    toast(`${p.emoji} ${p.name}`, 'info');
+  };
   const { me, start } = useLiveLocation((m) => toast(m, 'error'));
 
   const all = lst.data?.items || [];
@@ -124,6 +150,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
 
   return (
     <main className="flex flex-col w-full pb-28 bg-surface min-h-screen kb-map">
+      {poster && <PosterIntro onPick={pickPlace} onClose={closePoster} />}
       {/* Jonli Olmaliq sarlavhasi */}
       <div className="px-margin pt-safe">
         <div className="mt-3 flex items-center justify-between gap-2 bg-surface-container-lowest rounded-full pl-2 pr-1.5 py-1.5 clay-card">
@@ -189,6 +216,9 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
             <CtrlBtn icon="remove" label="Uzoqlashtirish" onClick={() => handle.current?.zoomOut()} />
           </div>
           <div className="rounded-full bg-surface-container-lowest clay-card">
+            <CtrlBtn icon="photo" label="Shahar posteri" onClick={() => setPoster(true)} />
+          </div>
+          <div className="rounded-full bg-surface-container-lowest clay-card">
             <CtrlBtn
               icon={tilted ? 'map' : 'view_in_ar'}
               label={tilted ? 'Tepadan ko\'rish' : '3D ko\'rinish'}
@@ -203,7 +233,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
             Ma'lumot yuklanmadi
           </div>
         )}
-        <CloudIntro />
+        <CloudIntro key={clouds} />
       </div>
 
       {/* Pastki karta */}

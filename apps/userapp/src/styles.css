@@ -87,3 +87,13 @@ body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 .kb-name { display: none; white-space: nowrap; background: rgba(255,255,255,.92); color: #2b3234; font-size: 11px; font-weight: 800;
   padding: 3px 9px; border-radius: 9999px; box-shadow: 0 4px 10px -2px rgba(0,0,0,.18); pointer-events: none; }
 .kb-show-names .kb-name { display: block; animation: slide-up .3s ease both; }
+
+/* ---------- Olmaliq posteri ---------- */
+.kb-poster-in { animation: kb-poster-in .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes kb-poster-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+.kb-kenburns { position: relative; animation: kb-kenburns 18s ease-in-out infinite alternate; }
+@keyframes kb-kenburns { from { transform: scale(1) translate(0, 0); } to { transform: scale(1.06) translate(-1.2%, -1.5%); } }
+.kb-drift { left: -30%; animation: kb-drift 40s linear infinite; }
+@keyframes kb-drift { from { transform: translateX(0); } to { transform: translateX(170vw); } }
+.kb-hotspot-ring { animation: blob-ring 1.8s ease-out infinite; }
+.kb-hotspot-bob { animation: kb-pin-bob 1.8s ease-in-out infinite; }
