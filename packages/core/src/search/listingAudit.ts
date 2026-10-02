@@ -118,3 +118,49 @@ async function runOnce(cityId: string, message: string): Promise<{ name: string;
   if (!r) return null;
   return { name: r.listing.name as string, categoryId: r.listing.categoryId as string, categoryName: (r.listing.category?.name as string) || '' };
 }
+
+/**
+ * Audit topgan xavfli ma'lumotni tozalash (2026-10-02, admin tasdig'i bilan):
+ *  1) Manzil SINONIMLARI ichidagi kasb/kategoriya nomlari ("kalonka ustasi",
+ *     "kafelchi") — manzil sifatida noto'g'ri moslik beradi;
+ *  2) yozuv jargonidagi FAQAT manzildan iborat iboralar ("karzinka",
+ *     "eski bozor") — shu joydagi har qanday savolga shu yozuvni chiqaradi.
+ * Manzilning O'Z NOMI kasb bo'lsa — faqat hisobotga yoziladi (unga yozuvlar
+ * bog'langan, o'chirish/qayta nomlashni admin hal qiladi).
+ * Har bir o'zgarish AuditLog'ga eski qiymati bilan yoziladi (qaytarish uchun).
+ */
+export async function cleanupRiskyTerms(cityId: string, apply: boolean) {
+  const categories = await db.category.findMany({ select: { name: true, synonyms: true } });
+  const categoryTerms = new Set(categories.flatMap((c) => [c.name, ...c.synonyms]).map((x) => normalizeText(x)).filter(Boolean));
+  const landmarks = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } });
+
+  const changes: { kind: string; target: string; removed: string[] }[] = [];
+  const professionNamedLandmarks: string[] = [];
+  const cleanLandmarkTerms = new Set<string>();
+
+  for (const l of landmarks) {
+    if (categoryTerms.has(normalizeText(l.name))) professionNamedLandmarks.push(l.name);
+    else cleanLandmarkTerms.add(normalizeText(l.name));
+    const removed = l.synonyms.filter((s) => categoryTerms.has(normalizeText(s)));
+    const kept = l.synonyms.filter((s) => !categoryTerms.has(normalizeText(s)));
+    kept.forEach((s) => cleanLandmarkTerms.add(normalizeText(s)));
+    if (removed.length === 0) continue;
+    changes.push({ kind: 'landmark_synonym', target: l.name, removed });
+    if (apply) {
+      await db.landmark.update({ where: { id: l.id }, data: { synonyms: kept } });
+      await db.auditLog.create({ data: { cityId, action: 'CLEANUP_LANDMARK_SYNONYMS', details: { landmarkId: l.id, name: l.name, before: l.synonyms, removed } } });
+    }
+  }
+
+  const listings = await db.listing.findMany({ where: { cityId }, select: { id: true, name: true, jargonSynonyms: true } });
+  for (const l of listings) {
+    const removed = l.jargonSynonyms.filter((s) => cleanLandmarkTerms.has(normalizeText(s)));
+    if (removed.length === 0) continue;
+    changes.push({ kind: 'listing_jargon', target: l.name, removed });
+    if (apply) {
+      await db.listing.update({ where: { id: l.id }, data: { jargonSynonyms: l.jargonSynonyms.filter((s) => !removed.includes(s)) } });
+      await db.auditLog.create({ data: { cityId, action: 'CLEANUP_LISTING_JARGON', details: { listingId: l.id, name: l.name, before: l.jargonSynonyms, removed } } });
+    }
+  }
+  return { applied: apply, changes, professionNamedLandmarks };
+}

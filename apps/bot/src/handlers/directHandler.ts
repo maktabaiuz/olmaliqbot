@@ -1,4 +1,5 @@
 import { Context, InlineKeyboard, Keyboard } from 'grammy';
+import { buildSearchParams, isNonSearchMessage } from './searchParams';
 import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
@@ -94,11 +95,18 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     session.pendingSearch = undefined;
     const wholeCity = /^(shahar|hammasi|farqi yo'?q|yo'?q|olmaliq)$/i.test(messageText);
     await runPrivateSearch(ctx, {
-      cityId: session.cityId || defaultCityId,
+      params: {
+        cityId: session.cityId || defaultCityId,
+        categoryName: pending.category,
+        landmarkName: wholeCity ? null : messageText,
+        rawMessage: pending.rawMessage,
+        intent: IntentType.SERVICE,
+        name: null,
+        objectType: null,
+        requestedBadges: extractRequestedBadges(pending.rawMessage),
+        rentalFilters: extractRentalFilters(pending.rawMessage),
+      },
       telegramUserId: telegramUserIdBigInt,
-      categoryName: pending.category,
-      landmarkName: wholeCity ? null : messageText,
-      rawMessage: pending.rawMessage,
     });
     return;
   }
@@ -302,7 +310,21 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   // xil mantiq (qarang: groupHandler.ts). Aniq kategoriya YO'Q, lekin
   // mo'ljal ANIQ bo'lsa — shu mo'ljaldagi barcha yozuvlar ro'yxat qilib
   // yuboriladi, oddiy qidiruv/aniqlashtirish oqimidan OLDIN.
-  if (!categoryGuess && isAreaBrowseQuery(messageText)) {
+  // Ish e'loni / kommunal holat savoli — guruhdagidek kartochka yuborilmaydi,
+  // suhbatdosh AI javob beradi.
+  if (isNonSearchMessage(messageText)) {
+    await ctx.replyWithChatAction('typing').catch(() => {});
+    const reply = await getAssistantReply({
+      cityId: activeCityId,
+      userId: Number(telegramUserIdBigInt),
+      userText: messageText,
+      searchNote: 'qidiruv emas (ish e\'loni yoki kommunal holat savoli)',
+    });
+    await ctx.reply(reply);
+    return;
+  }
+
+  if (!classification.category && isAreaBrowseQuery(messageText)) {
     const areaResult = await findAreaListings(activeCityId, classification.landmark, messageText);
     if (areaResult) {
       await ctx.reply(areaResult.formattedText, { parse_mode: 'HTML' });
@@ -310,57 +332,26 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     }
   }
 
-  const isSeeking =
-    classification.intent === 'SERVICE' ||
-    classification.intent === 'CONTACT' ||
-    classification.intent === 'HOURS' ||
-    classification.intent === 'LOCATION' ||
-    classification.intent === 'PRICE';
-
-  // (2026-10) Avval bu yerda hudud aytilmasa majburiy "Qaysi hudud?" savoli
-  // berilardi — odamlar buni tushunmay suhbat uzilib qolardi. Endi butun
-  // shahar bo'yicha darhol qidiriladi; kerak bo'lsa AI o'zi tabiiy so'raydi.
-
+  // Guruh bilan AYNAN bir xil parametrlar (qarang: searchParams.ts).
   await runPrivateSearch(ctx, {
-    cityId: activeCityId,
+    params: buildSearchParams(activeCityId, messageText, classification),
     telegramUserId: telegramUserIdBigInt,
-    categoryName: isSeeking ? categoryGuess : null,
-    landmarkName: isSeeking ? classification.landmark : null,
-    rawMessage: messageText,
-    intent: classification.intent,
     confidence: classification.confidence,
     aiSource: classification.source ?? null,
-    name: isSeeking ? classification.name : null,
-    objectType: isSeeking ? classification.object_type : null,
   });
 }
 
 async function runPrivateSearch(
   ctx: Context,
-  opts: {
-    cityId: string;
+  input: {
+    params: ReturnType<typeof buildSearchParams>;
     telegramUserId: bigint;
-    categoryName: string | null;
-    landmarkName: string | null;
-    rawMessage: string;
-    intent?: IntentType;
     confidence?: number;
     aiSource?: string | null;
-    name?: string | null;
-    objectType?: string | null;
   }
 ) {
-  const searchResult = await searchListings({
-    cityId: opts.cityId,
-    categoryName: opts.categoryName,
-    landmarkName: opts.landmarkName,
-    rawMessage: opts.rawMessage,
-    intent: opts.intent,
-    name: opts.name,
-    objectType: opts.objectType,
-    requestedBadges: extractRequestedBadges(opts.rawMessage),
-    rentalFilters: extractRentalFilters(opts.rawMessage),
-  });
+  const opts = { ...input.params, telegramUserId: input.telegramUserId, confidence: input.confidence, aiSource: input.aiSource };
+  const searchResult = await searchListings(input.params);
 
   if (!searchResult) {
     db.queryLog.create({

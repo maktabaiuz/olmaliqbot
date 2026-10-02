@@ -984,7 +984,15 @@ const MoreLandmarksSubView: React.FC<{
   };
   useEffect(() => { loadLandmarks(); loadQuality(); }, []);
 
-  const filtered = lands.filter(l => l.name.toLowerCase().includes(search.toLowerCase()));
+  // Manzil turlari (2026-10-02): mahalla = xaritada chegarasi chizilgan
+  // hudud, mo'ljal = nuqta-joy (Karzinka, bozor, maktab...).
+  const [kind, setKind] = useState<'all' | 'mahalla' | 'moljal'>('all');
+  const isMahalla = (l: any) => Array.isArray(l.boundary) && l.boundary.length > 2;
+  const filtered = lands.filter(
+    l =>
+      l.name.toLowerCase().includes(search.toLowerCase()) &&
+      (kind === 'all' || (kind === 'mahalla' ? isMahalla(l) : !isMahalla(l)))
+  );
   const exactMatchExists = lands.some(l => l.name.toLowerCase() === search.trim().toLowerCase());
 
   const handleCreate = async () => {
@@ -1090,6 +1098,24 @@ const MoreLandmarksSubView: React.FC<{
               searchFocused || search ? 'pl-8 pr-3 text-left' : 'pl-3 pr-3 text-center'
             }`}
           />
+        </div>
+
+        <div className="flex bg-[#767680]/[0.12] dark:bg-[#767680]/[0.24] rounded-[9px] p-0.5">
+          {([
+            ['all', `Hammasi (${lands.length})`],
+            ['mahalla', `🏘️ Mahallalar (${lands.filter(isMahalla).length})`],
+            ['moljal', `📍 Mo'ljallar (${lands.filter(l => !isMahalla(l)).length})`],
+          ] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              className={`flex-1 py-1.5 text-[12px] font-semibold rounded-[7px] transition-all ${
+                kind === k ? 'bg-white dark:bg-[#636366] text-on-surface dark:text-white shadow-sm' : 'text-[#8E8E93]'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {search.trim() && !exactMatchExists && (

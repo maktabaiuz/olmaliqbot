@@ -1,4 +1,5 @@
 import { Context } from 'grammy';
+import { buildSearchParams, isNonSearchMessage } from './searchParams';
 import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery, recordLearnedTermCandidates } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
@@ -115,7 +116,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // tasdiqlangan, shuning uchun bu yerda AI dan QAT'I NAZAR to'xtatiladi.
   if (
     classification.intent !== 'EMERGENCY' &&
-    (isSelfOffer(messageText) || isJobVacancy(messageText) || isUtilityStatusQuestion(messageText))
+    (isSelfOffer(messageText) || isNonSearchMessage(messageText))
   ) {
     db.queryLog.create({
       data: {
@@ -217,23 +218,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // bazada TO'G'RIDAN-TO'G'RI mos yozuv topilsa — bu haqiqiy, kuchli signal,
   // AI xulosasidan ustunroq. Faqat HECH NARSA topilmagandagina AI ning
   // ishonchlilik bahosiga qarab javob berish-bermaslik hal qilinadi.
-  const isSeeking =
-    classification.intent !== 'NOT_RELEVANT';
-  const searchResult = await searchListings({
-    cityId,
-    // NOT_RELEVANT bo'lsa kategoriya so'zi (labo) bilan qidirilmaydi —
-    // aks holda e'lon ham kartochka ochardi. Jargon ibora esa rawMessage
-    // orqali hali ham topiladi.
-    categoryName: isSeeking ? classification.category : null,
-    landmarkName: isSeeking ? classification.landmark : null,
-    rawMessage: messageText,
-    intent: classification.intent,
-    name: isSeeking ? classification.name : null,
-    requestedBadges: extractRequestedBadges(messageText),
-    rentalFilters: extractRentalFilters(messageText),
-    isReplyToPhoto,
-    objectType: isSeeking ? classification.object_type : null,
-  });
+  const searchResult = await searchListings({ ...buildSearchParams(cityId, messageText, classification), isReplyToPhoto });
 
   if (!searchResult) {
     // Topilmasa: Guruhda JIM. Biz bazaga kiritmagan mavzu bo'yicha "ma'lumot
