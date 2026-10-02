@@ -79,21 +79,17 @@ function flatRoof(b: Batch, ring: Ring, y: number) {
   }
 }
 
-/** Qiya (ikki nishabli) tom — eng uzun devor yo'nalishidagi yo'naltirilgan to'rtburchak ustida. */
-function gableRoof(roof: Batch, gable: Batch, ring: Ring, y: number) {
+/** To'rt qiyalikli (hip) tom — eng uzun devor yo'nalishidagi yo'naltirilgan to'rtburchak ustida. */
+function obb(ring: Ring) {
   let best = 0;
   let ang = 0;
   for (let i = 0; i < ring.length - 1; i++) {
     const dx = ring[i + 1][0] - ring[i][0];
     const dz = ring[i + 1][1] - ring[i][1];
     const l = Math.hypot(dx, dz);
-    if (l > best) {
-      best = l;
-      ang = Math.atan2(dz, dx);
-    }
+    if (l > best) { best = l; ang = Math.atan2(dz, dx); }
   }
-  const ca = Math.cos(ang);
-  const sa = Math.sin(ang);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
   let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
   for (const [x, z] of ring) {
     const u = x * ca + z * sa;
@@ -101,20 +97,35 @@ function gableRoof(roof: Batch, gable: Batch, ring: Ring, y: number) {
     minU = Math.min(minU, u); maxU = Math.max(maxU, u);
     minV = Math.min(minV, v); maxV = Math.max(maxV, v);
   }
-  const o = 0.45; // tom chiqib turishi
+  return { ca, sa, minU, maxU, minV, maxV };
+}
+
+function hipRoof(roof: Batch, ring: Ring, y: number) {
+  const o = 0.55; // tom chiqib turishi (karniz)
+  let { ca, sa, minU, maxU, minV, maxV } = obb(ring);
   minU -= o; maxU += o; minV -= o; maxV += o;
   const w = maxV - minV;
-  const rise = Math.min(3.2, Math.max(1.4, w * 0.32));
+  const rise = Math.min(3.4, Math.max(1.5, w * 0.36));
   const midV = (minV + maxV) / 2;
+  const inset = Math.min(w / 2, (maxU - minU) / 2);
   const P = (u: number, v: number, yy: number) => V(u * ca - v * sa, yy, u * sa + v * ca);
-  const a = P(minU, minV, y), b = P(maxU, minV, y), c = P(maxU, midV, y + rise), d = P(minU, midV, y + rise);
-  const e = P(minU, maxV, y), f = P(maxU, maxV, y);
+  const a = P(minU, minV, y), b = P(maxU, minV, y), f = P(maxU, maxV, y), e = P(minU, maxV, y);
+  const r1 = P(minU + inset, midV, y + rise), r2 = P(maxU - inset, midV, y + rise);
   const L = (maxU - minU) / 2;
-  roof.quad(a, b, c, d, 0, L, 0, 1.6);
-  roof.quad(f, e, d, c, 0, L, 0, 1.6);
-  // uchburchak peshtoqlar
-  gable.tri(e, a, d, [0, 0], [w / BAY_W, 0], [w / BAY_W / 2, rise / FLOOR_H]);
-  gable.tri(b, f, c, [0, 0], [w / BAY_W, 0], [w / BAY_W / 2, rise / FLOOR_H]);
+  roof.quad(a, b, r2, r1, 0, L, 0, 1.6);
+  roof.quad(f, e, r1, r2, 0, L, 0, 1.6);
+  roof.tri(e, a, r1, [0, 0], [1, 0], [0.5, 1]);
+  roof.tri(b, f, r2, [0, 0], [1, 0], [0.5, 1]);
+}
+
+/** Hovli devori — uy atrofida ~3 m kenglikdagi hovli chegarasi. */
+function yardWall(b: Batch, ring: Ring) {
+  let { ca, sa, minU, maxU, minV, maxV } = obb(ring);
+  const pad = 3.2;
+  minU -= pad; maxU += pad; minV -= pad; maxV += pad;
+  const P = (u: number, v: number): [number, number] => [u * ca - v * sa, u * sa + v * ca];
+  const r: Ring = [P(minU, minV), P(maxU, minV), P(maxU, maxV), P(minU, maxV), P(minU, minV)];
+  walls(b, r, 0, 1.7, 3, 1.7);
 }
 
 function centroid(r: Ring): [number, number] {
@@ -133,8 +144,8 @@ export interface BuildingFeature {
 
 const ROOF_COLORS: Record<string, string[]> = {
   house: ['#b8452f', '#8f3b2c', '#4f8a5a', '#3f73a3', '#9a6b4a'],
-  dom: ['#8f949c', '#a08f83', '#7f8b96'],
-  tower: ['#727a86'],
+  dom: ['#5d6168', '#62666d', '#585c63'],
+  tower: ['#55595f'],
   mosque: ['#eae3cf'],
   school: ['#d9a128'],
   health: ['#dfe7ee'],
@@ -166,6 +177,7 @@ export function buildCity(buildings: BuildingFeature[]): THREE.Group {
     return r;
   };
   const domes = new Batch();
+  const rooftop: { x: number; z: number; y: number; big: boolean }[] = [];
   const minarets: THREE.Vector3[] = [];
 
   for (const bf of buildings) {
@@ -192,12 +204,24 @@ export function buildCity(buildings: BuildingFeature[]): THREE.Group {
     const roofColor = roofs[v % roofs.length];
     const isHouse = k === 'house' || (k === 'bld' && h <= 7);
     if (isHouse) {
-      const gb = getWall(k === 'bld' ? `house-${v % 4}` : `house-${v % 4}`, () => houseFacade(HOUSE_STYLES[v % 4], v % 4 === 1 || v % 4 === 2));
-      gableRoof(getRoof(roofColor), gb, ring, h);
+      hipRoof(getRoof(roofColor), ring, h);
+      if (k === 'house') yardWall(getRoof('#d9ccb3'), ring);
     } else {
       flatRoof(getRoof(roofColor), ring, h);
       // parapet — tom chetida past devor
-      walls(getRoof('#7d828a'), ring, h, h + 0.7, 50, 1);
+      walls(getRoof('#6a6e75'), ring, h, h + 0.7, 50, 1);
+      if (k === 'dom' || k === 'tower') {
+        // tom detallari: konditsioner, shaxta, lift xonasi
+        const [cx, cz] = centroid(ring);
+        const { ca, sa, minU, maxU, minV, maxV } = obb(ring);
+        const n = Math.max(2, Math.min(8, Math.round((maxU - minU) / 9)));
+        for (let i = 0; i < n; i++) {
+          const u = minU + ((i + 0.5) / n) * (maxU - minU);
+          const vv = (minV + maxV) / 2 + (i % 2 ? 1.6 : -1.6);
+          rooftop.push({ x: u * ca - vv * sa, z: u * sa + vv * ca, y: h, big: i === Math.floor(n / 2) });
+        }
+        void cx; void cz;
+      }
     }
 
     if (k === 'mosque') {
@@ -237,6 +261,15 @@ export function buildCity(buildings: BuildingFeature[]): THREE.Group {
       cap.position.set(m.x, 27.7, m.z);
       group.add(shaft, balcony, cap);
     }
+  }
+  if (rooftop.length) {
+    const box = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: '#e8eaee' }), rooftop.length);
+    const mm = new THREE.Matrix4();
+    rooftop.forEach((r, i) => {
+      mm.compose(new THREE.Vector3(r.x, r.y + 0.7, r.z), new THREE.Quaternion(), r.big ? new THREE.Vector3(3, 2.2, 3) : new THREE.Vector3(1.4, 0.9, 1.1));
+      box.setMatrixAt(i, mm);
+    });
+    group.add(box);
   }
   return group;
 }

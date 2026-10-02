@@ -46,7 +46,7 @@ const STYLE: StyleSpecification = {
     life: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   },
   layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#d9e8b8' } },
+    { id: 'bg', type: 'background', paint: { 'background-color': '#c9e19e' } },
     { id: 'land', type: 'fill', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['grass', 'cemetery', 'park']]], paint: { 'fill-color': byKind({ grass: '#b6d987', cemetery: '#bfd1a3', park: '#86c266' }, '#b6d987') } },
     { id: 'areas-fill', type: 'fill', source: 'areas', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['get', 'sel'], 0.32, 0.16] } },
     { id: 'areas-line', type: 'line', source: 'areas', paint: { 'line-color': ['get', 'c'], 'line-width': ['case', ['get', 'sel'], 3, 1.5], 'line-dasharray': [2, 1.5] } },
@@ -304,6 +304,9 @@ export const Map3D: React.FC<{
   return (
     <div className="absolute inset-0">
       <div ref={box} className="w-full h-full" />
+      {/* Tilt-shift: tepa va pastki chet biroz xira — "o'yinchoq shahar" hissi */}
+      <div className="kb-tiltshift kb-tiltshift-top" />
+      <div className="kb-tiltshift kb-tiltshift-bottom" />
       {/* Bulut soyalari — xarita ustidan sekin suzib o'tadi */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <span className="kb-cloud-shadow" style={{ top: '18%', animationDuration: '55s', animationDelay: '-10s' }} />

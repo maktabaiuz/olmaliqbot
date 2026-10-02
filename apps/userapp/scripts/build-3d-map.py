@@ -207,6 +207,30 @@ for e in src['elements']:
                     if random.random() < 0.7:
                         plant(px + ox, py + oy)
 
+# Domlar orasidagi hovlilar: bolalar maydonchasi / shiypon / gulzor nuqtalari.
+# Har dom atrofida 14-26 m masofada, hech qaysi bino ichiga tushmaydigan joy.
+dom_polys = [f['geometry']['coordinates'][0] for f in features if f['properties'].get('k') in ('dom', 'tower')]
+all_bb = [(min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b), b) for b in buildings]
+def free(x, y, pad):
+    dl = pad / 84000
+    for x1, y1, x2, y2, b in all_bb:
+        if x1 - dl <= x <= x2 + dl and y1 - dl <= y <= y2 + dl:
+            return False
+    return True
+yard_spots = []
+for poly in dom_polys:
+    cx, cy = centroid(poly)
+    for _ in range(3):
+        ang = random.uniform(0, 2 * math.pi)
+        d = random.uniform(16, 28)
+        x = cx + d * math.cos(ang) / 84000
+        y = cy + d * math.sin(ang) / 111320
+        if free(x, y, 6) and all(math.hypot((x - a) * 84000, (y - b) * 111320) > 25 for a, b, _k in yard_spots):
+            yard_spots.append((x, y, random.choice(['playground', 'gazebo', 'flowers', 'flowers'])))
+            break
+for x, y, kind in yard_spots:
+    features.append({'type': 'Feature', 'properties': {'k': 'yard', 't': kind, 'r': round(random.uniform(0, 3.14), 2)}, 'geometry': {'type': 'Point', 'coordinates': [round(x, 6), round(y, 6)]}})
+
 # Oydin dehqon bozori — rangli rastalar (soyabonli kichik bloklar)
 BAZAR = (69.59287, 40.86498)
 for i in range(7):
@@ -219,6 +243,69 @@ for i in range(7):
         poly = [[round(x - dlon, 6), round(y - dlat, 6)], [round(x + dlon, 6), round(y - dlat, 6)], [round(x + dlon, 6), round(y + dlat, 6)], [round(x - dlon, 6), round(y + dlat, 6)]]
         poly.append(poly[0])
         features.append(poly_feat({'k': 'stall', 'v': random.randint(0, 4), 'h': 3.2}, poly))
+
+# Shahar yashilligi: bo'sh joylarga daraxt (binodan >9 m, yo'ldan >8 m,
+# eng yaqin binoga <110 m — faqat turar-joy hududlarida). OSM bu daraxtlarni
+# bilmaydi, lekin Olmaliq hovlilari va ko'chalari haqiqatan yam-yashil.
+MX, MY = 84000.0, 111320.0
+CELL = 40.0
+bgrid = {}
+for b in buildings:
+    xs = [p[0] * MX for p in b]; ys = [p[1] * MY for p in b]
+    for gx in range(int(min(xs) // CELL), int(max(xs) // CELL) + 1):
+        for gy in range(int(min(ys) // CELL), int(max(ys) // CELL) + 1):
+            bgrid.setdefault((gx, gy), []).append((min(xs), min(ys), max(xs), max(ys)))
+rgrid = {}
+for f in features:
+    if f['geometry']['type'] != 'LineString' or f['properties']['k'] not in ('road1', 'road2', 'street', 'rail', 'river'):
+        continue
+    c = f['geometry']['coordinates']
+    for (x1, y1), (x2, y2) in zip(c, c[1:]):
+        a = (x1 * MX, y1 * MY); bb = (x2 * MX, y2 * MY)
+        for gx in range(int(min(a[0], bb[0]) // CELL) - 1, int(max(a[0], bb[0]) // CELL) + 2):
+            for gy in range(int(min(a[1], bb[1]) // CELL) - 1, int(max(a[1], bb[1]) // CELL) + 2):
+                rgrid.setdefault((gx, gy), []).append((a, bb))
+def seg_dist(p, a, b):
+    ax, ay = a; bx, by = b; px, py = p
+    dx, dy = bx - ax, by - ay
+    L2 = dx * dx + dy * dy or 1
+    t = max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / L2))
+    return math.hypot(px - ax - t * dx, py - ay - t * dy)
+def near_building(px, py, d):
+    gx, gy = int(px // CELL), int(py // CELL)
+    best = 1e9
+    for ix in range(gx - 3, gx + 4):
+        for iy in range(gy - 3, gy + 4):
+            for x1, y1, x2, y2 in bgrid.get((ix, iy), ()):
+                dx = max(x1 - px, 0, px - x2); dy = max(y1 - py, 0, py - y2)
+                best = min(best, math.hypot(dx, dy))
+                if best < d:
+                    return best
+    return best
+def near_road(px, py, d):
+    for a, b in rgrid.get((int(px // CELL), int(py // CELL)), ()):
+        if seg_dist((px, py), a, b) < d:
+            return True
+    return False
+filler = 0
+if buildings:
+    allx = [p[0] for b in buildings for p in b]; ally = [p[1] for b in buildings for p in b]
+    y = min(ally)
+    step = 15 / MY
+    while y < max(ally):
+        x = min(allx)
+        while x < max(allx):
+            jx = x + random.uniform(-0.3, 0.3) * 15 / MX
+            jy = y + random.uniform(-0.3, 0.3) * step
+            px, py = jx * MX, jy * MY
+            if random.random() < 0.26:
+                nb = near_building(px, py, 9)
+                if 9 <= nb <= 110 and not near_road(px, py, 8):
+                    plant(jx, jy)
+                    filler += 1
+            x += 15 / MX
+        y += step
+print('filler trees', filler)
 
 # Bino ichiga tushib qolgan daraxtlarni olib tashlash (tezkor bbox + nuqta-ichida tekshiruvi)
 bboxes = [(min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b), b) for b in buildings]

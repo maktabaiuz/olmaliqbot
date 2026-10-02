@@ -22,16 +22,16 @@ function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D)
 
 // [devor, ramka, oyna, balkon|null, panel chiziqlari]
 export const DOM_STYLES: [string, string, string, string | null, boolean][] = [
-  ['#e9e1cf', '#cdbfa3', '#4d6f96', '#d6c8ab', true], // bej panel, balkonli
-  ['#f3efe6', '#d7d0c0', '#5b82ad', null, false], // oq suvoq
-  ['#c7dcec', '#a2bdd3', '#355a85', '#b3cbe0', true], // havorang
-  ['#f2dc9c', '#d4b96b', '#4f7097', '#e3c97f', false], // sariq
-  ['#f0c4a8', '#d3a184', '#4e7298', null, true], // shaftoli
-  ['#c8e4d0', '#a1c8ad', '#466f91', '#b3d8be', false], // yalpiz
-  ['#c4c4bd', '#a3a39c', '#4a6584', '#b0b0a9', true], // beton
-  ['#b46549', '#934a33', '#c5d6e6', null, false], // qizil g'isht
-  ['#e3d5bd', '#c2af8f', '#5d80a8', '#c9b691', true], // sovet panel
-  ['#a7bccf', '#869db4', '#d7e7f5', null, false], // zamonaviy oynali
+  ['#f2d68a', '#d8b964', '#4f7097', '#e6c776', true], // sariq (rasmdagidek)
+  ['#f0b597', '#d39577', '#4e7298', '#e3a586', true], // shaftoli
+  ['#ead3ab', '#cdb48a', '#4d6f96', '#dcc295', true], // bej
+  ['#eba596', '#cf8778', '#4c6f94', null, true], // pushti-terrakota
+  ['#f5e3b3', '#dcc78f', '#557aa1', '#ead39b', false], // och sariq
+  ['#d9dde3', '#b9bec6', '#466f91', '#c7ccd3', true], // och kulrang
+  ['#e8c49a', '#c9a476', '#4a6584', '#dbb383', true], // qumrang
+  ['#c8dbe9', '#a6bfd3', '#355a85', '#b5cde0', false], // havorang
+  ['#f3cfa0', '#d6b07f', '#5d80a8', '#e6bf8b', true], // apelsin-bej
+  ['#e9e2d6', '#cbc2b2', '#5b82ad', null, false], // oq suvoq
 ];
 
 export function domFacade([wall, frame, glass, balcony, panels]: (typeof DOM_STYLES)[number]) {
