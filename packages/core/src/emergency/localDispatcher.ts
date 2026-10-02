@@ -1,5 +1,6 @@
 import { db } from '@kimbor/db';
 import { normalizeText, containsWholeWord } from '../transliteration';
+import { verifyAnswerRelevance } from '../search/answerVerifier';
 import { UZBEK_STOPWORDS } from '../search/uzbekStopwords';
 
 /**
@@ -173,7 +174,9 @@ function wordsShareStem(a: string, b: string): boolean {
   if (a === b) return true;
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length <= b.length ? b : a;
-  return shorter.length >= 4 && longer.startsWith(shorter);
+  // Qo'shimcha uzunligi cheklangan (2026-10-02): "svet" → "svetni",
+  // "svetdan" mos, lekin "svetafor" (svetofor) — BOSHQA so'z, mos emas.
+  return shorter.length >= 4 && longer.startsWith(shorter) && longer.length - shorter.length <= 3;
 }
 
 function extractDistinctiveJargonWords(phrase: string, cityNameNormalized: string): string[] {
@@ -215,16 +218,18 @@ export async function findLocalDispatcherMatch(
       const normJargon = normalizeText(jargon);
       if (!normJargon || normJargon.length < 3) continue;
 
-      // 1) Butun ibora matnda bor (eng ishonchli, aniq moslik).
-      if (normalized.includes(normJargon) || containsWholeWord(normalized, normJargon)) {
-        return {
+      // 1) Butun ibora matnda ALOHIDA SO'Z sifatida bor. (Avval oddiy
+      // qism-satr qidirilardi: "svetafor" ichidan "svet" topilib, svetofor
+      // haqidagi gapga elektr dispetcheri raqami yuborilgan — 2026-10-02.)
+      if (containsWholeWord(normalized, normJargon)) {
+        return verifyDispatcherMatch(rawMessage, entry, normJargon, true, {
           label: entry.label,
           phoneNumber: entry.phoneNumber,
           formattedText: renderLocalDispatcherText(entry.label, entry.phoneNumber, entry.messageTemplate),
           linkUrl: entry.linkUrl,
           linkLabel: entry.linkLabel,
           linkButtonStyle: entry.linkButtonStyle as 'primary' | 'success' | 'danger' | null,
-        };
+        });
       }
 
       // 2) Butun ibora mos kelmasa — jargondagi ENG XOS (umumiy bo'lmagan)
@@ -238,16 +243,40 @@ export async function findLocalDispatcherMatch(
         msgWords.some((mw) => wordsShareStem(jw, mw))
       );
       if (hasWordMatch) {
-        return {
+        return verifyDispatcherMatch(rawMessage, entry, normJargon, false, {
           label: entry.label,
           phoneNumber: entry.phoneNumber,
           formattedText: renderLocalDispatcherText(entry.label, entry.phoneNumber, entry.messageTemplate),
           linkUrl: entry.linkUrl,
           linkLabel: entry.linkLabel,
           linkButtonStyle: entry.linkButtonStyle as 'primary' | 'success' | 'danger' | null,
-        };
+        });
       }
     }
   }
   return null;
+}
+
+/**
+ * Dispetcher moslligi ham oddiy qidiruv kabi yakuniy AI tekshiruvidan
+ * o'tadi (2026-10-02): "svetofor tagida mashina ko'payib qoldi" kabi gap
+ * elektr xizmatini SO'RAMAYDI. AI ishlamasa — faqat butun ibora aniq mos
+ * kelganda javob beriladi (so'z-o'zak mosligi yetarli emas).
+ */
+async function verifyDispatcherMatch(
+  rawMessage: string,
+  entry: { label: string },
+  matchedPhrase: string,
+  exactPhrase: boolean,
+  match: LocalDispatcherMatch
+): Promise<LocalDispatcherMatch | null> {
+  const verdict = await verifyAnswerRelevance({
+    message: rawMessage,
+    listingName: entry.label,
+    categoryName: 'city service phone number',
+    matchedPhrase,
+  });
+  if (verdict === 'irrelevant') return null;
+  if (verdict === 'unknown' && !exactPhrase) return null;
+  return match;
 }

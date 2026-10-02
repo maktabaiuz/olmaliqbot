@@ -1,5 +1,18 @@
 import { classifyQuery } from '../filter/aiClassifier';
 import { searchListings } from './searchEngine';
+import { findLocalDispatcherMatch } from '../emergency/localDispatcher';
+
+/** AI'siz rejimda dispetcher tekshiruvi ham AI'siz ishlashi uchun kalitni
+ * vaqtincha yashiradi. */
+async function withMockKey<T>(fn: () => Promise<T>): Promise<T> {
+  const saved = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'mock_key';
+  try {
+    return await fn();
+  } finally {
+    process.env.GEMINI_API_KEY = saved;
+  }
+}
 import { IntentType } from '@kimbor/types';
 
 /**
@@ -35,6 +48,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { message: 'Raduga tomonlar tinchmi?', expect: { kind: 'silence' }, origin: 'Xavfsizlik savoli, xizmat emas' },
   { message: 'kecha labo band bolib ketdi hech qayerga bormadim', expect: { kind: 'silence' }, origin: 'Hikoya, so\'rov emas' },
   { message: 'Arendaga yengil mashina kerak edi uzoq muddatga taksi qilishga emas', expect: { kind: 'not_includes', text: 'Taksi' }, origin: 'Inkor: "taksi EMAS"' },
+  { message: "ozi nega to'xtavogan, mumkinmasu svetafor tagida turish", expect: { kind: 'silence' }, origin: 'Svetofor → elektr dispetcheri (2026-10-02)' },
+  { message: "oxirgi vaqtlar o'sha svetafor tagida moshina ko'payib qoldi o'zi", expect: { kind: 'silence' }, origin: 'Svetofor → elektr dispetcheri (2026-10-02)' },
   // ---------- Bot JAVOB BERISHI shart bo'lgan holatlar ----------
   { message: 'santexnik kerak', expect: { kind: 'any' }, origin: 'Asosiy xizmat' },
   { message: 'malyar kerak', expect: { kind: 'any' }, origin: 'Asosiy xizmat' },
@@ -45,6 +60,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { message: 'n1 choyxona nomeri kerak', expect: { kind: 'includes', text: 'N1' }, origin: 'Qisqa atoqli nom' },
   { message: 'Gagarin choyxona nomeri bormi', expect: { kind: 'includes', text: 'Gagarin' }, origin: 'Atoqli nom' },
   { message: 'kalonka ustasi kerak', expect: { kind: 'any' }, origin: 'Kalonka — to\'g\'ri ma\'noda' },
+  { message: "svet o'chib qoldi elektr nomeri kerak", expect: { kind: 'includes', text: 'Elektr' }, origin: 'Dispetcher — to\'g\'ri ma\'noda' },
   { message: 'Radugada korzinka yonida malyar kerak', expect: { kind: 'any' }, origin: "Mo'ljal + soha (karzinka to'g'ri ishlatilgan)" },
 ];
 
@@ -78,6 +94,16 @@ export async function runGoldenSuite(
 ): Promise<GoldenResult[]> {
   const results: GoldenResult[] = [];
   for (const c of GOLDEN_CASES) {
+    // Botdagi tartib: avval mahalliy dispetcher raqamlari tekshiriladi.
+    const dispatcher = withoutAi ? await withMockKey(() => findLocalDispatcherMatch(c.message, cityId)) : await findLocalDispatcherMatch(c.message, cityId);
+    if (dispatcher) {
+      const got = dispatcher.label;
+      const e = c.expect;
+      const pass = e.kind === 'any' || (e.kind === 'includes' && got.toLowerCase().includes(e.text.toLowerCase())) || (e.kind === 'not_includes' && !got.toLowerCase().includes(e.text.toLowerCase()));
+      results.push({ message: c.message, origin: c.origin, expected: describe(e), got, pass, aiSource: 'dispatcher' });
+      if (delayMs > 0) await new Promise((res) => setTimeout(res, delayMs));
+      continue;
+    }
     const cls = await classifyQuery(c.message, cityId, undefined, withoutAi ? 'mock_key' : undefined, { noCache: true });
     const seeking = cls.intent !== IntentType.NOT_RELEVANT;
     const r = await searchListings({

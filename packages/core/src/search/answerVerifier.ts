@@ -39,6 +39,7 @@ relevant = false if the message is about something else, for example:
 - an advertisement or someone offering their own service/item
 - a different trade or product than the proposed business offers
 - the overlap is only a shared word inside a place name (e.g. "To'ytepa" vs "Oqtepa lavash")
+If the proposed business is a "city service phone number" (electricity, gas, water dispatcher): a person reporting an outage/problem of THAT service or asking for its number IS relevant; a message that only contains a similar-looking word (e.g. "svetofor" traffic light vs "svet" electricity) is NOT.
 Use "THIS BUSINESS SAYS IT OFFERS" to judge what the business really does — the category name alone can be too narrow.
 When unsure, answer false — staying silent is better than a wrong contact.
 Return only JSON: {"relevant": true|false}`;
