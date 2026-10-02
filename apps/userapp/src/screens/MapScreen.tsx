@@ -1,7 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Tooltip, Marker, useMap, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../lib/router';
 import { navigate } from '../lib/router';
 import { api } from '../lib/api';
@@ -11,67 +8,8 @@ import { haptic } from '../lib/telegram';
 import { useAsync, useToast } from '../components/ui';
 import { CloudIntro } from './map/CloudIntro';
 import { MapSheet } from './map/MapSheet';
-import { AREA_FILLS, PIN_STYLE, landmarkIcon, meIcon, pinIcon } from './map/pins';
-import { PixelLayer, loadPixelData, type PixelFeature } from './map/PixelLayer';
-
-/** Pixel-multfilm qatlami (OSM ma'lumotidan chiziladi) + stadion yozuvlari. */
-const PixelTiles: React.FC = () => {
-  const map = useMap();
-  const [stadiums, setStadiums] = useState<PixelFeature[]>([]);
-  useEffect(() => {
-    let layer: L.GridLayer | null = null;
-    let alive = true;
-    loadPixelData().then((features) => {
-      if (!alive) return;
-      layer = new PixelLayer(features, { minZoom: 11, maxZoom: 19, attribution: '&copy; OpenStreetMap' } as L.GridLayerOptions);
-      layer.addTo(map);
-      setStadiums(features.filter((f) => f.k === 'stadium' && f.name));
-    });
-    return () => {
-      alive = false;
-      if (layer) map.removeLayer(layer);
-    };
-  }, [map]);
-  return (
-    <>
-      {stadiums.map((s) => (
-        <Marker key={s.name} position={s.bb.getCenter()} icon={landmarkIcon(`🏟️ ${s.name}`)} interactive={false} />
-      ))}
-    </>
-  );
-};
-
-// Olmaliq shahri — butun shahar ko'rinadigan chegaralar.
-const CITY_CENTER: [number, number] = [40.8447, 69.5986];
-const CITY_BOUNDS = L.latLngBounds([40.795, 69.52], [40.895, 69.68]);
-const TILES = {
-  // OpenStreetMap ochiq plitkalari (kalitsiz). Pastel ko'rinish CSS filtr bilan
-  // (.kb-tiles) beriladi; "detail" — asl rangli xarita.
-  pastel: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; OpenStreetMap' },
-  detail: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; OpenStreetMap' },
-};
-
-/** Ochilishda: bulutlar tarqalayotganda shahar tomon "sho'ng'ish". */
-const IntroFly: React.FC<{ bounds: L.LatLngBounds }> = ({ bounds }) => {
-  const map = useMap();
-  useEffect(() => {
-    // Bulutlardan shahar markaziga "sho'ng'ish" — uylar ko'rinadigan masshtabgacha
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const t = setTimeout(() => (reduced ? map.setView(bounds.getCenter(), 15, { animate: false }) : map.flyTo(bounds.getCenter(), 15, { duration: 1.4 })), 150);
-    return () => clearTimeout(t);
-  }, [map, bounds]);
-  return null;
-};
-
-const Controller: React.FC<{ target: [number, number] | null; onZoom: (z: number) => void; api: (m: L.Map) => void }> = ({ target, onZoom, api: expose }) => {
-  const map = useMap();
-  useEffect(() => expose(map), [map, expose]);
-  useEffect(() => {
-    if (target) map.flyTo(target, Math.max(map.getZoom(), 15), { duration: 0.7 });
-  }, [target, map]);
-  useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
-  return null;
-};
+import { PIN_STYLE } from './map/pins';
+import { Map3D, type Map3DHandle } from './map/Map3D';
 
 const CtrlBtn: React.FC<{ icon: string; label: string; onClick: () => void; active?: boolean }> = ({ icon, label, onClick, active }) => (
   <button
@@ -86,6 +24,36 @@ const CtrlBtn: React.FC<{ icon: string; label: string; onClick: () => void; acti
   </button>
 );
 
+type Me = { lng: number; lat: number; acc: number; heading: number | null };
+
+/** Jonli joylashuv: watchPosition; "kuzatish" rejimida xarita nuqta orqasidan yuradi. */
+function useLiveLocation(onError: (msg: string) => void) {
+  const [me, setMe] = useState<Me | null>(null);
+  const watch = useRef<number | null>(null);
+  const start = () => {
+    if (!navigator.geolocation) return onError("Joylashuvni aniqlab bo'lmadi");
+    if (watch.current != null) return;
+    watch.current = navigator.geolocation.watchPosition(
+      (p) => setMe({ lng: p.coords.longitude, lat: p.coords.latitude, acc: p.coords.accuracy, heading: p.coords.heading ?? null }),
+      (e) => {
+        onError(e.code === 1 ? 'Joylashuvga ruxsat berilmadi' : "Joylashuvni aniqlab bo'lmadi");
+        if (watch.current != null) navigator.geolocation.clearWatch(watch.current);
+        watch.current = null;
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 },
+    );
+  };
+  useEffect(() => {
+    // Ruxsat avval berilgan bo'lsa — ochilishi bilan jonli joylashuv
+    navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then((r) => r.state === 'granted' && start()).catch(() => {});
+    return () => {
+      if (watch.current != null) navigator.geolocation.clearWatch(watch.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return { me, start };
+}
+
 export const MapScreen: React.FC<{ route: Route }> = () => {
   const toast = useToast();
   const lms = useAsync(() => api.landmarks(), []);
@@ -94,26 +62,18 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   const [openOnly, setOpenOnly] = useState(false);
   const [selListing, setSelListing] = useState<Listing | null>(null);
   const [selArea, setSelArea] = useState<Landmark | null>(null);
-  const [me, setMe] = useState<[number, number] | null>(null);
-  const [target, setTarget] = useState<[number, number] | null>(null);
-  const [zoom, setZoom] = useState(11);
-  const [layer, setLayer] = useState<'pixel' | 'pastel' | 'detail'>('pixel');
-  const [map, setMap] = useState<L.Map | null>(null);
+  const [tilted, setTilted] = useState(true);
+  const [follow, setFollow] = useState(false);
+  const handle = useRef<Map3DHandle | null>(null);
+  const { me, start } = useLiveLocation((m) => toast(m, 'error'));
 
   const all = lst.data?.items || [];
   const located = useMemo(() => all.filter((l) => l.location), [all]);
-  const visible = located.filter((l) => (!type || l.type === type) && (!openOnly || l.open.status === 'open'));
-  const areas = (lms.data || []).filter((l) => Array.isArray(l.boundary) && l.boundary.length > 2);
-  const points = (lms.data || []).filter((l) => l.latitude != null && l.longitude != null && !(Array.isArray(l.boundary) && l.boundary.length > 2));
-  // Ochilishda shahar markaziy qismiga (mahallalar + e'lonlar) yaqinlashadi.
-  const dataBounds = useMemo(() => {
-    const pts: [number, number][] = [
-      ...areas.flatMap((a) => a.boundary as [number, number][]),
-      ...located.map((l) => [l.location!.lat, l.location!.lng] as [number, number]),
-    ];
-    return pts.length > 1 ? L.latLngBounds(pts) : CITY_BOUNDS;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lms.data, lst.data]);
+  const visible = useMemo(
+    () => located.filter((l) => (!type || l.type === type) && (!openOnly || l.open.status === 'open')),
+    [located, type, openOnly],
+  );
+  const areas = useMemo(() => (lms.data || []).filter((l) => Array.isArray(l.boundary) && l.boundary.length > 2), [lms.data]);
   const types = Object.keys(TYPE_META).filter((t) => located.some((l) => l.type === t));
 
   const inArea = (l: Listing, id: string) => l.landmark?.id === id || l.serviceAreas.some((a) => a.id === id);
@@ -122,17 +82,16 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   const featured = selListing || areaListings.find((l) => l.location) || areaListings[0] || null;
   const nearby = areaListings.filter((l) => l.id !== featured?.id);
 
+  // Kuzatish rejimi: har yangi joylashuvda xarita foydalanuvchi orqasidan
+  useEffect(() => {
+    if (follow && me) handle.current?.flyTo(me.lng, me.lat);
+  }, [me, follow]);
+
   const locate = () => {
-    if (!navigator.geolocation) return toast("Joylashuvni aniqlab bo'lmadi", 'error');
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        const pos: [number, number] = [p.coords.latitude, p.coords.longitude];
-        setMe(pos);
-        setTarget(pos);
-      },
-      () => toast('Joylashuvga ruxsat berilmadi', 'error'),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+    start();
+    setFollow(true);
+    if (me) handle.current?.flyTo(me.lng, me.lat);
+    else toast('📍 Joylashuvingiz aniqlanmoqda…');
   };
 
   const chip = (key: string | null, label: string, n: number) => {
@@ -164,7 +123,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   };
 
   return (
-    <main className={`flex flex-col w-full pb-28 bg-surface min-h-screen kb-map ${layer === 'pixel' ? 'kb-pixel-mode' : ''}`}>
+    <main className="flex flex-col w-full pb-28 bg-surface min-h-screen kb-map">
       {/* Jonli Olmaliq sarlavhasi */}
       <div className="px-margin pt-safe">
         <div className="mt-3 flex items-center justify-between gap-2 bg-surface-container-lowest rounded-full pl-2 pr-1.5 py-1.5 clay-card">
@@ -179,7 +138,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-surface-container-low font-label-md text-label-md text-on-surface">
-              <span className="w-2 h-2 rounded-full bg-tertiary-container animate-pulse" /> Jonli
+              <span className={`w-2 h-2 rounded-full animate-pulse ${me ? 'bg-primary' : 'bg-tertiary-container'}`} /> {me ? 'Siz shu yerda' : 'Jonli'}
             </span>
             <button
               aria-label="Faqat hozir ochiqlar"
@@ -199,86 +158,48 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
         </div>
       </div>
 
-      {/* Xarita */}
-      <div className="relative isolate w-full h-[50vh] min-h-[340px]">
-        <MapContainer center={CITY_CENTER} zoom={11} minZoom={11} maxZoom={18} maxBounds={CITY_BOUNDS.pad(0.6)} className="w-full h-full" zoomControl={false} attributionControl>
-          {layer === 'pixel' ? (
-            <PixelTiles />
-          ) : (
-            <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attr} className={layer === 'pastel' ? 'kb-tiles' : ''} />
-          )}
-          <IntroFly bounds={dataBounds} />
-          <Controller target={target} onZoom={setZoom} api={setMap} />
-          {areas.map((a, i) => {
-            const c = AREA_FILLS[i % AREA_FILLS.length];
-            const active = area?.id === a.id;
-            return (
-              <Polygon
-                key={a.id}
-                positions={a.boundary as [number, number][]}
-                pathOptions={{ color: c, weight: active ? 3 : 0, fillColor: c, fillOpacity: active ? 0.55 : 0.38 }}
-                eventHandlers={{
-                  click: () => {
-                    haptic('light');
-                    setSelArea(a);
-                    setSelListing(null);
-                  },
-                }}
-              >
-                <Tooltip direction="center" permanent className="kb-area-label">
-                  {a.name}
-                </Tooltip>
-              </Polygon>
-            );
-          })}
-          {zoom >= 14 && points.map((p) => <Marker key={p.id} position={[p.latitude!, p.longitude!]} icon={landmarkIcon(p.name)} interactive={false} />)}
-          {visible.map((l, i) => {
-            const sel = selListing?.id === l.id;
-            return (
-              <Marker
-                key={l.id}
-                position={[l.location!.lat, l.location!.lng]}
-                zIndexOffset={sel ? 1000 : 0}
-                icon={pinIcon(l.type, sel, sel ? `${l.name}${l.open.status === 'open' ? ' · Ochiq' : ''}` : null, 900 + i * 70)}
-                eventHandlers={{
-                  click: () => {
-                    haptic('light');
-                    setSelListing(l);
-                    setSelArea(null);
-                    setTarget([l.location!.lat, l.location!.lng]);
-                  },
-                }}
-              />
-            );
-          })}
-          {me && <Marker position={me} icon={meIcon} />}
-        </MapContainer>
+      {/* 3D diorama xarita */}
+      <div className="relative isolate w-full h-[56vh] min-h-[360px] overflow-hidden">
+        <Map3D
+          listings={visible}
+          areas={areas}
+          selectedListingId={selListing?.id || null}
+          selectedAreaId={area?.id || null}
+          me={me}
+          onSelectListing={(l) => {
+            setSelListing(l);
+            setSelArea(null);
+            setFollow(false);
+            handle.current?.flyTo(l.location!.lng, l.location!.lat);
+          }}
+          onSelectArea={(a) => {
+            setSelArea(a);
+            setSelListing(null);
+          }}
+          onReady={(h) => (handle.current = h)}
+          onUserMove={() => setFollow(false)}
+        />
 
-        {/* O'ng tomondagi boshqaruv (Stitch) */}
-        <div className="absolute right-3 top-3 z-[500] flex flex-col gap-3">
+        <div className="absolute right-3 top-3 z-[5] flex flex-col gap-3">
           <div className="rounded-full bg-surface-container-lowest clay-card">
-            <CtrlBtn icon="my_location" label="Men qayerdaman" onClick={locate} />
+            <CtrlBtn icon={follow ? 'navigation' : 'my_location'} label="Men qayerdaman" active={follow} onClick={locate} />
           </div>
           <div className="rounded-full bg-surface-container-lowest clay-card flex flex-col">
-            <CtrlBtn icon="add" label="Yaqinlashtirish" onClick={() => map?.zoomIn()} />
-            <CtrlBtn icon="remove" label="Uzoqlashtirish" onClick={() => map?.zoomOut()} />
+            <CtrlBtn icon="add" label="Yaqinlashtirish" onClick={() => handle.current?.zoomIn()} />
+            <CtrlBtn icon="remove" label="Uzoqlashtirish" onClick={() => handle.current?.zoomOut()} />
           </div>
           <div className="rounded-full bg-surface-container-lowest clay-card">
             <CtrlBtn
-              icon="layers"
-              label="Xarita turi"
-              active={layer !== 'pixel'}
-              onClick={() => {
-                const next = layer === 'pixel' ? 'pastel' : layer === 'pastel' ? 'detail' : 'pixel';
-                setLayer(next);
-                toast(next === 'pixel' ? '🎮 Pixel shahar' : next === 'pastel' ? '🎨 Pastel xarita' : "🗺️ Batafsil xarita");
-              }}
+              icon={tilted ? 'map' : 'view_in_ar'}
+              label={tilted ? 'Tepadan ko\'rish' : '3D ko\'rinish'}
+              active={tilted}
+              onClick={() => setTilted(handle.current?.toggleTilt() ?? tilted)}
             />
           </div>
         </div>
 
         {lst.error && (
-          <div className="absolute top-3 left-3 right-20 z-[500] bg-surface-container-lowest/95 rounded-full px-3 py-2 font-label-md text-label-md text-error text-center shadow-sm">
+          <div className="absolute top-3 left-3 right-20 z-[5] bg-surface-container-lowest/95 rounded-full px-3 py-2 font-label-md text-label-md text-error text-center shadow-sm">
             Ma'lumot yuklanmadi
           </div>
         )}

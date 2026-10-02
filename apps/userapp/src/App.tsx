@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { useRoute, navigate } from './lib/router';
 import { BottomNav } from './components/BottomNav';
 import { ToastProvider } from './components/ui';
@@ -7,7 +7,16 @@ import { HomeScreen } from './screens/HomeScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { ListingScreen } from './screens/ListingScreen';
 import { CategoryScreen } from './screens/CategoryScreen';
-import { MapScreen } from './screens/MapScreen';
+import { Blob } from './components/Blob';
+
+// 3D xarita kutubxonasi og'ir (~200 KB) — faqat Xarita ochilganda yuklanadi.
+const MapScreen = lazy(() => import('./screens/MapScreen').then((m) => ({ default: m.MapScreen })));
+const MapFallback = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+    <Blob shape="sphere" mood="scan" size={88} />
+    <p className="font-label-lg text-label-lg text-on-surface-variant">Olmaliq yuklanmoqda…</p>
+  </div>
+);
 import { RentScreen } from './screens/RentScreen';
 import { RentDetailScreen } from './screens/RentDetailScreen';
 import { SosScreen } from './screens/SosScreen';
@@ -77,7 +86,11 @@ export const App: React.FC = () => {
       screen = <CategoryScreen route={route} key={route.path} />;
       break;
     case 'map':
-      screen = <MapScreen route={route} />;
+      screen = (
+        <Suspense fallback={<MapFallback />}>
+          <MapScreen route={route} />
+        </Suspense>
+      );
       break;
     case 'rent':
       screen = id ? <RentDetailScreen route={route} key={id} /> : <RentScreen route={route} />;
