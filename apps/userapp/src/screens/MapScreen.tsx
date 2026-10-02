@@ -12,6 +12,34 @@ import { useAsync, useToast } from '../components/ui';
 import { CloudIntro } from './map/CloudIntro';
 import { MapSheet } from './map/MapSheet';
 import { AREA_FILLS, PIN_STYLE, landmarkIcon, meIcon, pinIcon } from './map/pins';
+import { PixelLayer, loadPixelData, type PixelFeature } from './map/PixelLayer';
+
+/** Pixel-multfilm qatlami (OSM ma'lumotidan chiziladi) + stadion yozuvlari. */
+const PixelTiles: React.FC = () => {
+  const map = useMap();
+  const [stadiums, setStadiums] = useState<PixelFeature[]>([]);
+  useEffect(() => {
+    let layer: L.GridLayer | null = null;
+    let alive = true;
+    loadPixelData().then((features) => {
+      if (!alive) return;
+      layer = new PixelLayer(features, { minZoom: 11, maxZoom: 19, attribution: '&copy; OpenStreetMap' } as L.GridLayerOptions);
+      layer.addTo(map);
+      setStadiums(features.filter((f) => f.k === 'stadium' && f.name));
+    });
+    return () => {
+      alive = false;
+      if (layer) map.removeLayer(layer);
+    };
+  }, [map]);
+  return (
+    <>
+      {stadiums.map((s) => (
+        <Marker key={s.name} position={s.bb.getCenter()} icon={landmarkIcon(`🏟️ ${s.name}`)} interactive={false} />
+      ))}
+    </>
+  );
+};
 
 // Olmaliq shahri — butun shahar ko'rinadigan chegaralar.
 const CITY_CENTER: [number, number] = [40.8447, 69.5986];
@@ -27,7 +55,9 @@ const TILES = {
 const IntroFly: React.FC<{ bounds: L.LatLngBounds }> = ({ bounds }) => {
   const map = useMap();
   useEffect(() => {
-    const t = setTimeout(() => map.flyToBounds(bounds, { duration: 1.4, padding: [36, 36], maxZoom: 15 }), 150);
+    // Bulutlardan shahar markaziga "sho'ng'ish" — uylar ko'rinadigan masshtabgacha
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const t = setTimeout(() => (reduced ? map.setView(bounds.getCenter(), 15, { animate: false }) : map.flyTo(bounds.getCenter(), 15, { duration: 1.4 })), 150);
     return () => clearTimeout(t);
   }, [map, bounds]);
   return null;
@@ -67,7 +97,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   const [me, setMe] = useState<[number, number] | null>(null);
   const [target, setTarget] = useState<[number, number] | null>(null);
   const [zoom, setZoom] = useState(11);
-  const [layer, setLayer] = useState<'pastel' | 'detail'>('pastel');
+  const [layer, setLayer] = useState<'pixel' | 'pastel' | 'detail'>('pixel');
   const [map, setMap] = useState<L.Map | null>(null);
 
   const all = lst.data?.items || [];
@@ -134,7 +164,7 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
   };
 
   return (
-    <main className="flex flex-col w-full pb-28 bg-surface min-h-screen kb-map">
+    <main className={`flex flex-col w-full pb-28 bg-surface min-h-screen kb-map ${layer === 'pixel' ? 'kb-pixel-mode' : ''}`}>
       {/* Jonli Olmaliq sarlavhasi */}
       <div className="px-margin pt-safe">
         <div className="mt-3 flex items-center justify-between gap-2 bg-surface-container-lowest rounded-full pl-2 pr-1.5 py-1.5 clay-card">
@@ -171,8 +201,12 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
 
       {/* Xarita */}
       <div className="relative isolate w-full h-[50vh] min-h-[340px]">
-        <MapContainer center={CITY_CENTER} zoom={11} minZoom={11} maxBounds={CITY_BOUNDS.pad(0.6)} className="w-full h-full" zoomControl={false} attributionControl>
-          <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attr} className={layer === 'pastel' ? 'kb-tiles' : ''} />
+        <MapContainer center={CITY_CENTER} zoom={11} minZoom={11} maxZoom={18} maxBounds={CITY_BOUNDS.pad(0.6)} className="w-full h-full" zoomControl={false} attributionControl>
+          {layer === 'pixel' ? (
+            <PixelTiles />
+          ) : (
+            <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attr} className={layer === 'pastel' ? 'kb-tiles' : ''} />
+          )}
           <IntroFly bounds={dataBounds} />
           <Controller target={target} onZoom={setZoom} api={setMap} />
           {areas.map((a, i) => {
@@ -230,7 +264,16 @@ export const MapScreen: React.FC<{ route: Route }> = () => {
             <CtrlBtn icon="remove" label="Uzoqlashtirish" onClick={() => map?.zoomOut()} />
           </div>
           <div className="rounded-full bg-surface-container-lowest clay-card">
-            <CtrlBtn icon="layers" label="Xarita turi" active={layer === 'detail'} onClick={() => setLayer((v) => (v === 'pastel' ? 'detail' : 'pastel'))} />
+            <CtrlBtn
+              icon="layers"
+              label="Xarita turi"
+              active={layer !== 'pixel'}
+              onClick={() => {
+                const next = layer === 'pixel' ? 'pastel' : layer === 'pastel' ? 'detail' : 'pixel';
+                setLayer(next);
+                toast(next === 'pixel' ? '🎮 Pixel shahar' : next === 'pastel' ? '🎨 Pastel xarita' : "🗺️ Batafsil xarita");
+              }}
+            />
           </div>
         </div>
 
