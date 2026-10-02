@@ -2380,6 +2380,10 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       listingName: bestMatch.name,
       categoryName: bestMatch.category?.name || null,
       matchedPhrase: jargonEvidence.get(bestMatch.id) || null,
+      services: [
+        ...(Array.isArray(bestMatch.jargonSynonyms) ? bestMatch.jargonSynonyms : []),
+        ...(bestMatch.specificServices ? [bestMatch.specificServices] : []),
+      ],
     });
     if (verdict === 'irrelevant') return null;
     if (verdict === 'relevant') {

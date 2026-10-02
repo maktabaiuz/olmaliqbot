@@ -39,6 +39,7 @@ relevant = false if the message is about something else, for example:
 - an advertisement or someone offering their own service/item
 - a different trade or product than the proposed business offers
 - the overlap is only a shared word inside a place name (e.g. "To'ytepa" vs "Oqtepa lavash")
+Use "THIS BUSINESS SAYS IT OFFERS" to judge what the business really does — the category name alone can be too narrow.
 When unsure, answer false — staying silent is better than a wrong contact.
 Return only JSON: {"relevant": true|false}`;
 
@@ -47,6 +48,11 @@ export async function verifyAnswerRelevance(params: {
   listingName: string;
   categoryName: string | null;
   matchedPhrase: string | null;
+  /** Yozuvning o'zi qanday xizmatlarni ko'rsatadi (jargon iboralari,
+   * xizmatlar ro'yxati). Kategoriya nomi tor bo'lishi mumkin — masalan
+   * "Televizor ustasi" kalonka ham tuzatadi; buni AI shu ro'yxatdan
+   * biladi (aks holda to'g'ri javobni ham rad etardi). */
+  services?: string[];
 }): Promise<VerificationVerdict> {
   const key = crypto
     .createHash('md5')
@@ -65,7 +71,10 @@ export async function verifyAnswerRelevance(params: {
     const userText =
       `MESSAGE: "${params.message}"\n` +
       `PROPOSED BUSINESS: "${params.listingName}" (category: ${params.categoryName || 'unknown'})` +
-      (params.matchedPhrase ? `\nMATCHED BY PHRASE: "${params.matchedPhrase}"` : '');
+      (params.matchedPhrase ? `\nMATCHED BY PHRASE: "${params.matchedPhrase}"` : '') +
+      (params.services && params.services.length > 0
+        ? `\nTHIS BUSINESS SAYS IT OFFERS: ${params.services.slice(0, 10).map((x) => `"${x}"`).join(', ')}`
+        : '');
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
       method: 'POST',
       headers: { 'x-goog-api-key': geminiKey, 'content-type': 'application/json' },
