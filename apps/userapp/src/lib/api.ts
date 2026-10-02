@@ -12,7 +12,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`/api/public${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', 'x-init-data': initData(), ...(init?.headers || {}) },
+      // content-type faqat tana bo'lsa — aks holda Fastify bo'sh JSON tanani rad etadi (400).
+      headers: { ...(init?.body ? { 'content-type': 'application/json' } : {}), 'x-init-data': initData(), ...(init?.headers || {}) },
     });
   } catch {
     throw new ApiError(0, { message: 'offline' });
