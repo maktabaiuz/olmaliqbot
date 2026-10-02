@@ -22,6 +22,14 @@ const NOISE_TEMPLATES = [
   '{s} sotaman arzon narxda yozinglar',
   'kecha {s} haqida gaplashib otirdik',
 ];
+// Ibora odatda butun gap ("labo kerak edi nomeri bormi") — shovqin sinovi
+// uchun undan faqat SOHA so'zi ajratiladi, aks holda sinov gapi ichida
+// baribir so'rov qolib ketadi.
+const REQUEST_WORDS = new Set(['kerak', 'kere', 'edi', 'bormi', 'bor', 'nomeri', 'nomer', 'nemeri', 'raqami', 'ochiqmi', 'ishlaydimi', 'nechigacha', 'ishlaydi', 'bugun', 'qaysi', 'qayerda', 'kim', 'biladi', 'bilasizlarmi', 'tavsiya', 'olmaliqda', 'da', 'ga', 'lar', 'bollar', '?']);
+function coreTerm(phrase: string): string {
+  return phrase.split(/\s+/).filter((w) => w && !REQUEST_WORDS.has(w)).join(' ');
+}
+
 const REQUEST_TEMPLATE = '{s} kerak edi nomeri bormi';
 
 export interface AuditIssue {
@@ -60,6 +68,7 @@ export async function auditListings(cityId: string, opts: { dynamic?: boolean; l
 
   const issues: AuditIssue[] = [];
   let phrases = 0;
+  const seenCore = new Set<string>();
   for (const l of listings) {
     for (const raw of l.jargonSynonyms) {
       const s = normalizeText(raw);
@@ -73,12 +82,15 @@ export async function auditListings(cityId: string, opts: { dynamic?: boolean; l
       if ((phraseOwners.get(s)?.size || 0) > 1) issues.push({ ...base, kind: 'shared_cross_category', detail: `${phraseOwners.get(s)!.size} xil sohada bor` });
 
       if (!opts.dynamic) continue;
+      const core = coreTerm(s);
+      if (!core || seenCore.has(core)) continue;
+      seenCore.add(core);
       for (const t of NOISE_TEMPLATES) {
-        const msg = t.replace('{s}', raw);
+        const msg = t.replace('{s}', core);
         const r = await runOnce(cityId, msg);
         if (r) issues.push({ ...base, kind: 'noise_answered', detail: `"${msg}" → ${r.name}` });
       }
-      const req = REQUEST_TEMPLATE.replace('{s}', raw);
+      const req = REQUEST_TEMPLATE.replace('{s}', core);
       const r = await runOnce(cityId, req);
       if (r && r.categoryId !== l.categoryId && !landmarkTerms.has(s)) {
         issues.push({ ...base, kind: 'request_wrong_category', detail: `"${req}" → ${r.name} (${r.categoryName})` });
