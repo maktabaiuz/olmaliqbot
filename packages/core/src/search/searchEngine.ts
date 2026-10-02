@@ -220,6 +220,9 @@ const GENERIC_SOT_VERB_FORMS = new Set([
 // "olib keladigan", ko'plik/kelishik qo'shimchalari bilan ham) — HAR DOIM
 // fe'l shakli, hech qachon biznes nomi emas. Stop-so'z lug'atida hamma
 // fe'lning hamma shakli yo'q (2026-09-26, "remont QILADIGAN usta" xatosi).
+// Jargon iboralaridagi qisqa so'zlardan qaysilari MA'NOSIZ (grammatik) —
+// qolganlari ("oq", "n1", "5/1") ma'noli va xabarda bo'lishi shart.
+const SHORT_GRAMMAR_WORDS = new Set(['va', 'bu', 'u', 'shu', 'da', 'ga', 'ni', 'i', 'a', 'o', 'ham', 'yo', 'ki', 'mi', 'b', 'v', 'na', 'ne', 'по', 'на', 'в']);
 const PARTICIPLE_RE = /(adigan|aydigan)(lar|ni|ga|dan|ning|lari)?$/;
 
 function isGenericFillerWord(word: string): boolean {
@@ -1187,7 +1190,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       const toks = normalizeText(phrase).split(/\s+/).filter(Boolean);
       return toks.some((t, i) => {
         if (t.length >= 3 || !/^[a-z0-9']+$/.test(t)) return false;
-        if (isNoiseWord(t) || isGenericFillerWord(t) || isGenericContactWord(t)) return false;
+        // MUHIM: umumiy stop-so'z ro'yxati bu yerda ISHLATILMAYDI — unda "oq"
+        // kabi joy nomining ma'noli qismlari ham bor (aynan shu sabab birinchi
+        // tuzatish To'ytepa holatini to'smagan edi). Faqat haqiqiy grammatik
+        // qisqa so'zlar chetlab o'tiladi.
+        if (SHORT_GRAMMAR_WORDS.has(t) || isGenericContactWord(t)) return false;
         if (msgTokenSetForShort.has(t)) return false;
         const glued = i + 1 < toks.length ? t + toks[i + 1] : null;
         if (glued && [...msgTokenSetForShort].some((m) => m.startsWith(glued))) return false;

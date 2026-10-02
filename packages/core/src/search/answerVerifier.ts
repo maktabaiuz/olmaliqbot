@@ -75,21 +75,28 @@ export async function verifyAnswerRelevance(params: {
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: { type: 'OBJECT', properties: { relevant: { type: 'BOOLEAN' } }, required: ['relevant'] },
-          maxOutputTokens: 20,
+          maxOutputTokens: 200,
           temperature: 0,
         },
       }),
       signal: abort.signal,
     });
-    if (!res.ok) return 'unknown';
+    if (!res.ok) {
+      console.warn(`⚠️ Javob tekshiruvi: Gemini HTTP ${res.status}`);
+      return 'unknown';
+    }
     const json: any = await res.json();
     const raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsed = raw ? JSON.parse(raw) : null;
-    if (typeof parsed?.relevant !== 'boolean') return 'unknown';
+    if (typeof parsed?.relevant !== 'boolean') {
+      console.warn('⚠️ Javob tekshiruvi: noaniq javob', String(raw).slice(0, 120), json.candidates?.[0]?.finishReason);
+      return 'unknown';
+    }
     const verdict: VerificationVerdict = parsed.relevant ? 'relevant' : 'irrelevant';
     cache.set(key, { verdict, expiresAt: Date.now() + CACHE_TTL_MS });
     return verdict;
-  } catch {
+  } catch (err) {
+    console.warn('⚠️ Javob tekshiruvi xatosi:', (err as Error).message);
     return 'unknown';
   } finally {
     clearTimeout(timer);
