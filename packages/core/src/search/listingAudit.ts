@@ -141,8 +141,10 @@ export async function cleanupRiskyTerms(cityId: string, apply: boolean) {
   for (const l of landmarks) {
     if (categoryTerms.has(normalizeText(l.name))) professionNamedLandmarks.push(l.name);
     else cleanLandmarkTerms.add(normalizeText(l.name));
-    const removed = l.synonyms.filter((s) => categoryTerms.has(normalizeText(s)));
-    const kept = l.synonyms.filter((s) => !categoryTerms.has(normalizeText(s)));
+    // Manzilning o'z nomini takrorlovchi sinonim zararsiz — tegilmaydi.
+    const isBad = (s: string) => categoryTerms.has(normalizeText(s)) && normalizeText(s) !== normalizeText(l.name);
+    const removed = l.synonyms.filter(isBad);
+    const kept = l.synonyms.filter((s) => !isBad(s));
     kept.forEach((s) => cleanLandmarkTerms.add(normalizeText(s)));
     if (removed.length === 0) continue;
     changes.push({ kind: 'landmark_synonym', target: l.name, removed });
@@ -152,9 +154,16 @@ export async function cleanupRiskyTerms(cityId: string, apply: boolean) {
     }
   }
 
-  const listings = await db.listing.findMany({ where: { cityId }, select: { id: true, name: true, jargonSynonyms: true } });
+  const listings = await db.listing.findMany({ where: { cityId }, select: { id: true, name: true, jargonSynonyms: true, category: { select: { name: true } } } });
+  // Iborada yozuvning O'Z sohasi/nomi so'zi bo'lsa ("kalonka ustasi" —
+  // Televizor ustasi) — bu to'g'ri jargon; xavfli tomoni Manzillar ichidagi
+  // kasb-nomli yozuvda, uni admin tuzatadi. Faqat sof joy iboralari olinadi.
+  const stems = (x: string) => normalizeText(x).split(/\s+/).filter((w) => w.length >= 4).map((w) => w.slice(0, 5));
   for (const l of listings) {
-    const removed = l.jargonSynonyms.filter((s) => cleanLandmarkTerms.has(normalizeText(s)));
+    const own = new Set([...stems(l.name), ...stems(l.category?.name || '')]);
+    const removed = l.jargonSynonyms.filter(
+      (s) => cleanLandmarkTerms.has(normalizeText(s)) && !stems(s).some((st) => own.has(st))
+    );
     if (removed.length === 0) continue;
     changes.push({ kind: 'listing_jargon', target: l.name, removed });
     if (apply) {

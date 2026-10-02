@@ -19,7 +19,7 @@ jobs:
               const core = require('/app/packages/core/dist/index.js');
               (async () => {
                 const city = await db.city.findFirst();
-                const r = await core.cleanupRiskyTerms(city.id, false); console.log('out:PROF=' + JSON.stringify(r.professionNamedLandmarks)); for (const c of r.changes) console.log('out:C|' + c.kind + '|' + c.target + '|' + c.removed.join(' ; '));
+                const r = await core.cleanupRiskyTerms(city.id, true); console.log('out:PROF=' + JSON.stringify(r.professionNamedLandmarks)); for (const c of r.changes) console.log('out:C|' + c.kind + '|' + c.target + '|' + c.removed.join(' ; ')); const a = await core.auditListings(city.id, { dynamic: true }); const by = {}; for (const i of a.issues) by[i.kind] = (by[i.kind]||0)+1; console.log('out:AFTER=' + JSON.stringify(by)); for (const i of a.issues) if (i.kind !== 'noise_answered') console.log('out:I|' + i.kind + '|' + i.listing + '|' + i.phrase);
                 process.exit(0);
               })().catch(e => { console.error('ERR', e.stack); process.exit(1); });
             "
