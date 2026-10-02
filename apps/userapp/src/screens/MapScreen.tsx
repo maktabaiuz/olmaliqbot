@@ -1,166 +1,258 @@
-import React, { useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, Tooltip, Marker, CircleMarker, useMap } from 'react-leaflet';
+import React, { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Polygon, Tooltip, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Route } from '../lib/router';
+import { navigate } from '../lib/router';
 import { api } from '../lib/api';
 import type { Landmark, Listing } from '../lib/types';
 import { TYPE_META } from '../lib/format';
 import { haptic } from '../lib/telegram';
 import { useAsync, useToast } from '../components/ui';
-import { BLOB_COLORS, SHAPE_BY_TYPE } from '../components/Blob';
-import { MapCard } from './map/MapCard';
+import { CloudIntro } from './map/CloudIntro';
+import { MapSheet } from './map/MapSheet';
+import { AREA_FILLS, PIN_STYLE, landmarkIcon, meIcon, pinIcon } from './map/pins';
 
-const CENTER: [number, number] = [40.8447, 69.5986];
-const FILLS = ['#6c5ce7', '#00816a', '#f4bf32', '#E8662B', '#4CC97A', '#8A3FFC'];
-const colorOf = (type: string) => BLOB_COLORS[SHAPE_BY_TYPE[type] || 'sphere'];
+// Olmaliq shahri — butun shahar ko'rinadigan chegaralar.
+const CITY_CENTER: [number, number] = [40.8447, 69.5986];
+const CITY_BOUNDS = L.latLngBounds([40.795, 69.52], [40.895, 69.68]);
+const TILES = {
+  // OpenStreetMap ochiq plitkalari (kalitsiz). Pastel ko'rinish CSS filtr bilan
+  // (.kb-tiles) beriladi; "detail" — asl rangli xarita.
+  pastel: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; OpenStreetMap' },
+  detail: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '&copy; OpenStreetMap' },
+};
 
-const iconCache = new Map<string, L.DivIcon>();
-function pinIcon(type: string, selected: boolean) {
-  const k = type + selected;
-  let ic = iconCache.get(k);
-  if (!ic) {
-    const c = colorOf(type);
-    const s = selected ? 30 : 22;
-    ic = L.divIcon({
-      className: '',
-      iconSize: [s, s],
-      iconAnchor: [s / 2, s / 2],
-      html: `<div style="width:${s}px;height:${s}px;border-radius:46% 54% 50% 50%/55% 48% 52% 45%;background:radial-gradient(circle at 35% 28%,#fff8 0%,${c} 40%);box-shadow:0 4px 10px ${c}66;border:2px solid #fff;display:flex;align-items:center;justify-content:center;gap:3px"><i style="width:3px;height:5px;border-radius:3px;background:#fff"></i><i style="width:3px;height:5px;border-radius:3px;background:#fff"></i></div>`,
-    });
-    iconCache.set(k, ic);
-  }
-  return ic;
-}
-
-const FlyTo: React.FC<{ to: [number, number] | null }> = ({ to }) => {
+/** Ochilishda: bulutlar tarqalayotganda shahar tomon "sho'ng'ish". */
+const IntroFly: React.FC<{ bounds: L.LatLngBounds }> = ({ bounds }) => {
   const map = useMap();
-  React.useEffect(() => {
-    if (to) map.flyTo(to, 16, { duration: 0.8 });
-  }, [to, map]);
+  useEffect(() => {
+    const t = setTimeout(() => map.flyToBounds(bounds, { duration: 1.4, padding: [36, 36], maxZoom: 15 }), 150);
+    return () => clearTimeout(t);
+  }, [map, bounds]);
   return null;
 };
+
+const Controller: React.FC<{ target: [number, number] | null; onZoom: (z: number) => void; api: (m: L.Map) => void }> = ({ target, onZoom, api: expose }) => {
+  const map = useMap();
+  useEffect(() => expose(map), [map, expose]);
+  useEffect(() => {
+    if (target) map.flyTo(target, Math.max(map.getZoom(), 15), { duration: 0.7 });
+  }, [target, map]);
+  useMapEvents({ zoomend: (e) => onZoom(e.target.getZoom()) });
+  return null;
+};
+
+const CtrlBtn: React.FC<{ icon: string; label: string; onClick: () => void; active?: boolean }> = ({ icon, label, onClick, active }) => (
+  <button
+    aria-label={label}
+    onClick={() => {
+      haptic('light');
+      onClick();
+    }}
+    className={`w-12 h-12 flex items-center justify-center active:scale-90 transition-transform ${active ? 'text-primary' : 'text-on-surface'}`}
+  >
+    <span className={`material-symbols-outlined text-[24px] ${active ? 'fill' : ''}`}>{icon}</span>
+  </button>
+);
 
 export const MapScreen: React.FC<{ route: Route }> = () => {
   const toast = useToast();
   const lms = useAsync(() => api.landmarks(), []);
   const lst = useAsync(() => api.listings({}), []);
   const [type, setType] = useState<string | null>(null);
-  const [sel, setSel] = useState<{ kind: 'listing'; l: Listing } | { kind: 'area'; lm: Landmark } | null>(null);
+  const [openOnly, setOpenOnly] = useState(false);
+  const [selListing, setSelListing] = useState<Listing | null>(null);
+  const [selArea, setSelArea] = useState<Landmark | null>(null);
   const [me, setMe] = useState<[number, number] | null>(null);
+  const [target, setTarget] = useState<[number, number] | null>(null);
+  const [zoom, setZoom] = useState(11);
+  const [layer, setLayer] = useState<'pastel' | 'detail'>('pastel');
+  const [map, setMap] = useState<L.Map | null>(null);
 
-  const located = useMemo(() => (lst.data?.items || []).filter((l) => l.location), [lst.data]);
-  const pins = type ? located.filter((l) => l.type === type) : located;
+  const all = lst.data?.items || [];
+  const located = useMemo(() => all.filter((l) => l.location), [all]);
+  const visible = located.filter((l) => (!type || l.type === type) && (!openOnly || l.open.status === 'open'));
   const areas = (lms.data || []).filter((l) => Array.isArray(l.boundary) && l.boundary.length > 2);
+  const points = (lms.data || []).filter((l) => l.latitude != null && l.longitude != null && !(Array.isArray(l.boundary) && l.boundary.length > 2));
+  // Ochilishda shahar markaziy qismiga (mahallalar + e'lonlar) yaqinlashadi.
+  const dataBounds = useMemo(() => {
+    const pts: [number, number][] = [
+      ...areas.flatMap((a) => a.boundary as [number, number][]),
+      ...located.map((l) => [l.location!.lat, l.location!.lng] as [number, number]),
+    ];
+    return pts.length > 1 ? L.latLngBounds(pts) : CITY_BOUNDS;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lms.data, lst.data]);
   const types = Object.keys(TYPE_META).filter((t) => located.some((l) => l.type === t));
 
-  const areaCount = (id: string) => (lst.data?.items || []).filter((l) => l.landmark?.id === id || l.serviceAreas.some((a) => a.id === id)).length;
+  const inArea = (l: Listing, id: string) => l.landmark?.id === id || l.serviceAreas.some((a) => a.id === id);
+  const area = selArea || (selListing?.landmark ? (lms.data || []).find((x) => x.id === selListing.landmark!.id) || null : null);
+  const areaListings = area ? all.filter((l) => inArea(l, area.id)) : all.filter((l) => l.open.status === 'open');
+  const featured = selListing || areaListings.find((l) => l.location) || areaListings[0] || null;
+  const nearby = areaListings.filter((l) => l.id !== featured?.id);
 
   const locate = () => {
-    haptic('light');
     if (!navigator.geolocation) return toast("Joylashuvni aniqlab bo'lmadi", 'error');
     navigator.geolocation.getCurrentPosition(
-      (p) => setMe([p.coords.latitude, p.coords.longitude]),
+      (p) => {
+        const pos: [number, number] = [p.coords.latitude, p.coords.longitude];
+        setMe(pos);
+        setTarget(pos);
+      },
       () => toast('Joylashuvga ruxsat berilmadi', 'error'),
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
 
-  const chip = (key: string | null, label: string, n: number, dot?: string) => {
+  const chip = (key: string | null, label: string, n: number) => {
     const a = type === key;
+    const st = key ? PIN_STYLE[key] : null;
     return (
       <button
         key={key || 'all'}
-        type="button"
         onClick={() => {
           haptic('select');
           setType(key);
-          setSel(null);
+          setSelListing(null);
         }}
-        className={`shrink-0 h-9 px-3.5 rounded-full flex items-center gap-1.5 font-label-md text-label-md shadow-sm transition-transform active:scale-95 ${a ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-on-surface'}`}
+        className={`shrink-0 h-11 pl-2 pr-3 rounded-full flex items-center gap-2 font-label-lg text-label-lg transition-all active:scale-95 ${
+          a ? 'bg-primary text-on-primary clay-fab' : 'bg-surface-container-lowest text-on-surface clay-card'
+        }`}
       >
-        {dot && <span className="w-3.5 h-3.5 rounded-full" style={{ background: dot }} />}
-        <span>{label}</span>
-        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${a ? 'bg-white/20' : 'bg-surface-container text-on-surface-variant'}`}>{n}</span>
+        {st ? (
+          <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: `${st.color}22`, color: st.color }}>
+            <span className="material-symbols-outlined fill text-[16px]">{st.icon}</span>
+          </span>
+        ) : (
+          <span className="w-1" />
+        )}
+        {label}
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${a ? 'bg-white/25' : 'bg-surface-container text-on-surface-variant'}`}>{n}</span>
       </button>
     );
   };
 
   return (
-    <main className="flex-1 flex flex-col relative w-full px-margin pt-safe pb-28 bg-surface min-h-screen">
-      <div className="flex flex-col gap-space-sm mb-3 pt-4">
-        <div className="flex items-center justify-between gap-space-sm bg-surface-container-lowest p-2 pl-3 rounded-full shadow-sm">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <span className="material-symbols-outlined text-[19px]">explore</span>
+    <main className="flex flex-col w-full pb-28 bg-surface min-h-screen kb-map">
+      {/* Jonli Olmaliq sarlavhasi */}
+      <div className="px-margin pt-safe">
+        <div className="mt-3 flex items-center justify-between gap-2 bg-surface-container-lowest rounded-full pl-2 pr-1.5 py-1.5 clay-card">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="w-11 h-11 rounded-full bg-primary-fixed text-primary flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">explore</span>
             </span>
-            <div className="flex flex-col min-w-0">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Jonli Olmaliq</span>
-              <span className="font-label-lg text-label-lg text-on-surface truncate">{areas.length > 0 ? `${areas.length} ta mahalla` : 'Olmaliq shahri'}</span>
+            <div className="min-w-0">
+              <p className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Jonli Olmaliq</p>
+              <p className="font-headline-sm text-headline-sm text-on-surface truncate">{area ? area.name : 'Butun shahar'}</p>
             </div>
           </div>
-          <button type="button" onClick={locate} className="px-3 py-1.5 rounded-full bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1 active:scale-95 transition-transform shrink-0">
-            <span className="material-symbols-outlined text-[18px]">my_location</span>
-            <span>Men qayerdaman</span>
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-surface-container-low font-label-md text-label-md text-on-surface">
+              <span className="w-2 h-2 rounded-full bg-tertiary-container animate-pulse" /> Jonli
+            </span>
+            <button
+              aria-label="Faqat hozir ochiqlar"
+              onClick={() => {
+                haptic('select');
+                setOpenOnly((v) => !v);
+              }}
+              className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-all ${openOnly ? 'bg-tertiary text-white' : 'bg-primary text-on-primary'} clay-fab`}
+            >
+              <span className="material-symbols-outlined text-[22px]">{openOnly ? 'schedule' : 'tune'}</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-margin px-margin no-scrollbar">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-margin px-margin py-3">
           {chip(null, 'Barchasi', located.length)}
-          {types.map((t) => chip(t, TYPE_META[t].label, located.filter((l) => l.type === t).length, colorOf(t)))}
+          {types.map((t) => chip(t, TYPE_META[t].label, located.filter((l) => l.type === t).length))}
         </div>
       </div>
 
-      <div className="relative w-full h-[60vh] min-h-[370px] rounded-lg overflow-hidden bg-surface-container shadow-inner mb-4 z-0">
-        <MapContainer center={CENTER} zoom={13} className="w-full h-full" zoomControl={false} attributionControl>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
+      {/* Xarita */}
+      <div className="relative isolate w-full h-[50vh] min-h-[340px]">
+        <MapContainer center={CITY_CENTER} zoom={11} minZoom={11} maxBounds={CITY_BOUNDS.pad(0.6)} className="w-full h-full" zoomControl={false} attributionControl>
+          <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attr} className={layer === 'pastel' ? 'kb-tiles' : ''} />
+          <IntroFly bounds={dataBounds} />
+          <Controller target={target} onZoom={setZoom} api={setMap} />
           {areas.map((a, i) => {
-            const c = FILLS[i % FILLS.length];
-            const active = sel?.kind === 'area' && sel.lm.id === a.id;
+            const c = AREA_FILLS[i % AREA_FILLS.length];
+            const active = area?.id === a.id;
             return (
               <Polygon
                 key={a.id}
                 positions={a.boundary as [number, number][]}
-                pathOptions={{ color: c, weight: active ? 3 : 1.5, fillColor: c, fillOpacity: active ? 0.3 : 0.14 }}
+                pathOptions={{ color: c, weight: active ? 3 : 0, fillColor: c, fillOpacity: active ? 0.55 : 0.38 }}
                 eventHandlers={{
                   click: () => {
                     haptic('light');
-                    setSel({ kind: 'area', lm: a });
+                    setSelArea(a);
+                    setSelListing(null);
                   },
                 }}
               >
-                <Tooltip direction="center" permanent className="!bg-white/80 !border-0 !shadow-none !rounded-full !px-2 !py-0 !text-[11px] !font-bold">
+                <Tooltip direction="center" permanent className="kb-area-label">
                   {a.name}
                 </Tooltip>
               </Polygon>
             );
           })}
-          {pins.map((l) => (
-            <Marker
-              key={l.id}
-              position={[l.location!.lat, l.location!.lng]}
-              icon={pinIcon(l.type, sel?.kind === 'listing' && sel.l.id === l.id)}
-              eventHandlers={{
-                click: () => {
-                  haptic('light');
-                  setSel({ kind: 'listing', l });
-                },
-              }}
-            />
-          ))}
-          {me && <CircleMarker center={me} radius={9} pathOptions={{ color: '#fff', weight: 3, fillColor: '#5341cd', fillOpacity: 1 }} />}
-          <FlyTo to={me} />
+          {zoom >= 14 && points.map((p) => <Marker key={p.id} position={[p.latitude!, p.longitude!]} icon={landmarkIcon(p.name)} interactive={false} />)}
+          {visible.map((l, i) => {
+            const sel = selListing?.id === l.id;
+            return (
+              <Marker
+                key={l.id}
+                position={[l.location!.lat, l.location!.lng]}
+                zIndexOffset={sel ? 1000 : 0}
+                icon={pinIcon(l.type, sel, sel ? `${l.name}${l.open.status === 'open' ? ' · Ochiq' : ''}` : null, 900 + i * 70)}
+                eventHandlers={{
+                  click: () => {
+                    haptic('light');
+                    setSelListing(l);
+                    setSelArea(null);
+                    setTarget([l.location!.lat, l.location!.lng]);
+                  },
+                }}
+              />
+            );
+          })}
+          {me && <Marker position={me} icon={meIcon} />}
         </MapContainer>
+
+        {/* O'ng tomondagi boshqaruv (Stitch) */}
+        <div className="absolute right-3 top-3 z-[500] flex flex-col gap-3">
+          <div className="rounded-full bg-surface-container-lowest clay-card">
+            <CtrlBtn icon="my_location" label="Men qayerdaman" onClick={locate} />
+          </div>
+          <div className="rounded-full bg-surface-container-lowest clay-card flex flex-col">
+            <CtrlBtn icon="add" label="Yaqinlashtirish" onClick={() => map?.zoomIn()} />
+            <CtrlBtn icon="remove" label="Uzoqlashtirish" onClick={() => map?.zoomOut()} />
+          </div>
+          <div className="rounded-full bg-surface-container-lowest clay-card">
+            <CtrlBtn icon="layers" label="Xarita turi" active={layer === 'detail'} onClick={() => setLayer((v) => (v === 'pastel' ? 'detail' : 'pastel'))} />
+          </div>
+        </div>
+
         {lst.error && (
-          <div className="absolute top-3 inset-x-3 z-[500] bg-surface-container-lowest/95 rounded-full px-3 py-2 font-label-md text-label-md text-error text-center shadow-sm">Ma'lumot yuklanmadi</div>
+          <div className="absolute top-3 left-3 right-20 z-[500] bg-surface-container-lowest/95 rounded-full px-3 py-2 font-label-md text-label-md text-error text-center shadow-sm">
+            Ma'lumot yuklanmadi
+          </div>
         )}
+        <CloudIntro />
       </div>
 
-      {sel?.kind === 'listing' && <MapCard kind="listing" listing={sel.l} onClose={() => setSel(null)} />}
-      {sel?.kind === 'area' && <MapCard kind="area" landmark={sel.lm} count={areaCount(sel.lm.id)} onClose={() => setSel(null)} />}
-      {!sel && lst.data && located.length === 0 && (
-        <p className="font-body-sm text-body-sm text-on-surface-variant text-center px-4">Hozircha xaritada joylashuvi ko'rsatilgan e'lonlar yo'q.</p>
-      )}
-      {!sel && located.length > 0 && <p className="font-body-sm text-body-sm text-on-surface-variant text-center px-4">Belgi yoki mahallani bosing — tafsilotlar shu yerda chiqadi.</p>}
+      {/* Pastki karta */}
+      <div className="px-margin">
+        <MapSheet
+          areaTitle={area ? area.name : 'Olmaliq shahri'}
+          areaSubtitle={area ? 'Olmaliq' : openOnly ? 'Hozir ochiq' : 'Hozir ochiqlar'}
+          featured={featured}
+          nearby={nearby}
+          nearbyTitle={area ? 'Yana shu mahallada' : 'Hozir ochiq'}
+          onSeeAll={area ? () => navigate(`/category/ALL?landmarkId=${area.id}`) : undefined}
+        />
+      </div>
     </main>
   );
 };
