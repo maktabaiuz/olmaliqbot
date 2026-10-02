@@ -229,11 +229,6 @@ export function startWind(map: MlMap): () => void {
   const id = window.setInterval(() => {
     if (document.hidden) return;
     step++;
-    for (let t = 0; t < 4; t++)
-      for (let p = 0; p < 4; p++) {
-        const name = `tree-${t}-${p}`;
-        if (map.hasImage(name)) map.updateImage(name, treeFrame(t, step + p * 2));
-      }
     if (step % 2 === 0 && map.hasImage('waves-0')) map.updateImage('waves-0', waveFrame((step / 2) % 4));
   }, 260);
   return () => window.clearInterval(id);

@@ -5,7 +5,7 @@ import type { Landmark, Listing } from '../../lib/types';
 import { haptic } from '../../lib/telegram';
 import { AREA_FILLS, PIN_STYLE } from './pins';
 import { registerTextures, startWind } from './textures';
-import { startLife } from './life';
+import { createCityLayer } from './city3d/layer';
 
 /**
  * Olmaliq 3D diorama xaritasi (2026-10). Uchinchi tomon xarita xizmati va
@@ -69,51 +69,8 @@ const STYLE: StyleSpecification = {
       id: 'lane', type: 'line', source: 'city', minzoom: 15, filter: ['in', ['get', 'k'], ['literal', ['road2', 'road1']]],
       paint: { 'line-color': '#f5f1e6', 'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.6, 18, 2], 'line-dasharray': [4, 4] },
     },
-    {
-      id: 'walls', type: 'fill-extrusion', source: 'city', filter: ['in', ['get', 'k'], ['literal', BUILDING_KINDS]],
-      paint: { 'fill-extrusion-pattern': WALL_PATTERN, 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 },
-    },
-    {
-      id: 'roofs', type: 'fill-extrusion', source: 'city', filter: ['in', ['get', 'k'], ['literal', BUILDING_KINDS]],
-      paint: { 'fill-extrusion-color': ROOF, 'fill-extrusion-base': ['get', 'h'], 'fill-extrusion-height': ['+', ['get', 'h'], 0.9], 'fill-extrusion-opacity': 1 },
-    },
-    // Qiya tom qirrasi (hovli uylar)
-    { id: 'ridges', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'ridge'], paint: { 'fill-extrusion-color': HOUSE_ROOF, 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
-    // Masjid: firuza gumbaz va minora
-    { id: 'domes', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'dome'], paint: { 'fill-extrusion-color': '#2a9d8f', 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
-    { id: 'minarets', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'minaret'], paint: { 'fill-extrusion-color': '#e8d9b8', 'fill-extrusion-base': 0, 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
     // Bozor rastalari — rangli soyabonlar
     { id: 'stalls', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'stall'], paint: { 'fill-extrusion-color': ['match', ['get', 'v'], 0, '#e8452f', 1, '#2f7fd1', 2, '#f39c2b', 3, '#2fa36b', '#e84393'], 'fill-extrusion-base': 2.2, 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
-    // Harakatlanuvchi mashinalar (yo'lga yotqizilgan, yo'nalishda buriladi)
-    {
-      id: 'cars', type: 'symbol', source: 'life', minzoom: 14.5, filter: ['==', ['get', 'c'], true],
-      layout: {
-        'icon-image': ['get', 'i'], 'icon-rotate': ['get', 'b'], 'icon-rotation-alignment': 'map', 'icon-pitch-alignment': 'map',
-        'icon-allow-overlap': true, 'icon-ignore-placement': true,
-        'icon-size': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 0.35, 16, 0.85, 18, 2.8],
-      },
-    },
-    // Daraxtlar — shamolda tebranadi (textures.ts startWind)
-    {
-      id: 'trees', type: 'symbol', source: 'city', minzoom: 13.5, filter: ['==', ['get', 'k'], 'tree'],
-      layout: {
-        'icon-image': ['concat', 'tree-', str(['get', 't']), '-', str(['get', 'p'])],
-        'icon-anchor': 'bottom',
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-pitch-alignment': 'viewport',
-        'icon-rotation-alignment': 'viewport',
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 14, ['*', 0.35, ['get', 's']], 16, ['*', 0.8, ['get', 's']], 18, ['*', 1.9, ['get', 's']]],
-      },
-    },
-    // Odamchalar (trotuarda yuradi)
-    {
-      id: 'people', type: 'symbol', source: 'life', minzoom: 15.5, filter: ['==', ['get', 'c'], false],
-      layout: {
-        'icon-image': ['get', 'i'], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-        'icon-pitch-alignment': 'viewport', 'icon-size': ['interpolate', ['linear'], ['zoom'], 15.5, 0.5, 18, 1.3],
-      },
-    },
     { id: 'me-acc', type: 'fill', source: 'me', paint: { 'fill-color': '#5341cd', 'fill-opacity': 0.12 } },
   ],
 };
@@ -203,7 +160,9 @@ export const Map3D: React.FC<{
         .then((fc) => {
           if (!mapRef.current) return;
           (map.getSource('city') as maplibregl.GeoJSONSource).setData(fc);
-          stopLife = startLife(map, fc.features);
+          const city = createCityLayer(fc.features);
+          map.addLayer(city, 'me-acc');
+          stopLife = () => city.dispose();
           for (const f of fc.features as any[]) {
             if (f.properties.k !== 'label') continue;
             // Tashqi element — MapLibre transform'i uchun; animatsiya faqat ichkida
