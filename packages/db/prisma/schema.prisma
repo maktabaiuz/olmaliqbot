@@ -437,6 +437,8 @@ model Listing {
   updatedAt           DateTime           @updatedAt
 
   reviews             Review[]
+  favorites           Favorite[]
+  phoneReveals        PhoneReveal[]
   history             ListingHistory[]
   corrections         Correction[]
   dailyChecks         DailyCheck[]
@@ -870,4 +872,47 @@ model RequiredChannel {
   createdAt DateTime @default(now())
 
   @@map("required_channels")
+}
+
+// ---------- Foydalanuvchi ilovasi (2026-10) ----------
+
+// "Saqlanganlar" — foydalanuvchi o'zi uchun belgilab qo'ygan yozuvlar.
+model Favorite {
+  id             String   @id @default(uuid())
+  telegramUserId BigInt
+  listingId      String
+  listing        Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([telegramUserId, listingId])
+  @@map("favorites")
+}
+
+// Telefon raqami ochilishi: (1) bazani ko'chirib olishdan himoya — soat/kun
+// limiti shu jadvaldan hisoblanadi, (2) baholash huquqi — faqat raqamni
+// ochgan (qo'ng'iroq qilgan) odam baho bera oladi.
+model PhoneReveal {
+  id             String   @id @default(uuid())
+  telegramUserId BigInt
+  listingId      String
+  listing        Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@index([telegramUserId, createdAt])
+  @@index([telegramUserId, listingId])
+  @@map("phone_reveals")
+}
+
+// "Bu men so'ragan narsa emas" — false positive nomzodlari (oltin test
+// to'plamiga qo'shish uchun ko'rib chiqiladi).
+model SearchFeedback {
+  id             String   @id @default(uuid())
+  cityId         String
+  telegramUserId BigInt
+  query          String
+  listingId      String?
+  createdAt      DateTime @default(now())
+
+  @@index([cityId, createdAt])
+  @@map("search_feedback")
 }

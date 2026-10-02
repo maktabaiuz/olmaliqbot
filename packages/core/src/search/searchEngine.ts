@@ -852,6 +852,8 @@ export interface OtherMatch {
   photoUrls: string[];
   /** Bo'lsa — "📍 Lokatsiya" (yashil) tugmasi shu yozuv uchun ham qo'shiladi. */
   mapUrl: string | null;
+  /** Foydalanuvchi ilovasi (2026-10) natijani kartaga aylantirishi uchun. */
+  listingId: string;
 }
 
 export interface FormattedListingResult {
@@ -2445,6 +2447,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       ),
       photoUrls: Array.isArray(s.listing.photoUrls) ? s.listing.photoUrls : [],
       mapUrl: s.listing.mapUrl || null,
+      listingId: s.listing.id as string,
     }))
   );
 

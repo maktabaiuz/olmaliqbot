@@ -1,3 +1,4 @@
+import { publicRoutes } from './routes/publicRoutes';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
@@ -64,6 +65,8 @@ async function main() {
   });
   await fastify.register(adminRoutes, { prefix: '/api' });
   await fastify.register(moderatorRoutes, { prefix: '/api' });
+  // Foydalanuvchi ilovasi — admin API'dan alohida (2026-10).
+  await fastify.register(publicRoutes, { prefix: '/api' });
 
   fastify.get('/health', async () => {
     return { status: 'ok', service: 'kimbor-api', timestamp: new Date().toISOString() };
