@@ -876,14 +876,46 @@ export async function adminRoutes(fastify: FastifyInstance) {
       dbReachable = false;
     }
 
-    // 5. Javob berish darajasi — oxirgi 24 soatda botning HAQIQIY qanchalik
-    // yaxshi javob berayotgani (bazada topilgan / umuman topilmagan nisbati).
+    // 5. Javob berish darajasi — oxirgi 24 soatda HAQIQIY so'rovlarning
+    // (oddiy suhbat — NOT_RELEVANT — hisobga olinmaydi) qanchasiga bazadan
+    // javob topilgani. "(24s)" yorlig'i "24 soniya" deb noto'g'ri
+    // tushunilgan edi (2026-10-02) — endi "24 soat" aniq yoziladi.
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const seekingWhere = { cityId, createdAt: { gte: oneDayAgo }, intent: { not: 'NOT_RELEVANT' as const } };
     const [totalQueries, resolvedQueries] = await Promise.all([
-      db.queryLog.count({ where: { cityId, createdAt: { gte: oneDayAgo } } }),
-      db.queryLog.count({ where: { cityId, createdAt: { gte: oneDayAgo }, isResolved: true } }),
+      db.queryLog.count({ where: seekingWhere }),
+      db.queryLog.count({ where: { ...seekingWhere, isResolved: true } }),
     ]);
     const responseRate = totalQueries > 0 ? Math.round((resolvedQueries / totalQueries) * 100) : null;
+
+    // 6. Javob TEZLIGI — xabar kelgandan bot javob bergungacha (median va
+    // eng sekin 5%). Loyiha qoidasi: 3 soniyadan kam.
+    let speed: { medianMs: number | null; p95Ms: number | null; sample: number } = { medianMs: null, p95Ms: null, sample: 0 };
+    try {
+      const rows = await db.$queryRaw<{ p50: number | null; p95: number | null; n: bigint }[]>`
+        SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY "responseTimeMs") AS p50,
+               percentile_cont(0.95) WITHIN GROUP (ORDER BY "responseTimeMs") AS p95,
+               count(*) AS n
+        FROM query_logs
+        WHERE "cityId" = ${cityId} AND "createdAt" >= ${oneDayAgo} AND "responseTimeMs" IS NOT NULL`;
+      const r = rows[0];
+      speed = { medianMs: r?.p50 != null ? Math.round(Number(r.p50)) : null, p95Ms: r?.p95 != null ? Math.round(Number(r.p95)) : null, sample: Number(r?.n || 0) };
+    } catch (err) {
+      console.error('speed metric failed:', err);
+    }
+
+    // 7. AI haqiqatan ishlayaptimi — savollarning qanchasi Gemini orqali,
+    // qanchasi zaxira lug'at orqali tushunildi (avvalgi "ishlayapti" belgisi
+    // faqat KALIT borligini tekshirardi, AI'ning o'zini emas).
+    const aiGroups = await db.queryLog.groupBy({
+      by: ['aiSource'],
+      where: { ...seekingWhere, aiSource: { not: null } },
+      _count: { _all: true },
+    }).catch(() => [] as { aiSource: string | null; _count: { _all: number } }[]);
+    const aiCount = (k: string) => aiGroups.find((g) => g.aiSource === k)?._count._all || 0;
+    const aiUsed = aiCount('ai') + aiCount('cache');
+    const aiFallback = aiCount('fallback');
+    const aiTotal = aiUsed + aiFallback;
 
     return {
       success: true,
@@ -891,6 +923,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
       webhook,
       broadcastQueue: { overdueCount: overdueBroadcasts, healthy: overdueBroadcasts === 0 },
       database: { reachable: dbReachable },
+      speed,
+      ai: { usedPercent: aiTotal > 0 ? Math.round((aiUsed / aiTotal) * 100) : null, aiUsed, aiFallback },
       responseRate: { last24h: responseRate, totalQueries, resolvedQueries },
     };
   });

@@ -22,6 +22,10 @@ export interface ClassifierResult {
   name: string | null;
   landmark: string | null;
   confidence: number;
+  /** Qanday aniqlangani (2026-10): 'ai' — Gemini, 'fallback' — lug'at
+   *  asosidagi zaxira (AI limiti tugaganda yoki xatoda), 'cache' — 10
+   *  daqiqalik keshdan. Tizim salomatligi va sifat tahlili uchun. */
+  source?: 'ai' | 'fallback' | 'cache';
 }
 
 export interface EmergencyTemplate {

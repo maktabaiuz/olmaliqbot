@@ -128,6 +128,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         landmarkName: classification.landmark,
         isResolved: false,
         confidence: classification.confidence,
+        aiSource: classification.source ?? null,
       },
     }).catch((err) => console.error('Failed to log self-offer QueryLog:', err));
     return;
@@ -200,6 +201,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
           landmarkName: areaResult.landmarkName,
           isResolved: true,
           confidence: classification.confidence,
+        aiSource: classification.source ?? null,
           responseTimeMs: Date.now() - startTime,
         },
       }).catch((err) => console.error('Failed to log area-listing QueryLog:', err));
@@ -250,6 +252,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
         landmarkName: classification.landmark,
         isResolved: false,
         confidence: classification.confidence,
+        aiSource: classification.source ?? null,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
     return;
@@ -289,6 +292,7 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       landmarkName: classification.landmark,
       isResolved: true,
       confidence: classification.confidence,
+        aiSource: classification.source ?? null,
       responseTimeMs: Date.now() - startTime,
     },
   }).catch((err) => console.error('Failed to log resolved QueryLog:', err));

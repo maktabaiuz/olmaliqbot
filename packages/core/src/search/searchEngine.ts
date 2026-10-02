@@ -8,6 +8,7 @@ import { RentalFilters } from '../intent/extractRentalFilters';
 import { UZBEK_STOPWORDS } from './uzbekStopwords';
 import { isMalformedCategoryName } from './categoryDictionary';
 import { getBotMessageText, renderLineTemplate } from '../botMessages/botMessageStore';
+import { verifyAnswerRelevance } from './answerVerifier';
 
 // Telegram HTML parse_mode uchun xavfsiz escape (ma'lumot bazasidan kelgan
 // matnda <, >, & belgilari bo'lsa xabar yuborilmay qolishining oldini oladi)
@@ -859,6 +860,10 @@ export interface FormattedListingResult {
   listing: any;
   /** Faqat `options.debug === true` bo'lganda to'ldiriladi — qarang: ScoreBreakdownEntry. */
   scoreBreakdown?: ScoreBreakdownEntry[];
+  /** Yakuniy tekshiruv natijasi (2026-10-02): 'not_needed' — kategoriya mos,
+   * xavfsiz javob; 'ai' — xavfli edi, AI "mos" deb tasdiqladi; 'rule' — AI
+   * mavjud emas edi, qat'iy qoida bo'yicha o'tkazildi. */
+  verifiedBy?: 'not_needed' | 'ai' | 'rule';
 }
 
 const MAX_RANKED_RESULTS = 7;
@@ -2326,6 +2331,42 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     return null;
   }
 
+  // ===========================================================
+  // YAKUNIY TEKSHIRUV — "false positive" himoyasi (2026-10-02)
+  // ===========================================================
+  // Javob XAVFLI hisoblanadi, agar g'olib yozuv AI aniqlagan kategoriyaga
+  // tegishli bo'lmasa (yoki kategoriya umuman aniqlanmagan bo'lsa) — ya'ni
+  // faqat jargon so'z orqali "qutqarilgan" bo'lsa. Shu sessiyadagi barcha
+  // real xatolar (To'ytepa→Oqtepa lavash, kalonka→TV usta, karzinka→
+  // bo'yoqchi) aynan shu yo'l bilan o'tgan. Bunday javoblar uchun:
+  //   1) AI'dan "bu odam aynan shuni so'rayaptimi?" deb so'raladi —
+  //      so'z emas, MA'NO tekshiriladi;
+  //   2) AI mavjud bo'lmasa (limit/xato) — faqat "kuchli" (atoqli nom yoki
+  //      butun ibora) moslik o'tkaziladi, "soha"/"zaif" moslik jim qoladi.
+  const resolvedCategoryIdSet = new Set(
+    (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
+  );
+  const isRiskyAnswer = !hasResolvedCategory || !resolvedCategoryIdSet.has(bestMatch.categoryId);
+  let verifiedBy: 'not_needed' | 'ai' | 'rule' = 'not_needed';
+  if (isRiskyAnswer && rawMessage) {
+    const verdict = await verifyAnswerRelevance({
+      message: rawMessage,
+      listingName: bestMatch.name,
+      categoryName: bestMatch.category?.name || null,
+      matchedPhrase: jargonEvidence.get(bestMatch.id) || null,
+    });
+    if (verdict === 'irrelevant') return null;
+    if (verdict === 'relevant') {
+      verifiedBy = 'ai';
+    } else {
+      const strength = jargonMatchedIds.has(bestMatch.id)
+        ? conditionalJargon.get(bestMatch.id)?.strength || 'strong'
+        : null;
+      if (strength !== 'strong') return null;
+      verifiedBy = 'rule';
+    }
+  }
+
   // Sarlavhada har doim TOPILGAN yozuvning haqiqiy kategoriyasini ko'rsatamiz —
   // klassifikator taxminini emas (masalan Gemini ishlamay qolib, chalkash matn
   // chiqargan bo'lsa ham, foydalanuvchiga toza va to'g'ri nom ko'rinadi).
@@ -2382,5 +2423,6 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     executionTimeMs,
     listing: bestMatch,
     scoreBreakdown: options.debug ? scoredListings.map((s) => s.breakdown!).filter(Boolean) : undefined,
+    verifiedBy,
   };
 }

@@ -20,6 +20,7 @@ const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number 
 // tarifda bo'lsa ham, bot butunlay jim qolib ketmaydi — zaxira
 // klassifikatorga tushadi).
 const GEMINI_RPM_SAFE_LIMIT = 12;
+const GEMINI_CLASSIFIER_TIMEOUT_MS = 3500;
 const recentGeminiCallTimestamps: number[] = [];
 export function reserveGeminiCallSlot(): boolean {
   const now = Date.now();
@@ -115,7 +116,7 @@ export async function classifyQuery(
   // 1. Keshni tekshirish (10 minutlik)
   const cached = memoryCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.data;
+    return { ...cached.data, source: 'cache' };
   }
 
   const geminiKey = apiKey || process.env.GEMINI_API_KEY;
@@ -129,23 +130,20 @@ export async function classifyQuery(
   // muvaffaqiyatsiz bo'lsa, ikkinchi urinish DARHOL qilinmaydi.
   const geminiUsable = !!geminiKey && geminiKey !== 'your_gemini_api_key_here' && geminiKey !== 'mock_key';
 
-  if (geminiUsable && hasPossibleServiceSignal(normalized)) {
-    if (reserveGeminiCallSlot()) {
-      const first = await callGeminiClassifier(cleanText, geminiKey, 6000, cityId);
-      if (first.data) {
-        result = first.data;
-      } else if (!first.rateLimited && reserveGeminiCallSlot()) {
-        const second = await callGeminiClassifier(cleanText, geminiKey, 6000, cityId);
-        result = second.data || fallbackRuleClassification(normalized, cleanText);
-      } else {
-        result = fallbackRuleClassification(normalized, cleanText);
-      }
-    } else {
-      result = fallbackRuleClassification(normalized, cleanText);
-    }
+  // MUHIM (2026-10-02, javob tezligi): avval 6s kutib, javob bo'lmasa yana
+  // 6s qayta urinilardi — eng sekin 5% javob 12 soniyaga yetgan (loyiha
+  // qoidasi: 3s dan kam). Endi BITTA urinish, qisqa (3.5s) muddat bilan;
+  // ulgurmasa darhol zaxira klassifikatorga o'tiladi — foydalanuvchi
+  // kutib qolmaydi. Gemini Flash-Lite odatda 0.5–1.5s da javob beradi.
+  if (geminiUsable && hasPossibleServiceSignal(normalized) && reserveGeminiCallSlot()) {
+    const attempt = await callGeminiClassifier(cleanText, geminiKey, GEMINI_CLASSIFIER_TIMEOUT_MS, cityId);
+    result = attempt.data
+      ? { ...attempt.data, source: 'ai' }
+      : { ...fallbackRuleClassification(normalized, cleanText), source: 'fallback' };
   } else {
-    // API key bo'lmasa qoidalarga asoslangan lokal klassifikatsiya
-    result = fallbackRuleClassification(normalized, cleanText);
+    // API kaliti yo'q, limit tugagan, yoki xabarda xizmat belgisi yo'q —
+    // qoidalarga asoslangan mahalliy klassifikatsiya.
+    result = { ...fallbackRuleClassification(normalized, cleanText), source: 'fallback' };
   }
 
   // Qat'iy qoida: confidence < 0.7 bo'lsa bot jim turadi (NOT_RELEVANT)

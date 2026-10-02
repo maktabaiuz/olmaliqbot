@@ -595,6 +595,9 @@ model QueryLog {
   // qarori) yakunlanguncha. Guruh darajasidagi texnik sog'liq ko'rsatkichi
   // (sekinlashuvni erta payqash) uchun.
   responseTimeMs    Int?
+  // 'ai' | 'fallback' | 'cache' — savol AI orqali tushunilganmi yoki
+  // zaxira lug'at orqali (2026-10, tizim salomatligi kartasi uchun).
+  aiSource          String?
   createdAt         DateTime    @default(now())
 
   @@index([cityId, isResolved])

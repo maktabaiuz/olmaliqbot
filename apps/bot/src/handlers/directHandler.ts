@@ -329,6 +329,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     rawMessage: messageText,
     intent: classification.intent,
     confidence: classification.confidence,
+    aiSource: classification.source ?? null,
     name: isSeeking ? classification.name : null,
     objectType: isSeeking ? classification.object_type : null,
   });
@@ -344,6 +345,7 @@ async function runPrivateSearch(
     rawMessage: string;
     intent?: IntentType;
     confidence?: number;
+    aiSource?: string | null;
     name?: string | null;
     objectType?: string | null;
   }
@@ -371,6 +373,7 @@ async function runPrivateSearch(
         landmarkName: opts.landmarkName,
         isResolved: false,
         confidence: opts.confidence,
+        aiSource: opts.aiSource ?? null,
       },
     }).catch((err) => console.error('Failed to log unresolved QueryLog:', err));
 
@@ -428,6 +431,7 @@ async function runPrivateSearch(
       landmarkName: opts.landmarkName,
       isResolved: true,
       confidence: opts.confidence,
+      aiSource: opts.aiSource ?? null,
     },
   }).catch((err) => console.error('Failed to log resolved QueryLog:', err));
 }
