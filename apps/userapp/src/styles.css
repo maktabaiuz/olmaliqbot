@@ -97,3 +97,12 @@ body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
 @keyframes kb-drift { from { transform: translateX(0); } to { transform: translateX(170vw); } }
 .kb-hotspot-ring { animation: blob-ring 1.8s ease-out infinite; }
 .kb-hotspot-bob { animation: kb-pin-bob 1.8s ease-in-out infinite; }
+
+/* Poster uslubidagi yashil belgilar (bino nomlari) */
+.kb-name { background: #1f5e3a !important; color: #fff !important; border: 2px solid #fff; border-radius: 8px !important;
+  font-size: 11px; font-weight: 800; padding: 4px 9px !important; box-shadow: 0 6px 12px -3px rgba(0,0,0,.35) !important; position: relative; }
+.kb-name::after { content: ''; position: absolute; left: 50%; top: 100%; width: 3px; height: 14px; margin-left: -1.5px; background: #6b7280; border-radius: 0 0 2px 2px; }
+/* Bulut soyasi */
+.kb-cloud-shadow { position: absolute; left: -40%; width: 260px; height: 120px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(30,40,60,.16) 0%, rgba(30,40,60,0) 70%);
+  animation: kb-drift 60s linear infinite; }

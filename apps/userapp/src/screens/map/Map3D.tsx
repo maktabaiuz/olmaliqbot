@@ -5,6 +5,7 @@ import type { Landmark, Listing } from '../../lib/types';
 import { haptic } from '../../lib/telegram';
 import { AREA_FILLS, PIN_STYLE } from './pins';
 import { registerTextures, startWind } from './textures';
+import { startLife } from './life';
 
 /**
  * Olmaliq 3D diorama xaritasi (2026-10). Uchinchi tomon xarita xizmati va
@@ -42,21 +43,22 @@ const STYLE: StyleSpecification = {
     city: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: '© OpenStreetMap' },
     areas: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
     me: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    life: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
   },
   layers: [
-    { id: 'bg', type: 'background', paint: { 'background-color': '#e9e3cf' } },
-    { id: 'land', type: 'fill', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['grass', 'cemetery', 'park']]], paint: { 'fill-color': byKind({ grass: '#c9dd98', cemetery: '#c7d3ae', park: '#9dc77a' }, '#c9dd98') } },
+    { id: 'bg', type: 'background', paint: { 'background-color': '#d9e8b8' } },
+    { id: 'land', type: 'fill', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['grass', 'cemetery', 'park']]], paint: { 'fill-color': byKind({ grass: '#b6d987', cemetery: '#bfd1a3', park: '#86c266' }, '#b6d987') } },
     { id: 'areas-fill', type: 'fill', source: 'areas', paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['case', ['get', 'sel'], 0.32, 0.16] } },
     { id: 'areas-line', type: 'line', source: 'areas', paint: { 'line-color': ['get', 'c'], 'line-width': ['case', ['get', 'sel'], 3, 1.5], 'line-dasharray': [2, 1.5] } },
-    { id: 'water', type: 'fill', source: 'city', filter: ['==', ['get', 'k'], 'water'], paint: { 'fill-color': '#4f9cc9' } },
-    { id: 'river', type: 'line', source: 'city', filter: ['==', ['get', 'k'], 'river'], paint: { 'line-color': '#4f9cc9', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 18, 8] } },
+    { id: 'water', type: 'fill', source: 'city', filter: ['==', ['get', 'k'], 'water'], paint: { 'fill-pattern': 'waves-0' } },
+    { id: 'river', type: 'line', source: 'city', filter: ['==', ['get', 'k'], 'river'], paint: { 'line-color': '#3f92c4', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.5, 18, 10] } },
     { id: 'sport', type: 'fill', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['pitch', 'stadium']]], paint: { 'fill-color': byKind({ pitch: '#5fb35a', stadium: '#e6c09c' }, '#5fb35a'), 'fill-outline-color': '#ffffff' } },
     { id: 'rail', type: 'line', source: 'city', filter: ['==', ['get', 'k'], 'rail'], paint: { 'line-color': '#7a6450', 'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1, 18, 4], 'line-dasharray': [3, 1] } },
     // Yo'llar: trotuar → asfalt → oq o'rta chiziq
     {
       id: 'sidewalk', type: 'line', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['street', 'road2', 'road1']]],
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#f3efe4', 'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 13, ['match', ['get', 'k'], 'street', 1.2, 3.5], 18, ['match', ['get', 'k'], 'street', 15, 30]] },
+      paint: { 'line-color': '#efe6cf', 'line-width': ['interpolate', ['exponential', 1.6], ['zoom'], 13, ['match', ['get', 'k'], 'street', 1.2, 3.5], 18, ['match', ['get', 'k'], 'street', 15, 30]] },
     },
     {
       id: 'asphalt', type: 'line', source: 'city', filter: ['in', ['get', 'k'], ['literal', ['street', 'road2', 'road1']]],
@@ -80,6 +82,17 @@ const STYLE: StyleSpecification = {
     // Masjid: firuza gumbaz va minora
     { id: 'domes', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'dome'], paint: { 'fill-extrusion-color': '#2a9d8f', 'fill-extrusion-base': ['get', 'b'], 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
     { id: 'minarets', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'minaret'], paint: { 'fill-extrusion-color': '#e8d9b8', 'fill-extrusion-base': 0, 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
+    // Bozor rastalari — rangli soyabonlar
+    { id: 'stalls', type: 'fill-extrusion', source: 'city', filter: ['==', ['get', 'k'], 'stall'], paint: { 'fill-extrusion-color': ['match', ['get', 'v'], 0, '#e8452f', 1, '#2f7fd1', 2, '#f39c2b', 3, '#2fa36b', '#e84393'], 'fill-extrusion-base': 2.2, 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-opacity': 1 } },
+    // Harakatlanuvchi mashinalar (yo'lga yotqizilgan, yo'nalishda buriladi)
+    {
+      id: 'cars', type: 'symbol', source: 'life', minzoom: 14.5, filter: ['==', ['get', 'c'], true],
+      layout: {
+        'icon-image': ['get', 'i'], 'icon-rotate': ['get', 'b'], 'icon-rotation-alignment': 'map', 'icon-pitch-alignment': 'map',
+        'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'icon-size': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 0.35, 16, 0.85, 18, 2.8],
+      },
+    },
     // Daraxtlar — shamolda tebranadi (textures.ts startWind)
     {
       id: 'trees', type: 'symbol', source: 'city', minzoom: 13.5, filter: ['==', ['get', 'k'], 'tree'],
@@ -91,6 +104,14 @@ const STYLE: StyleSpecification = {
         'icon-pitch-alignment': 'viewport',
         'icon-rotation-alignment': 'viewport',
         'icon-size': ['interpolate', ['linear'], ['zoom'], 14, ['*', 0.35, ['get', 's']], 16, ['*', 0.8, ['get', 's']], 18, ['*', 1.9, ['get', 's']]],
+      },
+    },
+    // Odamchalar (trotuarda yuradi)
+    {
+      id: 'people', type: 'symbol', source: 'life', minzoom: 15.5, filter: ['==', ['get', 'c'], false],
+      layout: {
+        'icon-image': ['get', 'i'], 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'icon-pitch-alignment': 'viewport', 'icon-size': ['interpolate', ['linear'], ['zoom'], 15.5, 0.5, 18, 1.3],
       },
     },
     { id: 'me-acc', type: 'fill', source: 'me', paint: { 'fill-color': '#5341cd', 'fill-opacity': 0.12 } },
@@ -172,6 +193,7 @@ export const Map3D: React.FC<{
     });
     mapRef.current = map;
     let stopWind = () => {};
+    let stopLife = () => {};
     const nameMarkers: Marker[] = [];
     map.on('load', () => {
       registerTextures(map);
@@ -181,6 +203,7 @@ export const Map3D: React.FC<{
         .then((fc) => {
           if (!mapRef.current) return;
           (map.getSource('city') as maplibregl.GeoJSONSource).setData(fc);
+          stopLife = startLife(map, fc.features);
           for (const f of fc.features as any[]) {
             if (f.properties.k !== 'label') continue;
             // Tashqi element — MapLibre transform'i uchun; animatsiya faqat ichkida
@@ -243,6 +266,7 @@ export const Map3D: React.FC<{
     });
     return () => {
       stopWind();
+      stopLife();
       nameMarkers.forEach((m) => m.remove());
       map.remove();
       mapRef.current = null;
@@ -321,6 +345,12 @@ export const Map3D: React.FC<{
   return (
     <div className="absolute inset-0">
       <div ref={box} className="w-full h-full" />
+      {/* Bulut soyalari — xarita ustidan sekin suzib o'tadi */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <span className="kb-cloud-shadow" style={{ top: '18%', animationDuration: '55s', animationDelay: '-10s' }} />
+        <span className="kb-cloud-shadow" style={{ top: '52%', width: 220, animationDuration: '70s', animationDelay: '-40s' }} />
+        <span className="kb-cloud-shadow" style={{ top: '75%', width: 160, animationDuration: '48s', animationDelay: '-25s' }} />
+      </div>
     </div>
   );
 };

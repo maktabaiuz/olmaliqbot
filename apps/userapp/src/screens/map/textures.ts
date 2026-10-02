@@ -175,6 +175,14 @@ function drawTree(c: CanvasRenderingContext2D, type: number, sway: number) {
     c.beginPath();
     c.ellipse(tx - 2, baseY - 42, 4, 20, (sway * Math.PI) / 180, 0, Math.PI * 2);
     c.fill();
+  } else if (type === 3) {
+    // mevali daraxt (o'rik/olma/anor) — past, keng, mevalari bilan
+    blob(tx - 8, baseY - 24, 10, '#4b8c3a');
+    blob(tx + 8, baseY - 25, 10, '#4b8c3a');
+    blob(tx, baseY - 32, 12, '#62a447');
+    blob(tx - 4, baseY - 36, 6, '#84c25e');
+    const fruit = ['#e8452f', '#f39c2b', '#e8452f', '#c0262d'];
+    [[-8, -27], [6, -30], [-1, -22], [10, -22], [-3, -35], [4, -26]].forEach(([dx, dy], i) => blob(tx + dx, baseY + dy, 1.8, fruit[i % fruit.length]));
   } else {
     // archa
     for (let i = 0; i < 4; i++) {
@@ -209,7 +217,10 @@ export function registerTextures(map: MlMap) {
   map.addImage('school', schoolFacade);
   map.addImage('health', healthFacade);
   map.addImage('industry', industryFacade);
-  for (let t = 0; t < 3; t++) for (let p = 0; p < 4; p++) map.addImage(`tree-${t}-${p}`, treeFrame(t, p), { pixelRatio: 2 });
+  for (let t = 0; t < 4; t++) for (let p = 0; p < 4; p++) map.addImage(`tree-${t}-${p}`, treeFrame(t, p), { pixelRatio: 2 });
+  CARS.forEach((c, i) => map.addImage(`car-${i}`, carSprite(c), { pixelRatio: 2 }));
+  PEOPLE.forEach((c, i) => map.addImage(`person-${i}`, personSprite(c), { pixelRatio: 2 }));
+  for (let f = 0; f < 4; f++) map.addImage(`waves-${f}`, waveFrame(f));
 }
 
 /** Shamol: har 4 fazali guruh o'z vaqtida tebranadi (daraxtlar bir xilda emas). */
@@ -218,11 +229,76 @@ export function startWind(map: MlMap): () => void {
   const id = window.setInterval(() => {
     if (document.hidden) return;
     step++;
-    for (let t = 0; t < 3; t++)
+    for (let t = 0; t < 4; t++)
       for (let p = 0; p < 4; p++) {
         const name = `tree-${t}-${p}`;
         if (map.hasImage(name)) map.updateImage(name, treeFrame(t, step + p * 2));
       }
+    if (step % 2 === 0 && map.hasImage('waves-0')) map.updateImage('waves-0', waveFrame((step / 2) % 4));
   }, 260);
   return () => window.clearInterval(id);
+}
+
+// ---------- Mashinalar (tepadan ko'rinish, yo'l yo'nalishida buriladi) ----------
+// [kuzov, tom/oyna, uzunlik] — oq Damas, oq/kumush/qora Nexia-Cobalt, sariq taksi, sariq avtobus
+const CARS: [string, string, number][] = [
+  ['#f5f5f2', '#8fb3cf', 26], // Damas
+  ['#ffffff', '#6f8fb0', 30], // Cobalt oq
+  ['#c9ced6', '#5f7da0', 30], // kumush Nexia
+  ['#2f3540', '#7896b8', 30], // qora
+  ['#ffcd3c', '#7a99bb', 30], // taksi
+  ['#f4b81f', '#86a6c6', 48], // avtobus
+];
+function carSprite([body, glass, len]: [string, string, number]) {
+  return px(18, 52, (c) => {
+    const x = 3;
+    const y = (52 - len) / 2;
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.fillRect(x + 1, y + 2, 12, len);
+    c.fillStyle = body;
+    c.beginPath();
+    c.roundRect(x, y, 12, len, 4);
+    c.fill();
+    c.fillStyle = glass;
+    c.fillRect(x + 2, y + 5, 8, len > 40 ? len - 10 : 6);
+    if (len <= 40) c.fillRect(x + 2, y + len - 9, 8, 4);
+    c.fillStyle = 'rgba(255,255,255,0.5)';
+    c.fillRect(x + 3, y + 1, 6, 2);
+  });
+}
+
+// ---------- Odamchalar ----------
+const PEOPLE = ['#e45b5b', '#4f7ea8', '#5fb35a', '#f4bf32', '#8b7cf6'];
+function personSprite(shirt: string) {
+  return px(12, 24, (c) => {
+    c.fillStyle = 'rgba(0,0,0,0.2)';
+    c.beginPath();
+    c.ellipse(6, 22, 4, 1.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#3b3350';
+    c.fillRect(4, 15, 2, 7);
+    c.fillRect(7, 15, 2, 7);
+    c.fillStyle = shirt;
+    c.beginPath();
+    c.roundRect(3, 8, 7, 9, 2);
+    c.fill();
+    c.fillStyle = '#f2c7a0';
+    c.beginPath();
+    c.arc(6.5, 5, 3, 0, Math.PI * 2);
+    c.fill();
+  });
+}
+
+// ---------- Suv to'lqinlari (4 kadr) ----------
+function waveFrame(f: number) {
+  return px(32, 32, (c) => {
+    c.fillStyle = '#3f92c4';
+    c.fillRect(0, 0, 32, 32);
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let i = 0; i < 4; i++) {
+      const y = (i * 8 + f * 2) % 32;
+      c.fillRect((i * 11 + f * 3) % 32, y, 7, 1.5);
+      c.fillRect((i * 11 + f * 3 + 16) % 32, (y + 4) % 32, 5, 1.5);
+    }
+  });
 }

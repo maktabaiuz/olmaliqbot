@@ -129,6 +129,15 @@ for e in src['elements']:
         cx, cy = centroid(poly)
         if t.get('name'):
             labels.append({'type': 'Feature', 'properties': {'k': 'label', 'name': t['name'], 'c': k}, 'geometry': {'type': 'Point', 'coordinates': [round(cx, 6), round(cy, 6)]}})
+        # Hovli bog'i: har hovli uy yoniga 1-2 mevali daraxt (o'rik/olma/anor)
+        if k == 'house' and len(trees) < 9000:
+            for _ in range(random.choice([1, 1, 2])):
+                ang = random.uniform(0, 2 * math.pi)
+                d = random.uniform(7, 11)
+                tx = cx + d * math.cos(ang) / (111320 * math.cos(math.radians(cy)))
+                ty = cy + d * math.sin(ang) / 111320
+                if not inside((tx, ty), poly):
+                    trees.append({'type': 'Feature', 'properties': {'k': 'tree', 't': 3, 's': round(random.uniform(0.7, 1.0), 2), 'p': random.randint(0, 3)}, 'geometry': {'type': 'Point', 'coordinates': [round(tx, 6), round(ty, 6)]}})
         # Qiya tom: hovli uylar va tomi "gabled/hipped" binolar
         if k == 'house' or t.get('roof:shape') in ('gabled', 'hipped', 'pyramidal'):
             features.append(poly_feat({'k': 'ridge', 'b': round(h + 1.0, 1), 'h': round(h + 2.6, 1), 'v': v}, scaled(poly, 0.55)))
@@ -164,9 +173,9 @@ for e in src['elements']:
             labels.append({'type': 'Feature', 'properties': {'k': 'label', 'name': t['name'], 'c': 'stadium'}, 'geometry': {'type': 'Point', 'coordinates': [round(cx, 6), round(cy, 6)]}})
         features.append(poly_feat(props, poly))
         if ak == 'park':
-            fill_trees(poly, 0.00016, 6000)
+            fill_trees(poly, 0.00016, 9000)
         elif ak in ('grass', 'cemetery'):
-            fill_trees(poly, 0.00035, 6000)
+            fill_trees(poly, 0.00035, 9000)
         continue
     lk = None
     if 'waterway' in t:
@@ -183,7 +192,7 @@ for e in src['elements']:
         coords = [[round(p['lon'], 6), round(p['lat'], 6)] for p in g]
         features.append({'type': 'Feature', 'properties': {'k': lk}, 'geometry': {'type': 'LineString', 'coordinates': coords}})
         # Ko'cha bo'yidagi daraxtlar (Olmaliq ko'chalari — teraklar, chinorlar)
-        if lk in ('street', 'road2') and len(trees) < 6000:
+        if lk in ('street', 'road2') and len(trees) < 9000:
             for (x1, y1), (x2, y2) in zip(coords, coords[1:]):
                 seg = math.hypot((x2 - x1) * 84000, (y2 - y1) * 111320)
                 n = int(seg // 22)
@@ -197,6 +206,19 @@ for e in src['elements']:
                     ox, oy = dx / L * 7 * side, dy / L * 7 * side
                     if random.random() < 0.7:
                         plant(px + ox, py + oy)
+
+# Oydin dehqon bozori — rangli rastalar (soyabonli kichik bloklar)
+BAZAR = (69.59287, 40.86498)
+for i in range(7):
+    for j in range(5):
+        x = BAZAR[0] + (i - 3) * 0.000085 + random.uniform(-0.00001, 0.00001)
+        y = BAZAR[1] - 0.00025 + (j - 2) * 0.00007
+        sq = 2.6
+        dlat = sq / 111320
+        dlon = sq / (111320 * math.cos(math.radians(y)))
+        poly = [[round(x - dlon, 6), round(y - dlat, 6)], [round(x + dlon, 6), round(y - dlat, 6)], [round(x + dlon, 6), round(y + dlat, 6)], [round(x - dlon, 6), round(y + dlat, 6)]]
+        poly.append(poly[0])
+        features.append(poly_feat({'k': 'stall', 'v': random.randint(0, 4), 'h': 3.2}, poly))
 
 # Bino ichiga tushib qolgan daraxtlarni olib tashlash (tezkor bbox + nuqta-ichida tekshiruvi)
 bboxes = [(min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b), b) for b in buildings]
