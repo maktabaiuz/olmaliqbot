@@ -14,15 +14,23 @@ jobs:
           timeout: 60s
           command_timeout: 10m
           script: |
-            curl -s -o /dev/null -w 'out:PUBLIC_NOAUTH=%{http_code}\n' https://olmaliq.online/api/public/home
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
               (async () => {
+                const city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
                 const names = ['santexnik','kamerachi','kafelchi','kalonka ustasi','fayz choyxona','natijnoy patalok','gilam yuvish hizmati'];
-                const lms = await db.landmark.findMany({ where: { name: { in: names, mode: 'insensitive' } }, select: { id: true, name: true, latitude: true, primaryListings: { select: { name: true, category: { select: { name: true } } } }, serviceAreaListings: { select: { name: true } } } });
-                for (const l of lms) console.log('out:LM|' + l.name + '|lat=' + l.latitude + '|primary=' + l.primaryListings.map(x => x.name + '(' + x.category.name + ')').join(',') + '|areas=' + l.serviceAreaListings.length);
-                const gen = await db.landmark.findMany({ where: { OR: [{ name: { contains: 'markaz', mode: 'insensitive' } }, { name: { contains: 'olmaliq', mode: 'insensitive' } }, { name: { contains: 'shahar', mode: 'insensitive' } }] }, select: { name: true } });
-                console.log('out:GENERIC=' + gen.map(g => g.name).join(','));
+                let target = await db.landmark.findFirst({ where: { cityId: city.id, name: { equals: 'Olmaliq', mode: 'insensitive' } } });
+                if (!target) target = await db.landmark.findFirst({ where: { cityId: city.id, name: 'Olmaliq (butun shahar)' } });
+                if (!target) target = await db.landmark.create({ data: { cityId: city.id, name: 'Olmaliq (butun shahar)', synonyms: [] } });
+                console.log('out:TARGET=' + target.name);
+                const lms = await db.landmark.findMany({ where: { cityId: city.id, name: { in: names, mode: 'insensitive' } }, select: { id: true, name: true, synonyms: true, primaryListings: { select: { id: true, name: true } } } });
+                for (const l of lms) {
+                  await db.listing.updateMany({ where: { primaryLandmarkId: l.id }, data: { primaryLandmarkId: target.id } });
+                  await db.candidate.updateMany({ where: { primaryLandmarkId: l.id }, data: { primaryLandmarkId: null } });
+                  await db.landmark.delete({ where: { id: l.id } });
+                  await db.auditLog.create({ data: { cityId: city.id, action: 'CLEANUP_JUNK_LANDMARK', details: { deletedLandmark: l.name, synonyms: l.synonyms, movedListings: l.primaryListings.map(x => ({ id: x.id, name: x.name })), movedTo: target.name } } });
+                  console.log('out:FIXED|' + l.name + ' -> ' + target.name + ' | ' + l.primaryListings.map(x => x.name).join(','));
+                }
                 process.exit(0);
               })().catch(e => { console.error('ERR', e.stack); process.exit(1); });
             "
