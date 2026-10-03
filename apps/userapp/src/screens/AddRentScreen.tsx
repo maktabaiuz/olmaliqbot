@@ -24,13 +24,14 @@ const TERMS = [
   { key: 'YILLIK', label: 'Yiliga' },
 ];
 
-const Section: React.FC<{ n: number; title: string; children: React.ReactNode }> = ({ n, title, children }) => (
-  <section className="bg-surface-container-lowest rounded-lg p-4 clay-card flex flex-col gap-3 anim-slide-up" style={{ animationDelay: `${n * 50}ms` }}>
+const Section: React.FC<{ n: number; title: string; children: React.ReactNode; error?: string | null }> = ({ n, title, children, error }) => (
+  <section id={`sec-${n}`} className={`bg-surface-container-lowest rounded-lg p-4 clay-card flex flex-col gap-3 anim-slide-up scroll-mt-20 ${error ? 'ring-2 ring-error' : ''}`} style={{ animationDelay: `${n * 50}ms` }}>
     <h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
       <span className="w-6 h-6 rounded-full bg-primary text-on-primary text-[12px] font-bold flex items-center justify-center">{n}</span>
       {title}
     </h2>
     {children}
+    {error && <p className="font-label-md text-label-md text-error flex items-center gap-1"><span className="material-symbols-outlined text-[18px]">error</span>{error}</p>}
   </section>
 );
 
@@ -53,6 +54,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
   const [sheet, setSheet] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const [errs, setErrs] = useState<Record<number, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
   const areas = realAreas(lms.data);
@@ -60,6 +62,15 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
   const digits = phone.replace(/\D/g, '');
   const priceNum = Number(price.replace(/\D/g, ''));
   const ready = priceNum > 0 && digits.length === 9 && !!landmarkId && uploading === 0;
+  React.useEffect(() => {
+    setErrs((e) => {
+      const n = { ...e };
+      if (priceNum > 0) delete n[2];
+      if (landmarkId) delete n[3];
+      if (digits.length === 9) delete n[4];
+      return Object.keys(n).length === Object.keys(e).length ? e : n;
+    });
+  }, [priceNum, landmarkId, digits.length]);
   const needRooms = kind === 'kvartira' || kind === 'hovli';
 
   const onFiles = async (files: FileList | null) => {
@@ -83,7 +94,20 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
   };
 
   const submit = async () => {
-    if (!ready || sending) return;
+    if (sending) return;
+    const e: Record<number, string> = {};
+    if (!(priceNum > 0)) e[2] = 'Narxni yozing';
+    if (!landmarkId) e[3] = 'Mahallani tanlang';
+    if (digits.length !== 9) e[4] = "Telefon raqamni to'liq yozing (9 ta raqam)";
+    setErrs(e);
+    const first = Object.keys(e).map(Number).sort()[0];
+    if (first) {
+      haptic('error');
+      toast(e[first], 'error');
+      document.getElementById(`sec-${first}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (uploading) return toast('Rasmlar yuklanishini kuting', 'info');
     setSending(true);
     try {
       await api.addRental({ kind, rooms: needRooms ? rooms : null, price: priceNum, currency, term, landmarkId, phone: digits, photos, description: desc });
@@ -155,7 +179,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
           )}
         </Section>
 
-        <Section n={2} title="Narxi">
+        <Section n={2} title="Narxi" error={errs[2]}>
           <div className="flex items-center gap-2">
             <div className="flex-1 flex items-center bg-surface-container-low rounded-full px-4 h-14">
               <input
@@ -184,7 +208,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
           </div>
         </Section>
 
-        <Section n={3} title="Qayerda?">
+        <Section n={3} title="Qayerda?" error={errs[3]}>
           <button onClick={() => setSheet(true)} className="h-14 px-4 rounded-full bg-surface-container-low flex items-center gap-2 text-left active:scale-[0.98]">
             <span className="material-symbols-outlined text-primary fill">location_on</span>
             <span className={`flex-1 font-body-lg text-body-lg ${area ? 'text-on-surface' : 'text-outline'}`}>{area ? area.name : 'Mahallani tanlang'}</span>
@@ -192,7 +216,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
           </button>
         </Section>
 
-        <Section n={4} title="Telefon raqamingiz">
+        <Section n={4} title="Telefon raqamingiz" error={errs[4]}>
           <div className="flex items-center bg-surface-container-low rounded-full px-4 h-14 gap-2">
             <span className="font-body-lg text-body-lg text-on-surface-variant">+998</span>
             <input
@@ -244,9 +268,9 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
 
       <div className="fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur-xl px-margin pt-3 pb-safe">
         <button
-          disabled={!ready || sending}
+          disabled={sending}
           onClick={submit}
-          className="w-full max-w-md mx-auto mb-3 h-14 rounded-full bg-primary text-on-primary font-headline-sm text-headline-sm clay-fab flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-40 disabled:shadow-none"
+          className={`w-full max-w-md mx-auto mb-3 h-14 rounded-full bg-primary text-on-primary font-headline-sm text-headline-sm clay-fab flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-40 ${ready ? '' : 'opacity-80'}`}
         >
           <span className="material-symbols-outlined">{sending ? 'progress_activity' : 'send'}</span>
           {sending ? 'Yuborilmoqda…' : uploading ? 'Rasmlar yuklanmoqda…' : "E'lonni yuborish"}
