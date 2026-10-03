@@ -1456,7 +1456,13 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // (masalan "zapravka"~"zapravkasi") uchun pastdagi alohida, o'zak
       // (wordsShareStem) asosidagi zaxira bosqich hamon ishlaydi.
       if (containsWholeWord(normalizeText(c.name), cleanCatNormalized)) return true;
-      return (c.synonyms || []).some((s) => normalizeText(s) === cleanCatNormalized);
+      // (2026-10-03, real holat: AI "avto maktab" dedi, sinonim "avtomaktab")
+      // — bo'sh joysiz shakllari ham solishtiriladi.
+      const compactCat = cleanCatNormalized.replace(/\s+/g, '');
+      return (c.synonyms || []).some((s) => {
+        const n = normalizeText(s);
+        return n === cleanCatNormalized || (compactCat.length >= 6 && n.replace(/\s+/g, '') === compactCat);
+      });
     });
 
     // MUHIM (2026-09 topilgan xato): yuqoridagi `synonyms: { has: cleanCat } }`

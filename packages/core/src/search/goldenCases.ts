@@ -61,6 +61,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { message: 'Gagarin choyxona nomeri bormi', expect: { kind: 'includes', text: 'Gagarin' }, origin: 'Atoqli nom' },
   { message: 'kalonka ustasi kerak', expect: { kind: 'any' }, origin: 'Kalonka — to\'g\'ri ma\'noda' },
   { message: "svet o'chib qoldi elektr nomeri kerak", expect: { kind: 'includes', text: 'Elektr' }, origin: 'Dispetcher — to\'g\'ri ma\'noda' },
+  { message: 'avtomaktab bormi', expect: { kind: 'any' }, origin: 'AI "avto maktab" ↔ sinonim "avtomaktab" (2026-10-03)' },
+  { message: 'prava olish kerak', expect: { kind: 'any' }, origin: 'Haydovchilik maktabi sinonimi' },
   { message: 'Radugada korzinka yonida malyar kerak', expect: { kind: 'any' }, origin: "Mo'ljal + soha (karzinka to'g'ri ishlatilgan)" },
 ];
 
