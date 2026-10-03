@@ -4,7 +4,7 @@ import { navigate } from '../lib/router';
 import { api } from '../lib/api';
 import type { Listing } from '../lib/types';
 import { haptic } from '../lib/telegram';
-import { useAsync, Skeleton, StateView, ErrorView } from '../components/ui';
+import { useAsync, Skeleton, StateView, ErrorView, useToast } from '../components/ui';
 import { Blob } from '../components/Blob';
 import { RentCard } from './rent/RentCard';
 
@@ -36,6 +36,9 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
   const [cur, setCur] = useState<'UZS' | 'USD'>('UZS');
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
+  const [q, setQ] = useState('');
+  const toast = useToast();
+  const mine = useAsync(() => api.myRentals(), []);
   const all = data?.items || [];
 
   const items = useMemo(() => {
@@ -43,14 +46,16 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
     const lo = Number(min.replace(/\D/g, '')) || 0;
     const hi = Number(max.replace(/\D/g, '')) || Infinity;
     const priced = lo > 0 || hi < Infinity;
+    const qq = q.trim().toLowerCase();
     return all.filter((l) => {
       if (s && !inSeg(l, s.words)) return false;
+      if (qq && !`${l.name} ${l.landmark?.name || ''} ${l.description || ''} ${l.serviceAreas.map((a) => a.name).join(' ')}`.toLowerCase().includes(qq)) return false;
       if (rooms && !(l.rent?.rooms != null && (rooms === 4 ? l.rent.rooms >= 4 : l.rent.rooms === rooms))) return false;
       if (term && l.rent?.term !== term) return false;
       if (priced && !(l.rent && (l.rent.currency || 'UZS') === cur && l.rent.price >= lo && l.rent.price <= hi)) return false;
       return true;
     });
-  }, [all, seg, rooms, term, cur, min, max]);
+  }, [all, seg, rooms, term, cur, min, max, q]);
 
   const pick = <T,>(set: (v: T) => void, v: T) => {
     haptic('select');
@@ -77,6 +82,59 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
               <p className="font-body-sm text-body-sm text-on-surface-variant leading-tight">Olmaliqdagi ijara e'lonlari — kvartira, uy, mashina va ofislar.</p>
             </div>
           </div>
+        </div>
+
+        <button
+          onClick={() => {
+            haptic('medium');
+            navigate('/rent/add');
+          }}
+          className="w-full h-16 rounded-lg bg-gradient-to-r from-primary to-primary-container text-on-primary clay-fab flex items-center gap-3 px-4 active:scale-[0.98] transition-transform anim-slide-up"
+        >
+          <span className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-[22px]">🏠</span>
+          <span className="flex flex-col items-start">
+            <span className="font-headline-sm text-headline-sm">Uyimni ijaraga beraman</span>
+            <span className="font-label-sm text-label-sm opacity-85">Bepul e'lon — 1 daqiqada</span>
+          </span>
+          <span className="material-symbols-outlined ml-auto">arrow_forward</span>
+        </button>
+
+        {(mine.data?.items || []).length > 0 && (
+          <div className="bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-2">
+            <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Mening e'lonlarim</span>
+            {mine.data!.items.map((m) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <button onClick={() => navigate('/rent/' + m.id)} className="flex-1 min-w-0 text-left">
+                  <p className="font-label-lg text-label-lg text-on-surface truncate">{m.name}{m.landmark ? ` · ${m.landmark.name}` : ''}</p>
+                  <p className={`font-label-sm text-label-sm ${m.status === 'ACTIVE' ? 'text-tertiary' : m.status === 'PAUSED' ? 'text-secondary' : 'text-outline'}`}>
+                    {m.status === 'ACTIVE' ? '● Faol — odamlar ko\'ryapti' : m.status === 'PAUSED' ? '● Admin tekshiryapti' : '● Yopilgan'}
+                  </p>
+                </button>
+                {m.status !== 'ARCHIVED' && (
+                  <button
+                    onClick={async () => {
+                      haptic('medium');
+                      await api.closeRental(m.id).catch(() => toast("Bo'lmadi", 'error'));
+                      toast('E\'lon yopildi — tabriklaymiz! 🎉', 'success');
+                      mine.reload();
+                      reload();
+                    }}
+                    className="h-9 px-3 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-md text-label-md active:scale-95 shrink-0"
+                  >
+                    ✅ Berildi
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center bg-surface-container-lowest rounded-full px-4 h-12 shadow-sm gap-2">
+          <span className="material-symbols-outlined text-primary">search</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mahalla bo'yicha: Mikrorayon, Metallurg…" className="flex-1 bg-transparent outline-none font-body-md text-body-md text-on-surface placeholder:text-outline" />
+          {q && (
+            <button aria-label="Tozalash" onClick={() => setQ('')} className="material-symbols-outlined text-outline">close</button>
+          )}
         </div>
 
         <div className="flex gap-space-xs overflow-x-auto pb-1 -mx-margin px-margin no-scrollbar">
@@ -157,7 +215,13 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
           {loading && !data && [0, 1].map((i) => <Skeleton key={i} className="h-72" />)}
           {error && <ErrorView error={error} onRetry={reload} />}
           {data && items.length === 0 && (
-            <StateView shape="triangle" mood="sad" title="Hozircha e'lon yo'q" text="Bu bo'limda mos ijara e'loni topilmadi. Filtrlarni o'zgartirib ko'ring." />
+            <StateView
+              shape="triangle"
+              mood="sad"
+              title="Hozircha e'lon yo'q"
+              text="Mos ijara e'loni topilmadi. Filtrlarni o'zgartiring — yoki uyingiz bo'lsa, o'zingiz e'lon bering."
+              action={{ label: "Uyimni ijaraga beraman", icon: 'add_home', onClick: () => navigate('/rent/add') }}
+            />
           )}
           {items.map((l, i) => (
             <RentCard key={l.id} listing={l} delay={Math.min(i, 8) * 60} onOpen={() => navigate('/rent/' + l.id)} />

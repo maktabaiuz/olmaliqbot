@@ -25,7 +25,28 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 const post = <T>(path: string, data?: unknown) => call<T>(path, { method: 'POST', body: JSON.stringify(data ?? {}) });
 
+/** Rasm yuklash — multipart (content-type'ni brauzer o'zi qo'yadi). */
+async function uploadPhoto(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append('file', file);
+  let res: Response;
+  try {
+    res = await fetch('/api/public/upload-photo', { method: 'POST', body: fd, headers: { 'x-init-data': initData() } });
+  } catch {
+    throw new ApiError(0, { message: 'offline' });
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, body);
+  return body.url as string;
+}
+
+export type MyRental = Listing & { status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' };
+
 export const api = {
+  uploadPhoto,
+  addRental: (data: Record<string, unknown>) => post<{ id: string }>('/rentals', data),
+  myRentals: () => call<{ items: MyRental[] }>('/me/rentals'),
+  closeRental: (id: string) => post(`/rentals/${id}/close`),
   home: () => call<{ countsByType: Record<string, number>; popular: string[]; openNow: Listing[] }>('/home'),
   categories: () => call<Category[]>('/categories'),
   landmarks: () => call<Landmark[]>('/landmarks'),

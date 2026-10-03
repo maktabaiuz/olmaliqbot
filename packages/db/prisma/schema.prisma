@@ -406,6 +406,9 @@ model Listing {
   verification        VerificationStatus @default(COMMUNITY_UNVERIFIED)
   source              String             @default("manual") // manual, archive, group, photo
   isSponsored         Boolean            @default(false)
+  // Foydalanuvchi ilovasidan e'lon bergan egasi (2026-10, ijara e'lonlari) —
+  // "Mening e'lonlarim" va "Berildi" tugmasi shu orqali ishlaydi.
+  ownerTelegramId     BigInt?
   sponsorUntil        DateTime?
   // Admin har bir kategoriya ichida eng ko'pi bilan 3 ta yozuvni "1/2/3-o'rin"
   // deb belgilay oladi — "Yana ko'rish" shu tartibda birinchi bo'lib

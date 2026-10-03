@@ -23,6 +23,7 @@ import {
   CANDIDATE_LIMIT_PER_DAY,
 } from './publicSupport';
 import { registerAssistant } from './publicAssistant';
+import { registerRentals } from './publicRentals';
 
 /**
  * Foydalanuvchi ilovasi API'si (2026-10) — `/api/public/*`. Admin
@@ -39,6 +40,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
 
   const ACTIVE = { status: 'ACTIVE' as const };
   registerAssistant(fastify);
+  registerRentals(fastify);
 
   // Obuna holati (onboarding ekrani)
   fastify.get('/public/me/subscription', async (req: any) => {

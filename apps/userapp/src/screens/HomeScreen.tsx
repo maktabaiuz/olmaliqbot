@@ -100,6 +100,24 @@ export const HomeScreen: React.FC<{ route: Route }> = () => {
             <>
               <CategoryGrid counts={home.data?.countsByType} />
 
+              {/* Uy-joy ijarasi — eng ko'p so'raladigan bo'lim (2026-10) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <button onClick={() => navigate('/rent')} className="flex items-center gap-2 p-3 rounded-2xl bg-purple-50 active:scale-95 transition-transform shadow-[0_6px_14px_-2px_rgba(108,92,231,0.2)] text-left">
+                  <span className="text-[26px]">🔑</span>
+                  <span className="flex flex-col">
+                    <span className="font-label-lg text-label-lg text-on-surface">Ijaraga uy</span>
+                    <span className="font-label-sm text-label-sm text-purple-700/80">Qidirish</span>
+                  </span>
+                </button>
+                <button onClick={() => navigate('/rent/add')} className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-50 active:scale-95 transition-transform shadow-[0_6px_14px_-2px_rgba(0,129,106,0.18)] text-left">
+                  <span className="text-[26px]">🏠</span>
+                  <span className="flex flex-col">
+                    <span className="font-label-lg text-label-lg text-on-surface">Uy beraman</span>
+                    <span className="font-label-sm text-label-sm text-emerald-700/80">Bepul e'lon</span>
+                  </span>
+                </button>
+              </div>
+
               {/* Hozir ochiq */}
               {(home.loading || (home.data?.openNow.length ?? 0) > 0) && (
                 <div className="flex flex-col gap-space-xs -mx-margin">

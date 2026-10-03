@@ -19,6 +19,7 @@ const MapFallback = () => (
 );
 import { RentScreen } from './screens/RentScreen';
 import { RentDetailScreen } from './screens/RentDetailScreen';
+import { AddRentScreen } from './screens/AddRentScreen';
 import { SosScreen } from './screens/SosScreen';
 import { AddScreen } from './screens/AddScreen';
 import { SavedScreen } from './screens/SavedScreen';
@@ -93,7 +94,7 @@ export const App: React.FC = () => {
       );
       break;
     case 'rent':
-      screen = id ? <RentDetailScreen route={route} key={id} /> : <RentScreen route={route} />;
+      screen = id === 'add' ? <AddRentScreen route={route} /> : id ? <RentDetailScreen route={route} key={id} /> : <RentScreen route={route} />;
       break;
     case 'sos':
       screen = <SosScreen route={route} />;
