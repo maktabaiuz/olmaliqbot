@@ -25,7 +25,27 @@ const fastify = Fastify({ logger: true });
 fs.mkdirSync(`${UPLOADS_DIR}/listings`, { recursive: true });
 
 async function main() {
-  await fastify.register(cors, { origin: true, credentials: true });
+  // Faqat o'z domenimizdan (2026-10-03 xavfsizlik): avval istalgan sayt cookie bilan so'rov yubora olardi.
+  const ALLOWED_ORIGINS = new Set(['https://olmaliq.online', 'https://www.olmaliq.online']);
+  await fastify.register(cors, {
+    origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.has(origin) || (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost:\d+$/.test(origin))),
+    credentials: true,
+  });
+  // IP bo'yicha umumiy cheklov — ko'p soxta akkaunt bilan bazani ko'chirib
+  // olish va login'ni buzishga urinishdan himoya.
+  const ipHits = new Map<string, { n: number; reset: number }>();
+  fastify.addHook('onRequest', async (req, reply) => {
+    const url = req.url;
+    const strict = url.startsWith('/api/auth') || url.includes('/login');
+    if (!url.startsWith('/api/public') && !strict) return;
+    const ip = String(req.headers['x-forwarded-for'] || req.ip).split(',')[0].trim();
+    const key = `${strict ? 'a' : 'p'}:${ip}`;
+    const now = Date.now();
+    const h = ipHits.get(key);
+    if (!h || h.reset < now) ipHits.set(key, { n: 1, reset: now + 60_000 });
+    else if (++h.n > (strict ? 20 : 240)) return reply.code(429).send({ success: false, message: "Juda ko'p so'rov, bir daqiqadan keyin urinib ko'ring" });
+    if (ipHits.size > 50_000) ipHits.clear();
+  });
   await fastify.register(cookie);
   // MUHIM (2026-09, standalone web-login): saytdan (Telegram tashqarisida)
   // kirish uchun sessiya cookie'sini imzolash/tekshirish shu kalit bilan

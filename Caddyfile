@@ -1,4 +1,17 @@
 olmaliq.online {
+    # Xavfsizlik sarlavhalari (2026-10-03). X-Frame-Options qo'yilmaydi —
+    # Telegram Web ilovani iframe ichida ochadi.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(self), geolocation=(self)"
+        -Server
+    }
+    # Yuklangan fayllar hech qachon sahifa sifatida bajarilmasin
+    @uploads path /api/uploads/*
+    header @uploads Content-Security-Policy "default-src 'none'; img-src 'self'; sandbox"
+
     # Telegram Webhook
     handle /webhook {
         reverse_proxy bot:3001

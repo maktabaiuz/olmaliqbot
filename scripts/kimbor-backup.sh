@@ -19,7 +19,10 @@ KEEP_DAYS=30
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 FILENAME="kimbor_${TIMESTAMP}.sql.gz"
 CONTAINER="kimbor_postgres"
-DB_NAME="${POSTGRES_DB:-kimbor_prod_db}"
+# cron .env'ni o'qimaydi — qiymatlarni o'zimiz olamiz (2026-10-03: avval
+# noto'g'ri standart nom tufayli zaxira umuman olinmagan edi).
+[ -f /root/kimbor/.env ] && set -a && . /root/kimbor/.env && set +a
+DB_NAME="${POSTGRES_DB:-kimbor_db}"
 DB_USER="${POSTGRES_USER:-kimbor}"
 
 # Zaxira papkasini yaratish (mavjud bo'lmasa)
@@ -35,6 +38,10 @@ docker exec "$CONTAINER" pg_dump \
   --format=plain \
   | gzip > "$BACKUP_DIR/$FILENAME"
 
+# Bo'sh/yarim zaxira — xato (pipefail pg_dump xatosini ushlaydi)
+if [ "$(gzip -dc "$BACKUP_DIR/$FILENAME" | head -c 2000 | grep -c 'PostgreSQL database dump')" -eq 0 ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ Zaxira yaroqsiz: $FILENAME"; rm -f "$BACKUP_DIR/$FILENAME"; exit 1
+fi
 FILESIZE=$(du -sh "$BACKUP_DIR/$FILENAME" | cut -f1)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✅ Zaxira yaratildi: $FILENAME ($FILESIZE)"
 

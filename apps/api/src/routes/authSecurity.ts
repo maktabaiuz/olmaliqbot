@@ -47,10 +47,15 @@ export function verifyTelegramInitData(
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-    if (calculatedHash !== hash) {
+    if (!hash || hash.length !== calculatedHash.length || !crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(hash))) {
       return { isValid: false };
     }
 
+    // Muddati: 24 soatdan eski imzo qabul qilinmaydi (qo'lga tushgan
+    // initData abadiy ishlamasligi uchun — 2026-10-03 xavfsizlik tekshiruvi).
+    const authDate = Number(urlParams.get('auth_date') || 0);
+    if (!authDate || Date.now() / 1000 - authDate > 24 * 3600) return { isValid: false };
+    // Vaqt bo'yicha barqaror solishtirish
     const userParam = urlParams.get('user');
     if (!userParam) return { isValid: false };
     const tgUser = JSON.parse(userParam);

@@ -59,9 +59,11 @@ export function registerRentals(fastify: FastifyInstance) {
       if (!file) return reply.code(400).send({ success: false, message: 'Rasm topilmadi' });
       const ext = MIME[file.mimetype];
       if (!ext) return reply.code(400).send({ success: false, message: 'Faqat JPG, PNG yoki WebP' });
+      const buf = await file.toBuffer();
+      if (!isRealImage(buf)) return reply.code(400).send({ success: false, message: 'Fayl rasm emas' });
       const name = `${crypto.randomUUID()}.${ext}`;
       await fs.promises.mkdir(path.join(UPLOADS_DIR, 'listings'), { recursive: true });
-      await fs.promises.writeFile(path.join(UPLOADS_DIR, 'listings', name), await file.toBuffer());
+      await fs.promises.writeFile(path.join(UPLOADS_DIR, 'listings', name), buf);
       uploadCount.set(dayKey, used + 1);
       return { success: true, url: `/api/uploads/listings/${name}` };
     } catch (err: any) {
@@ -155,6 +157,14 @@ export function registerRentals(fastify: FastifyInstance) {
 }
 
 const uploadCount = new Map<string, number>();
+
+/** Faylning o'zi (sarlavhasi emas) JPEG/PNG/WebP ekanini tekshiradi. */
+export function isRealImage(b: Buffer): boolean {
+  if (b.length < 12) return false;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true;
+  if (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return true;
+  return b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP';
+}
 
 export function kindOfCategory(name: string): string {
   const n = name.toLowerCase();

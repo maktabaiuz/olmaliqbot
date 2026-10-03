@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { verifyTelegramInitData, verifyPassword, hashPassword, authenticateRequest, issueSessionCookie, clearSessionCookie } from './authSecurity';
 import { UPLOADS_DIR } from '../uploadsPath';
+import { isRealImage } from './publicRentals';
 
 const ALLOWED_PHOTO_MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -1081,9 +1082,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
       if (!ext) {
         return reply.status(400).send({ error: "Faqat JPEG, PNG yoki WebP rasm qabul qilinadi" });
       }
+      const buf = await file.toBuffer();
+      if (!isRealImage(buf)) return reply.status(400).send({ error: 'Fayl rasm emas' });
       const fileName = `${crypto.randomUUID()}.${ext}`;
       const destPath = path.join(UPLOADS_DIR, 'listings', fileName);
-      await fs.promises.writeFile(destPath, await file.toBuffer());
+      await fs.promises.writeFile(destPath, buf);
       return { url: `/api/uploads/listings/${fileName}` };
     } catch (err: any) {
       req.log.error(err);
