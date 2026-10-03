@@ -21,6 +21,7 @@ const KINDS: Record<string, { label: string; words: string[] }> = {
 const MIME: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const RENT_PHOTOS_PER_DAY = 30;
 const RENTALS_PER_DAY = 3;
+const NOTIFY_ADMINS = false;
 
 async function rentalCategoryId(kind: string): Promise<string | null> {
   const cats = await db.category.findMany({ select: { id: true, name: true, objectType: true } });
@@ -117,7 +118,8 @@ export function registerRentals(fastify: FastifyInstance) {
       select: { id: true },
     });
     await db.auditLog.create({ data: { cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), name } } }).catch(() => {});
-    notifyAdmins(
+    // Adminlarga bot xabari egasining so'rovi bilan hozircha o'chirilgan (2026-10-03).
+    if (NOTIFY_ADMINS) notifyAdmins(
       `🏠 <b>Yangi ijara e'loni</b> (tasdiq kutmoqda)\n\n${esc(name)} · ${landmark.name ? esc(landmark.name) : ''}\n💵 ${price} ${currency === 'USD' ? '$' : "so'm"} / ${term.toLowerCase()}\n📷 ${photos.length} ta rasm\n\nAdmin panel → Baza → "To'xtatilgan" bo'limidan tasdiqlang.`
     ).catch(() => {});
     return { success: true, id: listing.id };
