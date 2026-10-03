@@ -51,6 +51,7 @@ services:
       USER_BOT_TOKEN: ${USER_BOT_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:-}
     volumes:
       - uploads_data:/app/uploads
     depends_on:
