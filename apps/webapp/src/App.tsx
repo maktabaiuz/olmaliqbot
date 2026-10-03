@@ -37,6 +37,9 @@ import { LearnedTermsScreen } from './screens/LearnedTermsScreen';
 import { RequiredChannelsScreen } from './screens/RequiredChannelsScreen';
 import { InstantBroadcastScreen } from './screens/InstantBroadcastScreen';
 import { CandidatesScreen } from './screens/CandidatesScreen';
+import { ModerationScreen } from './screens/moderation/ModerationScreen';
+import { RentalsScreen } from './screens/rentals/RentalsScreen';
+import { apiFetch as apiFetchModeration } from './config';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
 import { avatarColorForName } from './utils/avatarColor';
@@ -50,7 +53,8 @@ export interface AppProps {
   };
 }
 
-const MoreRow: React.FC<{ icon: string; iconColor: string; label: string; onClick: () => void; last?: boolean }> = ({
+const MoreRow: React.FC<{ icon: string; iconColor: string; label: string; onClick: () => void; last?: boolean; badge?: number }> = ({
+  badge,
   icon,
   iconColor,
   label,
@@ -67,7 +71,14 @@ const MoreRow: React.FC<{ icon: string; iconColor: string; label: string; onClic
       </span>
       <span className="text-[15px] text-ios-label">{label}</span>
     </span>
-    <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/50">chevron_right</span>
+    <span className="flex items-center gap-1.5">
+      {!!badge && (
+        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-ios-red text-white text-[12px] font-semibold flex items-center justify-center">
+          {badge}
+        </span>
+      )}
+      <span className="material-symbols-outlined text-[18px] text-ios-label-secondary/50">chevron_right</span>
+    </span>
   </IosRow>
 );
 
@@ -83,7 +94,15 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast' | 'moderation' | 'rentals'>('menu');
+  const [moderationCount, setModerationCount] = useState(0);
+  useEffect(() => {
+    if (moreSubView !== 'menu') return;
+    apiFetchModeration('/api/admin/moderation')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setModerationCount((d.listings || []).length))
+      .catch(() => undefined);
+  }, [moreSubView]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [activeLandmarkId, setActiveLandmarkId] = useState<string | null>(null);
@@ -408,6 +427,8 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           <MoreRow icon="groups" iconColor="rgb(0 122 255)" label={t('more_item_groups')} onClick={() => setMoreSubView('groups')} />
                           <MoreRow icon="translate" iconColor="rgb(52 199 89)" label="Mahalliy so'zlar" onClick={() => setMoreSubView('learned_terms')} />
                           <MoreRow icon="inbox" iconColor="rgb(175 82 222)" label="Yangi ma'lumotlar" onClick={() => setMoreSubView('candidates')} />
+                          <MoreRow icon="gpp_maybe" iconColor="rgb(255 59 48)" label="Shubhali e'lonlar" badge={moderationCount} onClick={() => setMoreSubView('moderation')} />
+                          <MoreRow icon="home_work" iconColor="rgb(52 199 89)" label="Ijara e'lonlari" onClick={() => setMoreSubView('rentals')} />
                           <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} />
                           <MoreRow icon="verified_user" iconColor="rgb(255 149 0)" label="Majburiy obuna" onClick={() => setMoreSubView('required_channels')} last />
                         </IosSection>
@@ -498,6 +519,14 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                         }}
                       />
                     )}
+                    {moreSubView === 'moderation' && (
+                      <ModerationScreen
+                        onBack={() => setMoreSubView('menu')}
+                        onOpenCandidates={() => setMoreSubView('candidates')}
+                        onCountChange={setModerationCount}
+                      />
+                    )}
+                    {moreSubView === 'rentals' && <RentalsScreen onBack={() => setMoreSubView('menu')} />}
                     {moreSubView === 'required_channels' && (
                       <RequiredChannelsScreen onBack={() => setMoreSubView('menu')} />
                     )}
