@@ -39,6 +39,7 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
   const [q, setQ] = useState('');
   const toast = useToast();
   const mine = useAsync(() => api.myRentals(), []);
+  const [armDel, setArmDel] = useState<string | null>(null);
   const all = data?.items || [];
 
   const items = useMemo(() => {
@@ -100,32 +101,63 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
         </button>
 
         {(mine.data?.items || []).length > 0 && (
-          <div className="bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-2">
+          <div className="bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-3">
             <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Mening e'lonlarim</span>
-            {mine.data!.items.map((m) => (
-              <div key={m.id} className="flex items-center gap-2">
-                <button onClick={() => navigate('/rent/' + m.id)} className="flex-1 min-w-0 text-left">
-                  <p className="font-label-lg text-label-lg text-on-surface truncate">{m.name}{m.landmark ? ` · ${m.landmark.name}` : ''}</p>
-                  <p className={`font-label-sm text-label-sm ${m.status === 'ACTIVE' ? 'text-tertiary' : m.status === 'PAUSED' ? 'text-secondary' : 'text-outline'}`}>
-                    {m.status === 'ACTIVE' ? '● Faol — odamlar ko\'ryapti' : m.status === 'PAUSED' ? '● Admin tekshiryapti' : '● Yopilgan'}
-                  </p>
-                </button>
-                {m.status !== 'ARCHIVED' && (
-                  <button
-                    onClick={async () => {
-                      haptic('medium');
-                      await api.closeRental(m.id).catch(() => toast("Bo'lmadi", 'error'));
-                      toast('E\'lon yopildi — tabriklaymiz! 🎉', 'success');
-                      mine.reload();
-                      reload();
-                    }}
-                    className="h-9 px-3 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-md text-label-md active:scale-95 shrink-0"
-                  >
-                    ✅ Berildi
+            {mine.data!.items.map((m) => {
+              const st =
+                m.moderationStatus === 'rejected'
+                  ? { t: '● Rad etildi — tahrirlab qayta yuboring', c: 'text-error' }
+                  : m.moderationStatus === 'pending'
+                    ? { t: '● Tekshirilmoqda', c: 'text-secondary' }
+                    : m.status === 'ACTIVE'
+                      ? { t: "● Faol — odamlar ko'ryapti", c: 'text-tertiary' }
+                      : m.status === 'ARCHIVED'
+                        ? { t: '● Yopilgan', c: 'text-outline' }
+                        : { t: "● To'xtatilgan", c: 'text-outline' };
+              const act = async (fn: () => Promise<unknown>, ok: string) => {
+                haptic('medium');
+                try {
+                  await fn();
+                  toast(ok, 'success');
+                } catch {
+                  toast("Bo'lmadi, qayta urinib ko'ring", 'error');
+                }
+                mine.reload();
+                reload();
+              };
+              return (
+                <div key={m.id} className="flex flex-col gap-2 border-b border-surface-container last:border-0 pb-3 last:pb-0">
+                  <button onClick={() => m.status === 'ACTIVE' && navigate('/rent/' + m.id)} className="text-left">
+                    <p className="font-label-lg text-label-lg text-on-surface truncate">{m.name}{m.landmark ? ` · ${m.landmark.name}` : ''}</p>
+                    <p className={`font-label-sm text-label-sm ${st.c}`}>{st.t}</p>
                   </button>
-                )}
-              </div>
-            ))}
+                  {m.moderationStatus === 'rejected' && m.rejectionNote && (
+                    <p className="font-body-sm text-body-sm text-on-surface bg-error-container/40 rounded-lg p-2.5">💬 {m.rejectionNote}</p>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => navigate('/rent/edit/' + m.id)} className="h-9 px-3 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-md text-label-md active:scale-95">✏️ Tahrirlash</button>
+                    {m.status === 'ACTIVE' && (
+                      <button onClick={() => act(() => api.closeRental(m.id), "E'lon yopildi — tabriklaymiz! 🎉")} className="h-9 px-3 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant font-label-md text-label-md active:scale-95">✅ Berildi</button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (armDel === m.id) {
+                          setArmDel(null);
+                          act(() => api.deleteRental(m.id), "E'lon o'chirildi");
+                        } else {
+                          haptic('warning');
+                          setArmDel(m.id);
+                          setTimeout(() => setArmDel((x) => (x === m.id ? null : x)), 4000);
+                        }
+                      }}
+                      className={`h-9 px-3 rounded-full font-label-md text-label-md active:scale-95 ${armDel === m.id ? 'bg-error text-white' : 'bg-surface-container text-error'}`}
+                    >
+                      {armDel === m.id ? "Rostdan o'chirilsinmi? Yana bosing" : "🗑 O'chirish"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 

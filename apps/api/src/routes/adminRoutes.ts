@@ -339,7 +339,7 @@ async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
 // yozuv/kategoriya boshqaruvi shahar administratorining kundalik ishi,
 // faqat Super-Adminga xos emas (broadcast/bot-xabar shabloni kabi
 // butun tizimga ta'sir qiluvchi amallardan farqli).
-async function requireAdmin(req: any, reply: any): Promise<boolean> {
+export async function requireAdmin(req: any, reply: any): Promise<boolean> {
   const { user, error } = await authenticateRequest(req);
   if (error) {
     reply.status(error.status).send(error.body);

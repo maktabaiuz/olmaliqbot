@@ -24,6 +24,7 @@ import {
 } from './publicSupport';
 import { registerAssistant } from './publicAssistant';
 import { registerRentals } from './publicRentals';
+import { moderateSubmission } from './moderation';
 
 /**
  * Foydalanuvchi ilovasi API'si (2026-10) — `/api/public/*`. Admin
@@ -263,6 +264,9 @@ export async function publicRoutes(fastify: FastifyInstance) {
     if (!name || phone.replace(/\D/g, '').length < 9) return reply.code(400).send({ success: false, message: 'Nom va telefon kerak' });
     const today = await db.candidate.count({ where: { submittedBy: tgId.toString(), createdAt: { gte: new Date(Date.now() - 86400_000) } } });
     if (today >= CANDIDATE_LIMIT_PER_DAY) return reply.code(429).send({ success: false, message: 'Bugungi limit tugadi' });
+    // Aqlli nazorat — ijara bilan bir xil qoida (nomzodlar baribir admin navbatida)
+    const mod = await moderateSubmission({ kind: 'candidate', title: name, phone: phone.replace(/\D/g, ''), ownerTelegramId: tgId });
+    if (mod.verdict === 'spam') return reply.code(400).send({ success: false, message: `Qabul qilinmadi: ${mod.reasons.join('; ')}` });
     await db.candidate.create({
       data: {
         cityId,
@@ -275,6 +279,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
         badges: [],
         source: 'webapp',
         submittedBy: tgId.toString(),
+        moderationReasons: mod.reasons,
       },
     });
     return { success: true };

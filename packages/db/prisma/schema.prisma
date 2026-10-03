@@ -409,6 +409,11 @@ model Listing {
   // Foydalanuvchi ilovasidan e'lon bergan egasi (2026-10, ijara e'lonlari) —
   // "Mening e'lonlarim" va "Berildi" tugmasi shu orqali ishlaydi.
   ownerTelegramId     BigInt?
+  // Aqlli nazorat (2026-10): null = tekshiruvdan o'tgan; 'pending' = shubhali,
+  // admin ko'rib chiqishini kutmoqda; 'rejected' = rad etilgan (egasiga sabab).
+  moderationStatus    String?
+  moderationReasons   String[]           @default([])
+  rejectionNote       String?
   sponsorUntil        DateTime?
   // Admin har bir kategoriya ichida eng ko'pi bilan 3 ta yozuvni "1/2/3-o'rin"
   // deb belgilay oladi — "Yana ko'rish" shu tartibda birinchi bo'lib
@@ -473,6 +478,7 @@ model Candidate {
   mentionCount      Int             @default(1)
   submittedBy       String?
   status            CandidateStatus @default(PENDING)
+  moderationReasons String[]        @default([])
   createdAt         DateTime        @default(now())
 
   @@map("candidates")

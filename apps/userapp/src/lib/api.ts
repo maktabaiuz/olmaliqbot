@@ -40,11 +40,15 @@ async function uploadPhoto(file: File): Promise<string> {
   return body.url as string;
 }
 
-export type MyRental = Listing & { status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' };
+export type MyRental = Listing & { status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED'; moderationStatus: null | 'pending' | 'rejected'; rejectionNote: string | null };
+export interface RentalDraft { id: string; kind: string; roomCount: number | null; rentPrice: number; rentPriceCurrency: 'USD' | 'UZS'; rentTermType: string; primaryLandmarkId: string; phone: string; photoUrls: string[]; description: string | null }
 
 export const api = {
   uploadPhoto,
-  addRental: (data: Record<string, unknown>) => post<{ id: string }>('/rentals', data),
+  addRental: (data: Record<string, unknown>) => post<{ id: string; pending: boolean; reasons: string[] }>('/rentals', data),
+  updateRental: (id: string, data: Record<string, unknown>) => call<{ pending: boolean; reasons: string[] }>(`/rentals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteRental: (id: string) => call(`/rentals/${id}`, { method: 'DELETE' }),
+  myRental: (id: string) => call<{ item: RentalDraft }>(`/me/rentals/${id}`),
   myRentals: () => call<{ items: MyRental[] }>('/me/rentals'),
   closeRental: (id: string) => post(`/rentals/${id}/close`),
   home: () => call<{ countsByType: Record<string, number>; popular: string[]; openNow: Listing[] }>('/home'),

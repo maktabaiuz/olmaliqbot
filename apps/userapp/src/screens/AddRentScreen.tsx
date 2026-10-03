@@ -38,7 +38,8 @@ const Section: React.FC<{ n: number; title: string; children: React.ReactNode; e
 const chip = (a: boolean) =>
   `h-11 px-4 rounded-full font-label-lg text-label-lg flex items-center gap-1.5 shrink-0 active:scale-95 transition-all ${a ? 'bg-primary text-on-primary clay-fab' : 'bg-surface-container-low text-on-surface'}`;
 
-export const AddRentScreen: React.FC<{ route: Route }> = () => {
+export const AddRentScreen: React.FC<{ route: Route }> = ({ route }) => {
+  const editId = route.segments[1] === 'edit' ? route.segments[2] : null;
   const toast = useToast();
   const lms = useAsync(() => api.landmarks(), []);
   const [kind, setKind] = useState('kvartira');
@@ -53,7 +54,23 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
   const [desc, setDesc] = useState('');
   const [sheet, setSheet] = useState(false);
   const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<null | { pending: boolean }>(null);
+  // Tahrirlash rejimi — mavjud e'lonni formaga yuklash
+  React.useEffect(() => {
+    if (!editId) return;
+    api.myRental(editId).then(({ item }) => {
+      setKind(item.kind);
+      setRooms(item.roomCount);
+      setPrice(String(item.rentPrice || ''));
+      setCurrency(item.rentPriceCurrency || 'USD');
+      setTerm(item.rentTermType || 'OYLIK');
+      setLandmarkId(item.primaryLandmarkId);
+      setPhone(item.phone.replace(/\D/g, '').slice(-9));
+      setPhotos(item.photoUrls || []);
+      setDesc(item.description || '');
+    }).catch(() => toast("E'lon topilmadi", 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
   const [errs, setErrs] = useState<Record<number, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -110,9 +127,10 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
     if (uploading) return toast('Rasmlar yuklanishini kuting', 'info');
     setSending(true);
     try {
-      await api.addRental({ kind, rooms: needRooms ? rooms : null, price: priceNum, currency, term, landmarkId, phone: digits, photos, description: desc });
+      const body = { kind, rooms: needRooms ? rooms : null, price: priceNum, currency, term, landmarkId, phone: digits, photos, description: desc };
+      const r = editId ? await api.updateRental(editId, body) : await api.addRental(body);
       haptic('success');
-      setDone(true);
+      setDone({ pending: r.pending });
     } catch (e) {
       haptic('error');
       toast((e as ApiError).body?.message || "Yuborib bo'lmadi", 'error');
@@ -125,9 +143,11 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center text-center px-6 gap-5 bg-surface">
         <BlobFamily size={44} shapes={['triangle', 'cloud', 'sphere', 'pill']} />
-        <h1 className="font-headline-lg text-headline-lg text-on-surface">E'loningiz joylandi! 🎉</h1>
+        <h1 className="font-headline-lg text-headline-lg text-on-surface">{done.pending ? "E'lon tekshiruvga yuborildi 🔎" : editId ? "O'zgarishlar saqlandi! 🎉" : "E'loningiz joylandi! 🎉"}</h1>
         <p className="font-body-md text-body-md text-on-surface-variant max-w-xs">
-          E'loningiz hozirdanoq "Arenda" bo'limida chiqdi. Uy berilgach, "Mening e'lonlarim"dan <b>Berildi</b> tugmasini bosing.
+          {done.pending
+            ? "Ba'zi ma'lumotlarni admin qo'shimcha tekshiradi — odatda tez orada chiqadi. Holatini \"Mening e'lonlarim\"da kuzatishingiz mumkin."
+            : 'E\'loningiz hozirdanoq "Arenda" bo\'limida chiqdi. Uy berilgach, "Mening e\'lonlarim"dan Berildi tugmasini bosing.'}
         </p>
         <button onClick={() => navigate('/rent', { replace: true })} className="h-14 px-8 rounded-full bg-primary text-on-primary font-label-lg text-label-lg clay-fab active:scale-95">
           Arenda bo'limiga
@@ -142,7 +162,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
           <button aria-label="Orqaga" onClick={goBack} className="w-11 h-11 -ml-2 rounded-full flex items-center justify-center active:scale-90">
             <span className="material-symbols-outlined text-primary">arrow_back_ios_new</span>
           </button>
-          <h1 className="font-headline-sm text-headline-sm text-on-surface">Uyimni ijaraga beraman</h1>
+          <h1 className="font-headline-sm text-headline-sm text-on-surface">{editId ? "E'lonni tahrirlash" : 'Uyimni ijaraga beraman'}</h1>
         </div>
       </header>
 
@@ -273,7 +293,7 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
           className={`w-full max-w-md mx-auto mb-3 h-14 rounded-full bg-primary text-on-primary font-headline-sm text-headline-sm clay-fab flex items-center justify-center gap-2 active:scale-[0.97] transition-all disabled:opacity-40 ${ready ? '' : 'opacity-80'}`}
         >
           <span className="material-symbols-outlined">{sending ? 'progress_activity' : 'send'}</span>
-          {sending ? 'Yuborilmoqda…' : uploading ? 'Rasmlar yuklanmoqda…' : "E'lonni yuborish"}
+          {sending ? 'Yuborilmoqda…' : uploading ? 'Rasmlar yuklanmoqda…' : editId ? "O'zgarishlarni saqlash" : "E'lonni yuborish"}
         </button>
       </div>
 

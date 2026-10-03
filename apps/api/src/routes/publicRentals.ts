@@ -5,6 +5,7 @@ import path from 'path';
 import { db } from '@kimbor/db';
 import { UPLOADS_DIR } from '../uploadsPath';
 import { getPublicCityId, PUBLIC_LISTING_SELECT, toPublicCard } from './publicSupport';
+import { moderateSubmission } from './moderation';
 
 /**
  * Ijara e'lonlari (2026-10) — uy egasi ilovadan o'zi e'lon beradi.
@@ -70,62 +71,66 @@ export function registerRentals(fastify: FastifyInstance) {
   });
 
   fastify.post('/public/rentals', async (req: any, reply) => {
-    const cityId = await getPublicCityId();
     const tg: bigint = req.publicUser.telegramId;
-    const b = req.body || {};
-    const kind = String(b.kind || 'kvartira');
-    const rooms = Number.isFinite(Number(b.rooms)) && Number(b.rooms) > 0 ? Math.min(20, Math.round(Number(b.rooms))) : null;
-    const price = Math.round(Number(b.price));
-    const currency = b.currency === 'UZS' ? 'UZS' : 'USD';
-    const term = ['KUNLIK', 'OYLIK', 'YILLIK'].includes(b.term) ? b.term : 'OYLIK';
-    const phone = String(b.phone || '').replace(/[^\d+]/g, '');
-    const digits = phone.replace(/\D/g, '');
-    const photos = (Array.isArray(b.photos) ? b.photos : []).filter((u: unknown) => typeof u === 'string' && /^\/api\/uploads\/listings\/[\w-]+\.(jpg|png|webp)$/.test(u)).slice(0, 8);
-    const description = String(b.description || '').trim().slice(0, 600);
-    if (!KINDS[kind]) return reply.code(400).send({ success: false, message: "Uy turini tanlang" });
-    if (!Number.isFinite(price) || price <= 0) return reply.code(400).send({ success: false, message: 'Narxni kiriting' });
-    if (digits.length < 9) return reply.code(400).send({ success: false, message: "Telefon raqam to'liq emas" });
-    if (!b.landmarkId) return reply.code(400).send({ success: false, message: 'Mahallani tanlang' });
-    const landmark = await db.landmark.findFirst({ where: { id: String(b.landmarkId), cityId }, select: { id: true, name: true } });
-    if (!landmark) return reply.code(400).send({ success: false, message: 'Mahalla topilmadi' });
-
     const today = await db.listing.count({ where: { ownerTelegramId: tg, createdAt: { gte: new Date(Date.now() - 86400_000) } } });
     if (today >= RENTALS_PER_DAY) return reply.code(429).send({ success: false, message: "Bugun 3 ta e'lon berdingiz — ertaga yana qo'shishingiz mumkin" });
-    const categoryId = await rentalCategoryId(kind);
-    if (!categoryId) return reply.code(500).send({ success: false, message: 'Ijara kategoriyasi topilmadi' });
-
-    const name = `${rooms ? `${rooms} xonali ` : ''}${KINDS[kind].label}`.replace(/^./, (c) => c.toUpperCase());
+    const v = await validateRental(req.body || {});
+    if ('error' in v) return reply.code(400).send({ success: false, message: v.error });
+    const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls });
+    if (mod.verdict === 'spam') return reply.code(400).send({ success: false, message: `E'lon qabul qilinmadi: ${mod.reasons.join('; ')}` });
+    const pending = mod.verdict === 'suspicious';
     const listing = await db.listing.create({
       data: {
-        cityId,
-        categoryId,
+        ...v.data,
         type: 'ARENDA',
-        name,
-        phone: digits.length === 9 ? `+998${digits}` : `+${digits}`,
-        primaryLandmarkId: landmark.id,
-        roomCount: rooms,
-        rentPrice: price,
-        rentPriceCurrency: currency,
-        rentTermType: term,
-        photoUrls: photos,
-        description: description || null,
-        // Darhol ko'rinadi ("⚠️ Xalq aytgan" belgisi bilan); admin keyin
-        // tekshirib "Tasdiqlangan" qiladi yoki o'chiradi (egasining talabi).
-        status: 'ACTIVE',
+        status: pending ? 'PAUSED' : 'ACTIVE',
         verification: 'COMMUNITY_UNVERIFIED',
         source: 'webapp',
         ownerTelegramId: tg,
+        moderationStatus: pending ? 'pending' : null,
+        moderationReasons: mod.reasons,
         jargonSynonyms: [],
         badges: [],
       },
-      select: { id: true },
+      select: { id: true, cityId: true },
     });
-    await db.auditLog.create({ data: { cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), name } } }).catch(() => {});
-    // Adminlarga bot xabari egasining so'rovi bilan hozircha o'chirilgan (2026-10-03).
-    if (NOTIFY_ADMINS) notifyAdmins(
-      `🏠 <b>Yangi ijara e'loni</b> (tasdiq kutmoqda)\n\n${esc(name)} · ${landmark.name ? esc(landmark.name) : ''}\n💵 ${price} ${currency === 'USD' ? '$' : "so'm"} / ${term.toLowerCase()}\n📷 ${photos.length} ta rasm\n\nAdmin panel → Baza → "To'xtatilgan" bo'limidan tasdiqlang.`
-    ).catch(() => {});
-    return { success: true, id: listing.id };
+    await db.auditLog.create({ data: { cityId: listing.cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), verdict: mod.verdict, reasons: mod.reasons } } }).catch(() => {});
+    if (NOTIFY_ADMINS && pending) notifyAdmins(`⚠️ Shubhali ijara e'loni: ${esc(v.data.name)}\n${esc(mod.reasons.join('; '))}`).catch(() => {});
+    return { success: true, id: listing.id, pending, reasons: pending ? mod.reasons : [] };
+  });
+
+  // Tahrirlash (faqat egasi) — qayta tekshiruvdan o'tadi
+  fastify.put('/public/rentals/:id', async (req: any, reply) => {
+    const tg: bigint = req.publicUser.telegramId;
+    const own = await db.listing.findFirst({ where: { id: req.params.id, ownerTelegramId: tg }, select: { id: true } });
+    if (!own) return reply.code(404).send({ success: false, message: "E'lon topilmadi" });
+    const v = await validateRental(req.body || {});
+    if ('error' in v) return reply.code(400).send({ success: false, message: v.error });
+    const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls, excludeListingId: own.id });
+    if (mod.verdict === 'spam') return reply.code(400).send({ success: false, message: `O'zgarish qabul qilinmadi: ${mod.reasons.join('; ')}` });
+    const pending = mod.verdict === 'suspicious';
+    await db.listing.update({
+      where: { id: own.id },
+      data: { ...v.data, status: pending ? 'PAUSED' : 'ACTIVE', moderationStatus: pending ? 'pending' : null, moderationReasons: mod.reasons, rejectionNote: null },
+    });
+    return { success: true, pending, reasons: pending ? mod.reasons : [] };
+  });
+
+  // O'chirish (faqat egasi)
+  fastify.delete('/public/rentals/:id', async (req: any, reply) => {
+    const r = await db.listing.deleteMany({ where: { id: req.params.id, ownerTelegramId: req.publicUser.telegramId } });
+    if (r.count === 0) return reply.code(404).send({ success: false });
+    return { success: true };
+  });
+
+  // Bitta o'z e'lonim (tahrirlash formasi uchun)
+  fastify.get('/public/me/rentals/:id', async (req: any, reply) => {
+    const l = await db.listing.findFirst({
+      where: { id: req.params.id, ownerTelegramId: req.publicUser.telegramId },
+      select: { id: true, name: true, phone: true, roomCount: true, rentPrice: true, rentPriceCurrency: true, rentTermType: true, primaryLandmarkId: true, photoUrls: true, description: true, category: { select: { name: true } } },
+    });
+    if (!l) return reply.code(404).send({ success: false });
+    return { success: true, item: { ...l, kind: kindOfCategory(l.category?.name || '') } };
   });
 
   // Mening e'lonlarim (holati bilan)
@@ -133,9 +138,12 @@ export function registerRentals(fastify: FastifyInstance) {
     const rows = await db.listing.findMany({
       where: { ownerTelegramId: req.publicUser.telegramId },
       orderBy: { createdAt: 'desc' },
-      select: { ...PUBLIC_LISTING_SELECT, status: true },
+      select: { ...PUBLIC_LISTING_SELECT, status: true, moderationStatus: true, rejectionNote: true },
     });
-    return { success: true, items: rows.map((r) => ({ ...toPublicCard(r), status: r.status })) };
+    return {
+      success: true,
+      items: rows.map((r) => ({ ...toPublicCard(r), status: r.status, moderationStatus: r.moderationStatus, rejectionNote: r.rejectionNote })),
+    };
   });
 
   // "Berildi" — e'lonni yopish (faqat egasi)
@@ -147,3 +155,46 @@ export function registerRentals(fastify: FastifyInstance) {
 }
 
 const uploadCount = new Map<string, number>();
+
+export function kindOfCategory(name: string): string {
+  const n = name.toLowerCase();
+  return Object.entries(KINDS).find(([, k]) => k.words.some((w) => n.includes(w)))?.[0] || 'kvartira';
+}
+
+/** Ijara ma'lumotini tekshirish va Listing maydonlariga aylantirish — foydalanuvchi va admin uchun BIR XIL. */
+export async function validateRental(b: any): Promise<{ error: string } | { digits: string; data: any }> {
+  const cityId = await getPublicCityId();
+  const kind = String(b.kind || 'kvartira');
+  const rooms = Number.isFinite(Number(b.rooms)) && Number(b.rooms) > 0 ? Math.min(20, Math.round(Number(b.rooms))) : null;
+  const price = Math.round(Number(b.price));
+  const currency: 'USD' | 'UZS' = b.currency === 'UZS' ? 'UZS' : 'USD';
+  const term: 'KUNLIK' | 'OYLIK' | 'YILLIK' = ['KUNLIK', 'OYLIK', 'YILLIK'].includes(b.term) ? b.term : 'OYLIK';
+  const digits = String(b.phone || '').replace(/\D/g, '').slice(-12);
+  const photos = (Array.isArray(b.photos) ? b.photos : []).filter((u: unknown) => typeof u === 'string' && /^\/api\/uploads\/listings\/[\w-]+\.(jpg|png|webp)$/.test(u)).slice(0, 8);
+  const description = String(b.description || '').trim().slice(0, 600);
+  if (!KINDS[kind]) return { error: 'Uy turini tanlang' };
+  if (!Number.isFinite(price) || price <= 0) return { error: 'Narxni kiriting' };
+  if (digits.length < 9) return { error: "Telefon raqam to'liq emas" };
+  if (!b.landmarkId) return { error: 'Mahallani tanlang' };
+  const landmark = await db.landmark.findFirst({ where: { id: String(b.landmarkId), cityId }, select: { id: true } });
+  if (!landmark) return { error: 'Mahalla topilmadi' };
+  const categoryId = await rentalCategoryId(kind);
+  if (!categoryId) return { error: 'Ijara kategoriyasi topilmadi' };
+  const name = `${rooms ? `${rooms} xonali ` : ''}${KINDS[kind].label}`.replace(/^./, (c) => c.toUpperCase());
+  return {
+    digits: digits.slice(-9),
+    data: {
+      cityId,
+      categoryId,
+      name,
+      phone: digits.length === 9 ? `+998${digits}` : `+${digits}`,
+      primaryLandmarkId: landmark.id,
+      roomCount: rooms,
+      rentPrice: price,
+      rentPriceCurrency: currency,
+      rentTermType: term,
+      photoUrls: photos,
+      description: description || null,
+    },
+  };
+}

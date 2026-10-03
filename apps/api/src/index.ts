@@ -1,5 +1,6 @@
 import { publicRoutes } from './routes/publicRoutes';
 import { userBotWebhook } from './routes/userBotWebhook';
+import { adminModeration } from './routes/adminModeration';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
@@ -69,6 +70,7 @@ async function main() {
   // Foydalanuvchi ilovasi — admin API'dan alohida (2026-10).
   await fastify.register(publicRoutes, { prefix: '/api' });
   await fastify.register(userBotWebhook, { prefix: '/api' });
+  await fastify.register(adminModeration, { prefix: '/api' });
 
   fastify.get('/health', async () => {
     return { status: 'ok', service: 'kimbor-api', timestamp: new Date().toISOString() };

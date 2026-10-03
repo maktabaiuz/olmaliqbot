@@ -94,7 +94,7 @@ export const App: React.FC = () => {
       );
       break;
     case 'rent':
-      screen = id === 'add' ? <AddRentScreen route={route} /> : id ? <RentDetailScreen route={route} key={id} /> : <RentScreen route={route} />;
+      screen = id === 'add' || id === 'edit' ? <AddRentScreen route={route} key={route.path} /> : id ? <RentDetailScreen route={route} key={id} /> : <RentScreen route={route} />;
       break;
     case 'sos':
       screen = <SosScreen route={route} />;
