@@ -1,46 +1,124 @@
 name: Analyze production usage (data-driven insights)
+
+# Guruhlardagi haqiqiy foydalanuvchi so'rovlarini, bazadagi bo'shliqlarni va
+# umumiy statistikani tahlil qilish uchun — yangi funksiya tavsiyalarini
+# taxminlar emas, HAQIQIY ma'lumotlarga asoslab berish uchun.
 on:
   workflow_dispatch:
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: Check via SSH
+      - name: Run analysis via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           timeout: 60s
-          command_timeout: 10m
+          command_timeout: 5m
           script: |
-            cd /root/kimbor
-            bash scripts/kimbor-backup.sh 2>&1 | grep -E "yaratildi|yaroqsiz" | sed 's/^/out:BK /'
-            ls backups/*.sql.gz | tail -1 | grep -q sql.gz || { echo "out:NO BACKUP — ABORT"; exit 1; }
-            cat > /tmp/mfy.json <<'JSON'
-[{"name": "So‘fi Olloyor MFY", "synonyms": ["so'fi olloyor", "so'fi olloyor mahalla", "so'fi olloyor mahallasi", "sofi olloyor", "sofi olloyor mfy"]}, {"name": "Oltin MFY", "synonyms": ["oltin", "oltin mahalla", "oltin mahallasi", "oltin mfy"]}, {"name": "O‘zbekiston MFY", "synonyms": ["o'zbekiston", "o'zbekiston mahalla", "o'zbekiston mahallasi", "ozbekiston", "ozbekiston mfy"]}, {"name": "Alisher Navoiy MFY", "synonyms": ["alisher navoiy", "alisher navoiy mahalla", "alisher navoiy mahallasi", "alisher navoiy mfy"]}, {"name": "Olmaliqsoy MFY", "synonyms": ["olmaliqsoy", "olmaliqsoy mahalla", "olmaliqsoy mahallasi", "olmaliqsoy mfy"]}, {"name": "Yulduz MFY", "synonyms": ["yulduz", "yulduz mahalla", "yulduz mahallasi", "yulduz mfy"]}, {"name": "Koinot MFY", "synonyms": ["koinot", "koinot mahalla", "koinot mahallasi", "koinot mfy"]}, {"name": "Mahmudxo‘ja Behbudiy MFY", "synonyms": ["mahmudxo'ja behbudiy", "mahmudxo'ja behbudiy mahalla", "mahmudxo'ja behbudiy mahallasi", "mahmudxoja behbudiy", "mahmudxoja behbudiy mfy"]}, {"name": "Mustaqillik MFY", "synonyms": ["mustaqillik", "mustaqillik mahalla", "mustaqillik mahallasi", "mustaqillik mfy"]}, {"name": "Birdamlik MFY", "synonyms": ["birdamlik", "birdamlik mahalla", "birdamlik mahallasi", "birdamlik mfy"]}, {"name": "Mirzo Ulug‘bek MFY", "synonyms": ["mirzo ulug'bek", "mirzo ulug'bek mahalla", "mirzo ulug'bek mahallasi", "mirzo ulugbek", "mirzo ulugbek mfy"]}, {"name": "Saxovat MFY", "synonyms": ["saxovat", "saxovat mahalla", "saxovat mahallasi", "saxovat mfy"]}, {"name": "Kimyogar MFY", "synonyms": ["kimyogar", "kimyogar mahalla", "kimyogar mahallasi", "kimyogar mfy"]}, {"name": "Bo‘ston MFY", "synonyms": ["bo'ston", "bo'ston mahalla", "bo'ston mahallasi", "boston", "boston mfy"]}, {"name": "Oydin MFY", "synonyms": ["oydin", "oydin mahalla", "oydin mahallasi", "oydin mfy"]}, {"name": "Uvaysiy MFY", "synonyms": ["uvaysiy", "uvaysiy mahalla", "uvaysiy mahallasi", "uvaysiy mfy"]}, {"name": "Cho‘lpon MFY", "synonyms": ["cho'lpon", "cho'lpon mahalla", "cho'lpon mahallasi", "cholpon", "cholpon mfy"]}, {"name": "Ko‘rpasoy MFY", "synonyms": ["ko'rpasoy", "ko'rpasoy mahalla", "ko'rpasoy mahallasi", "korpasoy", "korpasoy mfy"]}, {"name": "Metallurg MFY", "synonyms": ["metallurg", "metallurg mahalla", "metallurg mahallasi", "metallurg mfy"]}, {"name": "Shosh-Iloq MFY", "synonyms": ["shosh-iloq", "shosh-iloq mahalla", "shosh-iloq mahallasi", "shosh-iloq mfy"]}, {"name": "Temur Malik MFY", "synonyms": ["temur malik", "temur malik mahalla", "temur malik mahallasi", "temur malik mfy"]}, {"name": "Hilol MFY", "synonyms": ["hilol", "hilol mahalla", "hilol mahallasi", "hilol mfy"]}, {"name": "G‘ofur G‘ulom MFY", "synonyms": ["g'ofur g'ulom", "g'ofur g'ulom mahalla", "g'ofur g'ulom mahallasi", "gofur gulom", "gofur gulom mfy"]}, {"name": "Olmaliqovul MFY", "synonyms": ["olmaliqovul", "olmaliqovul mahalla", "olmaliqovul mahallasi", "olmaliqovul mfy"]}, {"name": "Toshkent MFY", "synonyms": ["toshkent", "toshkent mahalla", "toshkent mahallasi", "toshkent mfy"]}, {"name": "Abdulla Qahhor MFY", "synonyms": ["abdulla qahhor", "abdulla qahhor mahalla", "abdulla qahhor mahallasi", "abdulla qahhor mfy"]}, {"name": "Yangi Hayot MFY", "synonyms": ["yangi hayot", "yangi hayot mahalla", "yangi hayot mahallasi", "yangi hayot mfy"]}, {"name": "Usmon Nosir MFY", "synonyms": ["usmon nosir", "usmon nosir mahalla", "usmon nosir mahallasi", "usmon nosir mfy"]}, {"name": "Abdulla Qodiriy MFY", "synonyms": ["abdulla qodiriy", "abdulla qodiriy mahalla", "abdulla qodiriy mahallasi", "abdulla qodiriy mfy"]}, {"name": "Namuna MFY", "synonyms": ["namuna", "namuna mahalla", "namuna mahallasi", "namuna mfy"]}, {"name": "Hamza MFY", "synonyms": ["hamza", "hamza mahalla", "hamza mahallasi", "hamza mfy"]}, {"name": "Abdulla Avloniy MFY", "synonyms": ["abdulla avloniy", "abdulla avloniy mahalla", "abdulla avloniy mahallasi", "abdulla avloniy mfy"]}, {"name": "Ibn Sino MFY", "synonyms": ["ibn sino", "ibn sino mahalla", "ibn sino mahallasi", "ibn sino mfy"]}, {"name": "Islom Karimov MFY", "synonyms": ["islom karimov", "islom karimov mahalla", "islom karimov mahallasi", "islom karimov mfy"]}, {"name": "Terakli MFY", "synonyms": ["terakli", "terakli mahalla", "terakli mahallasi", "terakli mfy"]}, {"name": "Muso Jalil MFY", "synonyms": ["muso jalil", "muso jalil mahalla", "muso jalil mahallasi", "muso jalil mfy"]}, {"name": "Ahmad Yassaviy MFY", "synonyms": ["ahmad yassaviy", "ahmad yassaviy mahalla", "ahmad yassaviy mahallasi", "ahmad yassaviy mfy"]}, {"name": "Furqat MFY", "synonyms": ["furqat", "furqat mahalla", "furqat mahallasi", "furqat mfy"]}, {"name": "Chambil MFY", "synonyms": ["chambil", "chambil mahalla", "chambil mahallasi", "chambil mfy"]}, {"name": "Tinchlik MFY", "synonyms": ["tinchlik", "tinchlik mahalla", "tinchlik mahallasi", "tinchlik mfy"]}, {"name": "Navro‘z MFY", "synonyms": ["navro'z", "navro'z mahalla", "navro'z mahallasi", "navroz", "navroz mfy"]}, {"name": "Zarbuloq MFY", "synonyms": ["zarbuloq", "zarbuloq mahalla", "zarbuloq mahallasi", "zarbuloq mfy"]}]
-JSON
-            docker cp /tmp/mfy.json kimbor_api:/tmp/mfy.json
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
-              const mfy = require('/tmp/mfy.json');
               (async () => {
-                const city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
-                const before = await db.landmark.count({ where: { cityId: city.id } });
-                await db.\$transaction(async (tx) => {
-                  const keep = await tx.landmark.create({ data: { cityId: city.id, name: 'MFY tanlanmagan', synonyms: [] } });
-                  const created = [];
-                  for (const m of mfy) created.push((await tx.landmark.create({ data: { cityId: city.id, name: m.name, synonyms: m.synonyms } })).id);
-                  const newIds = [keep.id, ...created];
-                  await tx.listing.updateMany({ where: { cityId: city.id }, data: { primaryLandmarkId: keep.id } });
-                  const ls = await tx.listing.findMany({ where: { cityId: city.id }, select: { id: true } });
-                  for (const l of ls) await tx.listing.update({ where: { id: l.id }, data: { serviceAreaLandmarks: { set: [] } } });
-                  await tx.candidate.updateMany({ where: { cityId: city.id }, data: { primaryLandmarkId: null } });
-                  const del = await tx.landmark.deleteMany({ where: { cityId: city.id, id: { notIn: newIds } } });
-                  console.log('out:deleted old=' + del.count + ' created=' + created.length + ' listings moved=' + ls.length);
-                }, { timeout: 60000 });
-                await db.auditLog.create({ data: { cityId: city.id, action: 'LANDMARKS_REPLACED_WITH_MFY', details: { before, mfy: mfy.length } } });
-                console.log('out:now=' + await db.landmark.count({ where: { cityId: city.id } }));
+                console.log('=== 1) UMUMIY STATISTIKA ===');
+                const totalUsers = await db.user.count();
+                const totalListings = await db.listing.count({ where: { status: 'ACTIVE' } });
+                const totalGroups = await db.cityGroup.count();
+                const totalQueries = await db.queryLog.count();
+                console.log(JSON.stringify({ totalUsers, totalListings, totalGroups, totalQueries }));
+
+                console.log('');
+                console.log('=== 2) INTENT TAQSIMOTI (oxirgi 30 kun) ===');
+                const since30 = new Date(Date.now() - 30*24*60*60*1000);
+                const intentGroups = await db.queryLog.groupBy({
+                  by: ['intent'],
+                  where: { createdAt: { gte: since30 } },
+                  _count: { intent: true },
+                });
+                console.log(JSON.stringify(intentGroups.map(g => ({ intent: g.intent, count: g._count.intent })).sort((a,b)=>b.count-a.count)));
+
+                console.log('');
+                console.log('=== 3) HAL QILINMAGAN (isResolved=false, NOT_RELEVANT emas) SO\'ROVLAR — ENG KO\'P TAKRORLANGAN KATEGORIYA NOMLARI (oxirgi 30 kun) ===');
+                const unresolved = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' } },
+                  select: { categoryName: true, rawMessage: true, confidence: true },
+                });
+                const catCounts = {};
+                for (const u of unresolved) {
+                  const key = (u.categoryName || '(kategoriyasiz)').toLowerCase().trim();
+                  catCounts[key] = (catCounts[key] || 0) + 1;
+                }
+                const sortedCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0, 30);
+                console.log(JSON.stringify(sortedCats));
+
+                console.log('');
+                console.log('=== 4) BU KATEGORIYALARDAN QAYSILARI BAZADA UMUMAN YO\'Q (bo\'shliq) ===');
+                const allCategories = await db.category.findMany({ select: { name: true, synonyms: true } });
+                const catNameSet = new Set();
+                for (const c of allCategories) {
+                  catNameSet.add(c.name.toLowerCase());
+                  for (const s of c.synonyms) catNameSet.add(s.toLowerCase());
+                }
+                const missing = sortedCats.filter(([name]) => {
+                  if (name === '(kategoriyasiz)') return false;
+                  for (const known of catNameSet) {
+                    if (known.includes(name) || name.includes(known)) return false;
+                  }
+                  return true;
+                });
+                console.log(JSON.stringify(missing));
+
+                console.log('');
+                console.log('=== 5) KATEGORIYA BO\'YICHA YOZUVLAR SONI (eng kam/yo\'q yozuvli TOP 15 kategoriya, lekin so\'ralgan) ===');
+                const listingCatCounts = await db.listing.groupBy({
+                  by: ['categoryId'],
+                  where: { status: 'ACTIVE' },
+                  _count: { categoryId: true },
+                });
+                const catIdToCount = {};
+                for (const l of listingCatCounts) catIdToCount[l.categoryId] = l._count.categoryId;
+                const catsWithCounts = allCategories.length ? await db.category.findMany({ select: { id:true, name:true } }) : [];
+                const lowCoverage = catsWithCounts
+                  .map(c => ({ name: c.name, listingCount: catIdToCount[c.id] || 0 }))
+                  .sort((a,b) => a.listingCount - b.listingCount)
+                  .slice(0, 20);
+                console.log(JSON.stringify(lowCoverage));
+
+                console.log('');
+                console.log('=== 6) EMERGENCY SO\'ROVLAR SONI (oxirgi 30 kun) ===');
+                const emergencyCount = await db.queryLog.count({ where: { createdAt: { gte: since30 }, intent: 'EMERGENCY' } });
+                console.log(JSON.stringify({ emergencyCount }));
+
+                console.log('');
+                console.log('=== 7) SHARHLAR (REVIEWS) UMUMIY SONI ===');
+                const reviewCount = await db.review.count();
+                const positiveReviews = await db.review.count({ where: { isPositive: true } });
+                console.log(JSON.stringify({ reviewCount, positiveReviews }));
+
+                console.log('');
+                console.log('=== 8) YANGI USERLAR (oxirgi 7 va 30 kun) ===');
+                const since7 = new Date(Date.now() - 7*24*60*60*1000);
+                const newUsers7 = await db.user.count({ where: { createdAt: { gte: since7 } } });
+                const newUsers30 = await db.user.count({ where: { createdAt: { gte: since30 } } });
+                console.log(JSON.stringify({ newUsers7, newUsers30 }));
+
+                console.log('');
+                console.log('=== 9) ENG KO\'P SO\'ROV YOZILGAN XOM XABARLAR NAMUNASI (tasodifiy 25 ta, hal qilinmagan) ===');
+                const sampleRaw = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' }, confidence: { lt: 0.7 } },
+                  select: { rawMessage: true, confidence: true },
+                  take: 25,
+                  orderBy: { createdAt: 'desc' },
+                });
+                console.log(JSON.stringify(sampleRaw));
+
+                console.log('');
+                console.log('=== 10) BROADCAST FOYDALANISHI ===');
+                const broadcastCount = await db.broadcastMessage.count();
+                console.log(JSON.stringify({ broadcastCount }));
+
                 process.exit(0);
-              })().catch(e => { console.error('ERR', e.message); process.exit(1); });
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
             "
