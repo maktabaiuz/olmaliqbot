@@ -1,43 +1,124 @@
 name: Analyze production usage (data-driven insights)
+
+# Guruhlardagi haqiqiy foydalanuvchi so'rovlarini, bazadagi bo'shliqlarni va
+# umumiy statistikani tahlil qilish uchun — yangi funksiya tavsiyalarini
+# taxminlar emas, HAQIQIY ma'lumotlarga asoslab berish uchun.
 on:
   workflow_dispatch:
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: Check via SSH
+      - name: Run analysis via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           timeout: 60s
-          command_timeout: 10m
+          command_timeout: 5m
           script: |
-            cd /root/kimbor
-            bash scripts/kimbor-backup.sh 2>&1 | grep -E "yaratildi|yaroqsiz" | sed 's/^/out:BK /'
-            echo 'W3sibmFtZSI6ICJTb+KAmGZpIE9sbG95b3IgTUZZIiwgInN5bm9ueW1zIjogWyJzbydmaSBvbGxveW9yIiwgInNvJ2ZpIG9sbG95b3IgbWFoYWxsYSIsICJzbydmaSBvbGxveW9yIG1haGFsbGFzaSIsICJzb2ZpIG9sbG95b3IiLCAic29maSBvbGxveW9yIG1meSJdfSwgeyJuYW1lIjogIk9sdGluIE1GWSIsICJzeW5vbnltcyI6IFsib2x0aW4iLCAib2x0aW4gbWFoYWxsYSIsICJvbHRpbiBtYWhhbGxhc2kiLCAib2x0aW4gbWZ5Il19LCB7Im5hbWUiOiAiT+KAmHpiZWtpc3RvbiBNRlkiLCAic3lub255bXMiOiBbIm8nemJla2lzdG9uIiwgIm8nemJla2lzdG9uIG1haGFsbGEiLCAibyd6YmVraXN0b24gbWFoYWxsYXNpIiwgIm96YmVraXN0b24iLCAib3piZWtpc3RvbiBtZnkiXX0sIHsibmFtZSI6ICJBbGlzaGVyIE5hdm9peSBNRlkiLCAic3lub255bXMiOiBbImFsaXNoZXIgbmF2b2l5IiwgImFsaXNoZXIgbmF2b2l5IG1haGFsbGEiLCAiYWxpc2hlciBuYXZvaXkgbWFoYWxsYXNpIiwgImFsaXNoZXIgbmF2b2l5IG1meSJdfSwgeyJuYW1lIjogIk9sbWFsaXFzb3kgTUZZIiwgInN5bm9ueW1zIjogWyJvbG1hbGlxc295IiwgIm9sbWFsaXFzb3kgbWFoYWxsYSIsICJvbG1hbGlxc295IG1haGFsbGFzaSIsICJvbG1hbGlxc295IG1meSJdfSwgeyJuYW1lIjogIll1bGR1eiBNRlkiLCAic3lub255bXMiOiBbInl1bGR1eiIsICJ5dWxkdXogbWFoYWxsYSIsICJ5dWxkdXogbWFoYWxsYXNpIiwgInl1bGR1eiBtZnkiXX0sIHsibmFtZSI6ICJLb2lub3QgTUZZIiwgInN5bm9ueW1zIjogWyJrb2lub3QiLCAia29pbm90IG1haGFsbGEiLCAia29pbm90IG1haGFsbGFzaSIsICJrb2lub3QgbWZ5Il19LCB7Im5hbWUiOiAiTWFobXVkeG/igJhqYSBCZWhidWRpeSBNRlkiLCAic3lub255bXMiOiBbIm1haG11ZHhvJ2phIGJlaGJ1ZGl5IiwgIm1haG11ZHhvJ2phIGJlaGJ1ZGl5IG1haGFsbGEiLCAibWFobXVkeG8namEgYmVoYnVkaXkgbWFoYWxsYXNpIiwgIm1haG11ZHhvamEgYmVoYnVkaXkiLCAibWFobXVkeG9qYSBiZWhidWRpeSBtZnkiXX0sIHsibmFtZSI6ICJNdXN0YXFpbGxpayBNRlkiLCAic3lub255bXMiOiBbIm11c3RhcWlsbGlrIiwgIm11c3RhcWlsbGlrIG1haGFsbGEiLCAibXVzdGFxaWxsaWsgbWFoYWxsYXNpIiwgIm11c3RhcWlsbGlrIG1meSJdfSwgeyJuYW1lIjogIkJpcmRhbWxpayBNRlkiLCAic3lub255bXMiOiBbImJpcmRhbWxpayIsICJiaXJkYW1saWsgbWFoYWxsYSIsICJiaXJkYW1saWsgbWFoYWxsYXNpIiwgImJpcmRhbWxpayBtZnkiXX0sIHsibmFtZSI6ICJNaXJ6byBVbHVn4oCYYmVrIE1GWSIsICJzeW5vbnltcyI6IFsibWlyem8gdWx1ZydiZWsiLCAibWlyem8gdWx1ZydiZWsgbWFoYWxsYSIsICJtaXJ6byB1bHVnJ2JlayBtYWhhbGxhc2kiLCAibWlyem8gdWx1Z2JlayIsICJtaXJ6byB1bHVnYmVrIG1meSJdfSwgeyJuYW1lIjogIlNheG92YXQgTUZZIiwgInN5bm9ueW1zIjogWyJzYXhvdmF0IiwgInNheG92YXQgbWFoYWxsYSIsICJzYXhvdmF0IG1haGFsbGFzaSIsICJzYXhvdmF0IG1meSJdfSwgeyJuYW1lIjogIktpbXlvZ2FyIE1GWSIsICJzeW5vbnltcyI6IFsia2lteW9nYXIiLCAia2lteW9nYXIgbWFoYWxsYSIsICJraW15b2dhciBtYWhhbGxhc2kiLCAia2lteW9nYXIgbWZ5Il19LCB7Im5hbWUiOiAiQm/igJhzdG9uIE1GWSIsICJzeW5vbnltcyI6IFsiYm8nc3RvbiIsICJibydzdG9uIG1haGFsbGEiLCAiYm8nc3RvbiBtYWhhbGxhc2kiLCAiYm9zdG9uIiwgImJvc3RvbiBtZnkiXX0sIHsibmFtZSI6ICJPeWRpbiBNRlkiLCAic3lub255bXMiOiBbIm95ZGluIiwgIm95ZGluIG1haGFsbGEiLCAib3lkaW4gbWFoYWxsYXNpIiwgIm95ZGluIG1meSJdfSwgeyJuYW1lIjogIlV2YXlzaXkgTUZZIiwgInN5bm9ueW1zIjogWyJ1dmF5c2l5IiwgInV2YXlzaXkgbWFoYWxsYSIsICJ1dmF5c2l5IG1haGFsbGFzaSIsICJ1dmF5c2l5IG1meSJdfSwgeyJuYW1lIjogIkNob+KAmGxwb24gTUZZIiwgInN5bm9ueW1zIjogWyJjaG8nbHBvbiIsICJjaG8nbHBvbiBtYWhhbGxhIiwgImNobydscG9uIG1haGFsbGFzaSIsICJjaG9scG9uIiwgImNob2xwb24gbWZ5Il19LCB7Im5hbWUiOiAiS2/igJhycGFzb3kgTUZZIiwgInN5bm9ueW1zIjogWyJrbydycGFzb3kiLCAia28ncnBhc295IG1haGFsbGEiLCAia28ncnBhc295IG1haGFsbGFzaSIsICJrb3JwYXNveSIsICJrb3JwYXNveSBtZnkiXX0sIHsibmFtZSI6ICJNZXRhbGx1cmcgTUZZIiwgInN5bm9ueW1zIjogWyJtZXRhbGx1cmciLCAibWV0YWxsdXJnIG1haGFsbGEiLCAibWV0YWxsdXJnIG1haGFsbGFzaSIsICJtZXRhbGx1cmcgbWZ5Il19LCB7Im5hbWUiOiAiU2hvc2gtSWxvcSBNRlkiLCAic3lub255bXMiOiBbInNob3NoLWlsb3EiLCAic2hvc2gtaWxvcSBtYWhhbGxhIiwgInNob3NoLWlsb3EgbWFoYWxsYXNpIiwgInNob3NoLWlsb3EgbWZ5Il19LCB7Im5hbWUiOiAiVGVtdXIgTWFsaWsgTUZZIiwgInN5bm9ueW1zIjogWyJ0ZW11ciBtYWxpayIsICJ0ZW11ciBtYWxpayBtYWhhbGxhIiwgInRlbXVyIG1hbGlrIG1haGFsbGFzaSIsICJ0ZW11ciBtYWxpayBtZnkiXX0sIHsibmFtZSI6ICJIaWxvbCBNRlkiLCAic3lub255bXMiOiBbImhpbG9sIiwgImhpbG9sIG1haGFsbGEiLCAiaGlsb2wgbWFoYWxsYXNpIiwgImhpbG9sIG1meSJdfSwgeyJuYW1lIjogIkfigJhvZnVyIEfigJh1bG9tIE1GWSIsICJzeW5vbnltcyI6IFsiZydvZnVyIGcndWxvbSIsICJnJ29mdXIgZyd1bG9tIG1haGFsbGEiLCAiZydvZnVyIGcndWxvbSBtYWhhbGxhc2kiLCAiZ29mdXIgZ3Vsb20iLCAiZ29mdXIgZ3Vsb20gbWZ5Il19LCB7Im5hbWUiOiAiT2xtYWxpcW92dWwgTUZZIiwgInN5bm9ueW1zIjogWyJvbG1hbGlxb3Z1bCIsICJvbG1hbGlxb3Z1bCBtYWhhbGxhIiwgIm9sbWFsaXFvdnVsIG1haGFsbGFzaSIsICJvbG1hbGlxb3Z1bCBtZnkiXX0sIHsibmFtZSI6ICJUb3Noa2VudCBNRlkiLCAic3lub255bXMiOiBbInRvc2hrZW50IiwgInRvc2hrZW50IG1haGFsbGEiLCAidG9zaGtlbnQgbWFoYWxsYXNpIiwgInRvc2hrZW50IG1meSJdfSwgeyJuYW1lIjogIkFiZHVsbGEgUWFoaG9yIE1GWSIsICJzeW5vbnltcyI6IFsiYWJkdWxsYSBxYWhob3IiLCAiYWJkdWxsYSBxYWhob3IgbWFoYWxsYSIsICJhYmR1bGxhIHFhaGhvciBtYWhhbGxhc2kiLCAiYWJkdWxsYSBxYWhob3IgbWZ5Il19LCB7Im5hbWUiOiAiWWFuZ2kgSGF5b3QgTUZZIiwgInN5bm9ueW1zIjogWyJ5YW5naSBoYXlvdCIsICJ5YW5naSBoYXlvdCBtYWhhbGxhIiwgInlhbmdpIGhheW90IG1haGFsbGFzaSIsICJ5YW5naSBoYXlvdCBtZnkiXX0sIHsibmFtZSI6ICJVc21vbiBOb3NpciBNRlkiLCAic3lub255bXMiOiBbInVzbW9uIG5vc2lyIiwgInVzbW9uIG5vc2lyIG1haGFsbGEiLCAidXNtb24gbm9zaXIgbWFoYWxsYXNpIiwgInVzbW9uIG5vc2lyIG1meSJdfSwgeyJuYW1lIjogIkFiZHVsbGEgUW9kaXJpeSBNRlkiLCAic3lub255bXMiOiBbImFiZHVsbGEgcW9kaXJpeSIsICJhYmR1bGxhIHFvZGlyaXkgbWFoYWxsYSIsICJhYmR1bGxhIHFvZGlyaXkgbWFoYWxsYXNpIiwgImFiZHVsbGEgcW9kaXJpeSBtZnkiXX0sIHsibmFtZSI6ICJOYW11bmEgTUZZIiwgInN5bm9ueW1zIjogWyJuYW11bmEiLCAibmFtdW5hIG1haGFsbGEiLCAibmFtdW5hIG1haGFsbGFzaSIsICJuYW11bmEgbWZ5Il19LCB7Im5hbWUiOiAiSGFtemEgTUZZIiwgInN5bm9ueW1zIjogWyJoYW16YSIsICJoYW16YSBtYWhhbGxhIiwgImhhbXphIG1haGFsbGFzaSIsICJoYW16YSBtZnkiXX0sIHsibmFtZSI6ICJBYmR1bGxhIEF2bG9uaXkgTUZZIiwgInN5bm9ueW1zIjogWyJhYmR1bGxhIGF2bG9uaXkiLCAiYWJkdWxsYSBhdmxvbml5IG1haGFsbGEiLCAiYWJkdWxsYSBhdmxvbml5IG1haGFsbGFzaSIsICJhYmR1bGxhIGF2bG9uaXkgbWZ5Il19LCB7Im5hbWUiOiAiSWJuIFNpbm8gTUZZIiwgInN5bm9ueW1zIjogWyJpYm4gc2lubyIsICJpYm4gc2lubyBtYWhhbGxhIiwgImlibiBzaW5vIG1haGFsbGFzaSIsICJpYm4gc2lubyBtZnkiXX0sIHsibmFtZSI6ICJJc2xvbSBLYXJpbW92IE1GWSIsICJzeW5vbnltcyI6IFsiaXNsb20ga2FyaW1vdiIsICJpc2xvbSBrYXJpbW92IG1haGFsbGEiLCAiaXNsb20ga2FyaW1vdiBtYWhhbGxhc2kiLCAiaXNsb20ga2FyaW1vdiBtZnkiXX0sIHsibmFtZSI6ICJUZXJha2xpIE1GWSIsICJzeW5vbnltcyI6IFsidGVyYWtsaSIsICJ0ZXJha2xpIG1haGFsbGEiLCAidGVyYWtsaSBtYWhhbGxhc2kiLCAidGVyYWtsaSBtZnkiXX0sIHsibmFtZSI6ICJNdXNvIEphbGlsIE1GWSIsICJzeW5vbnltcyI6IFsibXVzbyBqYWxpbCIsICJtdXNvIGphbGlsIG1haGFsbGEiLCAibXVzbyBqYWxpbCBtYWhhbGxhc2kiLCAibXVzbyBqYWxpbCBtZnkiXX0sIHsibmFtZSI6ICJBaG1hZCBZYXNzYXZpeSBNRlkiLCAic3lub255bXMiOiBbImFobWFkIHlhc3Nhdml5IiwgImFobWFkIHlhc3Nhdml5IG1haGFsbGEiLCAiYWhtYWQgeWFzc2F2aXkgbWFoYWxsYXNpIiwgImFobWFkIHlhc3Nhdml5IG1meSJdfSwgeyJuYW1lIjogIkZ1cnFhdCBNRlkiLCAic3lub255bXMiOiBbImZ1cnFhdCIsICJmdXJxYXQgbWFoYWxsYSIsICJmdXJxYXQgbWFoYWxsYXNpIiwgImZ1cnFhdCBtZnkiXX0sIHsibmFtZSI6ICJDaGFtYmlsIE1GWSIsICJzeW5vbnltcyI6IFsiY2hhbWJpbCIsICJjaGFtYmlsIG1haGFsbGEiLCAiY2hhbWJpbCBtYWhhbGxhc2kiLCAiY2hhbWJpbCBtZnkiXX0sIHsibmFtZSI6ICJUaW5jaGxpayBNRlkiLCAic3lub255bXMiOiBbInRpbmNobGlrIiwgInRpbmNobGlrIG1haGFsbGEiLCAidGluY2hsaWsgbWFoYWxsYXNpIiwgInRpbmNobGlrIG1meSJdfSwgeyJuYW1lIjogIk5hdnJv4oCYeiBNRlkiLCAic3lub255bXMiOiBbIm5hdnJvJ3oiLCAibmF2cm8neiBtYWhhbGxhIiwgIm5hdnJvJ3ogbWFoYWxsYXNpIiwgIm5hdnJveiIsICJuYXZyb3ogbWZ5Il19LCB7Im5hbWUiOiAiWmFyYnVsb3EgTUZZIiwgInN5bm9ueW1zIjogWyJ6YXJidWxvcSIsICJ6YXJidWxvcSBtYWhhbGxhIiwgInphcmJ1bG9xIG1haGFsbGFzaSIsICJ6YXJidWxvcSBtZnkiXX1d' | base64 -d > /tmp/mfy.json
-            docker cp /tmp/mfy.json kimbor_api:/tmp/mfy.json
             docker exec kimbor_api node -e "
               const { db } = require('/app/packages/db/dist/index.js');
-              const mfy = require('/tmp/mfy.json');
               (async () => {
-                const city = await db.city.findFirst({ where: { slug: 'olmaliq' } });
-                const before = await db.landmark.count({ where: { cityId: city.id } });
-                await db.\$transaction(async (tx) => {
-                  const keep = await tx.landmark.create({ data: { cityId: city.id, name: 'MFY tanlanmagan', synonyms: [] } });
-                  const created = [];
-                  for (const m of mfy) created.push((await tx.landmark.create({ data: { cityId: city.id, name: m.name, synonyms: m.synonyms } })).id);
-                  const newIds = [keep.id, ...created];
-                  await tx.listing.updateMany({ where: { cityId: city.id }, data: { primaryLandmarkId: keep.id } });
-                  const ls = await tx.listing.findMany({ where: { cityId: city.id }, select: { id: true } });
-                  for (const l of ls) await tx.listing.update({ where: { id: l.id }, data: { serviceAreaLandmarks: { set: [] } } });
-                  await tx.candidate.updateMany({ where: { cityId: city.id }, data: { primaryLandmarkId: null } });
-                  const del = await tx.landmark.deleteMany({ where: { cityId: city.id, id: { notIn: newIds } } });
-                  console.log('out:deleted old=' + del.count + ' created=' + created.length + ' listings moved=' + ls.length);
-                }, { timeout: 60000 });
-                await db.auditLog.create({ data: { cityId: city.id, action: 'LANDMARKS_REPLACED_WITH_MFY', details: { before, mfy: mfy.length } } });
-                console.log('out:before=' + before + ' now=' + await db.landmark.count({ where: { cityId: city.id } }));
+                console.log('=== 1) UMUMIY STATISTIKA ===');
+                const totalUsers = await db.user.count();
+                const totalListings = await db.listing.count({ where: { status: 'ACTIVE' } });
+                const totalGroups = await db.cityGroup.count();
+                const totalQueries = await db.queryLog.count();
+                console.log(JSON.stringify({ totalUsers, totalListings, totalGroups, totalQueries }));
+
+                console.log('');
+                console.log('=== 2) INTENT TAQSIMOTI (oxirgi 30 kun) ===');
+                const since30 = new Date(Date.now() - 30*24*60*60*1000);
+                const intentGroups = await db.queryLog.groupBy({
+                  by: ['intent'],
+                  where: { createdAt: { gte: since30 } },
+                  _count: { intent: true },
+                });
+                console.log(JSON.stringify(intentGroups.map(g => ({ intent: g.intent, count: g._count.intent })).sort((a,b)=>b.count-a.count)));
+
+                console.log('');
+                console.log('=== 3) HAL QILINMAGAN (isResolved=false, NOT_RELEVANT emas) SO\'ROVLAR — ENG KO\'P TAKRORLANGAN KATEGORIYA NOMLARI (oxirgi 30 kun) ===');
+                const unresolved = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' } },
+                  select: { categoryName: true, rawMessage: true, confidence: true },
+                });
+                const catCounts = {};
+                for (const u of unresolved) {
+                  const key = (u.categoryName || '(kategoriyasiz)').toLowerCase().trim();
+                  catCounts[key] = (catCounts[key] || 0) + 1;
+                }
+                const sortedCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0, 30);
+                console.log(JSON.stringify(sortedCats));
+
+                console.log('');
+                console.log('=== 4) BU KATEGORIYALARDAN QAYSILARI BAZADA UMUMAN YO\'Q (bo\'shliq) ===');
+                const allCategories = await db.category.findMany({ select: { name: true, synonyms: true } });
+                const catNameSet = new Set();
+                for (const c of allCategories) {
+                  catNameSet.add(c.name.toLowerCase());
+                  for (const s of c.synonyms) catNameSet.add(s.toLowerCase());
+                }
+                const missing = sortedCats.filter(([name]) => {
+                  if (name === '(kategoriyasiz)') return false;
+                  for (const known of catNameSet) {
+                    if (known.includes(name) || name.includes(known)) return false;
+                  }
+                  return true;
+                });
+                console.log(JSON.stringify(missing));
+
+                console.log('');
+                console.log('=== 5) KATEGORIYA BO\'YICHA YOZUVLAR SONI (eng kam/yo\'q yozuvli TOP 15 kategoriya, lekin so\'ralgan) ===');
+                const listingCatCounts = await db.listing.groupBy({
+                  by: ['categoryId'],
+                  where: { status: 'ACTIVE' },
+                  _count: { categoryId: true },
+                });
+                const catIdToCount = {};
+                for (const l of listingCatCounts) catIdToCount[l.categoryId] = l._count.categoryId;
+                const catsWithCounts = allCategories.length ? await db.category.findMany({ select: { id:true, name:true } }) : [];
+                const lowCoverage = catsWithCounts
+                  .map(c => ({ name: c.name, listingCount: catIdToCount[c.id] || 0 }))
+                  .sort((a,b) => a.listingCount - b.listingCount)
+                  .slice(0, 20);
+                console.log(JSON.stringify(lowCoverage));
+
+                console.log('');
+                console.log('=== 6) EMERGENCY SO\'ROVLAR SONI (oxirgi 30 kun) ===');
+                const emergencyCount = await db.queryLog.count({ where: { createdAt: { gte: since30 }, intent: 'EMERGENCY' } });
+                console.log(JSON.stringify({ emergencyCount }));
+
+                console.log('');
+                console.log('=== 7) SHARHLAR (REVIEWS) UMUMIY SONI ===');
+                const reviewCount = await db.review.count();
+                const positiveReviews = await db.review.count({ where: { isPositive: true } });
+                console.log(JSON.stringify({ reviewCount, positiveReviews }));
+
+                console.log('');
+                console.log('=== 8) YANGI USERLAR (oxirgi 7 va 30 kun) ===');
+                const since7 = new Date(Date.now() - 7*24*60*60*1000);
+                const newUsers7 = await db.user.count({ where: { createdAt: { gte: since7 } } });
+                const newUsers30 = await db.user.count({ where: { createdAt: { gte: since30 } } });
+                console.log(JSON.stringify({ newUsers7, newUsers30 }));
+
+                console.log('');
+                console.log('=== 9) ENG KO\'P SO\'ROV YOZILGAN XOM XABARLAR NAMUNASI (tasodifiy 25 ta, hal qilinmagan) ===');
+                const sampleRaw = await db.queryLog.findMany({
+                  where: { createdAt: { gte: since30 }, intent: { not: 'NOT_RELEVANT' }, confidence: { lt: 0.7 } },
+                  select: { rawMessage: true, confidence: true },
+                  take: 25,
+                  orderBy: { createdAt: 'desc' },
+                });
+                console.log(JSON.stringify(sampleRaw));
+
+                console.log('');
+                console.log('=== 10) BROADCAST FOYDALANISHI ===');
+                const broadcastCount = await db.broadcastMessage.count();
+                console.log(JSON.stringify({ broadcastCount }));
+
                 process.exit(0);
-              })().catch(e => { console.error('ERR', e.message); process.exit(1); });
+              })().catch(e => { console.error('ERR', e); process.exit(1); });
             "
