@@ -38,7 +38,8 @@ async function main() {
     const url = req.url;
     const strict = url.startsWith('/api/auth') || url.includes('/login');
     if (!url.startsWith('/api/public') && !strict) return;
-    const ip = String(req.headers['x-forwarded-for'] || req.ip).split(',')[0].trim();
+    // Caddy haqiqiy IP'ni oxiriga qo'shadi — birinchisi mijoz tomonidan soxtalashtirilishi mumkin
+    const ip = String(req.headers['x-forwarded-for'] || req.ip).split(',').pop()!.trim();
     const key = `${strict ? 'a' : 'p'}:${ip}`;
     const now = Date.now();
     const h = ipHits.get(key);

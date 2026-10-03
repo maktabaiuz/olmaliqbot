@@ -350,6 +350,16 @@ export async function requireAdmin(req: any, reply: any): Promise<boolean> {
     reply.status(403).send({ success: false, message: 'Faqat administratorlar uchun 🔒' });
     return false;
   }
+  // Moderatorlar (2026-10-03 pentest): faqat ko'rish; o'zgartirish — faqat
+  // SUPER_ADMIN/CITY_ADMIN (tasdiqlovchi moderator — nomzod/moderatsiya qarori).
+  const method = String(req.method || 'GET').toUpperCase();
+  const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'CITY_ADMIN';
+  const approverPath = /^\/api\/admin\/(moderation|candidates)\//.test(String(req.url || ''));
+  if (method !== 'GET' && !isAdmin && !(user.role === 'MODERATOR_APPROVER' && approverPath)) {
+    reply.status(403).send({ success: false, message: "Bu amal uchun huquqingiz yo'q 🔒" });
+    return false;
+  }
+  req.user = user;
   return true;
 }
 
@@ -365,7 +375,16 @@ function formatRemainingTime(until: Date): string {
   return `${minutes} daqiqa`;
 }
 
+const SECRET_SETTING_KEYS = new Set(['session_secret']);
+
 export async function adminRoutes(fastify: FastifyInstance) {
+  // Barcha /admin/* yo'llari — majburiy admin tekshiruvi (2026-10-03 pentest:
+  // ko'p GET yo'llar autentifikatsiyasiz ma'lumot berardi). /auth/* ochiq.
+  fastify.addHook('preHandler', async (req: any, reply) => {
+    if (!String(req.url || '').startsWith('/api/admin/')) return;
+    if (!(await requireAdmin(req, reply))) return reply;
+  });
+
   const SUPER_ADMIN_IDS = [BigInt(6355516451), BigInt(8323651390), BigInt(5369180248)];
   const isSuperAdminId = (id?: bigint | null) => (id ? SUPER_ADMIN_IDS.some((a) => a === id) : false);
 
@@ -531,7 +550,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const adminPassword = process.env.ADMIN_PASSWORD;
     let resultUser: any = null;
 
-    if (adminPassword && password === adminPassword) {
+    const pw = Buffer.from(String(password || ''));
+    const ap = Buffer.from(String(adminPassword || ''));
+    if (adminPassword && pw.length === ap.length && crypto.timingSafeEqual(pw, ap)) {
       const olmaliq = await db.city.findFirst({ where: { slug: 'olmaliq' } });
       const dbUser = await db.user.upsert({
         where: { telegramId },
@@ -754,76 +775,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
   });
 
   // --- 1.2 TEST CHECKOUT & CREDENTIAL GENERATION (Section 2 & 3) ---
-  fastify.post('/auth/test-checkout', async (req: any, reply) => {
-    const { planType, telegramUserId } = req.body;
-    const tgUserId = telegramUserId ? BigInt(telegramUserId) : BigInt(6355516451);
-
-    // Generate 6-digit login code and 6-letter password
-    const loginCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const charset = 'abcdefghjkmnpqrstuvwxy';
-    let tempPassword = '';
-    for (let i = 0; i < 6; i++) {
-      tempPassword += charset[Math.floor(Math.random() * charset.length)];
-    }
-
-    // Upsert Admin User in DB
-    const dbUser = await db.user.upsert({
-      where: { telegramId: tgUserId },
-      update: {
-        loginCode,
-        tempPassword,
-        role: isSuperAdminId(tgUserId) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
-      },
-      create: {
-        telegramId: tgUserId,
-        firstName: 'Test',
-        lastName: 'Admin',
-        role: isSuperAdminId(tgUserId) ? 'SUPER_ADMIN' : 'CITY_ADMIN',
-        loginCode,
-        tempPassword,
-      },
-    });
-
-    // Send credentials via Telegram Bot API
-    const botToken = process.env.BOT_TOKEN;
-    if (!botToken) throw new Error('BOT_TOKEN env variable is not configured');
-    const appUrl = process.env.WEBAPP_URL || 'https://7d0905ff78ad33.lhr.life';
-
-    const credMessage = `✅ **To'lov qabul qilindi**\n\n` +
-      `Kirish ma'lumotlaringiz:\n` +
-      `**Login**: \`${loginCode}\`\n` +
-      `**Parol**: \`${tempPassword}\`\n\n` +
-      `Bu ma'lumotlarni saqlab qo'ying.`;
-
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: tgUserId.toString(),
-          text: credMessage,
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [[{ text: '🔐 Panelga kirish', url: appUrl }]],
-          },
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to send Telegram credentials message:', e);
-    }
-
-    return {
-      success: true,
-      credentials: { loginCode, tempPassword },
-    };
-  });
-
-  // --- 2. STATS & ANALYTICS ---
-  // "Tizim salomatligi" vidjeti (2026-09) — real production'da aynan shu
-  // narsalar tekshirilmagani sabab (GEMINI_API_KEY o'chib qolgani,
-  // webhook'ning allowed_updates noto'g'ri sozlangani) topilishi
-  // SOATLAB/KUNLAB SSH orqali qo'lda qidiruv talab qilgan real xatolarga
-  // sabab bo'lgan. Endi admin bularni Dashboard'da bir qarashda ko'radi.
+  // /auth/test-checkout O'CHIRILDI (2026-10-03 pentest): autentifikatsiyasiz har kimga
+  // CITY_ADMIN berardi.
   fastify.get('/admin/system-health', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const cityId = await getCityId(req);
@@ -4007,11 +3960,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // panelidan o'zgartirilishi bilan SSH/serverga tegmasdan qo'llanadi.
   fastify.get('/admin/settings/:key', async (req: any, reply) => {
     const { key } = req.params;
+    if (SECRET_SETTING_KEYS.has(key)) return reply.code(403).send({ success: false });
     const setting = await db.appSetting.findUnique({ where: { key } });
     return { key, value: setting?.value || '' };
   });
 
   fastify.put('/admin/settings/:key', async (req: any, reply) => {
+    if (SECRET_SETTING_KEYS.has(req.params.key)) return reply.code(403).send({ success: false });
     if (!await requireAdmin(req, reply)) return;
     const { key } = req.params;
     const { value } = req.body;
