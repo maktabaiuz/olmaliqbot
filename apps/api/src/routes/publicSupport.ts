@@ -81,6 +81,8 @@ export async function getMissingChannelsForUser(telegramId: bigint) {
   return missing;
 }
 
+export const UNASSIGNED_LANDMARK = 'MFY tanlanmagan';
+
 // ---------- Yozuv kartasi (TELEFONSIZ) ----------
 export const PUBLIC_LISTING_SELECT = {
   id: true,
@@ -117,7 +119,8 @@ export function toPublicCard(l: any) {
     name: l.name,
     type: l.type,
     category: l.category,
-    landmark: l.primaryLandmark,
+    // "MFY tanlanmagan" — vaqtinchalik joy, foydalanuvchiga ko'rsatilmaydi
+    landmark: l.primaryLandmark?.name === UNASSIGNED_LANDMARK ? null : l.primaryLandmark,
     serviceAreas: l.serviceAreaLandmarks || [],
     verified: l.verification === 'VERIFIED',
     rating: { score: calculateBayesianRating(up, down), up, down },

@@ -47,7 +47,10 @@ export const OnboardingScreen: React.FC<{ route: Route; onDone: () => void }> = 
   const [mahalla, setMahalla] = useState<string | null>(readMahalla);
   const scroller = useRef<HTMLDivElement>(null);
   const landmarks = useAsync(() => api.landmarks(), []);
-  const areas = (landmarks.data || []).filter((l) => !l.name.toLowerCase().includes('butun shahar'));
+  const [q, setQ] = useState('');
+  const areas = (landmarks.data || [])
+    .filter((l) => !l.name.toLowerCase().includes('butun shahar'))
+    .filter((l) => !q.trim() || l.name.toLowerCase().includes(q.trim().toLowerCase()));
 
   const goTo = (i: number) => {
     const el = scroller.current;
@@ -145,19 +148,22 @@ export const OnboardingScreen: React.FC<{ route: Route; onDone: () => void }> = 
             <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight leading-tight mb-2">Mahallangizni tanlang</h1>
             <p className="font-body-md text-body-md text-on-surface-variant px-1 leading-relaxed">Yaqin atrofdagi natijalarni birinchi ko'rsatamiz. Keyin profilda o'zgartirish mumkin.</p>
           </div>
-          <div className="flex flex-wrap gap-2 justify-center max-h-48 overflow-y-auto pb-2">
-            {landmarks.loading && <span className="font-body-sm text-body-sm text-on-surface-variant">Yuklanmoqda…</span>}
-            {areas.map((l, i) => (
+          <div className="flex items-center bg-surface-container-lowest rounded-full px-4 h-11 shadow-sm gap-2 mb-2">
+            <span className="material-symbols-outlined text-primary text-[20px]">search</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mahalla nomi…" className="flex-1 bg-transparent outline-none font-body-md text-body-md text-on-surface placeholder:text-outline" />
+          </div>
+          <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pb-2 no-scrollbar">
+            {landmarks.loading && <span className="font-body-sm text-body-sm text-on-surface-variant col-span-2 text-center">Yuklanmoqda…</span>}
+            {areas.map((l) => (
               <button
                 key={l.id}
                 onClick={() => pick(l.id)}
-                style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}
-                className={`anim-slide-up px-4 py-2 rounded-full font-label-md text-label-md active:scale-95 transition-all ${
+                className={`h-11 px-3 rounded-full font-label-md text-label-md text-left truncate active:scale-95 transition-all flex items-center gap-1 ${
                   mahalla === l.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/30' : 'bg-surface-container-lowest text-on-surface shadow-sm'
                 }`}
               >
-                {mahalla === l.id && <span className="material-symbols-outlined text-[16px] align-middle mr-1">check</span>}
-                {l.name}
+                {mahalla === l.id && <span className="material-symbols-outlined text-[16px]">check</span>}
+                <span className="truncate">{l.name.replace(/ MFY$/, '')}</span>
               </button>
             ))}
           </div>

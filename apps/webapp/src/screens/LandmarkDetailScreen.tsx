@@ -286,7 +286,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         {/* Guruh: Mahalliy nomlari */}
         <div>
           <div className="flex items-center justify-between px-1 mb-1.5">
-            <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Mahalliy nomlari</span>
+            <span className="text-[13px] font-normal text-[#8E8E93] uppercase tracking-wide">Mahalliy jargonlar va mo'ljallar</span>
             {canSuggestAi && (
               <button
                 onClick={handleSuggest}
@@ -302,7 +302,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
           <div className="bg-white dark:bg-[#1C1C1E] rounded-[10px] shadow-sm overflow-hidden">
             <div className="px-3.5 py-3 flex flex-wrap gap-1.5">
               {synonyms.length === 0 && (
-                <span className="text-[13px] text-[#8E8E93]">Hali mahalliy nom qo'shilmagan</span>
+                <span className="text-[13px] text-[#8E8E93]">Hali jargon qo'shilmagan — masalan: korzinka, 5/1, eski bozor, sariq dom</span>
               )}
               {synonyms.map(syn => (
                 <span

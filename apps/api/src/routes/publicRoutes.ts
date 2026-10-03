@@ -82,7 +82,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
 
   fastify.get('/public/landmarks', async () => {
     const cityId = await getPublicCityId();
-    return db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, latitude: true, longitude: true, boundary: true }, orderBy: { name: 'asc' } });
+    return db.landmark.findMany({ where: { cityId, NOT: { name: 'MFY tanlanmagan' } }, select: { id: true, name: true, latitude: true, longitude: true, boundary: true }, orderBy: { name: 'asc' } });
   });
 
   // Ro'yxat bo'yicha ko'rish (kategoriya / hudud / tur / hozir ochiq)
