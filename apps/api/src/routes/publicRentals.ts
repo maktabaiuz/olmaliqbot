@@ -109,7 +109,10 @@ export function registerRentals(fastify: FastifyInstance) {
         rentTermType: term,
         photoUrls: photos,
         description: description || null,
-        status: 'PAUSED',
+        // Darhol ko'rinadi ("⚠️ Xalq aytgan" belgisi bilan); admin keyin
+        // tekshirib "Tasdiqlangan" qiladi yoki o'chiradi (egasining talabi).
+        status: 'ACTIVE',
+        verification: 'COMMUNITY_UNVERIFIED',
         source: 'webapp',
         ownerTelegramId: tg,
         jargonSynonyms: [],
