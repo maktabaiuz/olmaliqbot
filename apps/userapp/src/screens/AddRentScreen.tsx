@@ -125,9 +125,9 @@ export const AddRentScreen: React.FC<{ route: Route }> = () => {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center text-center px-6 gap-5 bg-surface">
         <BlobFamily size={44} shapes={['triangle', 'cloud', 'sphere', 'pill']} />
-        <h1 className="font-headline-lg text-headline-lg text-on-surface">E'loningiz qabul qilindi! 🎉</h1>
+        <h1 className="font-headline-lg text-headline-lg text-on-surface">E'loningiz joylandi! 🎉</h1>
         <p className="font-body-md text-body-md text-on-surface-variant max-w-xs">
-          Admin tekshirgach, e'lon "Arenda" bo'limida chiqadi. Uy berilgach, "Mening e'lonlarim"dan <b>Berildi</b> tugmasini bosing.
+          E'loningiz hozirdanoq "Arenda" bo'limida chiqdi. Uy berilgach, "Mening e'lonlarim"dan <b>Berildi</b> tugmasini bosing.
         </p>
         <button onClick={() => navigate('/rent', { replace: true })} className="h-14 px-8 rounded-full bg-primary text-on-primary font-label-lg text-label-lg clay-fab active:scale-95">
           Arenda bo'limiga
