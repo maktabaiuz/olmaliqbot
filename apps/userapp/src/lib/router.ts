@@ -51,6 +51,8 @@ export function useRoute(): Route {
     bb.onClick(goBack);
     return () => bb.offClick(goBack);
   }, [route.path]);
-  useEffect(() => window.scrollTo(0, 0), [route.path]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route.path]);
   return route;
 }

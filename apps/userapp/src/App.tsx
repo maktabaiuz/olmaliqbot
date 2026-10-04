@@ -10,7 +10,29 @@ import { CategoryScreen } from './screens/CategoryScreen';
 import { Blob } from './components/Blob';
 
 // 3D xarita kutubxonasi og'ir (~200 KB) — faqat Xarita ochilganda yuklanadi.
-const MapScreen = lazy(() => import('./screens/MapScreen').then((m) => ({ default: m.MapScreen })));
+// Deploy'dan keyin eski sahifada yangi bo'lak topilmasa — bir marta yangilanadi.
+const MapScreen = lazy(() =>
+  import('./screens/MapScreen')
+    .then((m) => {
+      try {
+        sessionStorage.removeItem('kb_chunk_reload');
+      } catch {
+        /* xotira yopiq */
+      }
+      return { default: m.MapScreen };
+    })
+    .catch((err) => {
+      let reloaded = false;
+      try {
+        reloaded = sessionStorage.getItem('kb_chunk_reload') === '1';
+        sessionStorage.setItem('kb_chunk_reload', '1');
+      } catch {
+        /* xotira yopiq */
+      }
+      if (!reloaded) window.location.reload();
+      throw err;
+    }),
+);
 const MapFallback = () => (
   <div className="min-h-screen flex flex-col items-center justify-center gap-4">
     <Blob shape="sphere" mood="scan" size={88} />
