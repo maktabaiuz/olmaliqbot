@@ -2496,7 +2496,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // Mo'ljal nomi/sinonimlarini tahrirlash — MUHIM (2026-09): bu endpoint
   // ham avval mavjud emas edi, "Saqlash" tugmasi doim xato berardi.
   fastify.put('/admin/landmarks/:id', async (req: any, reply) => {
-    if (!await requireSuperAdmin(req, reply)) return;
+    // (2026-10-06) jargon qo'shish — har qanday admin (avval faqat super-admin; boshqalarda jim xato)
+    if (!await requireAdmin(req, reply)) return;
     const { id } = req.params as { id: string };
     const { name, synonyms } = req.body as { name?: string; synonyms?: string[] };
 
@@ -2507,9 +2508,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
       where: { id },
       data: {
         ...(name && name.trim() && { name: name.trim() }),
-        ...(synonyms && { synonyms: synonyms.map((s) => s.toLowerCase().trim()).filter(Boolean) }),
+        ...(synonyms && { synonyms: Array.from(new Set(synonyms.map((s) => String(s).toLowerCase().trim()).filter(Boolean))).slice(0, 80) }),
       },
     });
+    await db.auditLog.create({ data: { userId: req.user?.id ?? null, cityId: existing.cityId, action: 'LANDMARK_UPDATE', details: { landmarkId: id, synonyms: updated.synonyms } } }).catch(() => {});
     return { success: true, landmark: updated };
   });
 

@@ -423,7 +423,7 @@ export async function getLandmarkVocabulary(cityId: string): Promise<Set<string>
       }
     }
   }
-  landmarkVocabCache.set(cityId, { words, expiresAt: Date.now() + CATEGORY_VOCAB_TTL_MS });
+  landmarkVocabCache.set(cityId, { words, expiresAt: Date.now() + 60_000 });
   return words;
 }
 

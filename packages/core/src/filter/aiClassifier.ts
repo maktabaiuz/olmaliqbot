@@ -291,7 +291,7 @@ async function callGeminiClassifier(
     const landmarkNames = cityId ? await getRealLandmarkNames(cityId) : [];
     const landmarkContext =
       landmarkNames.length > 0
-        ? `\n\nKNOWN LANDMARKS IN THIS CITY (reference only, not exhaustive — if the person's wording clearly matches one of these, use this exact spelling for "landmark"; if they mention a different/unlisted place, use their own wording as usual, do not force-fit):\n${landmarkNames.join(', ')}`
+        ? `\n\nNEIGHBORHOODS (MFY) OF THIS CITY with their local nicknames in parentheses. If the person names a neighborhood OR any of its local nicknames/landmarks (e.g. a shop, bazaar, block number like "5/1"), return that MFY's exact name (e.g. "Metallurg MFY") as "landmark". If the place is not in this list, use their own wording; never force-fit:\n${landmarkNames.join('; ')}`
         : '';
 
     const response = await fetch(

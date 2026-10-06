@@ -14,7 +14,6 @@ import { normalizeText } from '../transliteration';
 // haqiqiy mo'ljallar ro'yxati AI'ga "ma'lumot beruvchi" kontekst
 // sifatida beriladi — AI bilgan joyni TO'G'RI yozishga yordam beradi,
 // lekin yangi/bizda yo'q joyni aytish erkinligini cheklamaydi.
-const LANDMARK_CONTEXT_TTL_MS = 10 * 60 * 1000;
 const landmarkContextCache = new Map<string, { names: string[]; expiresAt: number }>();
 
 /**
@@ -32,16 +31,22 @@ export async function getRealLandmarkNames(cityId: string): Promise<string[]> {
     select: { name: true, synonyms: true },
   });
 
-  const names = Array.from(
-    new Set(
-      landmarks.flatMap((l) => {
-        const forms = [normalizeText(l.name), ...l.synonyms.slice(0, 2).map((s) => normalizeText(s))];
-        return forms.filter(Boolean);
-      })
-    )
-  ).sort();
+  // (2026-10-06) Har bir MFY — barcha mahalliy jargonlari bilan (avtomatik
+  // qo'shilgan "X mahalla/mfy" shakllari bundan mustasno). Avval faqat
+  // birinchi 2 sinonim berilardi — admin kiritgan "korzinka", "5/1" kabi
+  // jargonlar AI'ga umuman yetib bormasdi.
+  const names = landmarks
+    .filter((l) => l.name !== 'MFY tanlanmagan')
+    .map((l) => {
+      const base = normalizeText(l.name.replace(/\s*MFY$/i, ''));
+      const jargon = Array.from(new Set(l.synonyms.map((x) => normalizeText(x))))
+        .filter((x) => x && x !== base && !/(mahalla|mahallasi|mfy)$/.test(x) && x !== base.replace(/'/g, ''))
+        .slice(0, 15);
+      return jargon.length ? `${l.name} (= ${jargon.join(', ')})` : l.name;
+    })
+    .sort();
 
-  landmarkContextCache.set(cityId, { names, expiresAt: Date.now() + LANDMARK_CONTEXT_TTL_MS });
+  landmarkContextCache.set(cityId, { names, expiresAt: Date.now() + 60_000 }); // jargonlar deyarli jonli yangilansin
   return names;
 }
 

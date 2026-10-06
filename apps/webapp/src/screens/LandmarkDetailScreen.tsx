@@ -73,13 +73,32 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarkId]);
 
-  const handleAddSynonym = (raw?: string) => {
-    const clean = (raw ?? newSynonym).trim().toLowerCase();
-    if (clean && !synonyms.includes(clean)) {
-      setSynonyms([...synonyms, clean]);
-      if (!raw) setNewSynonym('');
+  // (2026-10-06) Jargonlar darhol avtomatik saqlanadi — avval faqat yuqoridagi
+  // "Saqlash" bosilganda saqlanardi va sahifadan chiqilsa yo'qolardi.
+  const persistSynonyms = async (next: string[]) => {
+    setSynonyms(next);
+    try {
+      const initData = window.Telegram?.WebApp?.initData || '';
+      const res = await fetch(`/api/admin/landmarks/${landmarkId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-init-data': initData },
+        body: JSON.stringify({ synonyms: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) showToast('Saqlandi ✓ — bot darhol tushunadi', 'success');
+      else showToast(data.message || "Saqlab bo'lmadi", 'error');
+    } catch {
+      showToast('Aloqa xatosi — saqlanmadi', 'error');
     }
-    setSuggestions((prev) => prev.filter((s) => s !== clean));
+  };
+
+  const handleAddSynonym = (raw?: string) => {
+    // Vergul bilan bir nechtasini birdan kiritish mumkin: "korzinka, 5/1, sariq dom"
+    const parts = (raw ?? newSynonym).split(/[,;\n]/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    const fresh = parts.filter((p) => !synonyms.includes(p));
+    if (!raw) setNewSynonym('');
+    setSuggestions((prev) => prev.filter((s) => !parts.includes(s)));
+    if (fresh.length) persistSynonyms([...synonyms, ...fresh]);
   };
 
   const handleSuggest = async () => {
@@ -118,7 +137,8 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
         },
         body: JSON.stringify({
           name,
-          synonyms,
+          // yozilgan, lekin "Qo'shish" bosilmagan so'z ham yo'qolmasin
+          synonyms: Array.from(new Set([...synonyms, ...newSynonym.split(/[,;\n]/).map((x) => x.trim().toLowerCase()).filter(Boolean)])),
         }),
       });
       if (response.ok) {
@@ -311,7 +331,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
                 >
                   {syn}
                   <button
-                    onClick={() => setSynonyms(synonyms.filter(s => s !== syn))}
+                    onClick={() => persistSynonyms(synonyms.filter(s => s !== syn))}
                     className="w-4 h-4 rounded-full bg-[#007AFF]/20 dark:bg-[#0A84FF]/25 flex items-center justify-center hover:bg-[#FF3B30] hover:text-white transition-colors"
                     aria-label={`${syn}ni o'chirish`}
                   >
@@ -348,7 +368,7 @@ export const LandmarkDetailScreen: React.FC<LandmarkDetailScreenProps> = ({
                 value={newSynonym}
                 onChange={(e) => setNewSynonym(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddSynonym(); }}
-                placeholder="Yangi mahalliy nom qo'shish..."
+                placeholder="Masalan: korzinka, 5/1, sariq dom (vergul bilan)"
                 className="flex-1 bg-transparent text-[15px] text-on-surface dark:text-white placeholder:text-[#8E8E93] focus:outline-none"
               />
               <button
