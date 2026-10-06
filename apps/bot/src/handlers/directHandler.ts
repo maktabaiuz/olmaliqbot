@@ -26,12 +26,31 @@ const userSessions: Record<number, {
 }> = {};
 
 /** /start xush kelibsiz xabari (obuna tekshiruvidan o'tgach ham chaqiriladi). */
+/** Foydalanuvchi ilovasi (userapp) — ijara bo'limlari uchun (2026-10-06). */
+const USER_APP_URL = `https://${process.env.DOMAIN || 'olmaliq.online'}/app/`;
+export const RENTAL_BUTTONS = [
+  { text: '🏠 Ijara berish', web_app: { url: `${USER_APP_URL}?go=rent_add` }, style: 'success' },
+  { text: "🔎 Ijara ko'rish", web_app: { url: `${USER_APP_URL}?go=rent` }, style: 'primary' },
+];
+
+/** /start rental_add | rental — reklama deep link'i: bitta bosishda kerakli bo'limga. */
+export async function sendRentalEntry(ctx: Context, mode: 'add' | 'browse') {
+  const add = mode === 'add';
+  await ctx.reply(
+    add
+      ? `<b>🏠 Uyingizni ijaraga qo'ying</b>\n\nRasm, narx va mahallani kiriting — 1 daqiqa. E'loningizni Olmaliq bo'yicha minglab odamlar ko'radi. Bepul.`
+      : `<b>🔎 Olmaliqda ijara uy toping</b>\n\nKvartira, hovli uy, xona — mahalla, narx va xona soni bo'yicha.`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[add ? RENTAL_BUTTONS[0] : RENTAL_BUTTONS[1]], [add ? RENTAL_BUTTONS[1] : RENTAL_BUTTONS[0]]] } as any }
+  );
+}
+
 export async function sendStartWelcome(ctx: Context) {
   if (ctx.from) await clearHistory(ctx.from.id);
   const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
   // Telegram Bot API: style = primary (ko'k) | success (yashil) | danger (qizil)
   const startKeyboard = {
     inline_keyboard: [
+      RENTAL_BUTTONS,
       [{ text: "🌐  Webga o'tish", web_app: { url: webappUrl }, style: "primary" }],
       [{ text: "➕  O'zimni qo'shish", callback_data: "start_add_me", style: "success" }],
       [{ text: "💬  Chatda so'rash", callback_data: "start_chat", style: "primary" }],
@@ -41,7 +60,8 @@ export async function sendStartWelcome(ctx: Context) {
   await ctx.reply(
     `<b>Assalomu alaykum${firstName}! 👋</b>\n\n` +
       `Men Olmaliq yordamchisiman. Usta, do'kon, xizmat yoki joy — nima kerak bo'lsa, oddiy tilda yozing, ` +
-      `bazamizdan topib beraman.\n\n<i>Masalan: santexnik kerak · 3-mavzeda dorixona bormi?</i>`,
+      `bazamizdan topib beraman.\n\n<i>Masalan: santexnik kerak · 3-mavzeda dorixona bormi?</i>\n\n` +
+      `🏠 <b>Uy ijaraga berasizmi yoki uy qidiryapsizmi?</b> Pastdagi tugmani bosing 👇`,
     { parse_mode: 'HTML', reply_markup: startKeyboard as any }
   );
 }
@@ -63,7 +83,14 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
     userSessions[userId] = session;
   }
 
-  if (messageText === '/start') {
+  // Deep link: t.me/olmaliq_bot?start=rental_add | rental
+  if (messageText === '/start rental_add' || messageText === '/start rental') {
+    session.step = undefined;
+    await sendRentalEntry(ctx, messageText.endsWith('rental_add') ? 'add' : 'browse');
+    return;
+  }
+
+  if (messageText === '/start' || messageText.startsWith('/start ')) {
     session.step = undefined;
     session.offerCategory = undefined;
     session.pendingSearch = undefined;

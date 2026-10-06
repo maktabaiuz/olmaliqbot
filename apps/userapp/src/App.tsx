@@ -79,7 +79,10 @@ export const App: React.FC = () => {
     if (sp?.startsWith('listing_')) navigate(`/listing/${sp.slice(8)}`, { replace: true });
   }, []);
 
-  if (!onboarded && route.path !== '/sos') {
+  // Aniq maqsad bilan kelgan foydalanuvchi (ijara tugmasi, ulashilgan e'lon)
+  // onboarding sahifalaridan o'tkazilmaydi — reklama funnelida ortiqcha qadam.
+  const directEntry = route.path === '/sos' || route.path.startsWith('/rent') || route.path.startsWith('/listing');
+  if (!onboarded && !directEntry) {
     return (
       <ToastProvider>
         <OnboardingScreen
