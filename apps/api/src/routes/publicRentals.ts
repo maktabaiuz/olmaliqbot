@@ -74,32 +74,9 @@ export function registerRentals(fastify: FastifyInstance) {
   });
 
   fastify.post('/public/rentals', async (req: any, reply) => {
-    const tg: bigint = req.publicUser.telegramId;
-    const today = await db.listing.count({ where: { ownerTelegramId: tg, createdAt: { gte: new Date(Date.now() - 86400_000) } } });
-    if (today >= RENTALS_PER_DAY) return reply.code(429).send({ success: false, message: "Bugun 3 ta e'lon berdingiz — ertaga yana qo'shishingiz mumkin" });
-    const v = await validateRental(req.body || {});
-    if ('error' in v) return reply.code(400).send({ success: false, message: v.error });
-    const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls });
-    if (mod.verdict === 'spam') return reply.code(400).send({ success: false, message: `E'lon qabul qilinmadi: ${mod.reasons.join('; ')}` });
-    const pending = mod.verdict === 'suspicious';
-    const listing = await db.listing.create({
-      data: {
-        ...v.data,
-        type: 'ARENDA',
-        status: pending ? 'PAUSED' : 'ACTIVE',
-        verification: 'COMMUNITY_UNVERIFIED',
-        source: 'webapp',
-        ownerTelegramId: tg,
-        moderationStatus: pending ? 'pending' : null,
-        moderationReasons: mod.reasons,
-        jargonSynonyms: [],
-        badges: [],
-      },
-      select: { id: true, cityId: true },
-    });
-    await db.auditLog.create({ data: { cityId: listing.cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), verdict: mod.verdict, reasons: mod.reasons } } }).catch(() => {});
-    if (NOTIFY_ADMINS && pending) notifyAdmins(`⚠️ Shubhali ijara e'loni: ${esc(v.data.name)}\n${esc(mod.reasons.join('; '))}`).catch(() => {});
-    return { success: true, id: listing.id, pending, reasons: pending ? mod.reasons : [] };
+    const r = await createUserRental(req.publicUser.telegramId, req.body || {}, 'webapp');
+    if (!r.success) return reply.code(r.code).send({ success: false, message: r.message });
+    return r;
   });
 
   // Tahrirlash (faqat egasi) — qayta tekshiruvdan o'tadi
@@ -155,6 +132,38 @@ export function registerRentals(fastify: FastifyInstance) {
     if (r.count === 0) return reply.code(404).send({ success: false });
     return { success: true };
   });
+}
+
+/**
+ * Foydalanuvchi ijara e'lonini yaratish — ilova (webapp) va bot chatidagi
+ * AI suhbat (bot) uchun BIR XIL: kunlik limit, tekshiruv, moderatsiya.
+ */
+export async function createUserRental(tg: bigint, body: any, source: 'webapp' | 'bot_chat') {
+  const today = await db.listing.count({ where: { ownerTelegramId: tg, createdAt: { gte: new Date(Date.now() - 86400_000) } } });
+  if (today >= RENTALS_PER_DAY) return { success: false as const, code: 429, message: "Bugun 3 ta e'lon berdingiz — ertaga yana qo'shishingiz mumkin" };
+  const v = await validateRental(body);
+  if ('error' in v) return { success: false as const, code: 400, message: v.error };
+  const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls });
+  if (mod.verdict === 'spam') return { success: false as const, code: 400, message: `E'lon qabul qilinmadi: ${mod.reasons.join('; ')}` };
+  const pending = mod.verdict === 'suspicious';
+  const listing = await db.listing.create({
+    data: {
+      ...v.data,
+      type: 'ARENDA',
+      status: pending ? 'PAUSED' : 'ACTIVE',
+      verification: 'COMMUNITY_UNVERIFIED',
+      source,
+      ownerTelegramId: tg,
+      moderationStatus: pending ? 'pending' : null,
+      moderationReasons: mod.reasons,
+      jargonSynonyms: [],
+      badges: [],
+    },
+    select: { id: true, cityId: true },
+  });
+  await db.auditLog.create({ data: { cityId: listing.cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), verdict: mod.verdict, reasons: mod.reasons } } }).catch(() => {});
+  if (NOTIFY_ADMINS && pending) notifyAdmins(`⚠️ Shubhali ijara e'loni: ${esc(v.data.name)}\n${esc(mod.reasons.join('; '))}`).catch(() => {});
+  return { success: true as const, id: listing.id, pending, reasons: pending ? mod.reasons : [] };
 }
 
 const uploadCount = new Map<string, number>();

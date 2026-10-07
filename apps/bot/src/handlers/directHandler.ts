@@ -7,6 +7,7 @@ import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
 import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
 import { getAssistantReply, rememberTurn, clearHistory } from '../ai/chatAssistant';
+import { handleRentalText, handleRentalCallback, clearRentState } from '../ai/rentalAgent';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -40,17 +41,24 @@ export async function sendRentalEntry(ctx: Context, mode: 'add' | 'browse') {
     add
       ? `<b>🏠 Uyingizni ijaraga qo'ying</b>\n\nRasm, narx va mahallani kiriting — 1 daqiqa. E'loningizni Olmaliq bo'yicha minglab odamlar ko'radi. Bepul.`
       : `<b>🔎 Olmaliqda ijara uy toping</b>\n\nKvartira, hovli uy, xona — mahalla, narx va xona soni bo'yicha.`,
-    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[add ? RENTAL_BUTTONS[0] : RENTAL_BUTTONS[1]], [add ? RENTAL_BUTTONS[1] : RENTAL_BUTTONS[0]]] } as any }
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[add ? { text: "💬 Shu yerda joylash (savol-javob)", callback_data: 'rent:start_offer', style: 'success' } : { text: '💬 Chatda qidirish', callback_data: 'rent:start_seek', style: 'primary' }], [add ? RENTAL_BUTTONS[0] : RENTAL_BUTTONS[1]], [add ? RENTAL_BUTTONS[1] : RENTAL_BUTTONS[0]]] } as any }
   );
 }
 
 export async function sendStartWelcome(ctx: Context) {
-  if (ctx.from) await clearHistory(ctx.from.id);
+  if (ctx.from) {
+    await clearHistory(ctx.from.id);
+    await clearRentState(ctx.from.id);
+  }
   const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
   // Telegram Bot API: style = primary (ko'k) | success (yashil) | danger (qizil)
   const startKeyboard = {
     inline_keyboard: [
-      RENTAL_BUTTONS,
+      [
+        { text: '🔎 Uy qidiryapman', callback_data: 'rent:start_seek', style: 'primary' },
+        { text: '🏠 Uyimni ijaraga beraman', callback_data: 'rent:start_offer', style: 'success' },
+      ],
+      [{ text: "📱 Ijara e'lonlari ilovada", web_app: { url: `${USER_APP_URL}?go=rent` } }],
       [{ text: "🌐  Webga o'tish", web_app: { url: webappUrl }, style: "primary" }],
       [{ text: "➕  O'zimni qo'shish", callback_data: "start_add_me", style: "success" }],
       [{ text: "💬  Chatda so'rash", callback_data: "start_chat", style: "primary" }],
@@ -59,9 +67,10 @@ export async function sendStartWelcome(ctx: Context) {
   const firstName = ctx.from?.first_name ? `, ${escapeHtml(ctx.from.first_name)}` : '';
   await ctx.reply(
     `<b>Assalomu alaykum${firstName}! 👋</b>\n\n` +
-      `Men Olmaliq yordamchisiman. Usta, do'kon, xizmat yoki joy — nima kerak bo'lsa, oddiy tilda yozing, ` +
-      `bazamizdan topib beraman.\n\n<i>Masalan: santexnik kerak · 3-mavzeda dorixona bormi?</i>\n\n` +
-      `🏠 <b>Uy ijaraga berasizmi yoki uy qidiryapsizmi?</b> Pastdagi tugmani bosing 👇`,
+      `Men Olmaliq yordamchisiman. Sizga nima kerak — shunchaki oddiy tilda yozing, birga topamiz 🙂\n\n` +
+      `🏠 <b>Uy kerakmi?</b> Masalan: <i>«2 xonali kvartira kerak, Kimyogarda»</i>\n` +
+      `🔑 <b>Uyingiz bormi?</b> <i>«Uyimni ijaraga bermoqchiman»</i> deb yozing — maklersiz, bepul joylab beraman.\n` +
+      `🔧 <b>Usta yoki xizmat?</b> <i>«santexnik kerak» · «3-mavzeda dorixona bormi?»</i>`,
     { parse_mode: 'HTML', reply_markup: startKeyboard as any }
   );
 }
@@ -261,6 +270,10 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
   }
 
   const activeCityId = session.cityId || defaultCityId;
+
+  // Ijara suhbati (2026-10-08): "uy qidiryapman" / "uyim bor" — AI bilan
+  // samimiy suhbat, bazadan e'lon ko'rsatish yoki e'lonni chatda joylash.
+  if (await handleRentalText(ctx, activeCityId, messageText)) return;
 
   // Mahalliy dispecher/xizmat raqamlari (2026-09) — guruh pipeline'idagi
   // bilan bir xil mantiq, qarang: groupHandler.ts.
@@ -464,6 +477,8 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     session = { cityId: defaultCityId };
     userSessions[userId] = session;
   }
+
+  if (await handleRentalCallback(ctx, session.cityId || defaultCityId, data)) return;
 
   if (data === 'start_add_me' || data === 'add_me_yes') {
     await ctx.answerCallbackQuery();

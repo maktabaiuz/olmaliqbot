@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks, sendStartWelcome } from './handlers/directHandler';
+import { handleRentalPhoto, handleRentalContact } from './ai/rentalAgent';
 import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
 import { initGateForNewMember, enforceInviteGate, creditInviteIfTracked, announceInviteUnlocked } from './moderation/inviteGate';
 import type { Context } from 'grammy';
@@ -61,6 +62,14 @@ async function startBot() {
 
   // GrammY Outbound API message logging middleware
   bot.api.config.use((prev, method, payload, signal) => {
+    if (method === 'sendPhoto' && payload && 'chat_id' in payload) {
+      const tgUserId = BigInt((payload as any).chat_id);
+      if (tgUserId > BigInt(0)) {
+        db.chatMessage.create({
+          data: { telegramUserId: tgUserId, senderType: 'BOT_SEARCH', text: `[📷 rasm] ${(payload as any).caption || ''}`.trim() },
+        }).catch(err => console.error('Failed to log outgoing bot photo:', err));
+      }
+    }
     if (method === 'sendMessage' && payload && 'chat_id' in payload && 'text' in payload) {
       const chatId = (payload as any).chat_id;
       const text = (payload as any).text;
@@ -110,6 +119,17 @@ async function startBot() {
         },
       }).catch(err => console.error('Failed to upsert user:', err));
 
+      const inboundText = ctx.message?.text
+        ? ctx.message.text.trim()
+        : ctx.message?.photo
+          ? `[📷 rasm]${ctx.message.caption ? ' ' + ctx.message.caption : ''}`
+          : ctx.message?.contact
+            ? `[📱 kontakt] ${ctx.message.contact.phone_number}`
+            : null;
+      if (inboundText && !ctx.message?.text) {
+        db.chatMessage.create({ data: { telegramUserId: tgUserId, senderType: 'USER', text: inboundText } })
+          .catch(err => console.error('Failed to log inbound user media:', err));
+      }
       if (ctx.message?.text) {
         db.chatMessage.create({
           data: {
@@ -303,6 +323,17 @@ async function startBot() {
         console.error('Failed to remove city group:', err)
       );
     }
+  });
+
+  // Ijara e'loni chatda joylanayotganda — uy rasmlari va telefon kontakti
+  bot.on('message:photo', async (ctx) => {
+    if (ctx.chat.type !== 'private') return;
+    if (!(await passesSubscriptionGate(ctx))) return;
+    await handleRentalPhoto(ctx, cityId);
+  });
+  bot.on('message:contact', async (ctx) => {
+    if (ctx.chat.type !== 'private') return;
+    await handleRentalContact(ctx, cityId);
   });
 
   // 4. Message routing
