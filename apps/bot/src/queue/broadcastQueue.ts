@@ -140,8 +140,32 @@ async function sendBroadcastToAllTargets(
       let sentMessageId: number;
       if (slideshowHtml) {
         const richHtml = `${slideshowHtml}<br>${broadcast.text.replace(/\n/g, '<br>')}`;
-        const sent = await bot.api.sendRichMessage(chatId, { html: richHtml }, { reply_markup: replyMarkup });
-        sentMessageId = sent.message_id;
+        try {
+          const sent = await bot.api.sendRichMessage(chatId, { html: richHtml }, { reply_markup: replyMarkup });
+          sentMessageId = sent.message_id;
+        } catch (richErr: any) {
+          // Rasm ochilmasa (buzuq/katta fayl — 2026-10-08 ishlab chiqarishda
+          // RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND) xabar umuman yetmay qolardi.
+          // Endi: oddiy rasm+izoh, u ham bo'lmasa — rasmsiz matn yuboriladi.
+          const reason = richErr?.description || richErr?.message || String(richErr);
+          errors.push(`Chat ${chatId}: rasm ochilmadi (${reason}) — zaxira usulda yuborildi`);
+          let fallbackSent: { message_id: number } | null = null;
+          if (broadcast.text.length <= 1024) {
+            try {
+              fallbackSent = await bot.api.sendPhoto(chatId, (/^https?:/.test(broadcast.photoUrls[0]) ? broadcast.photoUrls[0] : publicBaseUrl + broadcast.photoUrls[0]), {
+                caption: broadcast.text,
+                parse_mode: 'HTML',
+                reply_markup: replyMarkup,
+              });
+            } catch {
+              fallbackSent = null;
+            }
+          }
+          if (!fallbackSent) {
+            fallbackSent = await bot.api.sendMessage(chatId, broadcast.text, { parse_mode: 'HTML', reply_markup: replyMarkup });
+          }
+          sentMessageId = fallbackSent.message_id;
+        }
       } else {
         const sent = await bot.api.sendMessage(chatId, broadcast.text, { parse_mode: 'HTML', reply_markup: replyMarkup });
         sentMessageId = sent.message_id;
