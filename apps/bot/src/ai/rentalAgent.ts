@@ -65,6 +65,18 @@ const SEEK_RE =
 
 export type RentIntent = 'seek' | 'offer' | null;
 
+/**
+ * Suhbat davomida rejimni ALMASHTIRISH uchun faqat aniq iboralar hisobga
+ * olinadi: uy egasi "3 xonali, remonti yangi" desa, "xonali" so'zi uni
+ * qidiruvchiga aylantirib yubormasligi kerak (2026-10-08 sinovda topilgan).
+ */
+function detectExplicitIntent(text: string): RentIntent {
+  const n = normalizeText(text);
+  if (OFFER_RE.test(n)) return 'offer';
+  if (SEEK_RE.test(n.replace(/\d\s*xonali/g, ''))) return 'seek';
+  return null;
+}
+
 export function detectRentIntent(text: string): RentIntent {
   const n = normalizeText(text);
   if (!n) return null;
@@ -406,6 +418,9 @@ function nextOfferStep(s: RentState): Step {
   return 'confirm';
 }
 
+const SEEK_AI_HINT =
+  "Foydalanuvchi uy qidiryapti. Faqat 1 gaplik iliq tasdiq yoz (masalan «Tushunarli, hozir qarab ko'raman»). SAVOL BERMA va natija haqida HECH NARSA DEMA (topdim/topaman/yo'q) — e'lonlarni va savolni tizim o'zi beradi. Agar foydalanuvchi savol bergan yoki rahmat aytgan bo'lsa — qisqa javob ber.";
+
 const STEP_QUESTION: Record<Step, string> = {
   kind: "Qanday joy ijaraga bermoqchisiz — kvartira, hovli uy, xona, ofis yoki do'kon?",
   rooms: 'Necha xonali?',
@@ -535,8 +550,9 @@ export async function handleRentalText(ctx: Context, cityId: string, text: strin
   if (!s) {
     if (!intent) return false;
     s = { mode: intent, photos: [], shownIds: [] };
-  } else if (intent && intent !== s.mode) {
-    s = { mode: intent, photos: [], shownIds: [] };
+  } else {
+    const explicit = detectExplicitIntent(text);
+    if (explicit && explicit !== s.mode) s = { mode: explicit, photos: [], shownIds: [] };
   }
 
   const lm = await matchLandmark(cityId, text);
@@ -545,7 +561,7 @@ export async function handleRentalText(ctx: Context, cityId: string, text: strin
   const rulesChanged = JSON.stringify(s) !== before;
 
   if (s.mode === 'seek') {
-    const ai = await askAi(s, text, '');
+    const ai = await askAi(s, text, SEEK_AI_HINT);
     if (ai) await applyAi(s, ai, cityId);
     const changed = JSON.stringify(s) !== before || !!intent;
     if (!changed) {
