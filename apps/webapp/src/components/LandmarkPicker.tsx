@@ -1,70 +1,94 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { apiFetch } from '../config';
 
 interface LandmarkOption {
   id: string;
   name: string;
   synonyms: string[];
+  listingCount?: number;
 }
 
 export interface LandmarkPickerProps {
   /** Hozir tanlangan mo'ljal ID'si (yoki null — hali tanlanmagan). */
   value: string | null;
-  /** Tanlangan mo'ljalning ko'rsatiladigan nomi (input matnini boshlash uchun). */
+  /** Tanlangan mo'ljalning ko'rsatiladigan nomi. */
   displayName?: string;
   onChange: (landmarkId: string, landmarkName: string) => void;
   error?: string;
 }
 
+const PLACEHOLDER_NAME = 'MFY tanlanmagan';
+
+const norm = (s: string) => s.toLowerCase().replace(/[ʻʼ‘’`']/g, "'").trim();
+
+/** Avtomatik qo'shilgan "X mahalla/mfy" shakllarisiz — faqat haqiqiy mahalliy jargonlar. */
+function jargonOf(l: LandmarkOption): string[] {
+  const base = norm(l.name.replace(/\s*MFY$/i, ''));
+  const seen = new Set<string>();
+  return l.synonyms.filter((s) => {
+    const n = norm(s);
+    if (!n || n === base || n === base.replace(/'/g, '') || /(mahalla|mahallasi|mfy)$/.test(n) || seen.has(n)) return false;
+    seen.add(n);
+    return true;
+  });
+}
+
 /**
- * Mo'ljal — ERKIN MATN emas, balki bazadagi MAVJUD mo'ljallar ro'yxatidan
- * TANLASH orqali kiritiladi (2026-09 qaror: yangi ikkilanuvchi mo'ljallar
- * — "5/1", "5/1 dahasi", "5/1 dahasi blok c" kabi — tasodifan
- * ko'payib ketmasligi uchun). Qidiruv hech narsa topmasa, "+ Yangi mo'ljal
- * sifatida qo'shish" tugmasi chiqadi — shu bosilgandagina YANGI mo'ljal
- * ataylab, ochiq ko'z bilan yaratiladi.
+ * Mahalla (MFY) tanlash — maydonga bosilganda pastdan to'liq ro'yxat
+ * ochiladi. Har bir mahalla yonida uning mahalliy jargonlari ko'rinadi
+ * ("5/1", "korzinka"...), qidiruv jargon bo'yicha ham ishlaydi. Yangi
+ * mo'ljal faqat hech narsa topilmaganda, ataylab qo'shiladi.
  */
 export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayName, onChange, error }) => {
-  const [query, setQuery] = useState(displayName || '');
-  const [allLandmarks, setAllLandmarks] = useState<LandmarkOption[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [all, setAll] = useState<LandmarkOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     apiFetch('/api/admin/landmarks')
       .then((r) => (r.ok ? r.json() : []))
-      .then((data) => setAllLandmarks(data || []))
+      .then((data) => setAll(data || []))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    setQuery(displayName || '');
-  }, [displayName]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+    if (!open) return;
+    setQuery('');
+    const t = setTimeout(() => inputRef.current?.focus(), 250);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      clearTimeout(t);
+      document.body.style.overflow = prevOverflow;
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [open]);
 
-  const filtered = allLandmarks.filter((l) => {
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return l.name.toLowerCase().includes(q) || l.synonyms.some((s) => s.toLowerCase().includes(q));
-  });
+  const selected = all.find((l) => l.id === value) || null;
+  const selectedName = selected?.name || displayName || '';
+  const isUnset = !selectedName || selectedName === PLACEHOLDER_NAME;
 
-  const exactMatchExists = allLandmarks.some((l) => l.name.toLowerCase() === query.trim().toLowerCase());
-  const selectedLandmark = allLandmarks.find((l) => l.id === value) || null;
+  const results = useMemo(() => {
+    const q = norm(query);
+    const list = all
+      .filter((l) => l.name !== PLACEHOLDER_NAME)
+      .map((l) => {
+        const jargon = jargonOf(l);
+        if (!q) return { l, jargon, hits: [] as string[], rank: 0 };
+        const nameHit = norm(l.name).includes(q);
+        const hits = jargon.filter((j) => norm(j).includes(q));
+        if (!nameHit && hits.length === 0) return null;
+        return { l, jargon, hits, rank: norm(l.name).startsWith(q) ? 0 : nameHit ? 1 : 2 };
+      })
+      .filter(Boolean) as { l: LandmarkOption; jargon: string[]; hits: string[]; rank: number }[];
+    return list.sort((a, b) => a.rank - b.rank || a.l.name.localeCompare(b.l.name));
+  }, [all, query]);
 
-  const selectLandmark = (l: LandmarkOption) => {
+  const pick = (l: LandmarkOption) => {
     onChange(l.id, l.name);
-    setQuery(l.name);
-    setIsOpen(false);
+    setOpen(false);
   };
 
   const createAndSelect = async () => {
@@ -79,8 +103,8 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setAllLandmarks((prev) => [...prev, data.landmark]);
-        selectLandmark(data.landmark);
+        setAll((prev) => [...prev, data.landmark]);
+        pick(data.landmark);
       }
     } catch (err) {
       console.error('Failed to create landmark:', err);
@@ -89,69 +113,160 @@ export const LandmarkPicker: React.FC<LandmarkPickerProps> = ({ value, displayNa
     }
   };
 
+  const selectedJargon = selected ? jargonOf(selected) : [];
+
   return (
-    <div className="relative" ref={containerRef}>
-      <div className="relative">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-ios-label-secondary/70 pointer-events-none">search</span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            const next = e.target.value;
-            setQuery(next);
-            setIsOpen(true);
-            // Matn tanlangan manzil nomidan farqli bo'lib qolsa (masalan admin
-            // tanlangandan keyin ustidan qayta yoza boshlasa), eski ID'ni
-            // darhol bekor qilamiz — aks holda ekranda ko'rinayotgan matn bilan
-            // saqlanadigan manzil ID'si mos kelmay qoladi.
-            if (!next.trim() || (selectedLandmark && next !== selectedLandmark.name)) {
-              onChange('', next);
-            }
-          }}
-          onFocus={() => setIsOpen(true)}
-          placeholder="Manzilni qidiring..."
-          className={`w-full bg-ios-fill/[0.12] rounded-ios pl-9 pr-3.5 py-2.5 text-[15px] text-ios-label outline-none transition-colors ${
-            error ? 'ring-1 ring-ios-red' : 'focus:ring-1 focus:ring-ios-blue'
-          }`}
-        />
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1.5 bg-ios-card rounded-ios shadow-lg max-h-52 overflow-y-auto">
-          {filtered.length === 0 && !query.trim() && (
-            <div className="px-3.5 py-3 text-[13px] text-ios-label-secondary/70">Manzil nomini yozing...</div>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`w-full text-left rounded-ios px-3 py-2.5 flex items-center gap-2.5 transition-colors active:bg-ios-fill/20 ${
+          error ? 'bg-ios-red/10 ring-1 ring-ios-red' : isUnset ? 'bg-ios-blue/10' : 'bg-ios-fill/[0.12]'
+        }`}
+      >
+        <span
+          className={`material-symbols-outlined text-[20px] shrink-0 ${isUnset ? 'text-ios-blue' : 'text-ios-green'}`}
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
+          {isUnset ? 'add_location_alt' : 'location_on'}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className={`block text-[15px] font-semibold truncate ${isUnset ? 'text-ios-blue' : 'text-ios-label'}`}>
+            {isUnset ? 'Mahallani tanlang' : selectedName}
+          </span>
+          {!isUnset && selectedJargon.length > 0 && (
+            <span className="block text-[12px] text-ios-label-secondary/80 truncate mt-0.5">
+              {selectedJargon.slice(0, 4).join(' · ')}
+            </span>
           )}
-          {filtered.slice(0, 30).map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => selectLandmark(l)}
-              className="w-full text-left px-3.5 py-2.5 text-[13px] font-medium text-ios-label active:bg-ios-fill/10 border-b-[0.5px] border-ios-separator/[0.29] last:border-b-0"
-            >
-              📍 {l.name}
-              {l.synonyms.length > 0 && (
-                <span className="text-[11px] text-ios-label-secondary/70 font-normal ml-1.5">({l.synonyms.join(', ')})</span>
-              )}
-            </button>
-          ))}
+        </span>
+        <span className="material-symbols-outlined text-[20px] text-ios-label-secondary/60 shrink-0">chevron_right</span>
+      </button>
+      {error && <p className="text-ios-red text-[11px] font-medium mt-1">{error}</p>}
 
-          {query.trim() && !exactMatchExists && (
-            <button
-              type="button"
-              onClick={createAndSelect}
-              disabled={creating}
-              className="w-full text-left px-3.5 py-2.5 text-[13px] font-semibold text-ios-blue active:bg-ios-blue/5 disabled:opacity-50"
+      {open &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex flex-col justify-end" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 bg-black/45" onClick={() => setOpen(false)} />
+            <div
+              className="relative bg-ios-bg rounded-t-[22px] max-w-container-max w-full mx-auto flex flex-col shadow-2xl"
+              style={{ height: '88vh', animation: 'lpSlideUp .28s cubic-bezier(.2,.8,.2,1)' }}
             >
-              {creating ? 'Qo\'shilmoqda...' : `+ "${query.trim()}"ni yangi manzil sifatida qo'shish`}
-            </button>
-          )}
-        </div>
-      )}
+              <style>{`@keyframes lpSlideUp{from{transform:translateY(100%)}to{transform:none}}`}</style>
+              <div className="pt-2 pb-1 flex justify-center">
+                <span className="w-9 h-[5px] rounded-full bg-ios-label-secondary/30" />
+              </div>
+              <div className="px-4 pt-1 pb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-[20px] font-bold text-ios-label">Mahallani tanlang</div>
+                  <div className="text-[12px] text-ios-label-secondary/80">Nomi yoki mahalliy atamasi bo'yicha qidiring</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="w-8 h-8 rounded-full bg-ios-fill/20 flex items-center justify-center active:opacity-60"
+                  aria-label="Yopish"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-ios-label-secondary">close</span>
+                </button>
+              </div>
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-ios-label-secondary/70 pointer-events-none">
+                    search
+                  </span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Masalan: Kimyogar, 5/1, korzinka..."
+                    className="w-full bg-ios-fill/[0.16] rounded-[12px] pl-9 pr-9 py-2.5 text-[16px] text-ios-label outline-none focus:ring-1 focus:ring-ios-blue"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-ios-label-secondary/70"
+                      aria-label="Tozalash"
+                    >
+                      cancel
+                    </button>
+                  )}
+                </div>
+              </div>
 
-      {error && <p className="text-ios-red text-[11px] font-medium mt-0.5">{error}</p>}
-      {!value && !error && (
-        <p className="text-[11px] text-ios-label-secondary/70 mt-0.5">Ro'yxatdan tanlang, yoki topilmasa yangi qo'shing.</p>
-      )}
-    </div>
+              <div className="flex-1 overflow-y-auto px-4 pb-8 overscroll-contain">
+                {all.length === 0 && <div className="text-center text-[14px] text-ios-label-secondary/70 py-10">Yuklanmoqda...</div>}
+                <div className="flex flex-col gap-2">
+                  {results.map(({ l, jargon, hits }) => {
+                    const active = l.id === value;
+                    const chips = hits.length ? [...hits, ...jargon.filter((j) => !hits.includes(j))] : jargon;
+                    return (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => pick(l)}
+                        className={`w-full text-left rounded-[14px] px-3.5 py-3 transition-colors active:scale-[.99] ${
+                          active ? 'bg-ios-blue/12' : 'bg-ios-card active:bg-ios-fill/10'
+                        }`}
+                        style={active ? { boxShadow: 'inset 0 0 0 1.5px rgb(var(--ios-blue))' } : undefined}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`material-symbols-outlined text-[20px] shrink-0 ${active ? 'text-ios-blue' : 'text-ios-label-secondary/60'}`}
+                            style={{ fontVariationSettings: active ? "'FILL' 1" : undefined }}
+                          >
+                            {active ? 'check_circle' : 'location_on'}
+                          </span>
+                          <span className="flex-1 min-w-0 text-[15px] font-semibold text-ios-label truncate">{l.name}</span>
+                          {typeof l.listingCount === 'number' && l.listingCount > 0 && (
+                            <span className="text-[11px] font-semibold text-ios-label-secondary/80 bg-ios-fill/15 rounded-full px-2 py-0.5 shrink-0">
+                              {l.listingCount} ta
+                            </span>
+                          )}
+                        </div>
+                        {chips.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 mt-2 pl-[30px]">
+                            {chips.slice(0, 8).map((j) => (
+                              <span
+                                key={j}
+                                className={`text-[12px] rounded-full px-2 py-[3px] ${
+                                  hits.includes(j) ? 'bg-ios-orange/20 text-ios-orange font-semibold' : 'bg-ios-fill/15 text-ios-label-secondary'
+                                }`}
+                              >
+                                {j}
+                              </span>
+                            ))}
+                            {chips.length > 8 && <span className="text-[12px] text-ios-label-secondary/60 px-1 py-[3px]">+{chips.length - 8}</span>}
+                          </div>
+                        ) : (
+                          <div className="text-[12px] text-ios-label-secondary/50 mt-1 pl-[30px]">Mahalliy atama qo'shilmagan</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {query.trim() && results.length === 0 && all.length > 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-[15px] font-semibold text-ios-label">"{query.trim()}" topilmadi</div>
+                    <div className="text-[13px] text-ios-label-secondary/80 mt-1 mb-4">Boshqa nom yoki mahalliy atama bilan qidirib ko'ring</div>
+                    <button
+                      type="button"
+                      onClick={createAndSelect}
+                      disabled={creating}
+                      className="text-[13px] font-semibold text-ios-blue bg-ios-blue/10 rounded-full px-4 py-2 active:opacity-60 disabled:opacity-50"
+                    >
+                      {creating ? "Qo'shilmoqda..." : `+ "${query.trim()}"ni yangi manzil sifatida qo'shish`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 };

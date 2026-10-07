@@ -575,9 +575,9 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
                   className="flex-1 bg-transparent text-[15px] text-ios-label focus:outline-none text-right"
                 />
               </FieldRow>
-              <div className="px-3.5 py-2.5 flex items-center gap-3" style={{ borderTop: HAIRLINE }}>
-                <span className="text-[15px] text-ios-label w-[104px] shrink-0">Manzil</span>
-                <div className="flex-1 min-w-0">
+              <div className="px-3.5 pt-2.5 pb-3 flex flex-col gap-2" style={{ borderTop: HAIRLINE }}>
+                <span className="text-[15px] text-ios-label">Mahalla</span>
+                <div className="min-w-0">
                   <LandmarkPicker
                     value={landmarkId || null}
                     displayName={landmarkName}
