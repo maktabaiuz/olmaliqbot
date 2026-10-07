@@ -5,6 +5,7 @@ import { db } from '@kimbor/db';
 import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks, sendStartWelcome } from './handlers/directHandler';
 import { handleRentalPhoto, handleRentalContact } from './ai/rentalAgent';
+import { handleBizPhoto, handleBizContact } from './ai/bizAgent';
 import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
 import { initGateForNewMember, enforceInviteGate, creditInviteIfTracked, announceInviteUnlocked } from './moderation/inviteGate';
 import type { Context } from 'grammy';
@@ -329,10 +330,12 @@ async function startBot() {
   bot.on('message:photo', async (ctx) => {
     if (ctx.chat.type !== 'private') return;
     if (!(await passesSubscriptionGate(ctx))) return;
+    if (await handleBizPhoto(ctx, cityId)) return;
     await handleRentalPhoto(ctx, cityId);
   });
   bot.on('message:contact', async (ctx) => {
     if (ctx.chat.type !== 'private') return;
+    if (await handleBizContact(ctx, cityId)) return;
     await handleRentalContact(ctx, cityId);
   });
 

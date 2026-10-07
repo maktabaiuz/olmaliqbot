@@ -38,6 +38,9 @@ interface RentState {
   photos: string[];
   photosDone?: boolean;
   shownIds: string[];
+  /** Rad etilgan e'lonni tuzatish rejimi */
+  editId?: string;
+  keepPhotos?: string[];
 }
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
@@ -100,6 +103,7 @@ async function loadState(uid: number): Promise<RentState | null> {
 
 async function saveState(uid: number, s: RentState): Promise<void> {
   try {
+    await redisConnection.del(`kimbor:biz:${uid}`); // bir vaqtda faqat bitta suhbat
     await redisConnection.set(stateKey(uid), JSON.stringify(s), 'EX', STATE_TTL);
   } catch {
     /* ignore */
@@ -122,7 +126,7 @@ export async function hasRentState(uid: number): Promise<boolean> {
 
 let lmCache: { items: { id: string; name: string; terms: string[] }[]; exp: number } | null = null;
 
-async function landmarks(cityId: string) {
+export async function landmarks(cityId: string) {
   if (lmCache && lmCache.exp > Date.now()) return lmCache.items;
   const rows = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true }, orderBy: { name: 'asc' } });
   const items = rows
@@ -135,7 +139,7 @@ async function landmarks(cityId: string) {
   return items;
 }
 
-async function matchLandmark(cityId: string, text: string) {
+export async function matchLandmark(cityId: string, text: string) {
   // Telefon raqamlari mahalla emas: "…45 67" "67" jargonli mahallaga
   // tushib qolgan edi (2026-10-08 sinov).
   const n = ` ${normalizeText(text.replace(/\+?\d[\d\s\-()]{7,}\d/g, ' '))} `;
@@ -155,7 +159,7 @@ function detectKind(n: string): Kind | undefined {
   return (Object.keys(KIND_WORDS) as Kind[]).find((k) => KIND_WORDS[k].test(n));
 }
 
-function extractPhone(text: string): string | undefined {
+export function extractPhone(text: string): string | undefined {
   const m = text.replace(/[\s\-()]/g, '').match(/(\+?998)?(\d{9})(?!\d)/);
   return m ? `+998${m[2]}` : undefined;
 }
@@ -311,7 +315,7 @@ async function applyAi(s: RentState, ai: AiOut, cityId: string) {
 
 // ---------------------------------------------------------------- formatting
 
-const esc = (x: string) => x.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
+export const esc = (x: string) => x.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
 
 function fmtPrice(price: number | null | undefined, cur: string | null | undefined, term: string | null | undefined) {
   if (!price) return 'kelishiladi';
@@ -441,17 +445,17 @@ function offerSummary(s: RentState): string {
     `💵 ${fmtPrice(s.price, s.currency, s.term)}\n` +
     `📍 ${esc(s.landmarkName || '')}\n` +
     `📞 ${esc(s.phone || '')}\n` +
-    `📷 ${s.photos.length ? `${s.photos.length} ta rasm` : "rasmsiz"}` +
+    `📷 ${s.photos.length + (s.keepPhotos?.length || 0) ? `${s.photos.length + (s.keepPhotos?.length || 0)} ta rasm` : "rasmsiz"}` +
     (s.description ? `\n📝 ${esc(s.description)}` : '') +
     `\n\nO'zgartirmoqchi bo'lsangiz, shunchaki yozing (masalan: «narxi 350$»).`
   );
 }
 
-async function sendLandmarkPicker(ctx: Context, cityId: string) {
+export async function sendLandmarkPicker(ctx: Context, cityId: string, prefix = 'rent') {
   const items = await landmarks(cityId);
   const kb = new InlineKeyboard();
   items.forEach((l, i) => {
-    kb.text(l.name.replace(/\s*MFY$/i, ''), `rent:lm:${l.id}`);
+    kb.text(l.name.replace(/\s*MFY$/i, ''), `${prefix}:lm:${l.id}`);
     if (i % 2 === 1) kb.row();
   });
   await ctx.reply('Mahallani tanlang 👇', { reply_markup: kb });
@@ -490,7 +494,7 @@ async function askOfferStep(ctx: Context, cityId: string, s: RentState, step: St
   }
 }
 
-function internalKey(): string {
+export function internalKey(): string {
   return crypto.createHash('sha256').update(`internal:${process.env.BOT_TOKEN || ''}`).digest('hex');
 }
 
@@ -511,6 +515,8 @@ async function submitOffer(ctx: Context, s: RentState) {
         phone: s.phone,
         description: s.description,
         photoFileIds: s.photos,
+        editId: s.editId,
+        keepPhotos: s.keepPhotos,
       }),
     });
     const j: any = await res.json().catch(() => ({}));
@@ -521,8 +527,10 @@ async function submitOffer(ctx: Context, s: RentState) {
     await clearRentState(uid);
     const kb = new InlineKeyboard().webApp("📱 E'lonlarimni ko'rish", `${USER_APP_URL}?go=rent`);
     await ctx.reply(
-      j.pending
-        ? "Rahmat! 🙏 E'loningiz qabul qilindi va qisqa tekshiruvdan o'tmoqda. Tasdiqlangach, hamma ko'radi."
+      s.editId
+        ? "Rahmat! 🙏 Tuzatilgan e'loningiz qayta ko'rib chiqishga yuborildi. Tasdiqlangach, sizga shu yerda xabar beramiz."
+        : j.pending
+        ? "Rahmat! 🙏 E'loningiz qabul qilindi va qisqa tekshiruvdan o'tmoqda. Tasdiqlangach, sizga shu yerda xabar beramiz."
         : "Tayyor! 🎉 E'loningiz joylandi — endi Olmaliqdagi ijarachilar uni ko'radi va sizga to'g'ridan-to'g'ri qo'ng'iroq qiladi. Maklersiz, bepul.",
       { reply_markup: kb }
     );
@@ -714,4 +722,39 @@ export async function handleRentalCallback(ctx: Context, cityId: string, data: s
   await saveState(uid, s);
   await askOfferStep(ctx, cityId, s, nextOfferStep(s));
   return true;
+}
+
+/** Admin rad etgan ijara e'lonini chatda tuzatish — eski ma'lumotlar bilan ochiladi. */
+export async function startRentalFix(
+  ctx: Context,
+  cityId: string,
+  l: { id: string; roomCount: number | null; rentPrice: number | null; rentPriceCurrency: string | null; rentTermType: string | null; primaryLandmarkId: string; phone: string; description: string | null; photoUrls: string[]; categoryName: string; rejectionNote: string | null }
+) {
+  const n = normalizeText(l.categoryName);
+  const kind = (Object.keys(KIND_WORDS) as Kind[]).find((k) => KIND_WORDS[k].test(n)) || 'kvartira';
+  const lm = (await landmarks(cityId)).find((x) => x.id === l.primaryLandmarkId);
+  const s: RentState = {
+    mode: 'offer',
+    kind,
+    rooms: l.roomCount || undefined,
+    price: l.rentPrice || undefined,
+    currency: (l.rentPriceCurrency as RentState['currency']) || undefined,
+    term: (l.rentTermType as RentState['term']) || undefined,
+    landmarkId: lm?.id,
+    landmarkName: lm?.name,
+    phone: l.phone,
+    description: l.description || undefined,
+    photos: [],
+    keepPhotos: l.photoUrls,
+    photosDone: true,
+    shownIds: [],
+    editId: l.id,
+  };
+  await saveState(ctx.from!.id, s);
+  await ctx.reply(
+    `Keling, birga tuzatamiz 🙂${l.rejectionNote ? `\n\n<b>Admin izohi:</b> ${esc(l.rejectionNote)}` : ''}\n\n` +
+      `Noto'g'ri joyini shunchaki yozing — masalan: «narxi 300$», «mahallasi Kimyogar», «2 xonali». Yangi rasm yuborsangiz, eskilariga qo'shiladi.`,
+    { parse_mode: 'HTML' }
+  );
+  await askOfferStep(ctx, cityId, s, nextOfferStep(s));
 }

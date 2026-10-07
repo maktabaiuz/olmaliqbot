@@ -4,7 +4,7 @@ import { db } from '@kimbor/db';
 import { requireAdmin } from './adminRoutes';
 import { PUBLIC_LISTING_SELECT, toPublicCard, getPublicCityId } from './publicSupport';
 import { validateRental, kindOfCategory } from './publicRentals';
-import { notifyOwnerRejected } from './moderation';
+import { notifyOwnerRejected, notifyOwnerApproved } from './moderation';
 
 /**
  * Admin: "Shubhali e'lonlar" va "Ijara e'lonlari" (2026-10). Ijara
@@ -45,9 +45,14 @@ export async function adminModeration(fastify: FastifyInstance) {
   });
 
   fastify.post('/admin/moderation/listings/:id/approve', async (req: any) => {
-    await db.listing.update({ where: { id: req.params.id }, data: { status: 'ACTIVE', moderationStatus: null, rejectionNote: null } });
-    audit(req, 'MODERATION_APPROVE', { listingId: req.params.id });
-    return { success: true };
+    const l = await db.listing.update({
+      where: { id: req.params.id },
+      data: { status: 'ACTIVE', moderationStatus: null, rejectionNote: null },
+      select: { id: true, name: true, ownerTelegramId: true, source: true, type: true },
+    });
+    const notified = l.ownerTelegramId ? await notifyOwnerApproved(l) : false;
+    audit(req, 'MODERATION_APPROVE', { listingId: req.params.id, notified });
+    return { success: true, notified };
   });
 
   fastify.post('/admin/moderation/listings/:id/reject', async (req: any, reply) => {
@@ -56,11 +61,11 @@ export async function adminModeration(fastify: FastifyInstance) {
     const l = await db.listing.update({
       where: { id: req.params.id },
       data: { status: 'PAUSED', moderationStatus: 'rejected', rejectionNote: reason },
-      select: { name: true, ownerTelegramId: true },
+      select: { id: true, name: true, ownerTelegramId: true, source: true, type: true },
     });
-    if (l.ownerTelegramId) await notifyOwnerRejected(l.ownerTelegramId, l.name, reason);
-    audit(req, 'MODERATION_REJECT', { listingId: req.params.id, reason });
-    return { success: true, notified: !!l.ownerTelegramId };
+    const notified = l.ownerTelegramId ? await notifyOwnerRejected(l, reason) : false;
+    audit(req, 'MODERATION_REJECT', { listingId: req.params.id, reason, notified });
+    return { success: true, notified };
   });
 
   // ---------- Ijara e'lonlari (hammasi) ----------

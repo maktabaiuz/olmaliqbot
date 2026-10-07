@@ -81,19 +81,9 @@ export function registerRentals(fastify: FastifyInstance) {
 
   // Tahrirlash (faqat egasi) — qayta tekshiruvdan o'tadi
   fastify.put('/public/rentals/:id', async (req: any, reply) => {
-    const tg: bigint = req.publicUser.telegramId;
-    const own = await db.listing.findFirst({ where: { id: req.params.id, ownerTelegramId: tg }, select: { id: true } });
-    if (!own) return reply.code(404).send({ success: false, message: "E'lon topilmadi" });
-    const v = await validateRental(req.body || {});
-    if ('error' in v) return reply.code(400).send({ success: false, message: v.error });
-    const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls, excludeListingId: own.id });
-    if (mod.verdict === 'spam') return reply.code(400).send({ success: false, message: `O'zgarish qabul qilinmadi: ${mod.reasons.join('; ')}` });
-    const pending = mod.verdict === 'suspicious';
-    await db.listing.update({
-      where: { id: own.id },
-      data: { ...v.data, status: pending ? 'PAUSED' : 'ACTIVE', moderationStatus: pending ? 'pending' : null, moderationReasons: mod.reasons, rejectionNote: null },
-    });
-    return { success: true, pending, reasons: pending ? mod.reasons : [] };
+    const r = await updateUserRental(req.publicUser.telegramId, req.params.id, req.body || {});
+    if (!r.success) return reply.code(r.code).send({ success: false, message: r.message });
+    return r;
   });
 
   // O'chirish (faqat egasi)
@@ -164,6 +154,24 @@ export async function createUserRental(tg: bigint, body: any, source: 'webapp' |
   await db.auditLog.create({ data: { cityId: listing.cityId, action: 'USER_RENTAL_SUBMITTED', details: { listingId: listing.id, telegramId: tg.toString(), verdict: mod.verdict, reasons: mod.reasons } } }).catch(() => {});
   if (NOTIFY_ADMINS && pending) notifyAdmins(`⚠️ Shubhali ijara e'loni: ${esc(v.data.name)}\n${esc(mod.reasons.join('; '))}`).catch(() => {});
   return { success: true as const, id: listing.id, pending, reasons: pending ? mod.reasons : [] };
+}
+
+/** Egasi o'z ijara e'lonini tahrirlashi — qayta tekshiruv/moderatsiyadan o'tadi (ilova va bot uchun bir xil). */
+export async function updateUserRental(tg: bigint, id: string, body: any) {
+  const own = await db.listing.findFirst({ where: { id, ownerTelegramId: tg }, select: { id: true, photoUrls: true, moderationStatus: true } });
+  if (!own) return { success: false as const, code: 404, message: "E'lon topilmadi" };
+  const v = await validateRental({ ...body, photos: body.photos ?? own.photoUrls });
+  if ('error' in v) return { success: false as const, code: 400, message: v.error };
+  const mod = await moderateSubmission({ kind: 'rental', title: v.data.name, description: v.data.description, phone: v.digits, ownerTelegramId: tg, price: v.data.rentPrice, currency: v.data.rentPriceCurrency, term: v.data.rentTermType, rooms: v.data.roomCount, photos: v.data.photoUrls, excludeListingId: own.id });
+  if (mod.verdict === 'spam') return { success: false as const, code: 400, message: `O'zgarish qabul qilinmadi: ${mod.reasons.join('; ')}` };
+  // Admin rad etgan e'lon tuzatilsa — admin qayta ko'rmaguncha ochilmaydi
+  const pending = mod.verdict === 'suspicious' || own.moderationStatus === 'rejected' || own.moderationStatus === 'pending';
+  if (pending && mod.reasons.length === 0) mod.reasons.push("Rad etilgandan keyin tuzatildi — qayta ko'rib chiqing");
+  await db.listing.update({
+    where: { id: own.id },
+    data: { ...v.data, status: pending ? 'PAUSED' : 'ACTIVE', moderationStatus: pending ? 'pending' : null, moderationReasons: mod.reasons, rejectionNote: null },
+  });
+  return { success: true as const, id: own.id, pending, reasons: pending ? mod.reasons : [] };
 }
 
 const uploadCount = new Map<string, number>();

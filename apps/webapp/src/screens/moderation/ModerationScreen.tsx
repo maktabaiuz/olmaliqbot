@@ -69,8 +69,9 @@ export const ModerationScreen: React.FC<Props> = ({ onBack, onOpenCandidates, on
     try {
       const res = await jsonFetch(`/api/admin/moderation/listings/${id}/approve`, 'POST');
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         setListings((p) => p.filter((l) => l.id !== id));
-        showToast("E'lon chiqdi", 'success');
+        showToast(data.notified ? "E'lon chiqdi, egasiga xabar yuborildi" : "E'lon chiqdi", 'success');
       } else showToast('Xatolik yuz berdi', 'error');
     } finally {
       setBusyId(null);

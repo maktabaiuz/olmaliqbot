@@ -7,6 +7,9 @@ const CHIPS = [
   'Telefon raqam ishlamaydi',
   "Ma'lumot to'liq emas",
   'Takroriy e\'lon',
+  "Mahalla noto'g'ri ko'rsatilgan",
+  "Soha (kasb) noto'g'ri tanlangan",
+  "Ism yoki nom aniq emas",
 ];
 
 interface Props {

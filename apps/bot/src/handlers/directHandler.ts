@@ -7,7 +7,8 @@ import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
 import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
 import { getAssistantReply, rememberTurn, clearHistory } from '../ai/chatAssistant';
-import { handleRentalText, handleRentalCallback, clearRentState } from '../ai/rentalAgent';
+import { handleRentalText, handleRentalCallback, clearRentState, startRentalFix } from '../ai/rentalAgent';
+import { handleBizText, handleBizCallback, clearBizState, startBizFlow, startBizFix } from '../ai/bizAgent';
 
 type SessionStep =
   | 'CANDIDATE_NAME'
@@ -49,6 +50,7 @@ export async function sendStartWelcome(ctx: Context) {
   if (ctx.from) {
     await clearHistory(ctx.from.id);
     await clearRentState(ctx.from.id);
+    await clearBizState(ctx.from.id);
   }
   const webappUrl = `${process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`}?v=${Date.now()}`;
   // Telegram Bot API: style = primary (ko'k) | success (yashil) | danger (qizil)
@@ -273,6 +275,7 @@ export async function handleDirectMessage(ctx: Context, defaultCityId: string) {
 
   // Ijara suhbati (2026-10-08): "uy qidiryapman" / "uyim bor" — AI bilan
   // samimiy suhbat, bazadan e'lon ko'rsatish yoki e'lonni chatda joylash.
+  if (await handleBizText(ctx, activeCityId, messageText)) return;
   if (await handleRentalText(ctx, activeCityId, messageText)) return;
 
   // Mahalliy dispecher/xizmat raqamlari (2026-09) — guruh pipeline'idagi
@@ -478,7 +481,38 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     userSessions[userId] = session;
   }
 
-  if (await handleRentalCallback(ctx, session.cityId || defaultCityId, data)) return;
+  const cbCityId = session.cityId || defaultCityId;
+  if (await handleBizCallback(ctx, cbCityId, data)) return;
+  if (await handleRentalCallback(ctx, cbCityId, data)) return;
+
+  // Admin rad etgan e'lon/ma'lumotni egasi chatda tuzatadi
+  if (data.startsWith('fix:')) {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const l = await db.listing.findFirst({
+      where: { id: data.slice(4), ownerTelegramId: BigInt(userId) },
+      select: { id: true, type: true, name: true, phone: true, categoryId: true, primaryLandmarkId: true, workFrom: true, workTo: true, specificServices: true, roomCount: true, rentPrice: true, rentPriceCurrency: true, rentTermType: true, description: true, photoUrls: true, rejectionNote: true, category: { select: { name: true } } },
+    });
+    if (!l) {
+      await ctx.reply("Bu ma'lumot topilmadi yoki o'chirilgan 🙏");
+      return;
+    }
+    await clearBizState(userId);
+    await clearRentState(userId);
+    if (l.type === 'ARENDA') await startRentalFix(ctx, cbCityId, { ...l, categoryName: l.category?.name || '' });
+    else await startBizFix(ctx, cbCityId, { ...l, categoryName: l.category?.name || '' });
+    return;
+  }
+
+  // "O'zimni qo'shish" — endi aqlli suhbat (usta, do'kon, xizmat — hammasi)
+  if (data === 'start_add_me' || data === 'add_me_yes') {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const hint = session.offerCategory;
+    session.step = undefined;
+    session.offerCategory = undefined;
+    await startBizFlow(ctx, cbCityId, undefined, hint);
+    return;
+  }
+
 
   if (data === 'start_add_me' || data === 'add_me_yes') {
     await ctx.answerCallbackQuery();

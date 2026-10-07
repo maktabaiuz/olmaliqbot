@@ -139,23 +139,63 @@ export async function moderateSubmission(s: Submission): Promise<ModerationResul
   return { verdict: suspicious.length ? 'suspicious' : 'ok', reasons: suspicious };
 }
 
-/** Rad etilganda egasiga @uz11_bot orqali muloyim xabar. */
-export async function notifyOwnerRejected(telegramId: bigint, title: string, reason: string) {
-  const token = process.env.USER_BOT_TOKEN;
-  if (!token) return;
+type OwnerListing = { id: string; name: string; ownerTelegramId: bigint | null; source: string; type: string };
+
+/**
+ * Egasiga xabar — e'lon QAYSI botdan kelgan bo'lsa, o'sha bot orqali
+ * (2026-10-08: @olmaliq_bot chatida joylangan e'lonning rad xabari
+ * @uz11_bot orqali ketib, egasiga umuman yetmagan edi — Telegram faqat
+ * foydalanuvchi ochgan botga yozishga ruxsat beradi). Ilovadan kelganlar
+ * uchun ikkala bot ham sinab ko'riladi. true — xabar haqiqatan yetdi.
+ */
+async function sendToOwner(l: OwnerListing, text: string, buttons: (token: 'main' | 'user') => any[][]): Promise<boolean> {
+  if (!l.ownerTelegramId) return false;
+  const order: ('main' | 'user')[] = l.source === 'bot_chat' ? ['main'] : ['user', 'main'];
+  for (const which of order) {
+    const token = which === 'main' ? process.env.BOT_TOKEN : process.env.USER_BOT_TOKEN;
+    if (!token) continue;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: l.ownerTelegramId.toString(), text, parse_mode: 'HTML', reply_markup: { inline_keyboard: buttons(which) } }),
+      });
+      if (res.ok) return true;
+    } catch {
+      /* keyingi botni sinaymiz */
+    }
+  }
+  return false;
+}
+
+const APP_URL = `https://${process.env.DOMAIN || 'olmaliq.online'}/app/`;
+const escHtml = (x: string) => x.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]!);
+
+/** Rad etilganda — aniq sabab, nimani to'g'rilash kerakligi va tuzatish tugmasi. */
+export async function notifyOwnerRejected(l: OwnerListing, reason: string): Promise<boolean> {
+  const rental = l.type === 'ARENDA';
+  const tips = rental
+    ? "• uy turi va xonalar soni\n• haqiqiy oylik narx\n• uy joylashgan mahalla\n• o'zingizning ishlaydigan raqamingiz\n• uyning o'z rasmlari (internetdan olingan emas)"
+    : "• ismingiz yoki do'kon/ustaxona nomi\n• aniq sohangiz (masalan: santexnik, novvoyxona)\n• ishlaydigan telefon raqamingiz\n• qaysi mahallada ishlaysiz\n• ish vaqtingiz";
   const text =
-    `Assalomu alaykum! 🙏\n\n"${title}" e'loningizni ko'rib chiqdik va hozircha joylay olmadik.\n\n` +
-    `<b>Sababi:</b> ${reason.replace(/[<>&]/g, '')}\n\n` +
-    `Bu ayblov emas — shunchaki odamlarga aniq va ishonchli ma'lumot berishni xohlaymiz. ` +
-    `Iltimos, ilovadagi "Mening e'lonlarim" bo'limida e'lonni tahrirlab, aniqlik kiriting va qayta yuboring. Rahmat! 😊`;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: telegramId.toString(),
-      text,
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [[{ text: "✏️ E'lonni tahrirlash", web_app: { url: 'https://olmaliq.online/app/#/rent' } }]] },
-    }),
-  }).catch(() => {});
+    `Assalomu alaykum! 🙏\n\n«${escHtml(l.name)}» ${rental ? "e'loningizni" : "ma'lumotingizni"} ko'rib chiqdik, lekin hozircha joylay olmadik.\n\n` +
+    `<b>Sababi:</b> ${escHtml(reason)}\n\n` +
+    `Bu ayblov emas — odamlar faqat aniq va ishonchli ma'lumot ko'rishini xohlaymiz. Iltimos, quyidagilar to'g'ri ekanini tekshiring:\n${tips}\n\n` +
+    `Tuzatib yuborsangiz, qayta ko'rib chiqamiz 😊`;
+  return sendToOwner(l, text, (which) =>
+    which === 'main'
+      ? [[{ text: '✏️ Tuzatib qayta yuborish', callback_data: `fix:${l.id}` }]]
+      : rental
+        ? [[{ text: "✏️ E'lonni tahrirlash", web_app: { url: `${APP_URL}#/rent/edit/${l.id}` } }]]
+        : []
+  );
+}
+
+/** Tasdiqlanganda — egasiga quvonchli xabar. */
+export async function notifyOwnerApproved(l: OwnerListing): Promise<boolean> {
+  const rental = l.type === 'ARENDA';
+  const text = rental
+    ? `Xushxabar! 🎉\n\n«${escHtml(l.name)}» e'loningiz tekshiruvdan o'tdi va endi hamma ko'radi. Ijarachilar sizga to'g'ridan-to'g'ri qo'ng'iroq qiladi — maklersiz.\n\nUy berilgach, e'lonni yopib qo'yishni unutmang 🙂`
+    : `Xushxabar! 🎉\n\n«${escHtml(l.name)}» Olmaliq bazasiga qo'shildi. Endi kimdir sizning xizmatingizni qidirsa, bot sizni taklif qiladi. Omad! 🙌`;
+  return sendToOwner(l, text, () => [[{ text: '👀 Ilovada ko\'rish', web_app: { url: `${APP_URL}?listing=${l.id}` } }]]);
 }
