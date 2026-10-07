@@ -2412,7 +2412,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       // bo'lishi mumkin. Shuning uchun xabarda javobning O'ZINI bildiruvchi
       // kamida bitta so'z bo'lishi shart: yozuv nomi, kategoriya nomi/sinonimi
       // yoki xizmatlari. Bo'lmasa — jim turamiz.
-      if (rawMessage && !messageNamesListing(rawMessage, bestMatch)) return null;
+      if (rawMessage && !messageNamesListing(rawMessage, bestMatch, jargonEvidence.get(bestMatch.id) || null)) return null;
       verifiedBy = 'rule';
     }
   }
@@ -2480,12 +2480,14 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
 
 /** Xabarda yozuvning nomi, sohasi (nomi/sinonimlari) yoki xizmati tilga olinganmi. */
-function messageNamesListing(rawMessage: string, listing: any): boolean {
+function messageNamesListing(rawMessage: string, listing: any, matchedPhrase: string | null): boolean {
   const stem = (w: string) => w.replace(/[^a-z0-9']/g, '').slice(0, 5);
+  // Raqamli ("5.1", "5/1") va joy qo'shimchali ("...dagi", "...dan") so'zlar
+  // yozuvni bildirmaydi — ular faqat QAYERDA ekanini aytadi.
   const tokens = (t: string) =>
     normalizeText(t || '')
       .split(/\s+/)
-      .filter((w) => w.length >= 3 && !isGenericFillerWord(w))
+      .filter((w) => w.length >= 3 && !/\d/.test(w) && !/(dagi|dan|gacha)$/.test(w) && !isGenericFillerWord(w))
       .map(stem)
       .filter((w) => w.length >= 3);
   const msg = new Set(tokens(rawMessage));
@@ -2494,6 +2496,7 @@ function messageNamesListing(rawMessage: string, listing: any): boolean {
     listing.category?.name,
     ...((listing.category?.synonyms as string[]) || []),
     listing.specificServices,
+    matchedPhrase,
   ].filter(Boolean) as string[];
   return identity.some((t) => tokens(t).some((w) => msg.has(w)));
 }
