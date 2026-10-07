@@ -1036,6 +1036,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return reply.status(400).send({ error: "Faqat JPEG, PNG yoki WebP rasm qabul qilinadi" });
       }
       const buf = await file.toBuffer();
+      // 5MB'dan katta fayl xatosiz KESILIB qolardi (buzuq rasm saqlanib, Telegram
+      // RICH_MESSAGE_PHOTO_NO_MEDIA_FOUND bilan rad etgan — 2026-10-08)
+      if (file.file?.truncated) return reply.status(400).send({ error: "Rasm hajmi 5MB dan katta bo'lmasligi kerak" });
       if (!isRealImage(buf)) return reply.status(400).send({ error: 'Fayl rasm emas' });
       const fileName = `${crypto.randomUUID()}.${ext}`;
       const destPath = path.join(UPLOADS_DIR, 'listings', fileName);

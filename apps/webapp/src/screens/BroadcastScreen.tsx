@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { shrinkImage } from '../shrinkImage';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosCard, IosRow } from '../components/ios/IosCard';
 import { useFeedback } from '../context/FeedbackContext';
@@ -168,7 +169,7 @@ export const BroadcastScreen: React.FC<BroadcastScreenProps> = ({ onBack }) => {
           break;
         }
         const formData = new FormData();
-        formData.append('photo', file);
+        formData.append('photo', await shrinkImage(file));
         const res = await fetch('/api/admin/listings/upload-photo', {
           method: 'POST',
           headers: { 'x-init-data': initData },

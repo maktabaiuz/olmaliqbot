@@ -60,6 +60,7 @@ export function registerRentals(fastify: FastifyInstance) {
       const ext = MIME[file.mimetype];
       if (!ext) return reply.code(400).send({ success: false, message: 'Faqat JPG, PNG yoki WebP' });
       const buf = await file.toBuffer();
+      if (file.file?.truncated) return reply.code(400).send({ success: false, message: "Rasm 5 MB dan katta bo'lmasin" });
       if (!isRealImage(buf)) return reply.code(400).send({ success: false, message: 'Fayl rasm emas' });
       const name = `${crypto.randomUUID()}.${ext}`;
       await fs.promises.mkdir(path.join(UPLOADS_DIR, 'listings'), { recursive: true });

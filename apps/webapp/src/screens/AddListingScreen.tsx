@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { shrinkImage } from '../shrinkImage';
 import { useAuth } from '../context/AuthContext';
 import { LandmarkPicker } from '../components/LandmarkPicker';
 import { MapView } from '../components/MapView';
@@ -236,7 +237,7 @@ export const AddListingScreen: React.FC<AddListingScreenProps> = ({
           break;
         }
         const formData = new FormData();
-        formData.append('photo', file);
+        formData.append('photo', await shrinkImage(file));
         const res = await fetch('/api/admin/listings/upload-photo', {
           method: 'POST',
           headers: { 'x-init-data': initData },

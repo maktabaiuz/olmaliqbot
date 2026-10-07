@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { shrinkImage } from '../shrinkImage';
 import { LandmarkPicker } from '../components/LandmarkPicker';
 import { avatarColorForName } from '../utils/avatarColor';
 import { useFeedback } from '../context/FeedbackContext';
@@ -363,7 +364,7 @@ export const ListingDetailScreen: React.FC<ListingDetailScreenProps> = ({
           break;
         }
         const formData = new FormData();
-        formData.append('photo', file);
+        formData.append('photo', await shrinkImage(file));
         const res = await fetch('/api/admin/listings/upload-photo', {
           method: 'POST',
           headers: { 'x-init-data': initData },

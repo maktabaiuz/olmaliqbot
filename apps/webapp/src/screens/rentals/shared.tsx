@@ -1,4 +1,5 @@
 import React from 'react';
+import { shrinkImage } from '../../shrinkImage';
 
 export type ListingStatus = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
@@ -69,7 +70,7 @@ export const BottomSheet: React.FC<{ open: boolean; onClose: () => void; title?:
 
 export async function uploadPhoto(file: File): Promise<string> {
   const fd = new FormData();
-  fd.append('file', file);
+  fd.append('file', await shrinkImage(file));
   const res = await fetch('/api/admin/listings/upload-photo', {
     method: 'POST',
     headers: { 'x-init-data': window.Telegram?.WebApp?.initData || '' },
