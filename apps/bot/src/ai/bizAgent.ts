@@ -262,10 +262,13 @@ async function applyText(s: BizState, text: string, cityId: string, step: Step) 
     s.workFrom = h.from;
     s.workTo = h.to;
   }
-  // Aniq savolga to'g'ridan-to'g'ri javob (AI ishlamasa ham)
+  // Aniq savolga to'g'ridan-to'g'ri javob (AI ishlamasa ham) — lekin matn
+  // boshqa maydonni to'ldirgan bo'lsa ("ish vaqti 9 dan 18 gacha"), uni
+  // nom/xizmat sifatida olmaymiz.
   const plain = text.trim();
-  if (step === 'name' && !s.name && plain.length >= 2 && plain.length <= 60 && !ph) s.name = plain;
-  if (step === 'services' && !s.services && plain.length >= 3 && !ph) s.services = plain.slice(0, 300);
+  const usedElsewhere = !!(ph || h || lm || /\?$/.test(plain));
+  if (!usedElsewhere && step === 'name' && !s.name && plain.length >= 2 && plain.length <= 60) s.name = plain;
+  if (!usedElsewhere && step === 'services' && !s.services && plain.length >= 3) s.services = plain.slice(0, 300);
 }
 
 async function applyAi(s: BizState, ai: AiOut, cityId: string, overwrite = false) {
@@ -345,7 +348,11 @@ export async function startBizFlow(ctx: Context, cityId: string, firstText?: str
       s.categoryName = c.name;
     }
   }
-  if (firstText) await applyText(s, firstText, cityId, 'category');
+  if (firstText) {
+    await applyText(s, firstText, cityId, 'category');
+    const ai = await askAi(s, firstText, '');
+    if (ai) await applyAi(s, ai, cityId);
+  }
   await save(uid, s);
   await ctx.reply(
     "Ajoyib! 🙂 Sizni Olmaliq bazasiga bepul qo'shib qo'yaman — shunda kimdir sizning xizmatingizni qidirsa, bot sizni taklif qiladi. Bir necha qisqa savol beraman.",
