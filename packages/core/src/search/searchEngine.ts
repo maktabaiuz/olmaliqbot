@@ -2407,6 +2407,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       const sellTokens = rawMessage ? normalizeText(rawMessage).split(/\s+/) : [];
       const isPurchase = sellTokens.some((w) => GENERIC_SOT_VERB_FORMS.has(w));
       if (isPurchase && bestMatch.category?.objectType === 'USTA') return null;
+      // (2026-10-07, real holat: "5.1 dagi ilgir nomeri" → CARVON zapravkasi)
+      // AI'siz rejimda jargon mosligi faqat JOY so'zlari ("5.1 dagi") orqali
+      // bo'lishi mumkin. Shuning uchun xabarda javobning O'ZINI bildiruvchi
+      // kamida bitta so'z bo'lishi shart: yozuv nomi, kategoriya nomi/sinonimi
+      // yoki xizmatlari. Bo'lmasa — jim turamiz.
+      if (rawMessage && !messageNamesListing(rawMessage, bestMatch)) return null;
       verifiedBy = 'rule';
     }
   }
@@ -2470,4 +2476,24 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     scoreBreakdown: options.debug ? scoredListings.map((s) => s.breakdown!).filter(Boolean) : undefined,
     verifiedBy,
   };
+}
+
+
+/** Xabarda yozuvning nomi, sohasi (nomi/sinonimlari) yoki xizmati tilga olinganmi. */
+function messageNamesListing(rawMessage: string, listing: any): boolean {
+  const stem = (w: string) => w.replace(/[^a-z0-9']/g, '').slice(0, 5);
+  const tokens = (t: string) =>
+    normalizeText(t || '')
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !isGenericFillerWord(w))
+      .map(stem)
+      .filter((w) => w.length >= 3);
+  const msg = new Set(tokens(rawMessage));
+  const identity = [
+    listing.name,
+    listing.category?.name,
+    ...((listing.category?.synonyms as string[]) || []),
+    listing.specificServices,
+  ].filter(Boolean) as string[];
+  return identity.some((t) => tokens(t).some((w) => msg.has(w)));
 }

@@ -11,3 +11,4 @@ export * from './goldenCases';
 export * from './listingAudit';
 export * from './searchParams';
 export * from './openNow';
+export * from '../intent/isInformationalPost';

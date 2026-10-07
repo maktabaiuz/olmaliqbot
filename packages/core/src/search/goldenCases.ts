@@ -50,6 +50,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { message: 'Arendaga yengil mashina kerak edi uzoq muddatga taksi qilishga emas', expect: { kind: 'not_includes', text: 'Taksi' }, origin: 'Inkor: "taksi EMAS"' },
   { message: "ozi nega to'xtavogan, mumkinmasu svetafor tagida turish", expect: { kind: 'silence' }, origin: 'Svetofor → elektr dispetcheri (2026-10-02)' },
   { message: "oxirgi vaqtlar o'sha svetafor tagida moshina ko'payib qoldi o'zi", expect: { kind: 'silence' }, origin: 'Svetofor → elektr dispetcheri (2026-10-02)' },
+  { message: 'Olmaliq 5.1 dagi ilgir nomeri kimda bor akalar', expect: { kind: 'silence' }, origin: "Joy so'zi orqali boshqa biznes (CARVON) — 2026-10-07" },
+  { message: "ГОРСЕТЬ 716138942\n+998951951451\n+998781501063\n\nГОРГАЗ 716142716\n+998559032716\n\nТез ёрдам 103\nВодоканал Дежурный: 70-615-22-85", expect: { kind: 'silence' }, origin: "Raqamlar ro'yxati posti — savol emas (2026-10-07)" },
   // ---------- Bot JAVOB BERISHI shart bo'lgan holatlar ----------
   { message: 'santexnik kerak', expect: { kind: 'any' }, origin: 'Asosiy xizmat' },
   { message: 'malyar kerak', expect: { kind: 'any' }, origin: 'Asosiy xizmat' },

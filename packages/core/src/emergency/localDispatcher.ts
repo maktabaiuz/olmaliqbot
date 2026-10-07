@@ -1,6 +1,7 @@
 import { db } from '@kimbor/db';
 import { normalizeText, containsWholeWord } from '../transliteration';
 import { verifyAnswerRelevance } from '../search/answerVerifier';
+import { isInformationalPost } from '../intent/isInformationalPost';
 import { UZBEK_STOPWORDS } from '../search/uzbekStopwords';
 
 /**
@@ -207,6 +208,7 @@ export async function findLocalDispatcherMatch(
   cityId: string
 ): Promise<LocalDispatcherMatch | null> {
   if (!rawMessage || !cityId) return null;
+  if (isInformationalPost(rawMessage)) return null; // raqamlar ro'yxati — savol emas
   const normalized = normalizeText(rawMessage);
   if (!normalized) return null;
   const msgWords = normalized.split(/\s+/).filter(Boolean);

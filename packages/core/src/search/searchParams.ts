@@ -3,6 +3,7 @@ import { extractRequestedBadges } from '../intent/extractRequestedBadges';
 import { extractRentalFilters } from '../intent/extractRentalFilters';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
+import { isInformationalPost } from '../intent/isInformationalPost';
 
 /**
  * Guruh, shaxsiy chat va foydalanuvchi ilovasi uchun YAGONA qidiruv
@@ -26,5 +27,5 @@ export function buildSearchParams(cityId: string, messageText: string, classific
 
 /** Kartochka berilmaydigan xabarlar: ish e'loni, kommunal holat savoli. */
 export function isNonSearchMessage(messageText: string): boolean {
-  return isJobVacancy(messageText) || isUtilityStatusQuestion(messageText);
+  return isInformationalPost(messageText) || isJobVacancy(messageText) || isUtilityStatusQuestion(messageText);
 }

@@ -1,5 +1,6 @@
 import { Context } from 'grammy';
 import { buildSearchParams, isNonSearchMessage } from './searchParams';
+import { isInformationalPost } from '@kimbor/core';
 import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery, recordLearnedTermCandidates } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
@@ -62,6 +63,9 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // HECH QANDAY "DARHOL bunday qiling" shablonisiz, FAQAT so'ralgan
   // ma'lumotni (nomi + telefon) qaytaradi (bular hayotiy xavf emas,
   // oddiy ma'lumot-so'rov).
+  // Ma'lumot posti (ko'p raqamli ro'yxat, uzun e'lon) — savol emas, hech
+  // narsa qidirilmaydi, dispetcher raqamlari ham (2026-10-07).
+  if (isInformationalPost(messageText)) return;
   const localDispatcherMatch = await findLocalDispatcherMatch(messageText, cityId);
   if (localDispatcherMatch) {
     // Reklama/havola tugmasi — admin qo'ygan bo'lsa (Broadcast'dagi bilan
