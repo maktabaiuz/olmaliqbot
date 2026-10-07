@@ -136,7 +136,9 @@ async function landmarks(cityId: string) {
 }
 
 async function matchLandmark(cityId: string, text: string) {
-  const n = ` ${normalizeText(text)} `;
+  // Telefon raqamlari mahalla emas: "…45 67" "67" jargonli mahallaga
+  // tushib qolgan edi (2026-10-08 sinov).
+  const n = ` ${normalizeText(text.replace(/\+?\d[\d\s\-()]{7,}\d/g, ' '))} `;
   let best: { id: string; name: string; len: number } | null = null;
   for (const l of await landmarks(cityId)) {
     for (const t of l.terms) {
@@ -189,7 +191,8 @@ function applyRules(s: RentState, text: string, cityIdLandmark: { id: string; na
     const ph = extractPhone(text);
     if (ph) s.phone = ph;
   }
-  if (cityIdLandmark) {
+  // Tanlangan mahalla faqat foydalanuvchi mahallani aniq aytsa almashadi
+  if (cityIdLandmark && (!s.landmarkId || /mahalla|mfy|mavze|dahasi/.test(n))) {
     s.landmarkId = cityIdLandmark.id;
     s.landmarkName = cityIdLandmark.name;
   }
@@ -465,6 +468,8 @@ async function askOfferStep(ctx: Context, cityId: string, s: RentState, step: St
     const kb = new InlineKeyboard();
     [1, 2, 3, 4, 5].forEach((n) => kb.text(`${n}${n === 5 ? '+' : ''}`, `rent:rooms:${n}`));
     await ctx.reply(text, { reply_markup: kb });
+  } else if (step === 'price') {
+    await ctx.reply(text);
   } else if (step === 'landmark') {
     await ctx.reply(text, { reply_markup: new InlineKeyboard().text("📍 Mahallalar ro'yxati", 'rent:lmlist') });
   } else if (step === 'phone') {
