@@ -65,6 +65,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
   { message: "svet o'chib qoldi elektr nomeri kerak", expect: { kind: 'includes', text: 'Elektr' }, origin: 'Dispetcher — to\'g\'ri ma\'noda' },
   { message: 'avtomaktab bormi', expect: { kind: 'any' }, origin: 'AI "avto maktab" ↔ sinonim "avtomaktab" (2026-10-03)' },
   { message: 'prava olish kerak', expect: { kind: 'any' }, origin: 'Haydovchilik maktabi sinonimi' },
+  { message: 'beshbirda santexnik bormi', expect: { kind: 'any' }, origin: "MFY topildi (Toshkent MFY = 5/1, beshbir), u yerda usta yo'q → shahar bo'yicha (2026-10-08)" },
   { message: 'Radugada korzinka yonida malyar kerak', expect: { kind: 'any' }, origin: "Mo'ljal + soha (karzinka to'g'ri ishlatilgan)" },
 ];
 

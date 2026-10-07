@@ -19,7 +19,9 @@ const memoryCache = new Map<string, { data: ClassifierResult; expiresAt: number 
 // xavfsiz mahalliy chegara saqlanadi (agar hozirgi kalit yana bepul
 // tarifda bo'lsa ham, bot butunlay jim qolib ketmaydi — zaxira
 // klassifikatorga tushadi).
-const GEMINI_RPM_SAFE_LIMIT = 12;
+// Pullik tarif (2026-10-08): 12 juda kam edi — faol paytlarda savollarning
+// 33–43% i AI'siz zaxira rejimga tushardi. Tarif limiti ancha yuqori.
+const GEMINI_RPM_SAFE_LIMIT = Number(process.env.GEMINI_RPM_LIMIT || 150);
 const GEMINI_CLASSIFIER_TIMEOUT_MS = 3500;
 const recentGeminiCallTimestamps: number[] = [];
 export function reserveGeminiCallSlot(): boolean {
@@ -179,7 +181,13 @@ export async function classifyQuery(
   }
 
   // 3. 10 daqiqaga keshga saqlash (600,000 ms)
-  if (!options?.noCache) memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + 10 * 60 * 1000 });
+  // Zaxira (AI'siz) natija uzoq keshlanmaydi — Gemini tiklanishi bilan
+  // keyingi so'rov yana AI orqali aniq tushunilsin.
+  if (!options?.noCache) {
+    const ttl = result.source === 'fallback' ? 30 * 1000 : 10 * 60 * 1000;
+    memoryCache.set(cacheKey, { data: result, expiresAt: Date.now() + ttl });
+    if (memoryCache.size > 5000) memoryCache.clear();
+  }
 
   // MUHIM (2026-09 topilgan xato, tuzatildi): bu yerda ILGARI har bir
   // klassifikatsiya uchun QueryLog'ga darhol "isResolved: false" qilib

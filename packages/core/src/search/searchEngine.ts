@@ -1822,6 +1822,11 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const isGenericLocationPhrase = !!cleanLandmarkName && /\batrof/.test(cleanLandmarkName);
   const shouldIgnoreUnresolvedLandmark =
     hasResolvedCategory && (isGenericLocationPhrase || hasResolvedTransportCategory);
+  // Mahalla — SARALASH, qat'iy filtr emas (2026-10-08): MFY aniq topilsa-yu,
+  // u yerda mos yozuv bo'lmasa, butun shahar bo'yicha qidiriladi va javobda
+  // "X MFY'da topilmadi" deb ochiq aytiladi. (Bazada yo'q, aniq bo'lmagan joy
+  // nomi uchun esa avvalgidek jim turiladi — To'ytepa qoidasi.)
+  const whereBeforeLandmark = structuredClone(whereCondition);
   if (matchedLandmarkIds.length > 0 || (cleanLandmarkName && !shouldIgnoreUnresolvedLandmark)) {
     const landmarkOrConditions: any[] = [];
     if (matchedLandmarkIds.length > 0) {
@@ -1858,6 +1863,18 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       reviews: true,
     },
   });
+
+  let landmarkFallbackName: string | null = null;
+  if (candidateListings.length === 0 && matchedLandmarkIds.length > 0 && hasResolvedCategory) {
+    candidateListings = await db.listing.findMany({
+      where: whereBeforeLandmark,
+      include: { category: true, primaryLandmark: true, serviceAreaLandmarks: true, reviews: true },
+    });
+    if (candidateListings.length > 0) {
+      const lm = await db.landmark.findFirst({ where: { id: matchedLandmarkIds[0] }, select: { name: true } });
+      landmarkFallbackName = lm?.name || null;
+    }
+  }
 
   // Agar categoryName/landmarkName umuman berilmagan bo'lsa (faqat rawMessage
   // orqali jargon qidiruvi bo'lgan holat), whereCondition hali ham shahar
@@ -2467,7 +2484,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
   return {
     listingId: bestMatch.id,
-    formattedText,
+    formattedText: landmarkFallbackName
+      ? `📍 <i>${escapeHtml(landmarkFallbackName)}da hozircha topilmadi — Olmaliq bo'yicha:</i>\n\n${formattedText}`
+      : formattedText,
     otherMatches,
     hasMore: scoredListings.length > 1,
     totalMatches: rankedTop.length,

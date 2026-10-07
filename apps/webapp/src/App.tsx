@@ -39,6 +39,7 @@ import { InstantBroadcastScreen } from './screens/InstantBroadcastScreen';
 import { CandidatesScreen } from './screens/CandidatesScreen';
 import { ModerationScreen } from './screens/moderation/ModerationScreen';
 import { RentalsScreen } from './screens/rentals/RentalsScreen';
+import { MfyAssignScreen } from './screens/mfy/MfyAssignScreen';
 import { apiFetch as apiFetchModeration } from './config';
 import { ErrorBoundary, OfflineStatusBanner } from './components/OfflineAndErrorNotice';
 import { SwipeToDeleteRow } from './components/SwipeToDeleteRow';
@@ -94,7 +95,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [viewMode, setViewMode] = useState<
     'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
-  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast' | 'moderation' | 'rentals'>('menu');
+  const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast' | 'moderation' | 'rentals' | 'mfy_assign'>('menu');
   const [moderationCount, setModerationCount] = useState(0);
   useEffect(() => {
     if (moreSubView !== 'menu') return;
@@ -428,6 +429,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                           <MoreRow icon="translate" iconColor="rgb(52 199 89)" label="Mahalliy so'zlar" onClick={() => setMoreSubView('learned_terms')} />
                           <MoreRow icon="inbox" iconColor="rgb(175 82 222)" label="Yangi ma'lumotlar" onClick={() => setMoreSubView('candidates')} />
                           <MoreRow icon="gpp_maybe" iconColor="rgb(255 59 48)" label="Shubhali e'lonlar" badge={moderationCount} onClick={() => setMoreSubView('moderation')} />
+                          <MoreRow icon="home_pin" iconColor="rgb(52 199 89)" label="MFY biriktirish" onClick={() => setMoreSubView('mfy_assign')} />
                           <MoreRow icon="home_work" iconColor="rgb(52 199 89)" label="Ijara e'lonlari" onClick={() => setMoreSubView('rentals')} />
                           <MoreRow icon="campaign" iconColor="rgb(255 45 85)" label={t('more_item_community_link')} onClick={() => setMoreSubView('community_link')} />
                           <MoreRow icon="verified_user" iconColor="rgb(255 149 0)" label="Majburiy obuna" onClick={() => setMoreSubView('required_channels')} last />
@@ -527,6 +529,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                       />
                     )}
                     {moreSubView === 'rentals' && <RentalsScreen onBack={() => setMoreSubView('menu')} />}
+                    {moreSubView === 'mfy_assign' && <MfyAssignScreen onBack={() => setMoreSubView('menu')} />}
                     {moreSubView === 'required_channels' && (
                       <RequiredChannelsScreen onBack={() => setMoreSubView('menu')} />
                     )}

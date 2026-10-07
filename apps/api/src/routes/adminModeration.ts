@@ -1,3 +1,4 @@
+import { normalizeText, containsWholeWord } from '@kimbor/core';
 import { FastifyInstance } from 'fastify';
 import { db } from '@kimbor/db';
 import { requireAdmin } from './adminRoutes';
@@ -114,5 +115,61 @@ export async function adminModeration(fastify: FastifyInstance) {
   fastify.get('/admin/landmarks-lite', async () => {
     const cityId = await getPublicCityId();
     return db.landmark.findMany({ where: { cityId }, select: { id: true, name: true }, orderBy: { name: 'asc' } });
+  });
+}
+
+// ---------- MFY biriktirish takliflari (2026-10-08) ----------
+// "MFY tanlanmagan" yozuvlar uchun: yozuv jargoni/nomi/xizmatlarida MFY'ning
+// mahalliy jargoni (masalan "5/1", "deska") uchrasa — o'sha MFY taklif qilinadi.
+// Admin bir bosishda tasdiqlaydi; avtomatik o'zgartirilmaydi.
+export async function computeMfySuggestions(cityId: string) {
+  const lms = await db.landmark.findMany({ where: { cityId }, select: { id: true, name: true, synonyms: true } });
+  const placeholder = lms.find((l) => l.name === 'MFY tanlanmagan');
+  const mfys = lms.filter((l) => l.name !== 'MFY tanlanmagan');
+  const listings = await db.listing.findMany({
+    where: { cityId, ...(placeholder ? { primaryLandmarkId: placeholder.id } : {}) },
+    select: { id: true, name: true, jargonSynonyms: true, specificServices: true, description: true, category: { select: { name: true } } },
+    orderBy: { name: 'asc' },
+  });
+  return listings.map((l) => {
+    const text = normalizeText([l.name, ...l.jargonSynonyms, l.specificServices || '', l.description || ''].join(' | '));
+    const scored = mfys
+      .map((m) => {
+        const base = normalizeText(m.name.replace(/\s*MFY$/i, ''));
+        const terms = Array.from(new Set([base, ...m.synonyms.map((x) => normalizeText(x))])).filter((t) => t && t.replace(/\s/g, '').length >= 3);
+        const hits = terms.filter((t) => containsWholeWord(text, t) || (/\d/.test(t) && text.includes(t)));
+        return { id: m.id, name: m.name, hits };
+      })
+      .filter((x) => x.hits.length > 0)
+      .sort((a, b) => b.hits.length - a.hits.length || b.hits.join('').length - a.hits.join('').length);
+    return {
+      listingId: l.id,
+      listingName: l.name,
+      category: l.category?.name || '',
+      suggestion: scored[0] ? { id: scored[0].id, name: scored[0].name, evidence: scored[0].hits.slice(0, 4) } : null,
+      alternatives: scored.slice(1, 3).map((x) => ({ id: x.id, name: x.name })),
+    };
+  });
+}
+
+export async function mfyRoutes(fastify: FastifyInstance) {
+  fastify.addHook('preHandler', async (req: any, reply) => {
+    if (!(await requireAdmin(req, reply))) return reply;
+  });
+  fastify.get('/admin/mfy-suggestions', async () => {
+    const cityId = await getPublicCityId();
+    const items = await computeMfySuggestions(cityId);
+    const mfys = await db.landmark.findMany({ where: { cityId, NOT: { name: 'MFY tanlanmagan' } }, select: { id: true, name: true }, orderBy: { name: 'asc' } });
+    return { success: true, items, mfys };
+  });
+  fastify.post('/admin/mfy-suggestions/apply', async (req: any, reply) => {
+    const cityId = await getPublicCityId();
+    const { listingId, landmarkId } = req.body || {};
+    const lm = await db.landmark.findFirst({ where: { id: String(landmarkId), cityId }, select: { id: true, name: true } });
+    if (!lm) return reply.code(400).send({ success: false, message: 'MFY topilmadi' });
+    const r = await db.listing.updateMany({ where: { id: String(listingId), cityId }, data: { primaryLandmarkId: lm.id } });
+    if (!r.count) return reply.code(404).send({ success: false });
+    audit(req, 'MFY_ASSIGN', { listingId, landmarkId: lm.id, name: lm.name });
+    return { success: true };
   });
 }
