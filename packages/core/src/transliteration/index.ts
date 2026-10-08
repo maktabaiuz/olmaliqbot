@@ -33,7 +33,10 @@ export function normalizeText(text: string): string {
   if (!text) return '';
   const latinized = cyrillicToLatin(text.trim().toLowerCase());
   return latinized
-    .replace(/[`’'‘ʼ]/g, "'")
+    // ʻ (U+02BB) — o'zbek lotin alifbosidagi rasmiy belgi (Oʻ, Gʻ); eng ko'p
+    // ishlatiladi, lekin ro'yxatda yo'q edi (2026-10-08: "Oʻzbekona" bazadagi
+    // "O’zbekona" bilan mos kelmay, bot jim qolgan).
+    .replace(/[`’'‘ʼʻ´]/g, "'")
     .replace(/\s+/g, ' ');
 }
 

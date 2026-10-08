@@ -583,7 +583,18 @@ function wordLevelJargonMatchStrength(
  * uchun prefiks tekshiruvi kifoya. Umumiy o'zak kamida 5 harf bo'lishi
  * shart — aks holda qisqa, tasodifiy ustma-tushishlar o'tib ketardi.
  */
+/**
+ * Imlo farqlarini tekislash: tutuq belgisiz yozish ("ozbekona" = "o'zbekona")
+ * va keng tarqalgan "uz" ↔ "o'z" almashinuvi ("uzbekona food").
+ */
+function foldSpelling(w: string): string {
+  return w.replace(/'/g, '').replace(/^uz/, 'oz');
+}
+
 function wordsShareStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  a = foldSpelling(a);
+  b = foldSpelling(b);
   if (a === b) return true;
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length <= b.length ? b : a;
