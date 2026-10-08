@@ -902,8 +902,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const periodFilter = periodStart ? { createdAt: { gte: periodStart } } : {};
 
     const activeListings = await db.listing.count({ where: { cityId, status: 'ACTIVE' } });
-    const totalQuestions = await db.queryLog.count({ where: { cityId, ...periodFilter } });
-    const unresolvedRequests = await db.queryLog.count({ where: { cityId, isResolved: false, ...periodFilter } });
+    // Savol = haqiqiy qidiruv (oddiy suhbat — NOT_RELEVANT — savol emas).
+    // 2026-10-08: avval hamma xabar sanalib, 1234 ta oddiy suhbat "javobsiz
+    // savol" bo'lib, javob foizi 38.8% o'rniga 14.1% ko'rinardi. Endi
+    // tizim salomatligi kartasi va guruh statistikasi bilan BIR XIL qoida.
+    const seeking = { cityId, intent: { not: 'NOT_RELEVANT' as const }, ...periodFilter };
+    const totalQuestions = await db.queryLog.count({ where: seeking });
+    const unresolvedRequests = await db.queryLog.count({ where: { ...seeking, isResolved: false } });
     const pendingCandidates = await db.candidate.count({ where: { cityId, status: 'PENDING' } });
     const totalCategories = await db.category.count();
     // MUHIM: bu yerda BARCHA (rolidan qat'i nazar) botga /start bosgan
@@ -934,7 +939,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // Javob % — haqiqiy hisob: (jami savol - javobsiz) / jami savol
     const resolvedPercent = totalQuestions > 0
       ? Math.round(((totalQuestions - unresolvedRequests) / totalQuestions) * 1000) / 10
-      : 100;
+      : null; // savol bo'lmasa — "100%" emas, ma'lumot yo'q
 
     return {
       // DashboardScreen.tsx kutgan nomlar:
@@ -3205,9 +3210,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const langTotal = langCounts.latin + langCounts.cyrillic + langCounts.mixed;
     const languageDistribution = langTotal > 0
       ? {
-          latinPercent: Math.round((langCounts.latin / langTotal) * 100),
+          // Yig'indisi aniq 100% bo'lsin (alohida yaxlitlash 99/101 berardi)
           cyrillicPercent: Math.round((langCounts.cyrillic / langTotal) * 100),
           mixedPercent: Math.round((langCounts.mixed / langTotal) * 100),
+          latinPercent: 100 - Math.round((langCounts.cyrillic / langTotal) * 100) - Math.round((langCounts.mixed / langTotal) * 100),
         }
       : { latinPercent: 0, cyrillicPercent: 0, mixedPercent: 0 };
     let loyalUsersCount = 0;
@@ -3239,9 +3245,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     const activeMembersCount = activeUserIdCounts.size;
     const activeMembersRatio =
       typeof health.memberCount === 'number' && health.memberCount > 0
-        ? Math.round((activeMembersCount / health.memberCount) * 100)
+        ? Math.min(100, Math.round((activeMembersCount / health.memberCount) * 100)) // chiqib ketganlar ham yozgan bo'lishi mumkin — 100% dan oshmasin
         : null;
-    const botUsefulnessPercent = totalMessages > 0 ? Math.round((totalQueries / totalMessages) * 100) : null;
+    const botUsefulnessPercent = totalMessages > 0 ? Math.min(100, Math.round((totalQueries / totalMessages) * 100)) : null;
 
     const topActiveUserIds = [...activeUserIdCounts.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -3273,7 +3279,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
     if (joinEvents.length > 0) {
       const joinedUserIds = new Set(joinEvents.map((j) => j.telegramUserId.toString()));
       const convertedCount = await db.queryLog.findMany({
-        where: { chatId: group.chatId, telegramUserId: { in: [...joinedUserIds].map((s) => BigInt(s)) } },
+        // Faqat shu davrdagi (qo'shilgandan keyingi) so'rovlar — avval guruhga
+        // qayta kirgan odamning ESKI so'rovlari ham "konversiya" bo'lib sanalardi
+        where: { chatId: group.chatId, createdAt: { gte: periodStart }, telegramUserId: { in: [...joinedUserIds].map((s) => BigInt(s)) } },
         select: { telegramUserId: true },
         distinct: ['telegramUserId'],
       });
@@ -3284,7 +3292,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // birlashtirilgan, 0-100 oraliqdagi yakuniy bahosi: javob foizi (eng
     // og'irlikli — botning asosiy vazifasi), faol a'zolar nisbati,
     // moderatsiya hodisalari (kamroq — yaxshiroq) va bot texnik holati.
-    const resolvedPercentForScore = totalQueries > 0 ? (resolvedQueries / totalQueries) * 100 : 100;
+    // Savol bo'lmagan guruh "100% javob" deb tekin ball olmasin — neytral 50
+    const resolvedPercentForScore = totalQueries > 0 ? (resolvedQueries / totalQueries) * 100 : 50;
     const moderationPenalty = Math.min(30, moderationCounts.reduce((s, m) => s + m._count.category, 0) * 3);
     const healthScoreRaw =
       resolvedPercentForScore * 0.5 +
@@ -4191,8 +4200,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
     let result = await Promise.all(
       users.map(async (user) => {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const todayStart = tashkentDayStart(0); // Toshkent kuni (server UTC'da)
         const queryCountToday = await db.queryLog.count({
           where: {
             telegramUserId: user.telegramId,
@@ -4453,8 +4461,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     // qoida bo'yicha qo'llaniladi.
     let periodStart: Date | undefined;
     if (period === 'today') {
-      periodStart = new Date();
-      periodStart.setHours(0, 0, 0, 0);
+      periodStart = tashkentDayStart(0); // Toshkent kuni (server UTC'da)
     } else if (period === 'week') {
       periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     } else if (period === 'month') {

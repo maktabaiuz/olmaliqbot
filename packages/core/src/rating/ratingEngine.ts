@@ -1,4 +1,5 @@
 import { db } from '@kimbor/db';
+import { calculateBayesianRating } from '../index';
 
 /**
  * Bayesian Average Rating Formula
@@ -10,17 +11,8 @@ import { db } from '@kimbor/db';
  *   n = Total number of actual ratings
  */
 export function calculateBayesianAverage(thumbsUp: number, thumbsDown: number): number {
-  const totalReviews = thumbsUp + thumbsDown;
-  if (totalReviews === 0) return 4.0; // Default prior mean rating for new providers
-
-  const C = 5; // Pseudo-reviews weight
-  const m = 4.0; // Population mean rating
-
-  // Each 👍 is 5.0 points, each 👎 is 1.0 point
-  const actualScoreSum = thumbsUp * 5.0 + thumbsDown * 1.0;
-  const bayesianRating = (C * m + actualScoreSum) / (C + totalReviews);
-
-  return Math.round(bayesianRating * 10) / 10;
+  // Qidiruv saralashi bilan BIR XIL formula (qarang: calculateBayesianRating)
+  return calculateBayesianRating(thumbsUp, thumbsDown);
 }
 
 export interface RatingInput {

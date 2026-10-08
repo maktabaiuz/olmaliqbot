@@ -11,22 +11,23 @@ export * from './intent/isJobVacancy';
 export * from './intent/isUtilityStatusQuestion';
 export * from './intent/extractRequestedBadges';
 export * from './intent/extractRentalFilters';
+export * from './money';
 export * from './requests/queryLoop';
 export * from './moderation/moderationFilter';
 export * from './filter/zeroLayerFilter';
 export * from './filter/aiClassifier';
 
-export function calculateBayesianRating(thumbsUp: number, thumbsDown: number, globalAvg: number = 3.0, m: number = 5): number {
+/**
+ * Yagona reyting formulasi (Bayes o'rtachasi, 1–5 shkala). 2026-10-08:
+ * avval ikki xil formula bor edi — saqlanadigan reyting 👎=1 ball, yangi=4.0;
+ * qidiruv saralashi esa 👎=0 ball (1–5 shkaladan tashqari), yangi=3.0.
+ * Endi hammasi shu funksiyadan: 👍=5, 👎=1, yangi yozuv = 3.0 (neytral).
+ */
+export function calculateBayesianRating(thumbsUp: number, thumbsDown: number, prior: number = 3.0, weight: number = 5): number {
   const total = thumbsUp + thumbsDown;
-  if (total === 0) return globalAvg;
-  
-  // Convert thumbs ratio to 5-star scale
-  const positiveRatio = thumbsUp / total;
-  const rawScore = positiveRatio * 5.0;
-  
-  // Bayesian average formula: (v * R + m * C) / (v + m)
-  const score = (total * rawScore + m * globalAvg) / (total + m);
-  return Math.round(score * 10) / 10;
+  if (total === 0) return prior;
+  const sum = thumbsUp * 5 + thumbsDown * 1;
+  return Math.round(((weight * prior + sum) / (weight + total)) * 10) / 10;
 }
 
 export function normalizeWordVariants(input: string): { latin: string; cyrillic: string } {

@@ -1,6 +1,7 @@
 import { db } from '@kimbor/db';
 import { stripLandmarkSuffixes } from '../dictionary';
 import { calculateBayesianRating } from '../index';
+import { convertPrice, Currency } from '../money';
 import { normalizeText, levenshteinDistance, coreMatchText, containsWholeWord, computeNegatedWordIndices, fuzzyMatchThreshold, isNoiseWord } from '../transliteration';
 import { isJobVacancy } from '../intent/isJobVacancy';
 import { isUtilityStatusQuestion } from '../intent/isUtilityStatusQuestion';
@@ -2170,7 +2171,9 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         // Valyuta mos kelmasa solishtirilmaydi (noto'g'ri rad etishdan
         // ko'ra — masalan so'mda so'ralgan, dollarda kiritilgan yozuvni
         // chiqarib tashlamaslik xavfsizroq).
-        if (currency && l.rentPriceCurrency === currency && l.rentPrice > maxPrice) return false;
+        // Boshqa valyutadagi narx kurs bo'yicha o'giriladi (avval tekshirilmay
+        // o'tib ketardi — "2 mln so'mgacha"ga 900$ uy ham chiqardi)
+        if (currency && convertPrice(l.rentPrice, l.rentPriceCurrency as Currency, currency) > maxPrice) return false;
       }
       if (termType !== null) {
         if (l.rentTermType && l.rentTermType !== termType) return false;
@@ -2189,8 +2192,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const isVerifiedBonus = item.verification === 'VERIFIED' ? 1000 : 0;
 
     // Recalculate Bayesian Rating dynamically
-    const thumbsUp = item.reviews.filter((r) => r.isPositive).length || item.thumbsUpCount;
-    const thumbsDown = item.reviews.filter((r) => !r.isPositive).length || item.thumbsDownCount;
+    // Baholar jadvali bo'lsa — faqat undan; bo'lmasa saqlangan hisoblagich.
+    // (Avval `||` bilan aralashardi: hamma bahosi 👎 bo'lgan yozuvda 👍 soni
+    // 0 → eski hisoblagich olinib, reyting noto'g'ri chiqardi.)
+    const hasReviewRows = item.reviews.length > 0;
+    const thumbsUp = hasReviewRows ? item.reviews.filter((r) => r.isPositive).length : item.thumbsUpCount || 0;
+    const thumbsDown = hasReviewRows ? item.reviews.filter((r) => !r.isPositive).length : item.thumbsDownCount || 0;
     const bayesianRating = calculateBayesianRating(thumbsUp, thumbsDown);
     const reviewCount = thumbsUp + thumbsDown;
 

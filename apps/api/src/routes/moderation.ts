@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { convertPrice, monthlyEquivalent } from '@kimbor/core';
 import path from 'path';
 import { db } from '@kimbor/db';
 import { containsProfanity, reserveGeminiCallSlot } from '@kimbor/core';
@@ -41,8 +42,7 @@ const AD_PATTERNS = /(kredit|zaym|qarz beramiz|kazino|casino|stavka|1xbet|bettin
 /** Olmaliq uchun oylik ijara narxi (USD) — keng, faqat aniq bema'nilikni ushlaydi. */
 function priceProblem(s: Submission): string | null {
   if (s.kind !== 'rental' || !s.price) return null;
-  const usd = s.currency === 'UZS' ? s.price / 12800 : s.price;
-  const monthly = s.term === 'KUNLIK' ? usd * 30 : s.term === 'YILLIK' ? usd / 12 : usd;
+  const monthly = monthlyEquivalent(convertPrice(s.price, s.currency === 'UZS' ? 'UZS' : 'USD', 'USD'), s.term);
   if (monthly < 15) return `Narx juda past ko'rinadi (${s.price} ${s.currency === 'UZS' ? "so'm" : '$'})`;
   if (monthly > 5000) return `Narx juda baland ko'rinadi (${s.price} ${s.currency === 'UZS' ? "so'm" : '$'})`;
   return null;

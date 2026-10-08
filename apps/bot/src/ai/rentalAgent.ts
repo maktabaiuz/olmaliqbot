@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
 import crypto from 'crypto';
 import { db } from '@kimbor/db';
-import { normalizeText, extractRentalFilters, reserveGeminiCallSlot } from '@kimbor/core';
+import { normalizeText, extractRentalFilters, reserveGeminiCallSlot, convertPrice } from '@kimbor/core';
 import { redisConnection } from '../queue/deleteQueue';
 
 /**
@@ -342,10 +342,11 @@ async function findRentals(cityId: string, s: RentState, opts: { useLandmark: bo
   if (opts.useRooms && s.rooms) where.roomCount = s.rooms;
   if (opts.useLandmark && s.landmarkId) where.primaryLandmarkId = s.landmarkId;
   if (opts.usePrice && s.price) {
-    const usd = s.currency === 'UZS' ? s.price / 12_800 : s.price;
+    // 10% chegara bilan (kelishiladigan narxlar uchun), yagona kurs bo'yicha
+    const cur = s.currency === 'UZS' ? 'UZS' : 'USD';
     where.OR = [
-      { rentPriceCurrency: 'USD', rentPrice: { lte: Math.ceil(usd * 1.1) } },
-      { rentPriceCurrency: 'UZS', rentPrice: { lte: Math.ceil(usd * 12_800 * 1.1) } },
+      { rentPriceCurrency: 'USD', rentPrice: { lte: Math.ceil(convertPrice(s.price, cur, 'USD') * 1.1) } },
+      { rentPriceCurrency: 'UZS', rentPrice: { lte: Math.ceil(convertPrice(s.price, cur, 'UZS') * 1.1) } },
       { rentPrice: null },
     ];
   }

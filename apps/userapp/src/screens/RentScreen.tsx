@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { convertPrice } from '../lib/format';
 import type { Route } from '../lib/router';
 import { navigate } from '../lib/router';
 import { api } from '../lib/api';
@@ -53,7 +54,12 @@ export const RentScreen: React.FC<{ route: Route }> = () => {
       if (qq && !`${l.name} ${l.landmark?.name || ''} ${l.description || ''} ${l.serviceAreas.map((a) => a.name).join(' ')}`.toLowerCase().includes(qq)) return false;
       if (rooms && !(l.rent?.rooms != null && (rooms === 4 ? l.rent.rooms >= 4 : l.rent.rooms === rooms))) return false;
       if (term && l.rent?.term !== term) return false;
-      if (priced && !(l.rent && (l.rent.currency || 'UZS') === cur && l.rent.price >= lo && l.rent.price <= hi)) return false;
+      // Boshqa valyutadagi uy ham kurs bo'yicha solishtiriladi (avval butunlay yashirinardi)
+      if (priced) {
+        if (!l.rent?.price) return false;
+        const p = convertPrice(l.rent.price, (l.rent.currency || 'UZS') as 'USD' | 'UZS', cur);
+        if (p < lo || p > hi) return false;
+      }
       return true;
     });
   }, [all, seg, rooms, term, cur, min, max, q]);

@@ -50,3 +50,10 @@ export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number
 }
 
 export const formatDistance = (m: number) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
+
+/** Dollar kursi — serverdagi USD_UZS_RATE (packages/core/src/money.ts) bilan bir xil bo'lsin. */
+export const USD_UZS_RATE = 12_800;
+export function convertPrice(amount: number, from: 'USD' | 'UZS', to: 'USD' | 'UZS'): number {
+  if (from === to) return amount;
+  return from === 'USD' ? amount * USD_UZS_RATE : amount / USD_UZS_RATE;
+}

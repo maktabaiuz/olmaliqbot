@@ -19,7 +19,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [stats, setStats] = useState({
     totalQuestions: 0,
     unresolvedCount: 0,
-    resolvedPercent: 100,
+    resolvedPercent: null as number | null,
     totalListings: 0,
     totalUsers: 0,
     newUsersToday: 0,
@@ -62,7 +62,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         setStats({
           totalQuestions: statsData.totalQuestions ?? 0,
           unresolvedCount: statsData.unresolvedRequests ?? 0,
-          resolvedPercent: statsData.resolvedPercent ?? 100,
+          resolvedPercent: statsData.resolvedPercent ?? null,
           totalListings: statsData.totalListings ?? 0,
           totalUsers: statsData.totalUsers ?? 0,
           newUsersToday: statsData.newUsersToday ?? 0,
@@ -174,7 +174,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         </div>
         <div className="bg-ios-card p-3 rounded-ios shadow-sm flex flex-col gap-0.5">
           <span className="text-[10px] font-semibold text-ios-label-secondary/70 uppercase">Javob %</span>
-          <span className="text-lg font-black text-ios-green">{stats.resolvedPercent}%</span>
+          <span className="text-lg font-black text-ios-green">{stats.resolvedPercent == null ? '—' : `${stats.resolvedPercent}%`}</span>
         </div>
       </div>
 
