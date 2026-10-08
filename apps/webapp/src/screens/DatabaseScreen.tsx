@@ -94,7 +94,8 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
       let fetchedListings: ListingItem[] = [];
       if (listRes.ok) {
         const rawList = await listRes.json();
-        fetchedListings = rawList.map((item: any) => ({
+        // Arxivlangan (o'chirilgan) yozuvlar bazada ko'rinmaydi
+        fetchedListings = rawList.filter((item: any) => item.status !== 'ARCHIVED').map((item: any) => ({
           id: item.id,
           name: item.name,
           phone: item.phone,

@@ -1392,10 +1392,25 @@ export async function adminRoutes(fastify: FastifyInstance) {
     return { success: true, listing: updated };
   });
 
+  // O'chirish = arxivga olish (2026-10-08). Avval yozuv butunlay, iz
+  // qoldirmasdan o'chirilardi — 16 ta yozuv (Ahmadjon, Samandar, Oybek,
+  // O'zbekinvest...) shu yo'l bilan yo'qolib, na kim o'chirgani, na
+  // ma'lumotning o'zi qolmagan edi. Endi yozuv ARCHIVED holatga o'tadi
+  // (bot va ilovada ko'rinmaydi) va to'liq nusxasi AuditLog'ga yoziladi.
   fastify.delete('/admin/listings/:id', async (req: any, reply) => {
     if (!await requireAdmin(req, reply)) return;
     const { id } = req.params;
-    await db.listing.delete({ where: { id } });
+    const snapshot = await db.listing.findUnique({ where: { id }, include: { category: { select: { name: true } }, primaryLandmark: { select: { name: true } } } });
+    if (!snapshot) return reply.status(404).send({ success: false, message: 'Topilmadi' });
+    await db.listing.update({ where: { id }, data: { status: 'ARCHIVED', priorityRank: null } });
+    await db.auditLog.create({
+      data: {
+        userId: req.user?.id ?? null,
+        cityId: snapshot.cityId,
+        action: 'LISTING_ARCHIVED',
+        details: JSON.parse(JSON.stringify(snapshot, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))),
+      },
+    }).catch(() => {});
     return { success: true };
   });
 
