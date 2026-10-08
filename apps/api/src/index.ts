@@ -1,3 +1,9 @@
+// BigInt maydonlar (ownerTelegramId, telegramId...) JSON'ga matn bo'lib chiqsin.
+// 2026-10-08: egasi bor birinchi e'lon paydo bo'lgach GET /admin/listings har
+// safar 500 qaytarib, admin "Baza" ekrani butunlay bo'sh ("0 ta yozuv") qolgan.
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 import { internalRoutes } from './routes/internalRoutes';
 import { publicRoutes } from './routes/publicRoutes';
 import { userBotWebhook } from './routes/userBotWebhook';
