@@ -1714,6 +1714,8 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // (candidateListings tayyor bo'lgach) natijani ANIQ shu to'plamga
   // cheklash uchun tashqi ko'lamda e'lon qilinadi.
   let namedObjectMatchedIds: Set<string> | null = null;
+  // Nom yozuvning O'Z NOMIGA mos kelganlar (jargon orqali emas) — eng ishonchli signal
+  let namedByTitleIds = new Set<string>();
   const askedName = sanitizeAiName(options.name) || deriveTargetAfterLandmark(rawMessage);
   if (askedName) {
     const landmarkWords = new Set(
@@ -1753,10 +1755,10 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
       const nameMatchedIds = new Set<string>();
       for (const l of allListings) {
-        const relates =
-          nameRelatesToTarget(nameCore, nameWords, l.name) ||
-          l.jargonSynonyms.some((j) => nameRelatesToTarget(nameCore, nameWords, j));
+        const byTitle = nameRelatesToTarget(nameCore, nameWords, l.name);
+        const relates = byTitle || l.jargonSynonyms.some((j) => nameRelatesToTarget(nameCore, nameWords, j));
         if (relates) nameMatchedIds.add(l.id);
+        if (byTitle) namedByTitleIds.add(l.id);
       }
       namedObjectMatchedIds = nameMatchedIds;
 
@@ -2097,6 +2099,17 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // ko'rsatishdan ko'ra).
   if (namedObjectMatchedIds) {
     candidateListings = candidateListings.filter((l) => namedObjectMatchedIds!.has(l.id));
+    // 2026-10-08: "Oʻzbekonani nomeri yozvoriylar" — nom bazadagi yozuv
+    // NOMIGA aniq mos (O'zbekona Food), lekin xabarda toifa ham, uning
+    // jargoni ham yo'q edi, shu sabab u nomzodlar ro'yxatiga umuman
+    // kirmay, bot jim qolardi. Endi yozuv nomi bilan so'ralgan bo'lsa,
+    // o'sha yozuvning o'zi nomzod bo'ladi (pastdagi tekshiruvlar o'zgarmaydi).
+    if (candidateListings.length === 0 && namedByTitleIds.size > 0 && namedByTitleIds.size <= 3) {
+      candidateListings = await db.listing.findMany({
+        where: { id: { in: Array.from(namedByTitleIds) }, cityId, status: 'ACTIVE' },
+        include: { category: true, primaryLandmark: true, serviceAreaLandmarks: true, reviews: true },
+      });
+    }
   }
 
   if (candidateListings.length === 0) {
