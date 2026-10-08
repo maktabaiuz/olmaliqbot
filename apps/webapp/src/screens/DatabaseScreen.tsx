@@ -26,6 +26,8 @@ export interface ListingItem {
   verification: 'VERIFIED' | 'COMMUNITY_UNVERIFIED';
   status: 'ACTIVE' | 'PAUSED' | 'INCOMPLETE';
   updatedAt?: string;
+  createdAt?: string;
+  jargon?: string;
   type: 'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES' | 'RENTALS' | 'FUEL_STATIONS';
 }
 
@@ -33,6 +35,8 @@ export interface DatabaseScreenProps {
   onNavigateTab: (tab: NavTab) => void;
   onSelectListing?: (listingId: string) => void;
 }
+
+const norm = (x: string) => x.toLowerCase().replace(/[’‘ʻʼ`]/g, "'").trim();
 
 export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, onSelectListing }) => {
   const { user } = useAuth();
@@ -49,6 +53,8 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   const [searchQuery, setSearchQuery] = useState('');
   const [listingType, setListingType] = useState<'MASTERS' | 'SHOPS' | 'ORGANIZATIONS' | 'VEHICLES' | 'RENTALS' | 'FUEL_STATIONS'>('MASTERS');
   const [activeFilter, setActiveFilter] = useState<'all' | 'verified' | 'unverified' | 'paused'>('all');
+  const [sortBy, setSortBy] = useState<'new' | 'az' | 'priority'>('new');
+  const [showEmpty, setShowEmpty] = useState(false);
 
   // Data States
   const [categories, setCategories] = useState<CategorySummary[]>([]);
@@ -99,7 +105,12 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
           verification: item.verification || 'COMMUNITY_UNVERIFIED',
           status: item.status || 'ACTIVE',
           updatedAt: item.updatedAt,
-          type: DB_TYPE_TO_SEGMENT[item.type] || 'MASTERS',
+          createdAt: item.createdAt,
+          jargon: [...(item.jargonSynonyms || []), ...(item.category?.synonyms || []), item.specificServices || ''].join(' '),
+          // Bo'lim TOIFA turidan olinadi (yozuvning o'z turi eskirgan bo'lishi
+          // mumkin — 2026-10-08: 15 ta yozuv shu sabab hech bir bo'limda
+          // ko'rinmay qolgan edi, masalan Fast Food=Muassasa, Evos=Usta).
+          type: DB_TYPE_TO_SEGMENT[item.category?.objectType || item.type] || 'MASTERS',
         }));
         setListings(fetchedListings);
       }
@@ -116,9 +127,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
         const currentDbType = SEGMENT_TO_DB_TYPE[listingType];
         const rawCatsForType = rawCats.filter((cat: any) => !cat.objectType || cat.objectType === currentDbType);
         const catSummaries: CategorySummary[] = rawCatsForType.map((cat: any) => {
-          const count = fetchedListings.filter(
-            (l) => l.categoryName.toLowerCase() === cat.name.toLowerCase() && l.type === listingType
-          ).length;
+          const count = fetchedListings.filter((l) => l.categoryId === cat.id).length;
           return {
             id: cat.id,
             name: cat.name,
@@ -182,20 +191,19 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
   // Filter listings based on type, search query, category, and filter chips
   const getFilteredListings = () => {
     return listings.filter((item) => {
-      // 1. Type filter
-      if (item.type !== listingType) return false;
+      const query = norm(searchQuery);
+      // 1. Bo'lim filtri — qidiruvda BARCHA bo'limlar bo'ylab izlanadi
+      if (!query && item.type !== listingType) return false;
 
       // 2. Category filter
-      if (selectedCategory && item.categoryName.toLowerCase() !== selectedCategory.name.toLowerCase()) return false;
+      if (selectedCategory && item.categoryId !== selectedCategory.id) return false;
 
-      // 3. Search query filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesName = item.name.toLowerCase().includes(query);
-        const matchesCategory = item.categoryName.toLowerCase().includes(query);
-        const matchesLandmark = item.landmarkName?.toLowerCase().includes(query) || false;
-        const matchesPhone = item.phone.includes(query);
-        if (!matchesName && !matchesCategory && !matchesLandmark && !matchesPhone) return false;
+      // 3. Qidiruv: nom, toifa, mahalla, telefon, jargon/xizmatlar
+      if (query) {
+        const digits = query.replace(/\D/g, '');
+        const hay = norm(`${item.name} ${item.categoryName} ${item.landmarkName || ''} ${item.jargon || ''}`);
+        const matchesPhone = digits.length >= 3 && item.phone.replace(/\D/g, '').includes(digits);
+        if (!hay.includes(query) && !matchesPhone) return false;
       }
 
       // 4. Status/Verification filter
@@ -207,12 +215,18 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
     });
   };
 
-  const filteredListings = getFilteredListings();
+  const filteredListings = getFilteredListings().sort((a, b) => {
+    if (sortBy === 'az') return a.name.localeCompare(b.name);
+    if (sortBy === 'priority') return (a.priorityRank ?? 99) - (b.priorityRank ?? 99) || a.name.localeCompare(b.name);
+    return (b.createdAt || b.updatedAt || '').localeCompare(a.createdAt || a.updatedAt || '');
+  });
+  const emptyCount = categories.filter((c) => c.count === 0).length;
+  const visibleCategories = showEmpty ? categories : categories.filter((c) => c.count > 0);
 
   // Kategoriyalarni guruh bo'yicha to'playmiz (masalan "Qurilish va ta'mirlash",
   // "Avtomobil va transport" ...) — 76+ kasbni bitta tekis to'rda ko'rsatish
   // o'rniga, mantiqiy bo'limlarga ajratib, topishni osonlashtiradi.
-  const groupedCategories = categories.reduce<Record<string, CategorySummary[]>>((acc, cat) => {
+  const groupedCategories = visibleCategories.reduce<Record<string, CategorySummary[]>>((acc, cat) => {
     const key = cat.group || 'Boshqa';
     if (!acc[key]) acc[key] = [];
     acc[key].push(cat);
@@ -240,7 +254,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
       {/* 1. HEADER BAR */}
       <IosHeader
         title={selectedCategory ? selectedCategory.name : 'Baza'}
-        subtitle={selectedCategory ? `${filteredListings.length} ta yozuv` : `${listings.filter(l => l.type === listingType).length} ta jami`}
+        subtitle={selectedCategory || searchQuery.trim() ? `${filteredListings.length} ta yozuv` : `${listings.filter(l => l.type === listingType).length} ta jami`}
         onBack={selectedCategory ? () => setSelectedCategory(null) : undefined}
         trailing={
           <button
@@ -285,7 +299,7 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
       )}
 
       {/* 3. SEARCH BAR */}
-      <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Ism, kasb, telefon yoki mo'ljal..." />
+      <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Hamma bo'limdan: nom, kasb, telefon, mahalla..." />
 
       {/* 4. FILTER CHIPS (Horizontal Scroll) */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
@@ -310,6 +324,38 @@ export const DatabaseScreen: React.FC<DatabaseScreenProps> = ({ onNavigateTab, o
           </button>
         ))}
       </div>
+
+      {/* Saralash (yozuvlar ro'yxatida) yoki bo'sh toifalar (toifalar ro'yxatida) */}
+      {selectedCategory || searchQuery.trim() ? (
+        <div className="flex items-center gap-1.5 -mt-1">
+          <span className="text-[11px] text-ios-label-secondary/70 mr-1">Saralash:</span>
+          {[
+            { id: 'new', label: 'Yangi' },
+            { id: 'az', label: 'A–Z' },
+            { id: 'priority', label: 'Ustuvorlik' },
+          ].map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setSortBy(o.id as any)}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 ${
+                sortBy === o.id ? 'bg-ios-label text-ios-card' : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        emptyCount > 0 && (
+          <button
+            onClick={() => setShowEmpty((v) => !v)}
+            className="self-start -mt-1 flex items-center gap-1 text-[12px] font-semibold text-ios-blue active:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[16px]">{showEmpty ? 'visibility_off' : 'visibility'}</span>
+            {showEmpty ? "Bo'sh toifalarni yashirish" : `Bo'sh toifalarni ham ko'rsatish (${emptyCount})`}
+          </button>
+        )
+      )}
 
       {/* 5. VIEW 1: CATEGORY LIST grouped by profession family — bitta
           ustunli, yuqoridan pastga tartibli qator ro'yxati (avval 2 ustunli
