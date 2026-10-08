@@ -584,6 +584,15 @@ function wordLevelJargonMatchStrength(
  * shart — aks holda qisqa, tasodifiy ustma-tushishlar o'tib ketardi.
  */
 /**
+ * Qidiruv nega jim qolganini ko'rish uchun (SEARCH_DEBUG=1): har bir "jim
+ * qolish" nuqtasi o'z belgisi bilan qaytadi. Odatdagi ishda hech narsa yozmaydi.
+ */
+function silent(where: string): null {
+  if (process.env.SEARCH_DEBUG === '1') console.log(`[search] jim: ${where}`);
+  return null;
+}
+
+/**
  * Imlo farqlarini tekislash: tutuq belgisiz yozish ("ozbekona" = "o'zbekona")
  * va keng tarqalgan "uz" ↔ "o'z" almashinuvi ("uzbekona food").
  */
@@ -1096,20 +1105,20 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const startTime = Date.now();
   const { cityId, categoryName, landmarkName, badgeFilter, requestedBadges, rawMessage, rentalFilters, isReplyToPhoto, objectType } = options;
 
-  if (!cityId) return null;
-  if (!categoryName && !landmarkName && !rawMessage) return null;
+  if (!cityId) return silent('L1099');
+  if (!categoryName && !landmarkName && !rawMessage) return silent('L1100');
 
   // Ish e'loni ("podsobnik kerak", "ishchi kerak oylik yaxshi") — katalogda
   // bunday narsa yo'q va bo'lmaydi (biz usta/do'kon/muassasa ko'rsatamiz,
   // ishchi kuchi emas). groupHandler buni allaqachon to'xtatadi; bu yerda
   // ham tekshiriladi, shunda shaxsiy chat va boshqa chaqiruv joylari ham
   // himoyalanadi.
-  if (rawMessage && isJobVacancy(rawMessage)) return null;
+  if (rawMessage && isJobVacancy(rawMessage)) return silent('L1107');
 
   // Kommunal xizmat holati haqidagi jamoat savoli ("gaz qachon beriladi")
   // — usta so'rovi emas. AI buni "HOURS + gaz" deb xato baholab, aloqasiz
   // gaz ustasining kontaktini yuborishi real skrinshot bilan tasdiqlangan.
-  if (rawMessage && isUtilityStatusQuestion(rawMessage)) return null;
+  if (rawMessage && isUtilityStatusQuestion(rawMessage)) return silent('L1112');
 
   // 0. Jargon so'zni to'g'ridan-to'g'ri xabar matnidan qidirish. Admin bazaga
   // qo'shganda odamlar shu narsani qanday so'rashini oldindan yozib qo'ygan
@@ -1386,7 +1395,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // yozuv bilan noto'g'ri "javoblanib" qolar edi — AI klassifikator xato
   // qilib landmark ajratib olgan taqdirda ham, bu yerda qat'iy to'xtatiladi.
   if (!categoryName && jargonMatchedIds.size === 0) {
-    return null;
+    return silent('L1389');
   }
 
   // CONTACT intentga oid qat'iy qoida (options.name bo'lmaganda kategoriya
@@ -1662,7 +1671,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     jargonMatchedIds.size === 0 &&
     (!categoryHasAnyListings || !!sanitizeAiName(options.name))
   ) {
-    return null;
+    return silent('L1665');
   }
 
   // ===========================================================
@@ -1753,7 +1762,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
       // (1) Bu nom bazada UMUMAN yo'q — javob berishga asos yo'q.
       if (nameMatchedIds.size === 0) {
-        return null;
+        return silent('L1756');
       }
 
       // (2) Nom bazada bor-u, lekin xabar matnidan topilgan jargon
@@ -1768,7 +1777,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
             break;
           }
         }
-        if (!overlapsAskedName) return null;
+        if (!overlapsAskedName) return silent('L1771');
       }
     }
   }
@@ -2091,7 +2100,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   }
 
   if (candidateListings.length === 0) {
-    return null;
+    return silent('L2094');
   }
 
   // MUHIM (2026-09, real skrinshot bilan tasdiqlangan xato): "Propan
@@ -2114,7 +2123,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       (l) => Array.isArray(l.badges) && l.badges.some((b: string) => requestedFuelTypes.includes(b))
     );
     if (!anyCandidateHasFuelType) {
-      return null;
+      return silent('L2117');
     }
   }
 
@@ -2158,7 +2167,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
       }
       return true;
     });
-    if (candidateListings.length === 0) return null;
+    if (candidateListings.length === 0) return silent('L2161');
   }
 
   // 4. Ranking Formula:
@@ -2299,7 +2308,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   // avvalgidek yuboriladi, chunki u orqali savolga chinakam javob beriladi
   // (buildListingCard'dagi "💵 {narx}" qatori).
   if (options.intent === 'PRICE' && !bestMatch.approxPrice && typeof bestMatch.rentPrice !== 'number') {
-    return null;
+    return silent('L2302');
   }
 
   // MUHIM (2026-09-29, real skrinshot bilan tasdiqlangan xato): "Кайси
@@ -2390,7 +2399,7 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     !bestMatchHasRealSignal &&
     (hasIdentifyingQuestionWord || isReplyToPhoto)
   ) {
-    return null;
+    return silent('L2393');
   }
 
   // ===========================================================
@@ -2421,26 +2430,26 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
         ...(bestMatch.specificServices ? [bestMatch.specificServices] : []),
       ],
     });
-    if (verdict === 'irrelevant') return null;
+    if (verdict === 'irrelevant') return silent('L2424');
     if (verdict === 'relevant') {
       verifiedBy = 'ai';
     } else {
       const strength = jargonMatchedIds.has(bestMatch.id)
         ? conditionalJargon.get(bestMatch.id)?.strength || 'strong'
         : null;
-      if (strength !== 'strong') return null;
+      if (strength !== 'strong') return silent('L2431');
       // "X qayerda sotiladi" — xarid so'rovi; ta'mirchi (USTA) narsa sotmaydi.
       // AI'siz rejimda object_type ma'lum emas, shuning uchun bu yerda
       // xabarning o'zidan aniqlanadi (aqlli kalonka → TV usta xatosi).
       const sellTokens = rawMessage ? normalizeText(rawMessage).split(/\s+/) : [];
       const isPurchase = sellTokens.some((w) => GENERIC_SOT_VERB_FORMS.has(w));
-      if (isPurchase && bestMatch.category?.objectType === 'USTA') return null;
+      if (isPurchase && bestMatch.category?.objectType === 'USTA') return silent('L2437');
       // (2026-10-07, real holat: "5.1 dagi ilgir nomeri" → CARVON zapravkasi)
       // AI'siz rejimda jargon mosligi faqat JOY so'zlari ("5.1 dagi") orqali
       // bo'lishi mumkin. Shuning uchun xabarda javobning O'ZINI bildiruvchi
       // kamida bitta so'z bo'lishi shart: yozuv nomi, kategoriya nomi/sinonimi
       // yoki xizmatlari. Bo'lmasa — jim turamiz.
-      if (rawMessage && !messageNamesListing(rawMessage, bestMatch, jargonEvidence.get(bestMatch.id) || null)) return null;
+      if (rawMessage && !messageNamesListing(rawMessage, bestMatch, jargonEvidence.get(bestMatch.id) || null)) return silent('L2443');
       verifiedBy = 'rule';
     }
   }
@@ -2511,7 +2520,8 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
 
 /** Xabarda yozuvning nomi, sohasi (nomi/sinonimlari) yoki xizmati tilga olinganmi. */
 function messageNamesListing(rawMessage: string, listing: any, matchedPhrase: string | null): boolean {
-  const stem = (w: string) => w.replace(/[^a-z0-9']/g, '').slice(0, 5);
+  // Tutuq belgisi va o'z/uz farqi e'tiborsiz: "ozbekona" = "o'zbekona" = "uzbekona"
+  const stem = (w: string) => foldSpelling(w).replace(/[^a-z0-9]/g, '').slice(0, 5);
   // Raqamli ("5.1", "5/1") va joy qo'shimchali ("...dagi", "...dan") so'zlar
   // yozuvni bildirmaydi — ular faqat QAYERDA ekanini aytadi.
   const tokens = (t: string) =>
