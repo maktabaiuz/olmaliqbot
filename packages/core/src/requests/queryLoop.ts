@@ -318,7 +318,11 @@ export async function notifyUsersOnNewListingAdded(options: {
 }): Promise<NotificationResult> {
   const { cityId, listingId, categoryName, sendNotificationFn } = options;
 
-  if (!cityId || !listingId) {
+  // 2026-10-08: xabar yuboruvchi berilmasa HECH NARSA qilinmaydi. Avval
+  // yuboruvchisiz chaqirilib, hech kimga xabar ketmasa ham yuzlab aloqasiz
+  // so'rovlar ("bolalar mashinasi", oddiy suhbat, 2 oy oldingi) "javob
+  // berildi" deb belgilanib, yangi yozuvga bog'lanardi — statistika buzilgan.
+  if (!cityId || !listingId || !sendNotificationFn) {
     return { notifiedUserIds: [], totalNotified: 0 };
   }
 
@@ -347,18 +351,17 @@ export async function notifyUsersOnNewListingAdded(options: {
   const clusterKeyPattern = `cluster:${cityId}:${canonicalTrade}`;
 
   // 2. Find unresolved query logs for this city matching category, synonyms, or clusterKey
+  // Qat'iy moslash: faqat haqiqiy qidiruv (oddiy suhbat emas), oxirgi 14 kun,
+  // toifa aniq mos. Xabar matnida so'z shunchaki uchrashi ("mashina" ⊂
+  // "bolalar mashinasi") endi yetarli emas.
   const pendingLogs = await db.queryLog.findMany({
     where: {
       cityId,
       isResolved: false,
       notifiedAt: null,
-      OR: [
-        { clusterKey: clusterKeyPattern },
-        { categoryName: { in: searchTerms, mode: 'insensitive' } },
-        ...searchTerms.map((term) => ({
-          rawMessage: { contains: term, mode: 'insensitive' as const },
-        })),
-      ],
+      intent: { not: 'NOT_RELEVANT' },
+      createdAt: { gte: new Date(Date.now() - 14 * 86400_000) },
+      OR: [{ clusterKey: clusterKeyPattern }, { categoryName: { in: searchTerms, mode: 'insensitive' } }],
     },
   });
 
@@ -396,11 +399,9 @@ export async function notifyUsersOnNewListingAdded(options: {
       const logIds = logs.map((l) => l.id);
       await db.queryLog.updateMany({
         where: { id: { in: logIds } },
-        data: {
-          isResolved: true,
-          resolvedListingId: listing.id,
-          notifiedAt: new Date(),
-        },
+        // Faqat "xabar berildi" belgisi — bot o'sha paytda JAVOB BERMAGAN,
+        // shuning uchun isResolved/resolvedListingId o'zgartirilmaydi
+        data: { notifiedAt: new Date() },
       });
       notifiedUserIds.push(userIdStr);
     }
