@@ -393,7 +393,10 @@ function fuzzyMatchCategoryFromText(normalizedText: string): { canonicalName: st
       for (const cand of candidates) {
         if (Math.abs(target.length - cand.length) > 3) continue;
         const dist = levenshteinDistance(cand, target);
-        const threshold = Math.max(1, Math.floor(target.length / 6));
+        // 7 harfdan qisqa so'zlar faqat ANIQ mos kelsin (loyiha qoidasi,
+        // 2026-09-24). Bu yerda qo'llanmagan edi: "yurish" (yo'lda yurish)
+        // ≈ "yurist" deb tirbandlik savoliga advokat berilgan (2026-10-06).
+        const threshold = target.length < 7 ? 0 : Math.floor(target.length / 6);
         if (dist > threshold) continue;
         const isBetter = !best || cand.length > best.candLength || (cand.length === best.candLength && dist < best.distance);
         if (isBetter) {
