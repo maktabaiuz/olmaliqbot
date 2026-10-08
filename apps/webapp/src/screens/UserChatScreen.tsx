@@ -19,6 +19,15 @@ interface UserChatScreenProps {
 
 const HAIRLINE = { borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' };
 
+const QUICK_REPLIES = [
+  { label: '👋 Salomlashish', text: "Assalomu alaykum! Olmaliq botidan yozyapmiz. Sizga qanday yordam bera olamiz?" },
+  { label: "✅ E'lon tasdiqlandi", text: "Xushxabar! E'loningiz tekshiruvdan o'tdi va endi hamma ko'radi. Rahmat! 🙌" },
+  { label: '📞 Raqamni tekshiring', text: "Iltimos, e'loningizdagi telefon raqamni tekshirib bering — biz qo'ng'iroq qila olmadik." },
+  { label: '📍 Mahallani aniqlang', text: "Iltimos, qaysi mahallada joylashganingizni aniq yozib bering — odamlar sizni oson topishi uchun." },
+  { label: '🔎 Qidirib beramiz', text: "So'rovingizni qabul qildik. Bazamizda paydo bo'lishi bilan sizga shu yerda xabar beramiz 🙂" },
+  { label: '🙏 Rahmat', text: "Murojaatingiz uchun rahmat! Savollar bo'lsa, bemalol yozing." },
+];
+
 export const UserChatScreen: React.FC<UserChatScreenProps> = ({
   telegramUserId,
   userFullName,
@@ -298,11 +307,24 @@ export const UserChatScreen: React.FC<UserChatScreenProps> = ({
         </div>
       )}
 
+      {/* Tayyor javoblar — bosilsa matnga tushadi, tahrirlab yuborish mumkin */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-3 pt-2 bg-ios-card" style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}>
+        {QUICK_REPLIES.map((q) => (
+          <button
+            key={q.label}
+            type="button"
+            onClick={() => setInputText(q.text)}
+            className="shrink-0 px-2.5 py-1 rounded-full bg-ios-fill/[0.14] text-[12px] font-semibold text-ios-label active:opacity-60"
+          >
+            {q.label}
+          </button>
+        ))}
+      </div>
+
       {/* Reply Form */}
       <form
         onSubmit={handleSendMessage}
-        className="p-3 bg-ios-card flex gap-2"
-        style={{ borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}
+        className="p-3 pt-2 bg-ios-card flex gap-2"
       >
         <input
           type="text"

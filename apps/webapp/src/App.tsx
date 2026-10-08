@@ -10,6 +10,7 @@ import { IosSearchBar } from './components/ios/IosSearchBar';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { UserChatScreen } from './screens/UserChatScreen';
 import { UsersScreen } from './screens/UsersScreen';
+import { UserProfileScreen } from './screens/UserProfileScreen';
 import { AddListingScreen } from './screens/AddListingScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { DatabaseScreen } from './screens/DatabaseScreen';
@@ -93,7 +94,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<
-    'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
+    'normal' | 'moderators' | 'bot_messages' | 'emergency' | 'dictionary' | 'login_history' | 'bot_simulator' | 'chat' | 'user_profile' | 'category_detail' | 'landmark_detail' | 'group_detail' | 'settings_lang_theme'
   >('normal');
   const [moreSubView, setMoreSubView] = useState<'menu' | 'categories' | 'landmarks' | 'groups' | 'community_link' | 'broadcast' | 'useful_bots' | 'moderation_logs' | 'learned_terms' | 'required_channels' | 'candidates' | 'instant_broadcast' | 'moderation' | 'rentals' | 'mfy_assign'>('menu');
   const [moderationCount, setModerationCount] = useState(0);
@@ -295,12 +296,29 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
           <BotSimulatorScreen onBack={() => setViewMode('normal')} />
         )}
 
+        {viewMode === 'user_profile' && activeChatUserId && (
+          <UserProfileScreen
+            telegramId={activeChatUserId}
+            onBack={() => setViewMode('normal')}
+            onOpenChat={(id, fullName, username) => {
+              setActiveChatUserId(id);
+              setActiveChatUserFullName(fullName);
+              setActiveChatUserUsername(username);
+              setViewMode('chat');
+            }}
+            onOpenListing={(id) => {
+              setViewMode('normal');
+              setSelectedListingId(id);
+            }}
+          />
+        )}
+
         {viewMode === 'chat' && activeChatUserId && (
           <UserChatScreen
             telegramUserId={activeChatUserId}
             userFullName={activeChatUserFullName}
             userUsername={activeChatUserUsername}
-            onBack={() => setViewMode('normal')}
+            onBack={() => setViewMode(activeTab === 'users' ? 'user_profile' : 'normal')}
           />
         )}
 
@@ -397,7 +415,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                       setActiveChatUserId(tgUserId);
                       setActiveChatUserFullName(fullName);
                       setActiveChatUserUsername(username);
-                      setViewMode('chat');
+                      setViewMode('user_profile');
                     }}
                   />
                 )}

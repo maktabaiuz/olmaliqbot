@@ -9,6 +9,8 @@ import { verifyTelegramInitData } from './authSecurity';
  */
 
 export interface PublicUser {
+  /** Telegram initData'dagi xom user obyekti (til, username, premium) */
+  raw?: any;
   telegramId: bigint;
   firstName: string | null;
 }
@@ -21,7 +23,7 @@ export function authPublicUser(req: any): PublicUser | null {
   let res = verifyTelegramInitData(initData, process.env.USER_BOT_TOKEN);
   if (!res.isValid) res = verifyTelegramInitData(initData, process.env.BOT_TOKEN);
   if (!res.isValid || !res.telegramId) return null;
-  return { telegramId: res.telegramId, firstName: res.userRaw?.first_name ?? null };
+  return { telegramId: res.telegramId, firstName: res.userRaw?.first_name ?? null, raw: res.userRaw ?? null };
 }
 
 let cityCache: { id: string; expiresAt: number } | null = null;

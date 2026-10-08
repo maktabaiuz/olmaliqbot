@@ -4,6 +4,7 @@ import { isInformationalPost } from '@kimbor/core';
 import { zeroLayerFilter, classifyQuery, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, searchListings, isSelfOffer, isJobVacancy, isUtilityStatusQuestion, extractRequestedBadges, findLocalDispatcherMatch, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery, recordLearnedTermCandidates } from '@kimbor/core';
 import { db } from '@kimbor/db';
 import { setRankedList } from '../cache/rankedListCache';
+import { trackGroupUser } from '../users/userTracker';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
 import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
 import { enforceModeration } from '../moderation/enforceModeration';
@@ -43,6 +44,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
     db.groupMessageEvent
       .create({ data: { chatId, telegramUserId } })
       .catch((err) => console.error('Failed to log GroupMessageEvent:', err));
+    // Guruhda yozgan har bir odam — Telegram ID, ism, til (raqamsiz)
+    trackGroupUser(ctx, cityId);
   }
 
   // 0. Xavfsizlik-moderatsiya ("Foydali botlar", 2026-09) — har bir filtr

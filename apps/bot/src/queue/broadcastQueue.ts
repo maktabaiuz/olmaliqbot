@@ -20,6 +20,7 @@ import { Bot } from 'grammy';
 import { db } from '@kimbor/db';
 import { buildSlideshowHtml } from '@kimbor/core';
 import { redisConnection } from './deleteQueue';
+import { withGroupSource } from '../users/userTracker';
 
 const QUEUE_NAME = 'broadcast-tick';
 const TICK_JOB_ID = 'broadcast-tick';
@@ -113,12 +114,12 @@ async function sendBroadcastToAllTargets(
   // chiqadi (mavjud "Yana ko'rish"/kanal tugmalari bilan bir xil uslub).
   // Rang — Telegram Bot API'ning haqiqiy, cheklangan 3 ta qiymati:
   // "primary" (ko'k), "success" (yashil), "danger" (qizil).
-  let replyMarkup:
+  let baseReplyMarkup:
     | { inline_keyboard: { text: string; url: string; style?: 'primary' | 'success' | 'danger' }[][] }
     | undefined;
   if (broadcast.linkUrl) {
     if (isValidButtonUrl(broadcast.linkUrl)) {
-      replyMarkup = {
+      baseReplyMarkup = {
         inline_keyboard: [
           [
             {
@@ -134,8 +135,20 @@ async function sendBroadcastToAllTargets(
     }
   }
 
+  let botUsername: string | undefined;
+  try {
+    botUsername = bot.botInfo.username;
+  } catch {
+    botUsername = process.env.BOT_USERNAME;
+  }
+
   for (const chatIdBig of broadcast.targetChatIds) {
     const chatId = Number(chatIdBig);
+    // Bot havolasiga guruh belgisi: t.me/<bot> → t.me/<bot>?start=g<chatId>,
+    // shunda "Userlar"da kim qaysi guruh reklamasidan kelgani ko'rinadi
+    const replyMarkup = baseReplyMarkup && {
+      inline_keyboard: baseReplyMarkup.inline_keyboard.map((row) => row.map((b) => ({ ...b, url: withGroupSource(b.url, botUsername, chatId) }))),
+    };
     try {
       let sentMessageId: number;
       if (slideshowHtml) {

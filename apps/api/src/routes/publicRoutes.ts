@@ -23,6 +23,7 @@ import {
   CANDIDATE_LIMIT_PER_DAY,
 } from './publicSupport';
 import { registerAssistant } from './publicAssistant';
+import { trackApiUser } from '../userTracking';
 import { registerRentals } from './publicRentals';
 import { moderateSubmission } from './moderation';
 
@@ -37,6 +38,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
     const user = authPublicUser(req);
     if (!user) return reply.code(401).send({ success: false, message: 'Telegram orqali oching' });
     req.publicUser = user;
+    trackApiUser(user.telegramId, user.raw, 'app', await getPublicCityId().catch(() => null));
   });
 
   const ACTIVE = { status: 'ACTIVE' as const };

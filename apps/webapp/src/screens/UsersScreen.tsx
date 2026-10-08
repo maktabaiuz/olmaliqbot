@@ -1,352 +1,413 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '../config';
 import { IosHeader } from '../components/ios/IosHeader';
 import { IosSearchBar } from '../components/ios/IosSearchBar';
 import { useAuth } from '../context/AuthContext';
 import { useFeedback } from '../context/FeedbackContext';
+import { BottomSheet } from './rentals/shared';
+import { Avatar, Person, VIA, relTime, displayName, TrustBadge, Sparkline, openTelegram } from '../components/people/PeopleKit';
 
-interface UserItem {
-  id: string;
-  telegramId: string;
-  firstName?: string;
-  lastName?: string;
-  username?: string;
-  phoneNumber?: string;
-  queryCountToday: number;
-  hasComplaints: boolean;
-  lastActivity: string;
-  lastMessageText?: string;
-  isSuspended: boolean;
-  role: string;
+/**
+ * Userlar (2026-10-08 qayta qurilgan). Bot, @uz11_bot, ilova va guruhlardagi
+ * barcha odamlar — raqamsiz, faqat Telegram ID. Statistika, aqlli guruhlar,
+ * qaysi guruhdan kelganlar hisoboti va guruhga xabar yuborish.
+ */
+
+type Segment = 'all' | 'active' | 'new' | 'seekers' | 'owners' | 'business' | 'unanswered' | 'blocked' | 'complaints' | 'group_only' | 'suspended';
+type Sort = 'recent' | 'new' | 'queries' | 'groups';
+
+const SEGMENTS: { id: Segment; label: string; icon: string }[] = [
+  { id: 'all', label: 'Hammasi', icon: 'group' },
+  { id: 'active', label: 'Faol (7 kun)', icon: 'bolt' },
+  { id: 'new', label: 'Yangi', icon: 'fiber_new' },
+  { id: 'seekers', label: 'Uy qidiruvchi', icon: 'search' },
+  { id: 'owners', label: 'Uy egasi', icon: 'key' },
+  { id: 'business', label: 'Biznes egasi', icon: 'storefront' },
+  { id: 'unanswered', label: 'Javobsiz qolgan', icon: 'help' },
+  { id: 'group_only', label: 'Faqat guruhda', icon: 'groups' },
+  { id: 'blocked', label: 'Bloklagan', icon: 'block' },
+  { id: 'complaints', label: 'Shikoyat/xavf', icon: 'report' },
+  { id: 'suspended', label: "To'xtatilgan", icon: 'pause_circle' },
+];
+
+interface Stats {
+  total: number;
+  startedBot: number;
+  newToday: number;
+  active7: number;
+  blocked: number;
+  newPerDay: { date: string; value: number }[];
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: 'Super-Admin',
-  MODERATOR_APPROVER: 'Moderator',
-  MODERATOR_EDITOR: 'Moderator',
-};
-
-interface UsersScreenProps {
-  onSelectUser: (telegramUserId: string, fullName: string, username?: string) => void;
+interface SourceRow {
+  key: string;
+  title: string;
+  total: number;
+  startedBot: number;
+  viaAdLink: number;
+  new30: number;
+  posted: number;
+  active7: number;
+  conversion: number;
 }
 
-const POLL_INTERVAL_MS = 15000;
-
-function initData(): string {
-  return window.Telegram?.WebApp?.initData || '';
+export interface UsersScreenProps {
+  onSelectUser: (telegramId: string, fullName: string, username?: string) => void;
 }
 
 export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
-  const { user: currentUser } = useAuth();
+  const { user } = useAuth();
+  const isSuper = user?.role === 'SUPER_ADMIN';
   const { showToast } = useFeedback();
-  // MUHIM (2026-09): bloklash backendda FAQAT SUPER_ADMIN'ga ruxsat
-  // etilgan (requireSuperAdmin) — avval bu yerda rol tekshiruvi yo'q edi,
-  // CITY_ADMIN/moderator bossa server 403 qaytarardi, tugma esa sukut
-  // ravishda eski holatga qaytib, "ishlamayapti"dek ko'rinardi.
-  const canSuspend = currentUser?.role === 'SUPER_ADMIN';
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [newUsersToday, setNewUsersToday] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'complained' | 'new'>('all');
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
-  // Swipe State
-  const [swipedRowId, setSwipedRowId] = useState<string | null>(null);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [view, setView] = useState<'people' | 'sources'>('people');
+  const [segment, setSegment] = useState<Segment>('all');
+  const [sort, setSort] = useState<Sort>('recent');
+  const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [items, setItems] = useState<Person[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [sources, setSources] = useState<SourceRow[] | null>(null);
+  const [bcOpen, setBcOpen] = useState(false);
+  const reqId = useRef(0);
 
-  const headers = { 'x-init-data': initData() };
-
-  const fetchUsers = async (showSpinner = false) => {
-    if (showSpinner) setIsLoading(true);
-    try {
-      const [usersRes, statsRes] = await Promise.all([
-        fetch(`/api/admin/users?search=${encodeURIComponent(searchQuery)}&filter=${activeFilter}`, { headers }),
-        fetch('/api/admin/stats', { headers }),
-      ]);
-      if (usersRes.ok) {
-        const data = await usersRes.json();
-        setUsers(data || []);
-      }
-      if (statsRes.ok) {
-        const s = await statsRes.json();
-        setTotalUsers(s.totalUsers ?? 0);
-        setNewUsersToday(s.newUsersToday ?? 0);
-      }
-      setLastUpdatedAt(new Date());
-    } catch (err) {
-      console.error('Failed to fetch users:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Qidiruv/filtr o'zgarganda darhol yuklaydi
   useEffect(() => {
-    fetchUsers(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, activeFilter]);
+    const t = setTimeout(() => setDebounced(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  // Real vaqtda yangilanish — har 15 soniyada fonda (spinner ko'rsatmasdan)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    pollRef.current = setInterval(() => fetchUsers(false), POLL_INTERVAL_MS);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, activeFilter]);
-
-  const handleToggleSuspend = async (u: UserItem) => {
-    setBusyUserId(u.id);
-    setSwipedRowId(null);
-    const nextSuspend = !u.isSuspended;
-    // Darhol UI'da yangilaymiz — real vaqtda tuyulishi uchun (server javobi bilan tasdiqlanadi)
-    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: nextSuspend } : x)));
-    try {
-      const res = await fetch(`/api/admin/users/${u.id}/suspend`, {
-        method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ suspend: nextSuspend }),
-      });
-      if (!res.ok) {
-        // Muvaffaqiyatsiz bo'lsa — orqaga qaytaramiz
-        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
-        showToast(
-          res.status === 403
-            ? "Bu amal uchun ruxsatingiz yo'q (faqat bosh admin)"
-            : 'Saqlashda xato yuz berdi',
-          'error'
-        );
+  const load = useCallback(
+    async (p = 0, append = false) => {
+      const my = ++reqId.current;
+      if (!append) setLoading(true);
+      try {
+        const r = await apiFetch(`/api/admin/people?segment=${segment}&sort=${sort}&page=${p}&search=${encodeURIComponent(debounced)}`);
+        const d = await r.json();
+        if (my !== reqId.current || !d.success) return;
+        setItems((prev) => (append ? [...prev, ...d.items] : d.items));
+        setCounts(d.counts);
+        setStats(d.stats);
+        setTotal(d.total);
+        setPage(p);
+      } catch {
+        if (my === reqId.current) showToast('Userlar yuklanmadi', 'error');
+      } finally {
+        if (my === reqId.current) setLoading(false);
       }
-    } catch {
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isSuspended: u.isSuspended } : x)));
-      showToast('Aloqa xatosi', 'error');
-    } finally {
-      setBusyUserId(null);
-    }
-  };
+    },
+    [segment, sort, debounced, showToast]
+  );
 
-  const handleTouchStart = (e: React.TouchEvent, _id: string) => {
-    setTouchStartX(e.touches[0].clientX);
-  };
+  useEffect(() => {
+    if (view === 'people') load(0);
+  }, [load, view]);
 
-  const handleTouchMove = (e: React.TouchEvent, id: string) => {
-    if (touchStartX === null) return;
-    const currentX = e.touches[0].clientX;
-    const diffX = touchStartX - currentX;
+  // Jonli: 30 soniyada birinchi sahifani yangilaydi
+  useEffect(() => {
+    if (view !== 'people') return;
+    const t = setInterval(() => document.visibilityState === 'visible' && page === 0 && load(0), 30000);
+    return () => clearInterval(t);
+  }, [load, view, page]);
 
-    if (diffX > 40) {
-      setSwipedRowId(id);
-    } else if (diffX < -40) {
-      if (swipedRowId === id) setSwipedRowId(null);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setTouchStartX(null);
-  };
-
-  const formatActivityTime = (isoString: string) => {
-    const d = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHrs = Math.floor(diffMs / 3600000);
-
-    if (diffMin < 1) return 'Hozir';
-    if (diffMin < 60) return `${diffMin} daq oldin`;
-    if (diffHrs < 24) return `${diffHrs} soat oldin`;
-    return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit' });
-  };
+  useEffect(() => {
+    if (view !== 'sources' || sources) return;
+    apiFetch('/api/admin/people/sources')
+      .then((r) => r.json())
+      .then((d) => setSources(d.rows || []))
+      .catch(() => showToast('Manbalar yuklanmadi', 'error'));
+  }, [view, sources, showToast]);
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in pb-12">
-      {/* Header */}
-      <div className="flex flex-col gap-3">
-        <IosHeader title="Userlar" />
-
-        {/* Jonli statistika kartasi */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-teal-500 to-emerald-600 text-white p-4 rounded-ios-lg shadow-sm">
-          <div className="absolute right-0 top-0 w-28 h-28 bg-white/10 rounded-full blur-2xl -mr-6 -mt-6" />
-          <div className="relative flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-                  Jonli · har {POLL_INTERVAL_MS / 1000}s yangilanadi
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-3xl font-black tracking-tight">{totalUsers}</span>
-                <span className="text-xs font-semibold text-white/80">bot foydalanuvchisi</span>
-              </div>
-            </div>
-            {newUsersToday > 0 && (
-              <div className="bg-white/15 backdrop-blur rounded-ios px-3 py-2 text-center">
-                <div className="text-lg font-black leading-none">+{newUsersToday}</div>
-                <div className="text-[9px] font-bold uppercase text-white/80 mt-0.5">bugun</div>
-              </div>
-            )}
-          </div>
-          {lastUpdatedAt && (
-            <p className="relative text-[9px] text-white/60 mt-2">
-              Oxirgi yangilanish: {lastUpdatedAt.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </p>
-          )}
-        </div>
-
-        {/* Search */}
-        <IosSearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Ism, username yoki telefon..." />
-
-        {/* Filter Chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
-          {[
-            { id: 'all', label: 'Hammasi' },
-            { id: 'active', label: 'Faol' },
-            { id: 'complained', label: 'Shikoyatli' },
-            { id: 'new', label: 'Yangi' },
-          ].map((chip) => (
-            <button
-              key={chip.id}
-              onClick={() => {
-                setActiveFilter(chip.id as any);
-              }}
-              className={`flex-shrink-0 min-w-max px-4 py-1.5 rounded-full text-[13px] font-bold transition-all active:scale-95 ${
-                activeFilter === chip.id
-                  ? 'bg-ios-blue text-white shadow-sm'
-                  : 'bg-ios-fill/[0.12] text-ios-label-secondary/70'
-              }`}
-            >
-              {chip.label}
+    <div className="flex flex-col gap-3.5 animate-fade-in pb-24">
+      <IosHeader
+        title="Userlar"
+        subtitle={stats ? `${stats.total} kishi · ${stats.startedBot} tasi botda` : 'Yuklanmoqda…'}
+        trailing={
+          isSuper ? (
+            <button onClick={() => setBcOpen(true)} className="bg-ios-blue text-white px-3 py-1.5 rounded-full text-[13px] font-bold active:opacity-70 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px]">campaign</span>Xabar
             </button>
-          ))}
+          ) : undefined
+        }
+      />
+
+      {/* Statistika */}
+      {stats && (
+        <div className="bg-ios-card rounded-ios-lg shadow-sm p-3.5">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {[
+              { n: stats.total, l: 'Jami', c: 'text-ios-label' },
+              { n: stats.newToday, l: 'Bugun yangi', c: 'text-ios-green' },
+              { n: stats.active7, l: 'Faol 7 kun', c: 'text-ios-blue' },
+              { n: stats.blocked, l: 'Bloklagan', c: stats.blocked ? 'text-ios-red' : 'text-ios-label' },
+            ].map((x) => (
+              <div key={x.l}>
+                <div className={`text-[21px] font-bold leading-tight ${x.c}`}>{x.n}</div>
+                <div className="text-[10.5px] text-ios-label-secondary">{x.l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2.5 flex items-end gap-2">
+            <div className="flex-1">
+              <Sparkline values={stats.newPerDay.map((d) => d.value)} />
+            </div>
+            <span className="text-[10.5px] text-ios-label-secondary shrink-0 pb-0.5">14 kunda yangi odamlar</span>
+          </div>
         </div>
+      )}
+
+      {/* Ko'rinish */}
+      <div className="grid grid-cols-2 gap-1 bg-ios-fill/[0.12] rounded-ios p-1">
+        {[
+          { id: 'people', label: 'Odamlar', icon: 'group' },
+          { id: 'sources', label: 'Qayerdan kelishdi', icon: 'insights' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setView(t.id as any)}
+            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-[9px] text-[13px] font-semibold ${view === t.id ? 'bg-ios-card text-ios-label shadow-sm' : 'text-ios-label-secondary'}`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* List Container */}
-      <div className="flex flex-col gap-2">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-ios-label-secondary/70 gap-2">
-            <span className="material-symbols-outlined text-[32px] animate-spin">sync</span>
-            <span className="text-[13px]">Yuklanmoqda...</span>
-          </div>
-        ) : users.length === 0 ? (
-          <div className="bg-ios-card rounded-ios-lg p-8 flex flex-col items-center justify-center text-center shadow-sm">
-            <span className="material-symbols-outlined text-[36px] text-ios-label-secondary/50 mb-2">group</span>
-            <h3 className="font-semibold text-[15px] text-ios-label">Foydalanuvchilar yo'q</h3>
-            <p className="text-[13px] text-ios-label-secondary/70 mt-0.5">Ushbu filtr bo'yicha hech kim topilmadi.</p>
-          </div>
-        ) : (
-          <div className="bg-ios-card rounded-ios-lg overflow-hidden shadow-sm">
-            {users.map((u, idx) => {
-              const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Mijoz';
-              const isSwiped = swipedRowId === u.id;
-              const isLast = idx === users.length - 1;
+      {view === 'people' && (
+        <>
+          <IosSearchBar value={query} onChange={setQuery} placeholder="Ism, @username yoki Telegram ID…" />
 
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4">
+            {SEGMENTS.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSegment(s.id)}
+                className={`shrink-0 flex items-center gap-1 pl-2 pr-2.5 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
+                  segment === s.id ? 'bg-ios-blue text-white' : 'bg-ios-card text-ios-label-secondary'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">{s.icon}</span>
+                {s.label}
+                <span className={`ml-0.5 text-[11px] ${segment === s.id ? 'text-white/80' : 'text-ios-label-secondary/60'}`}>{counts[s.id] ?? ''}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1 -mt-1">
+            <span className="text-[11px] text-ios-label-secondary/80 mr-1">Saralash:</span>
+            {([
+              ['recent', 'Oxirgi faollik'],
+              ['new', 'Yangi'],
+              ['queries', "Ko'p so'ragan"],
+              ['groups', 'Guruhda faol'],
+            ] as [Sort, string][]).map(([id, l]) => (
+              <button key={id} onClick={() => setSort(id)} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${sort === id ? 'bg-ios-label text-ios-card' : 'text-ios-label-secondary/80'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-ios-card rounded-ios shadow-sm overflow-hidden">
+            {loading && items.length === 0 && <div className="p-8 text-center text-[13px] text-ios-label-secondary">Yuklanmoqda…</div>}
+            {!loading && items.length === 0 && (
+              <div className="p-10 flex flex-col items-center gap-1.5 text-center">
+                <span className="material-symbols-outlined text-[38px] text-ios-label-secondary/40">person_search</span>
+                <div className="text-[15px] font-semibold text-ios-label">Hech kim topilmadi</div>
+                <div className="text-[12.5px] text-ios-label-secondary">Boshqa guruh yoki qidiruvni sinab ko'ring</div>
+              </div>
+            )}
+            {items.map((p, idx) => {
+              const via = VIA[p.via] || VIA.group;
               return (
-                <div
-                  key={u.id}
-                  className="relative overflow-hidden w-full h-[72px]"
-                  onTouchStart={(e) => handleTouchStart(e, u.id)}
-                  onTouchMove={(e) => handleTouchMove(e, u.id)}
-                  onTouchEnd={handleTouchEnd}
-                  style={isLast ? undefined : { borderBottom: '0.5px solid rgb(var(--ios-separator) / 0.29)' }}
+                <button
+                  key={p.telegramId}
+                  onClick={() => onSelectUser(p.telegramId, displayName(p), p.username || undefined)}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left active:bg-ios-fill/10"
+                  style={idx ? { borderTop: '0.5px solid rgb(var(--ios-separator) / 0.29)' } : undefined}
                 >
-                  {/* Swipe Actions Behind — Blok tugmasi faqat oddiy (rol=USER)
-                      foydalanuvchilar uchun (admin/moderatorlarni bu yerdan
-                      bloklab bo'lmaydi — backend ham buni rad etadi). */}
-                  <div className="absolute inset-y-0 right-0 flex items-center z-0">
-                    <button
-                      onClick={() => onSelectUser(u.telegramId, fullName, u.username)}
-                      className="h-full w-[64px] bg-ios-blue text-white font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">chat</span>
-                      Javob
-                    </button>
-                    {u.role === 'USER' && canSuspend && (
-                      <button
-                        onClick={() => handleToggleSuspend(u)}
-                        disabled={busyUserId === u.id}
-                        className={`h-full w-[64px] text-white font-bold text-[11px] flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-60 ${
-                          u.isSuspended ? 'bg-ios-green' : 'bg-ios-red'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">
-                          {u.isSuspended ? 'lock_open' : 'block'}
+                  <span className="relative">
+                    <Avatar tgId={p.telegramId} name={displayName(p)} size={46} />
+                    {p.activeRecently && !p.blocked && <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-ios-green" style={{ boxShadow: '0 0 0 2px rgb(var(--ios-card))' }} />}
+                    {p.blocked && <span className="absolute -bottom-0.5 -right-0.5 text-[13px]">🚫</span>}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className={`text-[15px] font-semibold truncate ${p.suspended ? 'text-ios-label-secondary line-through' : 'text-ios-label'}`}>{displayName(p)}</span>
+                      {p.isPremium && <span className="text-[12px]" title="Telegram Premium">⭐</span>}
+                      <TrustBadge trust={p.trust} />
+                    </span>
+                    <span className="block text-[12px] text-ios-label-secondary truncate mt-0.5">
+                      {p.username && p.name ? `@${p.username} · ` : ''}
+                      {p.sourceGroupTitle ? `👥 ${p.sourceGroupTitle}` : via.label}
+                    </span>
+                    <span className="flex items-center gap-2.5 mt-1 text-[11px] text-ios-label-secondary/90">
+                      <span className={`flex items-center gap-0.5 rounded-full px-1.5 py-[1px] font-semibold ${via.cls}`}>
+                        <span className="material-symbols-outlined text-[12px]">{via.icon}</span>
+                        {via.label}
+                      </span>
+                      {p.queries > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[13px]">help</span>
+                          {p.queries}
+                          {p.unanswered > 0 && <span className="text-ios-orange">/{p.unanswered}</span>}
                         </span>
-                        {u.isSuspended ? 'Ochish' : 'Blok'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Foreground Content Card */}
-                  <div
-                    onClick={() => {
-                      if (isSwiped) {
-                        setSwipedRowId(null);
-                      } else {
-                        onSelectUser(u.telegramId, fullName, u.username);
-                      }
-                    }}
-                    className="absolute inset-0 bg-ios-card p-3 flex items-center gap-3 transition-transform duration-300 z-10 cursor-pointer"
-                    style={{ transform: isSwiped ? `translateX(-${u.role === 'USER' && canSuspend ? 128 : 64}px)` : 'translateX(0)' }}
-                  >
-                    {/* Avatar with red dot complaint indicator */}
-                    <div className="relative">
-                      <div
-                        className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0 ${
-                          u.isSuspended ? 'bg-ios-label-secondary' : 'bg-gradient-to-tr from-sky-400 to-blue-500'
-                        }`}
-                      >
-                        {u.firstName ? u.firstName[0].toUpperCase() : 'U'}
-                      </div>
-                      {u.hasComplaints && (
-                        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-ios-red border-2 border-ios-card" />
                       )}
-                    </div>
-
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <h4 className="font-semibold text-[13px] text-ios-label truncate flex items-center gap-1.5">
-                          {fullName}
-                          {ROLE_LABELS[u.role] && (
-                            <span className="text-[9px] font-bold bg-ios-purple/15 text-ios-purple px-1.5 py-0.5 rounded-full shrink-0">
-                              {ROLE_LABELS[u.role]}
-                            </span>
-                          )}
-                          {u.isSuspended && (
-                            <span className="text-[9px] font-bold bg-ios-red/15 text-ios-red px-1.5 py-0.5 rounded-full shrink-0">
-                              Bloklangan
-                            </span>
-                          )}
-                        </h4>
-                        <span className="text-[9px] text-ios-label-secondary/70 shrink-0">
-                          {formatActivityTime(u.lastActivity)}
+                      {p.rentals + p.business > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[13px]">sell</span>
+                          {p.rentals + p.business}
                         </span>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-[11px] text-ios-blue font-medium truncate">
-                          {u.username ? `@${u.username}` : `ID: ${u.telegramId}`}
-                        </p>
-                        <span className="text-[10px] bg-ios-fill/[0.12] text-ios-label-secondary/70 px-2 py-0.5 rounded-full font-semibold shrink-0">
-                          Limit: {u.queryCountToday}/20
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      )}
+                    </span>
+                  </span>
+                  <span className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-[11px] text-ios-label-secondary/80">{relTime(p.lastActive)}</span>
+                    <span
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openTelegram(p);
+                      }}
+                      className="material-symbols-outlined text-[19px] text-ios-blue active:opacity-50"
+                      title="Telegramda ochish"
+                    >
+                      send
+                    </span>
+                  </span>
+                </button>
               );
             })}
           </div>
-        )}
-      </div>
+          {items.length < total && (
+            <button onClick={() => load(page + 1, true)} className="self-center text-[13px] font-semibold text-ios-blue py-2 active:opacity-60">
+              Yana {Math.min(40, total - items.length)} tasini ko'rsatish ({items.length}/{total})
+            </button>
+          )}
+        </>
+      )}
+
+      {view === 'sources' && <SourcesView rows={sources} />}
+
+      {isSuper && <SegmentBroadcastSheet open={bcOpen} onClose={() => setBcOpen(false)} segment={segment} />}
     </div>
+  );
+};
+
+// ---------------------------------------------------------------- manbalar
+
+const SourcesView: React.FC<{ rows: SourceRow[] | null }> = ({ rows }) => {
+  if (!rows) return <div className="bg-ios-card rounded-ios p-8 text-center text-[13px] text-ios-label-secondary">Yuklanmoqda…</div>;
+  const max = Math.max(1, ...rows.map((r) => r.total));
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="bg-ios-blue/10 rounded-ios px-3.5 py-2.5 text-[12.5px] text-ios-label leading-snug">
+        📊 Har bir odam birinchi marta qaysi guruhda ko'ringan yoki qaysi guruhdagi reklama havolasini bosib kelganiga qarab hisoblanadi.
+        <b> «Botga o'tdi»</b> — keyin botni ishga tushirganlar. Shu foiz qaysi guruh yaxshi ishlayotganini ko'rsatadi.
+      </div>
+      {rows.map((r, i) => (
+        <div key={r.key} className="bg-ios-card rounded-ios shadow-sm p-3.5">
+          <div className="flex items-center gap-2">
+            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${i === 0 ? 'bg-ios-orange text-white' : 'bg-ios-fill/[0.14] text-ios-label-secondary'}`}>{i + 1}</span>
+            <span className="flex-1 min-w-0 text-[15px] font-semibold text-ios-label truncate">{r.title}</span>
+            <span className={`text-[13px] font-bold ${r.conversion >= 20 ? 'text-ios-green' : r.conversion >= 5 ? 'text-ios-orange' : 'text-ios-label-secondary'}`}>{r.conversion}%</span>
+          </div>
+          <div className="mt-2.5 h-2 rounded-full bg-ios-fill/[0.14] overflow-hidden flex">
+            <div className="h-full bg-ios-blue/35" style={{ width: `${((r.total - r.startedBot) / max) * 100}%` }} />
+            <div className="h-full bg-ios-green" style={{ width: `${(r.startedBot / max) * 100}%` }} />
+          </div>
+          <div className="mt-2.5 grid grid-cols-5 gap-1 text-center">
+            {[
+              [r.total, 'Jami'],
+              [r.startedBot, "Botga o'tdi"],
+              [r.viaAdLink, 'Reklamadan'],
+              [r.posted, "E'lon berdi"],
+              [r.active7, 'Faol'],
+            ].map(([n, l]) => (
+              <div key={l as string}>
+                <div className="text-[15px] font-bold text-ios-label">{n as number}</div>
+                <div className="text-[9.5px] text-ios-label-secondary leading-tight">{l as string}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------- guruhga xabar
+
+const SegmentBroadcastSheet: React.FC<{ open: boolean; onClose: () => void; segment: Segment }> = ({ open, onClose, segment }) => {
+  const { showToast } = useFeedback();
+  const [seg, setSeg] = useState<Segment>(segment);
+  const [text, setText] = useState('');
+  const [recipients, setRecipients] = useState<number | null>(null);
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) setSeg(segment);
+  }, [open, segment]);
+
+  useEffect(() => {
+    if (!open) return;
+    setRecipients(null);
+    setArmed(false);
+    apiFetch('/api/admin/people/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment: seg, dryRun: true }) })
+      .then((r) => r.json())
+      .then((d) => setRecipients(d.recipients ?? 0))
+      .catch(() => setRecipients(0));
+  }, [open, seg]);
+
+  const send = async () => {
+    if (!armed) return setArmed(true);
+    setBusy(true);
+    try {
+      const r = await apiFetch('/api/admin/people/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segment: seg, text, dryRun: false }) });
+      const d = await r.json();
+      if (!r.ok || !d.success) throw new Error(d.message || 'Xatolik');
+      showToast(`Yuborildi: ${d.sent} ta${d.failed ? ` · yetmadi: ${d.failed}` : ''}`, 'success');
+      setText('');
+      onClose();
+    } catch (e: any) {
+      showToast(e.message, 'error');
+    } finally {
+      setBusy(false);
+      setArmed(false);
+    }
+  };
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Guruhga xabar">
+      <p className="text-[12.5px] text-ios-label-secondary mb-3">Faqat botni ishga tushirgan va bloklamagan odamlarga boradi. Spamga aylantirmang — oyiga 1–2 marta, foydali xabar.</p>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar mb-3">
+        {SEGMENTS.filter((s) => !['blocked', 'suspended', 'group_only'].includes(s.id)).map((s) => (
+          <button key={s.id} onClick={() => setSeg(s.id)} className={`shrink-0 px-2.5 py-1 rounded-full text-[12px] font-semibold ${seg === s.id ? 'bg-ios-blue text-white' : 'bg-ios-card text-ios-label-secondary'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setArmed(false);
+        }}
+        rows={5}
+        placeholder="Masalan: Assalomu alaykum! Botimizda endi ijara uylar ham bor — «uy kerak» deb yozing 🙂"
+        className="w-full bg-ios-card rounded-ios px-3.5 py-3 text-[15px] text-ios-label outline-none focus:ring-1 focus:ring-ios-blue resize-none"
+      />
+      <button
+        disabled={busy || text.trim().length < 3 || !recipients}
+        onClick={send}
+        className={`mt-3 w-full rounded-ios py-3 text-[16px] font-semibold active:opacity-80 disabled:opacity-40 ${armed ? 'bg-ios-red text-white' : 'bg-ios-blue text-white'}`}
+      >
+        {busy ? 'Yuborilmoqda…' : armed ? `Tasdiqlang — ${recipients} kishiga yuborish` : recipients == null ? 'Hisoblanmoqda…' : `${recipients} kishiga yuborish`}
+      </button>
+    </BottomSheet>
   );
 };

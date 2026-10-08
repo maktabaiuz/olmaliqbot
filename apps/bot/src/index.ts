@@ -6,6 +6,7 @@ import { handleGroupMessage } from './handlers/groupHandler';
 import { handleDirectMessage, handleDirectCallbacks, sendStartWelcome } from './handlers/directHandler';
 import { handleRentalPhoto, handleRentalContact } from './ai/rentalAgent';
 import { handleBizPhoto, handleBizContact } from './ai/bizAgent';
+import { trackPrivateUser, trackBotBlock, trackStart, isUserSuspended } from './users/userTracker';
 import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
 import { initGateForNewMember, enforceInviteGate, creditInviteIfTracked, announceInviteUnlocked } from './moderation/inviteGate';
 import type { Context } from 'grammy';
@@ -102,23 +103,8 @@ async function startBot() {
       // BARCHA admin so'rovlariga (masalan "Userlar" soni) ko'rinmas
       // qilib qo'ygan edi. Yagona shahar (Olmaliq) shu jarayonning
       // boshida allaqachon aniqlangan — shuni yozamiz.
-      db.user.upsert({
-        where: { telegramId: tgUserId },
-        update: {
-          firstName: ctx.from.first_name || null,
-          lastName: ctx.from.last_name || null,
-          username: ctx.from.username || null,
-          cityId,
-        },
-        create: {
-          telegramId: tgUserId,
-          firstName: ctx.from.first_name || null,
-          lastName: ctx.from.last_name || null,
-          username: ctx.from.username || null,
-          role: 'USER',
-          cityId,
-        },
-      }).catch(err => console.error('Failed to upsert user:', err));
+      // Til, Premium, oxirgi faollik ham (2026-10-08) — qarang users/userTracker.ts
+      trackPrivateUser(ctx, cityId);
 
       const inboundText = ctx.message?.text
         ? ctx.message.text.trim()
@@ -182,6 +168,11 @@ async function startBot() {
   // va "Obuna bo'ldim" tugmasi chiqadi.
   const passesSubscriptionGate = async (ctx: Context): Promise<boolean> => {
     if (ctx.chat?.type !== 'private' || !ctx.from) return true;
+    // Admin "Userlar"da to'xtatgan odam botdan foydalana olmaydi
+    if (await isUserSuspended(ctx.from.id)) {
+      await ctx.reply("Hisobingiz vaqtincha to'xtatilgan. Savollar bo'lsa, administratorga murojaat qiling.").catch(() => {});
+      return false;
+    }
     const missing = await getMissingChannels(ctx.api, ctx.from.id);
     if (missing.length === 0) return true;
     const gate = buildSubscriptionGate(missing);
@@ -191,6 +182,7 @@ async function startBot() {
 
   bot.command('start', async (ctx) => {
     if (ctx.chat.type === 'private') {
+      trackStart(ctx, typeof ctx.match === 'string' && ctx.match ? ctx.match.trim() : undefined).catch(() => {});
       if (!(await passesSubscriptionGate(ctx))) return;
       await handleDirectMessage(ctx, cityId);
     }
@@ -313,6 +305,12 @@ async function startBot() {
   // sozlashsiz avtomatik ro'yxatga tushadi va ishlay boshlaydi.
   bot.on('my_chat_member', async (ctx) => {
     const chat = ctx.update.my_chat_member.chat;
+    // Shaxsiy chat: foydalanuvchi botni bloklasa "kicked", qayta yoqsa "member"
+    if (chat.type === 'private') {
+      const st = ctx.update.my_chat_member.new_chat_member.status;
+      trackBotBlock(chat.id, st === 'kicked');
+      return;
+    }
     if (chat.type !== 'group' && chat.type !== 'supergroup' && chat.type !== 'channel') return;
 
     const newStatus = ctx.update.my_chat_member.new_chat_member.status;

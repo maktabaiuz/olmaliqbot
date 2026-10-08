@@ -313,7 +313,7 @@ async function suggestLandmarkSynonymsWithGemini(
 
 // moderatorRoutes.ts'dagi bilan bir xil tekshiruv — ommaviy xabar
 // (broadcast) yuborish kuchli, xavfli amal, faqat Super-Admin uchun.
-async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
+export async function requireSuperAdmin(req: any, reply: any): Promise<boolean> {
   const { user, error } = await authenticateRequest(req);
   if (error) {
     reply.status(error.status).send(error.body);

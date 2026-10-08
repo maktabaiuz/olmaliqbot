@@ -6,6 +6,7 @@
 };
 import { internalRoutes } from './routes/internalRoutes';
 import { adminDatabase } from './routes/adminDatabase';
+import { adminPeople } from './routes/adminPeople';
 import { publicRoutes } from './routes/publicRoutes';
 import { userBotWebhook } from './routes/userBotWebhook';
 import { adminModeration, mfyRoutes } from './routes/adminModeration';
@@ -103,6 +104,7 @@ async function main() {
   await fastify.register(mfyRoutes, { prefix: '/api' });
   await fastify.register(internalRoutes, { prefix: '/api' });
   await fastify.register(adminDatabase, { prefix: '/api' });
+  await fastify.register(adminPeople, { prefix: '/api' });
 
   fastify.get('/health', async () => {
     return { status: 'ok', service: 'kimbor-api', timestamp: new Date().toISOString() };

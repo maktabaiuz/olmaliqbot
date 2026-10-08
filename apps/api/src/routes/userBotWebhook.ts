@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { trackApiUser } from '../userTracking';
 import crypto from 'crypto';
 
 /**
@@ -32,6 +33,7 @@ export async function userBotWebhook(fastify: FastifyInstance) {
       return reply.code(401).send();
     }
     const msg = req.body?.message;
+    if (msg?.chat?.type === 'private' && msg.from?.id) trackApiUser(BigInt(msg.from.id), msg.from, 'uz11');
     if (msg?.chat?.type === 'private') {
       const name = msg.from?.first_name ? `, ${msg.from.first_name}` : '';
       // Ulashilgan havola: "/start listing_<id>" → ilova o'sha sahifada ochiladi.

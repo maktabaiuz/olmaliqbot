@@ -299,6 +299,15 @@ model User {
   knownDevices  String[]
   isSuspended   Boolean  @default(false)   // Hisobni vaqtincha to'xtatish
   suspendedAt   DateTime?
+  // Telegram profili va kelib chiqish (2026-10-08) — raqamsiz, faqat Telegram ID bilan
+  languageCode      String?            // Telegram'dagi til ("uz", "ru"...)
+  isPremium         Boolean  @default(false)
+  firstSeenVia      String?            // bot | uz11 | app | group — birinchi qayerda ko'rindi
+  sourceGroupChatId BigInt?            // qaysi guruhdan kelgan (birinchi ko'ringan yoki reklama havolasi)
+  startParam        String?            // birinchi /start belgisi (masalan g1001647665739)
+  startedBotAt      DateTime?          // @olmaliq_bot'ni birinchi marta ishga tushirgan payt
+  botBlockedAt      DateTime?          // botni bloklagan (Telegram my_chat_member)
+  lastSeenAt        DateTime?          // oxirgi faollik (bot, guruh yoki ilova)
   addedBy       String?                     // Kim yaratdi (User.id)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -308,6 +317,8 @@ model User {
   addedListings   Listing[]    @relation("AddedByUser")
   dailyChecks     DailyCheck[]
 
+  @@index([sourceGroupChatId])
+  @@index([lastSeenAt])
   @@map("users")
 }
 
