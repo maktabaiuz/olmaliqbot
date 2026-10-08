@@ -383,6 +383,11 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                       setActiveTab(tab);
                     }}
                     onSelectListing={(id) => setSelectedListingId(id)}
+                    onAddToCategory={(cat) => {
+                      setPrefilledCategory(cat);
+                      setSelectedListingId(null);
+                      setActiveTab('add');
+                    }}
                   />
                 )}
 

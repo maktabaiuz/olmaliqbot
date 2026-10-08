@@ -464,6 +464,7 @@ async function runPrivateSearch(
       categoryName: opts.categoryName,
       landmarkName: opts.landmarkName,
       isResolved: true,
+      resolvedListingId: searchResult.listingId,
       confidence: opts.confidence,
       aiSource: opts.aiSource ?? null,
     },

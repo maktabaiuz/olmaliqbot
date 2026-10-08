@@ -1110,7 +1110,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         // qolardi (batafsil: getDictionarySynonymsForCategory izohi).
         const dictSynonyms = getDictionarySynonymsForCategory(canonicalCategoryName);
         category = await db.category.create({
-          data: { name: canonicalCategoryName, synonyms: dictSynonyms.length > 0 ? dictSynonyms : [canonicalCategoryName.toLowerCase()] },
+          data: { name: canonicalCategoryName, synonyms: dictSynonyms.length > 0 ? dictSynonyms : [canonicalCategoryName.toLowerCase()], objectType: listingType },
         });
       }
 
@@ -1148,7 +1148,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
           cityId,
           categoryId: category.id,
           primaryLandmarkId: landmark.id,
-          type: listingType,
+          // Tur har doim TOIFADAN olinadi (2026-10-08: formadagi bo'lim bilan
+          // toifa turi farq qilib, 15 ta yozuv Baza'da ko'rinmay qolgan edi)
+          type: category.objectType || listingType,
           name,
           phone,
           badges: badges || ['uyga_boradi'],
@@ -1341,6 +1343,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
         ...(rentPriceCurrency !== undefined && { rentPriceCurrency: ['UZS', 'USD'].includes(rentPriceCurrency) ? rentPriceCurrency : null }),
         ...(rentTermType !== undefined && { rentTermType: ['KUNLIK', 'OYLIK', 'YILLIK'].includes(rentTermType) ? rentTermType : null }),
         categoryId,
+        ...(categoryId !== existing.categoryId && await (async () => {
+          const c = await db.category.findUnique({ where: { id: categoryId }, select: { objectType: true } });
+          return c?.objectType ? { type: c.objectType } : {};
+        })()),
         primaryLandmarkId,
         lastVerifiedAt: new Date(),
       },

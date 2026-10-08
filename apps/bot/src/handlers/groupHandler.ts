@@ -280,6 +280,8 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
       categoryName: classification.category,
       landmarkName: classification.landmark,
       isResolved: true,
+      // Qaysi yozuv ko'rsatildi — Baza'dagi "necha marta ko'rsatildi" statistikasi shunga tayanadi
+      resolvedListingId: searchResult.listingId,
       confidence: classification.confidence,
         aiSource: classification.source ?? null,
       responseTimeMs: Date.now() - startTime,
