@@ -13,18 +13,19 @@ import { Avatar, Person, VIA, relTime, displayName, TrustBadge, Sparkline, openT
  * qaysi guruhdan kelganlar hisoboti va guruhga xabar yuborish.
  */
 
-type Segment = 'all' | 'active' | 'new' | 'seekers' | 'owners' | 'business' | 'unanswered' | 'blocked' | 'complaints' | 'group_only' | 'suspended';
+type Segment = 'all' | 'bot' | 'active' | 'new' | 'seekers' | 'owners' | 'business' | 'unanswered' | 'blocked' | 'complaints' | 'group_only' | 'suspended';
 type Sort = 'recent' | 'new' | 'queries' | 'groups';
 
 const SEGMENTS: { id: Segment; label: string; icon: string }[] = [
-  { id: 'all', label: 'Hammasi', icon: 'group' },
-  { id: 'active', label: 'Faol (7 kun)', icon: 'bolt' },
-  { id: 'new', label: 'Yangi', icon: 'fiber_new' },
+  { id: 'bot', label: 'Botdagilar', icon: 'smart_toy' },
+  { id: 'active', label: 'Botda faol (7 kun)', icon: 'bolt' },
+  { id: 'new', label: 'Botga yangi (7 kun)', icon: 'fiber_new' },
   { id: 'seekers', label: 'Uy qidiruvchi', icon: 'search' },
   { id: 'owners', label: 'Uy egasi', icon: 'key' },
   { id: 'business', label: 'Biznes egasi', icon: 'storefront' },
   { id: 'unanswered', label: 'Javobsiz qolgan', icon: 'help' },
   { id: 'group_only', label: 'Faqat guruhda', icon: 'groups' },
+  { id: 'all', label: 'Hammasi', icon: 'group' },
   { id: 'blocked', label: 'Bloklagan', icon: 'block' },
   { id: 'complaints', label: 'Shikoyat/xavf', icon: 'report' },
   { id: 'suspended', label: "To'xtatilgan", icon: 'pause_circle' },
@@ -32,10 +33,13 @@ const SEGMENTS: { id: Segment; label: string; icon: string }[] = [
 
 interface Stats {
   total: number;
-  startedBot: number;
+  botUsers: number;
+  groupOnly: number;
   newToday: number;
+  new7: number;
   active7: number;
   blocked: number;
+  appUsers: number;
   newPerDay: { date: string; value: number }[];
 }
 
@@ -61,7 +65,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
   const { showToast } = useFeedback();
 
   const [view, setView] = useState<'people' | 'sources'>('people');
-  const [segment, setSegment] = useState<Segment>('all');
+  const [segment, setSegment] = useState<Segment>('bot');
   const [sort, setSort] = useState<Sort>('recent');
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -125,7 +129,7 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
     <div className="flex flex-col gap-3.5 animate-fade-in pb-24">
       <IosHeader
         title="Userlar"
-        subtitle={stats ? `${stats.total} kishi · ${stats.startedBot} tasi botda` : 'Yuklanmoqda…'}
+        subtitle={stats ? `Botda ${stats.botUsers} kishi · guruhlarda yana ${stats.groupOnly} kishi kuzatilmoqda` : 'Yuklanmoqda…'}
         trailing={
           isSuper ? (
             <button onClick={() => setBcOpen(true)} className="bg-ios-blue text-white px-3 py-1.5 rounded-full text-[13px] font-bold active:opacity-70 flex items-center gap-1">
@@ -140,10 +144,10 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
         <div className="bg-ios-card rounded-ios-lg shadow-sm p-3.5">
           <div className="grid grid-cols-4 gap-2 text-center">
             {[
-              { n: stats.total, l: 'Jami', c: 'text-ios-label' },
-              { n: stats.newToday, l: 'Bugun yangi', c: 'text-ios-green' },
-              { n: stats.active7, l: 'Faol 7 kun', c: 'text-ios-blue' },
-              { n: stats.blocked, l: 'Bloklagan', c: stats.blocked ? 'text-ios-red' : 'text-ios-label' },
+              { n: stats.botUsers, l: 'Botdan foydalangan', c: 'text-ios-label' },
+              { n: stats.newToday, l: 'Bugun botga yangi', c: 'text-ios-green' },
+              { n: stats.active7, l: 'Botda faol 7 kun', c: 'text-ios-blue' },
+              { n: stats.groupOnly, l: 'Faqat guruhda', c: 'text-ios-label-secondary' },
             ].map((x) => (
               <div key={x.l}>
                 <div className={`text-[21px] font-bold leading-tight ${x.c}`}>{x.n}</div>
@@ -155,7 +159,11 @@ export const UsersScreen: React.FC<UsersScreenProps> = ({ onSelectUser }) => {
             <div className="flex-1">
               <Sparkline values={stats.newPerDay.map((d) => d.value)} />
             </div>
-            <span className="text-[10.5px] text-ios-label-secondary shrink-0 pb-0.5">14 kunda yangi odamlar</span>
+            <span className="text-[10.5px] text-ios-label-secondary shrink-0 pb-0.5">Botga kunlik yangi · 7 kunda {stats.new7}</span>
+          </div>
+          <div className="mt-2 text-[11px] text-ios-label-secondary leading-snug">
+            <b className="text-ios-label">Botdan foydalangan</b> — botni ishga tushirib, unga yozgan odamlar. <b className="text-ios-label">Faqat guruhda</b> — guruhlarda yozgan, lekin botga hali kelmagan (bot ularga yoza olmaydi).
+            {stats.blocked > 0 && <> Botni bloklagan: <b className="text-ios-red">{stats.blocked}</b>.</>}
           </div>
         </div>
       )}

@@ -16,7 +16,7 @@ const RENT_RE = /arenda|ijara|kvartira|hovli|uy\b/i;
 const AVATAR_DIR = path.join(UPLOADS_DIR, 'avatars');
 const AVATAR_TTL_MS = 3 * DAY;
 
-type Segment = 'all' | 'active' | 'new' | 'seekers' | 'owners' | 'business' | 'unanswered' | 'blocked' | 'complaints' | 'group_only' | 'suspended';
+type Segment = 'all' | 'bot' | 'active' | 'new' | 'seekers' | 'owners' | 'business' | 'unanswered' | 'blocked' | 'complaints' | 'group_only' | 'suspended';
 
 async function tg(method: string, params: Record<string, string>) {
   const token = process.env.BOT_TOKEN;
@@ -80,7 +80,10 @@ async function buildPeople() {
     const complaints = complaintMap.get(id) || 0;
     const trust: 'trusted' | 'normal' | 'risky' =
       rejectedN + moderatedN + complaints >= 3 ? 'risky' : (own.rentals + own.business > 0 && rejectedN === 0) || (qMap.get(id)?.n || 0) >= 5 ? 'trusted' : 'normal';
+    // Botda = botni ishga tushirgan (startedBotAt — birinchi bot xabari yoki /start)
     const startedBot = !!u.startedBotAt || (dmMap.get(id)?.n || 0) > 0;
+    const botLastCandidates = [dmMap.get(id)?.last, u.startedBotAt].filter(Boolean) as Date[];
+    const botLast = botLastCandidates.length ? new Date(Math.max(...botLastCandidates.map((d) => d.getTime()))) : null;
     return {
       id: u.id,
       telegramId: id,
@@ -93,6 +96,9 @@ async function buildPeople() {
       sourceGroupTitle: u.sourceGroupChatId ? groupTitle.get(u.sourceGroupChatId.toString()) || 'Boshqa guruh' : null,
       startParam: u.startParam,
       startedBot,
+      startedBotAt: u.startedBotAt,
+      botLast,
+      botActive7: !!botLast && botLast >= since7,
       blocked: !!u.botBlockedAt,
       suspended: u.isSuspended,
       createdAt: u.createdAt,
@@ -116,8 +122,10 @@ type Person = Awaited<ReturnType<typeof buildPeople>>[number];
 
 function inSegment(p: Person, s: Segment): boolean {
   switch (s) {
-    case 'active': return p.activeRecently;
-    case 'new': return p.createdAt.getTime() >= Date.now() - 7 * DAY;
+    case 'bot': return p.startedBot;
+    // "Faol" va "Yangi" — faqat BOT bo'yicha (guruhda yozish hisobga olinmaydi)
+    case 'active': return p.botActive7;
+    case 'new': return !!p.startedBotAt && new Date(p.startedBotAt).getTime() >= Date.now() - 7 * DAY;
     case 'seekers': return p.seeker;
     case 'owners': return p.rentals > 0;
     case 'business': return p.business > 0;
@@ -129,7 +137,7 @@ function inSegment(p: Person, s: Segment): boolean {
     default: return true;
   }
 }
-const SEGMENTS: Segment[] = ['all', 'active', 'new', 'seekers', 'owners', 'business', 'unanswered', 'blocked', 'complaints', 'group_only', 'suspended'];
+const SEGMENTS: Segment[] = ['all', 'bot', 'active', 'new', 'seekers', 'owners', 'business', 'unanswered', 'blocked', 'complaints', 'group_only', 'suspended'];
 
 export async function adminPeople(fastify: FastifyInstance) {
   fastify.addHook('preHandler', async (req: any, reply) => {
@@ -147,12 +155,13 @@ export async function adminPeople(fastify: FastifyInstance) {
     const people = await buildPeople();
     const counts = Object.fromEntries(SEGMENTS.map((s) => [s, people.filter((p) => inSegment(p, s)).length]));
 
-    // 14 kunlik yangi odamlar (Toshkent kuni)
+    // 14 kunlik: botga YANGI qo'shilganlar (botni birinchi ishga tushirgan kun, Toshkent)
     const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent' });
     const days = Array.from({ length: 14 }, (_, i) => fmt.format(new Date(Date.now() - (13 - i) * DAY)));
     const perDay = new Map(days.map((d) => [d, 0]));
     for (const p of people) {
-      const d = fmt.format(p.createdAt);
+      if (!p.startedBotAt) continue;
+      const d = fmt.format(new Date(p.startedBotAt));
       if (perDay.has(d)) perDay.set(d, perDay.get(d)! + 1);
     }
     const todayKey = fmt.format(new Date());
@@ -178,10 +187,13 @@ export async function adminPeople(fastify: FastifyInstance) {
       success: true,
       stats: {
         total: people.length,
-        startedBot: people.filter((p) => p.startedBot).length,
+        botUsers: counts.bot,
+        groupOnly: counts.group_only,
         newToday: perDay.get(todayKey) || 0,
+        new7: counts.new,
         active7: counts.active,
         blocked: counts.blocked,
+        appUsers: people.filter((p) => p.via === 'app' || p.via === 'uz11').length,
         newPerDay: days.map((d) => ({ date: d, value: perDay.get(d) || 0 })),
       },
       counts,
