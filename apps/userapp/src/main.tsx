@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { startAutoUpdate } from './autoUpdate';
 import { App } from './App';
 import { initTelegram } from './lib/telegram';
 import './styles.css';
@@ -17,6 +18,8 @@ if (!window.location.hash.startsWith('#/')) {
   const go = GO_ROUTES[q.get('go') || ''];
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${listing ? `/listing/${listing}` : go || '/'}`);
 }
+startAutoUpdate();
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
