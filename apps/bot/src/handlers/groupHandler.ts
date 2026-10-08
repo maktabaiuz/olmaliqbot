@@ -253,19 +253,24 @@ export async function handleGroupMessage(ctx: Context, cityId: string) {
   // rasmli yozuvlarda matn/rasmlarni aralashtirib yuborardi) va kanal/
   // guruhga o'tish havolasi (qizil/danger, admin panelidan sozlansa — HAR
   // BIR postda ko'rinadi).
-  if (searchResult.hasMore) {
-    const firstHadPhoto = !!(searchResult.listing.photoUrls && searchResult.listing.photoUrls.length > 0);
-    await setRankedList(searchResult.listingId, searchResult.otherMatches, firstHadPhoto);
-  }
   const keyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 
-  await sendListingReply(ctx, {
+  const sentId = await sendListingReply(ctx, {
     formattedText: searchResult.formattedText,
     photoUrls: searchResult.listing.photoUrls,
     keyboard,
     replyToMessageId: ctx.message.message_id,
     autoDeleteChatId: ctx.chat?.id,
   });
+  // "Yana" navbati shu POSTga bog'lanadi (chat + xabar ID)
+  if (searchResult.hasMore && sentId && ctx.chat) {
+    await setRankedList(
+      ctx.chat.id,
+      sentId,
+      { formattedText: searchResult.formattedText, photoUrls: searchResult.listing.photoUrls || [], mapUrl: searchResult.listing.mapUrl || null },
+      searchResult.otherMatches
+    );
+  }
 
   // Muvaffaqiyatli topildi — "Guruhlar" bo'limidagi "so'rov/javob"
   // statistikasi shu yozuvga tayanadi (2026-09, ilgari BU HOLAT umuman

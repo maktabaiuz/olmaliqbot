@@ -1,89 +1,85 @@
 /**
  * rankedListCache.ts
  *
- * "Yana ko'rish" tugmasi bosilganda 2-7 o'rinlarni bittadan ko'rsatish
- * uchun holatni saqlaydi.
+ * "Yana ko'rish" tugmasi uchun holat (2026-10-08 qayta yozildi).
  *
- * MUHIM (2026-09, ikkinchi marta tuzatildi): avval mavjud xabarni
- * TAHRIRLASH (edit) usuli ishlatilgan, keyin bu rasmli yozuvlar uchun
- * matn/rasmlarni aralashtirib yuborgani sabab har doim YANGI, mustaqil
- * xabar yuborishga o'zgartirilgan edi — lekin bu guruhda "Yana" bir necha
- * marta bosilsa, bir xil savolga o'nlab alohida post to'planib qolishiga
- * olib keldi (real skrinshot bilan tasdiqlangan shikoyat). Endi ikkalasi
- * ham to'g'ri: RASMLI (Rich Message) yozuvlar hamon o'zining alohida
- * postida yuboriladi (matn/rasm aralashmasligi uchun), lekin ikkala
- * tomon ham (hozir ekranda turgan xabar HAM, keyingi ko'rsatiladigan
- * yozuv HAM) MATN-ONLY bo'lsa — yangi post yuborish o'rniga MAVJUD
- * xabarning o'zi tahrirlanadi, shunda chat bitta post ichida "aylanadi",
- * ortiqcha ko'payib ketmaydi.
+ * Tartib: "Yana" bosilganda YANGI post yuborilmaydi — o'sha postning o'zi
+ * tahrirlanib, avvalgi ma'lumotlar o'z joyida qoladi va ularning OSTIGA
+ * navbatdagi yozuv qo'shiladi (bir post ichida 1, 2, 3... yozuv). Rasmli
+ * yozuvlar ham shunday — Telegram rich xabarni tahrirlashga ruxsat beradi.
  *
- * Buning uchun holatga `lastHadPhoto` qo'shildi — ekranda HOZIR turgan
- * xabar rasmli (Rich Message) yoki oddiy matnligini kuzatadi.
+ * Holat endi POST bo'yicha saqlanadi (chatId:messageId). Avval birinchi
+ * yozuvning ID'si kalit edi — ikki guruhda bir vaqtda bir xil savol
+ * berilsa, ikkala post bitta navbatni bo'lishib, bir-birining yozuvlarini
+ * "yeb" qo'yardi.
  *
- * Redis'da (BullMQ bilan bir xil ulanish) saqlanadi, shuning uchun bot
- * qayta ishga tushsa ham (deploy paytida) tugma ishlayveradi. Muddati
- * xabar o'chirilish vaqti bilan bir xil (15 daqiqa).
+ * Redis'da, 15 daqiqa (guruh xabari o'chish muddati bilan bir xil).
  */
 
 import { redisConnection } from '../queue/deleteQueue';
 
-const KEY_PREFIX = 'kimbor:rankedlist:';
+const KEY_PREFIX = 'kimbor:rankedlist:v2:';
 const TTL_SECONDS = 15 * 60;
 
 export interface RankedListItem {
   formattedText: string;
   photoUrls: string[];
-  /** Bo'lsa — "📍 Lokatsiya" (yashil) tugmasi shu yozuv uchun ham qo'shiladi. */
+  /** Bo'lsa — "📍 Lokatsiya" tugmasi shu yozuv uchun ham qo'shiladi. */
   mapUrl: string | null;
 }
 
-export interface RankedListState {
-  /** 2-7 o'rinlar — "Yana ko'rish" bosilganda navbat bilan ko'rsatiladi. */
-  items: RankedListItem[];
-  /** items'dan nechtasi hozircha ko'rsatilgan. */
-  revealed: number;
-  /** Ekranda HOZIR turgan xabar rasmli (Rich Message) bo'lsa true —
-   * shunda keyingi bosishda tahrirlab bo'lmaydi, yangi post kerak. */
-  lastHadPhoto: boolean;
+interface RankedListState {
+  /** Postda hozir ko'rinib turgan yozuvlar (birinchisi — asosiy javob). */
+  shown: RankedListItem[];
+  /** Hali ko'rsatilmagan navbat. */
+  queue: RankedListItem[];
 }
 
-export async function setRankedList(
-  listingId: string,
-  items: RankedListItem[],
-  firstResultHadPhoto: boolean
-): Promise<void> {
+const key = (chatId: number, messageId: number) => `${KEY_PREFIX}${chatId}:${messageId}`;
+
+export async function setRankedList(chatId: number, messageId: number, first: RankedListItem, rest: RankedListItem[]): Promise<void> {
   try {
-    const state: RankedListState = { items, revealed: 0, lastHadPhoto: firstResultHadPhoto };
-    await redisConnection.set(`${KEY_PREFIX}${listingId}`, JSON.stringify(state), 'EX', TTL_SECONDS);
+    const state: RankedListState = { shown: [first], queue: rest };
+    await redisConnection.set(key(chatId, messageId), JSON.stringify(state), 'EX', TTL_SECONDS);
   } catch (err) {
     console.error('Failed to cache ranked list:', err);
   }
 }
 
 /**
- * Keyingi bitta natijani "ochadi" (revealed +1) va qaytaradi. `canEdit`
- * — ekranda hozir turgan xabar HAM, keyingi yozuv HAM matn-only bo'lsa
- * true (shu holatda chaqiruvchi yangi post o'rniga mavjud xabarni
- * tahrirlashi kerak). Holat topilmasa (muddati o'tgan) yoki hammasi
- * allaqachon ko'rsatilgan bo'lsa — null.
+ * Navbatdagi bitta yozuvni postga qo'shadi va postda endi ko'rinishi kerak
+ * bo'lgan BARCHA yozuvlarni qaytaradi. Holat topilmasa (muddati o'tgan)
+ * yoki navbat tugagan bo'lsa — null.
  */
 export async function revealNextRankedItem(
-  listingId: string
-): Promise<{ item: RankedListItem; remaining: number; canEdit: boolean } | null> {
+  chatId: number,
+  messageId: number
+): Promise<{ shown: RankedListItem[]; remaining: number } | null> {
   try {
-    const raw = await redisConnection.get(`${KEY_PREFIX}${listingId}`);
+    const raw = await redisConnection.get(key(chatId, messageId));
     if (!raw) return null;
     const state: RankedListState = JSON.parse(raw);
-    if (state.revealed >= state.items.length) return null;
-    const item = state.items[state.revealed];
-    const currentHadPhoto = state.lastHadPhoto;
-    const nextHasPhoto = !!(item.photoUrls && item.photoUrls.length > 0);
-    state.revealed += 1;
-    state.lastHadPhoto = nextHasPhoto;
-    await redisConnection.set(`${KEY_PREFIX}${listingId}`, JSON.stringify(state), 'EX', TTL_SECONDS);
-    return { item, remaining: state.items.length - state.revealed, canEdit: !currentHadPhoto && !nextHasPhoto };
+    const next = state.queue.shift();
+    if (!next) return null;
+    state.shown.push(next);
+    await redisConnection.set(key(chatId, messageId), JSON.stringify(state), 'EX', TTL_SECONDS);
+    return { shown: state.shown, remaining: state.queue.length };
   } catch (err) {
     console.error('Failed to update ranked list reveal state:', err);
     return null;
+  }
+}
+
+/** Zaxira holatda (yangi post yuborilganda) navbat yangi postga ko'chadi. */
+export async function moveRankedList(chatId: number, fromMessageId: number, toMessageId: number): Promise<void> {
+  try {
+    const raw = await redisConnection.get(key(chatId, fromMessageId));
+    if (!raw) return;
+    const state: RankedListState = JSON.parse(raw);
+    state.shown = state.shown.slice(-1);
+    await redisConnection.set(key(chatId, toMessageId), JSON.stringify(state), 'EX', TTL_SECONDS);
+    await redisConnection.del(key(chatId, fromMessageId));
+  } catch (err) {
+    console.error('Failed to move ranked list:', err);
   }
 }

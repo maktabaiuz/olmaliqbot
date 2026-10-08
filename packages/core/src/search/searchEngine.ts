@@ -2239,7 +2239,10 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
     const directJargonBonus = !jargonMatchedIds.has(item.id)
       ? 0
       : jargonStrengthInfo?.strength === 'category'
-        ? 150
+        ? 0 // 2026-10-08: jargonida faqat toifa so'zi ("taksi") bor yozuv shu bilan
+            // har doim g'olib chiqardi (150 ball, boshqalar ~5) — "taksi kerak"ga
+            // 4 taksistdan faqat bittasi berilardi. Toifa ichida bu hech kimni
+            // ajratmaydi; navbat rotatsiya bilan teng taqsimlanadi.
         : jargonStrengthInfo?.strength === 'weak'
           ? 0
           : 2000 + (jargonQuality.get(item.id) || 0);

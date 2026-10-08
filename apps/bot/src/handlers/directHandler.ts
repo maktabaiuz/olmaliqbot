@@ -3,9 +3,9 @@ import { buildSearchParams, isNonSearchMessage } from './searchParams';
 import { classifyQuery, searchListings, isSelfOffer, matchCategoryFromText, normalizeText, renderEmergencyTemplate, detectEmergencyCategory, isValidEmergencyCategory, extractRequestedBadges, findLocalDispatcherMatch, resolveCanonicalCategoryName, extractRentalFilters, sanitizeAiLandmarkName, findAreaListings, isAreaBrowseQuery } from '@kimbor/core';
 import { IntentType } from '@kimbor/types';
 import { db } from '@kimbor/db';
-import { setRankedList, revealNextRankedItem } from '../cache/rankedListCache';
+import { setRankedList, revealNextRankedItem, moveRankedList } from '../cache/rankedListCache';
 import { getEmergencyLocalNumbers } from '../settings/appSettings';
-import { buildResultKeyboard, sendListingReply } from '../utils/listingReply';
+import { buildResultKeyboard, sendListingReply, appendToListingPost } from '../utils/listingReply';
 import { getAssistantReply, rememberTurn, clearHistory } from '../ai/chatAssistant';
 import { handleRentalText, handleRentalCallback, clearRentState, startRentalFix } from '../ai/rentalAgent';
 import { handleBizText, handleBizCallback, clearBizState, startBizFlow, startBizFix } from '../ai/bizAgent';
@@ -441,17 +441,21 @@ async function runPrivateSearch(
   // formatida (bosilsa o'zi nusxalanadi). "📍 Lokatsiya" tugmasi esa
   // (2026-09, Zapravkalar uchun) admin mapUrl qo'ygan bo'lsa qaytadan
   // qo'shiladi (buildResultKeyboard ichida).
-  if (searchResult.hasMore) {
-    const firstHadPhoto = !!(searchResult.listing.photoUrls && searchResult.listing.photoUrls.length > 0);
-    await setRankedList(searchResult.listingId, searchResult.otherMatches, firstHadPhoto);
-  }
   const resultKeyboard = await buildResultKeyboard(searchResult.otherMatches.length, searchResult.listingId, searchResult.listing.mapUrl);
 
-  await sendListingReply(ctx, {
+  const sentId = await sendListingReply(ctx, {
     formattedText: searchResult.formattedText,
     photoUrls: searchResult.listing.photoUrls,
     keyboard: resultKeyboard,
   });
+  if (searchResult.hasMore && sentId && ctx.chat) {
+    await setRankedList(
+      ctx.chat.id,
+      sentId,
+      { formattedText: searchResult.formattedText, photoUrls: searchResult.listing.photoUrls || [], mapUrl: searchResult.listing.mapUrl || null },
+      searchResult.otherMatches
+    );
+  }
 
   // Muvaffaqiyatli topildi — ilgari bu holat umuman qayd etilmasdi
   // (2026-09 tuzatildi, xuddi groupHandler.ts'dagi kabi).
@@ -551,35 +555,25 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
 
   if (data.startsWith('more_')) {
     const listingId = data.replace('more_', '');
-    const revealed = await revealNextRankedItem(listingId);
+    const chatId = ctx.chat?.id;
+    const messageId = ctx.callbackQuery?.message?.message_id;
+    const revealed = chatId && messageId ? await revealNextRankedItem(chatId, messageId) : null;
 
     if (!revealed) {
       await ctx.answerCallbackQuery({ text: "Vaqti tugadi, savolni qayta yozing", show_alert: true });
       return;
     }
-
     await ctx.answerCallbackQuery();
 
-    // Navbatdagi moslik: agar ekranda hozir turgan xabar HAM, yangi
-    // yozuv HAM matn-only bo'lsa (rasm yo'q) — mavjud xabarning o'zi
-    // tahrirlanadi (yangi post yuborilmaydi), shunda "Yana" bir necha
-    // marta bosilsa ham chatda ortiqcha post to'planib qolmaydi. Rasmli
-    // (Rich Message) yozuvlar esa hamon o'zining alohida postida
-    // yuboriladi (2026-09, ikkinchi marta tuzatildi — qarang:
-    // rankedListCache.ts).
+    // O'sha post tahrirlanadi: avvalgi yozuvlar joyida, ostiga navbatdagisi
+    // (2026-10-08). Lokatsiya tugmalari har yozuv uchun raqami bilan.
     const isGroupChat = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
-    const keyboard = await buildResultKeyboard(revealed.remaining, listingId, revealed.item.mapUrl);
-
+    const keyboard = await buildResultKeyboard(revealed.remaining, listingId, revealed.shown.map((s) => s.mapUrl));
     try {
-      await sendListingReply(ctx, {
-        formattedText: revealed.item.formattedText,
-        photoUrls: revealed.item.photoUrls,
-        keyboard,
-        editMessage: revealed.canEdit,
-        autoDeleteChatId: revealed.canEdit ? undefined : (isGroupChat ? ctx.chat?.id : undefined),
-      });
+      const r = await appendToListingPost(ctx, revealed.shown, keyboard, isGroupChat);
+      if (r.mode === 'new_post' && r.messageId && chatId && messageId) await moveRankedList(chatId, messageId, r.messageId);
     } catch (err) {
-      console.error('Failed to send next ranked item:', err);
+      console.error('Failed to show next ranked item:', err);
     }
   }
 }

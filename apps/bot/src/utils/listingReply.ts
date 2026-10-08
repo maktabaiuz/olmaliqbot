@@ -38,16 +38,18 @@ function extractCleanUrl(raw: string): string | null {
 export async function buildResultKeyboard(
   remainingCount: number,
   listingId: string,
-  mapUrl?: string | null
+  mapUrl?: string | null | (string | null)[]
 ): Promise<InlineKeyboard> {
   const keyboard = new InlineKeyboard();
   if (remainingCount > 0) {
     keyboard.text(`Yana ${remainingCount} tasini ko'rish`, `more_${listingId}`).success().row();
   }
-  const cleanMapUrl = mapUrl ? extractCleanUrl(mapUrl) : null;
-  if (cleanMapUrl) {
-    keyboard.url('📍 Lokatsiya', cleanMapUrl).success().row();
-  }
+  // Postda bir nechta yozuv bo'lsa — har birining lokatsiyasi o'z raqami bilan
+  const maps = (Array.isArray(mapUrl) ? mapUrl : [mapUrl]).map((u) => (u ? extractCleanUrl(u) : null));
+  const many = maps.length > 1;
+  maps.forEach((u, i) => {
+    if (u) keyboard.url(many ? `📍 ${i + 1}-lokatsiya` : '📍 Lokatsiya', u).success().row();
+  });
   const communityUrl = await getCommunityUrl();
   const communityLabel = communityUrl ? await getCommunityLabel() : null;
   if (communityUrl && communityLabel) {
@@ -82,7 +84,7 @@ export interface SendListingReplyOptions {
  * Rich Message (suriladigan albom + karta matni + tugmalar BITTA
  * postda), bo'lmasa oddiy matn+tugmalar.
  */
-export async function sendListingReply(ctx: Context, opts: SendListingReplyOptions): Promise<void> {
+export async function sendListingReply(ctx: Context, opts: SendListingReplyOptions): Promise<number | undefined> {
   const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
   const bodyText = opts.autoDeleteChatId
     ? `${opts.formattedText}\n\n🕐 Bu xabar 15 daqiqada o'chadi`
@@ -100,7 +102,7 @@ export async function sendListingReply(ctx: Context, opts: SendListingReplyOptio
   if (opts.editMessage && !slideshowHtml) {
     try {
       await ctx.editMessageText(bodyText, { parse_mode: 'HTML', reply_markup: finalKeyboard });
-      return;
+      return ctx.callbackQuery?.message?.message_id;
     } catch (err) {
       console.error('sendListingReply: tahrirlash muvaffaqiyatsiz, yangi post yuborilmoqda:', err);
     }
@@ -136,4 +138,57 @@ export async function sendListingReply(ctx: Context, opts: SendListingReplyOptio
   if (opts.autoDeleteChatId && sentMsg?.message_id) {
     await scheduleMessageDeletion(opts.autoDeleteChatId, sentMsg.message_id, 15 * 60 * 1000);
   }
+  return sentMsg?.message_id;
+}
+
+const SEPARATOR = '\n\n━━━━━━━━━━━━\n\n';
+
+/**
+ * "Yana" bosilganda — o'sha postning o'zini tahrirlaydi: avvalgi yozuvlar
+ * joyida qoladi, ostiga navbatdagisi qo'shiladi (2026-10-08). Rasmli
+ * yozuvlar bo'lsa — rich xabar (har yozuv o'z rasmlari bilan). Tahrirlab
+ * bo'lmasa (juda eski post, uzunlik chegarasi) — navbatdagi yozuv alohida
+ * post bo'lib yuboriladi, foydalanuvchi baribir javobsiz qolmaydi.
+ */
+export async function appendToListingPost(
+  ctx: Context,
+  items: { formattedText: string; photoUrls: string[] | null | undefined }[],
+  keyboard: InlineKeyboard,
+  autoDeleteNote: boolean
+): Promise<{ mode: 'edited' } | { mode: 'new_post'; messageId?: number }> {
+  const publicBaseUrl = process.env.WEBAPP_URL || `https://${process.env.DOMAIN || 'olmaliq.online'}`;
+  const note = autoDeleteNote ? `\n\n🕐 Bu xabar 15 daqiqada o'chadi` : '';
+  const finalKeyboard = keyboard.inline_keyboard.length > 0 ? keyboard : undefined;
+  const anyPhoto = items.some((it) => it.photoUrls && it.photoUrls.length > 0);
+  const plain = items.map((it) => it.formattedText).join(SEPARATOR) + note;
+
+  try {
+    if (anyPhoto) {
+      const html =
+        items
+          .map((it) => {
+            const show = buildSlideshowHtml(it.photoUrls, publicBaseUrl);
+            return `${show ? `${show}<br>` : ''}${it.formattedText.replace(/\n/g, '<br>')}`;
+          })
+          .join('<br><br>━━━━━━━━━━━━<br><br>') + note.replace(/\n/g, '<br>');
+      await ctx.editMessageText({ html } as any, { reply_markup: finalKeyboard });
+    } else {
+      if (plain.length > 4000) throw new Error('matn juda uzun');
+      await ctx.editMessageText(plain, { parse_mode: 'HTML', reply_markup: finalKeyboard });
+    }
+    return { mode: 'edited' };
+  } catch (err) {
+    console.error('appendToListingPost: postni tahrirlab bo\'lmadi, alohida post yuboriladi:', (err as Error).message);
+  }
+
+  // Zaxira: faqat navbatdagi yozuv — alohida post
+  const last = items[items.length - 1];
+  const chatId = ctx.chat?.id;
+  const messageId = await sendListingReply(ctx, {
+    formattedText: last.formattedText,
+    photoUrls: last.photoUrls,
+    keyboard,
+    autoDeleteChatId: autoDeleteNote ? chatId : undefined,
+  });
+  return { mode: 'new_post', messageId };
 }
