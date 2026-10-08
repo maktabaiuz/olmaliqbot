@@ -951,7 +951,9 @@ async function buildListingCard(
   categoryDisplayName: string
 ): Promise<string> {
   const verifiedIcon = item.verification === 'VERIFIED' ? '✅' : '⚠️';
-  const landmarkText = item.primaryLandmark?.name || '';
+  // "MFY tanlanmagan" — ichki belgi, odamlarga ko'rsatilmaydi (📍 qatori chiqmaydi)
+  const rawLandmark = item.primaryLandmark?.name || '';
+  const landmarkText = rawLandmark === 'MFY tanlanmagan' ? '' : rawLandmark;
 
   const badgesText = Array.isArray(item.badges) && item.badges.length > 0
     ? item.badges.map((b: string) => b.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())).join(' · ')

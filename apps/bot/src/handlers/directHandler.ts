@@ -557,10 +557,13 @@ export async function handleDirectCallbacks(ctx: Context, defaultCityId: string)
     const listingId = data.replace('more_', '');
     const chatId = ctx.chat?.id;
     const messageId = ctx.callbackQuery?.message?.message_id;
-    const revealed = chatId && messageId ? await revealNextRankedItem(chatId, messageId) : null;
+    const revealed = chatId && messageId ? await revealNextRankedItem(chatId, messageId) : 'expired';
 
-    if (!revealed) {
-      await ctx.answerCallbackQuery({ text: "Vaqti tugadi, savolni qayta yozing", show_alert: true });
+    if (revealed === 'expired' || revealed === 'empty') {
+      await ctx.answerCallbackQuery({
+        text: revealed === 'empty' ? "Boshqa variant qolmadi — hammasi ko'rsatildi 🙂" : 'Bu javob eskirdi (15 daqiqa) — savolni qayta yozing',
+        show_alert: true,
+      });
       return;
     }
     await ctx.answerCallbackQuery();

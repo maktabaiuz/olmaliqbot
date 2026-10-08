@@ -54,19 +54,19 @@ export async function setRankedList(chatId: number, messageId: number, first: Ra
 export async function revealNextRankedItem(
   chatId: number,
   messageId: number
-): Promise<{ shown: RankedListItem[]; remaining: number } | null> {
+): Promise<{ shown: RankedListItem[]; remaining: number } | 'expired' | 'empty'> {
   try {
     const raw = await redisConnection.get(key(chatId, messageId));
-    if (!raw) return null;
+    if (!raw) return 'expired';
     const state: RankedListState = JSON.parse(raw);
     const next = state.queue.shift();
-    if (!next) return null;
+    if (!next) return 'empty';
     state.shown.push(next);
     await redisConnection.set(key(chatId, messageId), JSON.stringify(state), 'EX', TTL_SECONDS);
     return { shown: state.shown, remaining: state.queue.length };
   } catch (err) {
     console.error('Failed to update ranked list reveal state:', err);
-    return null;
+    return 'expired';
   }
 }
 
