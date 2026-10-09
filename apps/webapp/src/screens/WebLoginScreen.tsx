@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
 
+// Shaffof video: Safari/WebKit (iPhone, Telegram iOS va Mac) faqat HEVC alfani,
+// Chrome/Android faqat VP9 alfani to'g'ri ko'rsatadi — aks holda fon qora chiqadi.
+const IS_APPLE_WEBKIT =
+  typeof navigator !== 'undefined' &&
+  /AppleWebKit/.test(navigator.userAgent) &&
+  /(iPhone|iPad|iPod|Macintosh)/.test(navigator.userAgent) &&
+  !/(Chrome|CriOS|Chromium|Edg|OPR|Android|FxiOS|Firefox)/.test(navigator.userAgent);
+
 export interface WebLoginScreenProps {
   onLogin: (loginUsername: string, password: string) => Promise<{ success: boolean; message?: string }>;
 }
@@ -38,9 +46,19 @@ export const WebLoginScreen: React.FC<WebLoginScreenProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="w-16 h-16 bg-ios-blue/10 rounded-full flex items-center justify-center mx-auto mb-5 text-ios-blue">
-          <span className="material-symbols-outlined text-[28px]">language</span>
-        </div>
+        {/* Kirish sahifasidagi animatsiya (shaffof fonli o'rdak): iPhone/Telegram iOS —
+            HEVC alfa (.mov), Android/kompyuter — VP9 alfa (.webm) */}
+        <video
+          className="w-36 h-36 mx-auto mb-3 pointer-events-none select-none"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          aria-hidden="true"
+        >
+          <source src={IS_APPLE_WEBKIT ? '/login-duck.mov' : '/login-duck.webm'} type={IS_APPLE_WEBKIT ? 'video/mp4' : 'video/webm'} />
+        </video>
 
         <h1 className="text-[22px] font-semibold mb-1 text-ios-label text-center">
           Kim bor? — Admin panel
