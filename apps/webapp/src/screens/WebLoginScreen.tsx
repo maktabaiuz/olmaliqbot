@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import duckUrl from '../assets/login-duck.webp';
 
 export interface WebLoginScreenProps {
   onLogin: (loginUsername: string, password: string) => Promise<{ success: boolean; message?: string }>;
@@ -43,7 +44,8 @@ export const WebLoginScreen: React.FC<WebLoginScreenProps> = ({ onLogin }) => {
             brauzerda o'zi aylanadi (2026-10-09: video ba'zi qurilmalarda chiqmagan).
             Tungi rejimda qora monitorlar fonga singmasligi uchun yengil yorug' soya. */}
         <img
-          src="/login-duck.webp"
+          src={duckUrl}
+          decoding="async"
           alt=""
           aria-hidden="true"
           draggable={false}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import duckUrl from '../assets/login-duck.webp';
 
 export interface LoginScreenProps {
   adminName?: string;
@@ -38,7 +39,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* Kompyuter oldidagi o'rdak — animatsion WebP (shaffof fon, tungi/kunduzgi
             rejim, iPhone/Telegram'da ham o'zi aylanadi) */}
         <img
-          src="/login-duck.webp"
+          src={duckUrl}
+          decoding="async"
           alt=""
           aria-hidden="true"
           draggable={false}
