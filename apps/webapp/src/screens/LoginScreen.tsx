@@ -6,7 +6,7 @@ export interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
-  adminName = 'Admin',
+  adminName: _adminName = 'Admin',
   onLogin,
 }) => {
   const [password, setPassword] = useState('');
@@ -35,15 +35,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   return (
     <div className="min-h-screen bg-ios-bg text-ios-label flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="w-16 h-16 bg-ios-blue/10 rounded-full flex items-center justify-center mx-auto mb-5 text-ios-blue text-[28px]">
-          <span className="material-symbols-outlined text-[30px]">lock</span>
-        </div>
+        {/* Kompyuter oldidagi o'rdak — animatsion WebP (shaffof fon, tungi/kunduzgi
+            rejim, iPhone/Telegram'da ham o'zi aylanadi) */}
+        <img
+          src="/login-duck.webp"
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="block w-52 h-52 mx-auto mb-2 select-none pointer-events-none dark:[filter:drop-shadow(0_0_16px_rgba(255,255,255,0.18))]"
+        />
 
         <h1 className="text-[22px] font-semibold mb-1 text-ios-label text-center">
-          Xush kelibsiz, {adminName}
+          Bu bo'lim adminlar uchun
         </h1>
         <p className="text-ios-label-secondary/70 text-[15px] mb-6 text-center">
-          Davom etish uchun parolni kiriting
+          Ish olib borilmoqda · parolni kiriting
         </p>
 
         {error && (
