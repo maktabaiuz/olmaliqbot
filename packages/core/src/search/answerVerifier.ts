@@ -88,6 +88,9 @@ export async function verifyAnswerRelevance(params: {
           responseMimeType: 'application/json',
           responseSchema: { type: 'OBJECT', properties: { relevant: { type: 'BOOLEAN' } }, required: ['relevant'] },
           maxOutputTokens: 200,
+          // Barqaror qaror: bir xil savol+javobga har safar bir xil hukm (2026-10-09:
+          // standart tasodifiylik bilan "kran almashtirish → santexnik" goh o'tib, goh rad etilardi)
+          temperature: 0,
           temperature: 0,
         },
       }),
