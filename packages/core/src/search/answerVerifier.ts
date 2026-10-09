@@ -33,6 +33,7 @@ A person wrote a message in a city Telegram group (Uzbek Latin/Cyrillic, Russian
 The search engine proposes ONE business as the answer. Decide if sending it would be a correct, helpful answer.
 
 relevant = true ONLY if the person is actually asking for this kind of business/service, or for this specific business.
+A described problem or task that this kind of professional normally handles IS relevant even if the trade name is not written — e.g. "kran almashtirish kerak" / "unitaz tiqilib qoldi" → plumber (santexnik); "darvozaga svarka" → welder; "svet yo'q, rozetka kuydi" → electrician.
 relevant = false if the message is about something else, for example:
 - a road, turn, traffic, a place/landmark itself ("is the X turn open", "how is the road to X")
 - news, events, gossip, safety, utility outages, prices of things in general
