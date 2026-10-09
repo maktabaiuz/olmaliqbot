@@ -2442,7 +2442,12 @@ export async function searchListings(options: SearchOptions): Promise<FormattedL
   const resolvedCategoryIdSet = new Set(
     (Array.isArray(whereCondition.categoryId?.in) ? whereCondition.categoryId.in : []) as string[]
   );
-  const isRiskyAnswer = !hasResolvedCategory || !resolvedCategoryIdSet.has(bestMatch.categoryId);
+  // 2026-10-09 (real holat: "Damas OLADIGAN vodiyliklarni nomeri" → taksi):
+  // AI toifani xabarda UMUMAN uchramaydigan so'zdan TAXMIN qilgan bo'lsa
+  // (na toifa nomi, na sinonimi, na yozuv nomi/xizmatlari xabarda bor),
+  // bu toifaga ko'r-ko'rona ishonib bo'lmaydi — javob yakuniy tekshiruvdan o'tadi.
+  const categoryGroundedInMessage = !rawMessage || messageNamesListing(rawMessage, bestMatch, jargonEvidence.get(bestMatch.id) || null);
+  const isRiskyAnswer = !hasResolvedCategory || !resolvedCategoryIdSet.has(bestMatch.categoryId) || !categoryGroundedInMessage;
   let verifiedBy: 'not_needed' | 'ai' | 'rule' = 'not_needed';
   if (isRiskyAnswer && rawMessage) {
     const verdict = options.disableAiVerification ? 'unknown' : await verifyAnswerRelevance({
