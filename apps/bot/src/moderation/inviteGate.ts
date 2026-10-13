@@ -133,52 +133,85 @@ export async function initGateForNewMember(chatId: number, telegramUserId: numbe
 }
 
 /**
- * `chat_member` yangilanishida chaqiriladi — agar yangi a'zo BIZNING
- * tizim yaratgan shaxsiy taklif havolasi orqali kirgan bo'lsa, o'sha
- * havola egasining hisobini +1 oshiradi va chegaraga yetgan-yetmaganini
- * tekshiradi. Mos havola topilmasa (umumiy guruh havolasi orqali kirgan
- * bo'lsa) — jim o'tkazib yuboriladi.
- *
- * Qaytaradi: agar shu voqea bilan kimdir ENDI "ochilgan" (chegaraga
- * yetgan) bo'lsa, o'sha odamning telegramUserId'si — chaqiruvchi tomon
- * tabriklab qo'yishi uchun; aks holda `null`.
+ * Yangi a'zo qo'shilganda (`chat_member`) — kim qo'shganini aniqlab, uning
+ * hisobini oshiradi (2026-10-13 qayta yozildi). IKKI usul ham sanaladi:
+ *   - shaxsiy taklif havolasi orqali kirgan → havola egasiga;
+ *   - "A'zo qo'shish" tugmasi bilan qo'shilgan → qo'shgan odamga
+ *     (Telegram `from` maydonida aniq aytadi). Avval faqat havola sanalardi —
+ *     "Olmaliq Suhbat"da 291 kishi kutib, birortasi ham o'ta olmagan edi.
+ * Aldovdan himoya: o'zini o'zi qo'shish, botlar, oldin guruhda yozgan odamni
+ * chiqarib-qayta qo'shish va bitta odamni ikki marta sanash hisoblanmaydi.
  */
-export async function creditInviteIfTracked(
+export async function creditNewMember(
   chatId: number,
+  invitedId: number,
+  adderId: number | undefined,
   usedInviteLink: string | undefined
 ): Promise<{ newlyVerifiedUserId: bigint } | null> {
-  if (!usedInviteLink) return null;
+  const { enabled, requiredCount } = await getGateConfig(chatId);
+  if (!enabled || requiredCount <= 0) return null;
   const cityGroupId = await resolveCityGroupId(chatId);
   if (!cityGroupId) return null;
 
-  const link = await db.groupInviteLink.findUnique({ where: { inviteLink: usedInviteLink } });
-  if (!link || link.cityGroupId !== cityGroupId) return null;
+  let inviter: bigint | null = null;
+  let method: 'link' | 'direct' = 'direct';
+  if (usedInviteLink) {
+    const link = await db.groupInviteLink.findUnique({ where: { inviteLink: usedInviteLink } });
+    if (link && link.cityGroupId === cityGroupId) {
+      inviter = link.inviterTelegramId;
+      method = 'link';
+    }
+  }
+  if (!inviter && adderId && adderId !== invitedId) inviter = BigInt(adderId);
+  if (!inviter || inviter === BigInt(invitedId)) return null;
 
-  const { requiredCount } = await getGateConfig(chatId);
-  if (requiredCount <= 0) return null;
+  const invited = BigInt(invitedId);
+  // Oldin shu guruhda yozgan odam — "yangi" emas (chiqarib-qayta qo'shish)
+  const wasMemberBefore = await db.groupMessageEvent.findFirst({
+    where: { chatId: BigInt(chatId), telegramUserId: invited, createdAt: { lt: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (wasMemberBefore) return null;
+  // Bitta odam faqat bir marta (birinchi qo'shganga) sanaladi
+  try {
+    await db.groupInviteCredit.create({ data: { cityGroupId, inviterTelegramId: inviter, invitedTelegramId: invited, method } });
+  } catch {
+    return null; // allaqachon sanalgan
+  }
 
   const progress = await db.groupInviteProgress.findUnique({
-    where: { cityGroupId_telegramUserId: { cityGroupId, telegramUserId: link.inviterTelegramId } },
+    where: { cityGroupId_telegramUserId: { cityGroupId, telegramUserId: inviter } },
   });
-  // Taklif qiluvchining o'zi hali "kutib turuvchi" ro'yxatida bo'lmasligi
-  // mumkin (masalan feature undan KEYIN yoqilgan bo'lsa) — baribir
-  // hisoblashda davom etamiz (upsert), chunki havolaning o'zi faqat
-  // feature yoqiq paytda yaratiladi.
   const wasVerified = progress?.isVerified ?? false;
   const updated = await db.groupInviteProgress.upsert({
-    where: { cityGroupId_telegramUserId: { cityGroupId, telegramUserId: link.inviterTelegramId } },
+    where: { cityGroupId_telegramUserId: { cityGroupId, telegramUserId: inviter } },
     update: { invitedCount: { increment: 1 } },
-    create: { cityGroupId, telegramUserId: link.inviterTelegramId, invitedCount: 1 },
+    create: { cityGroupId, telegramUserId: inviter, invitedCount: 1 },
   });
-
   if (!wasVerified && updated.invitedCount >= requiredCount) {
-    await db.groupInviteProgress.update({
-      where: { id: updated.id },
-      data: { isVerified: true },
-    });
-    return { newlyVerifiedUserId: link.inviterTelegramId };
+    await db.groupInviteProgress.update({ where: { id: updated.id }, data: { isVerified: true } });
+    return { newlyVerifiedUserId: inviter };
   }
   return null;
+}
+
+/**
+ * Qo'shilgan odam 24 soat ichida guruhdan chiqib ketsa — hisob qaytariladi
+ * (odamlarni qo'shib, darrov chiqarib yuborish orqali aldashning oldini oladi).
+ * Allaqachon "ochilgan" odam qayta qulflanmaydi.
+ */
+export async function revokeCreditOnLeave(chatId: number, leftId: number): Promise<void> {
+  const cityGroupId = await resolveCityGroupId(chatId);
+  if (!cityGroupId) return;
+  const credit = await db.groupInviteCredit.findUnique({
+    where: { cityGroupId_invitedTelegramId: { cityGroupId, invitedTelegramId: BigInt(leftId) } },
+  });
+  if (!credit || credit.revokedAt || Date.now() - credit.createdAt.getTime() > 24 * 3600_000) return;
+  await db.groupInviteCredit.update({ where: { id: credit.id }, data: { revokedAt: new Date() } });
+  await db.groupInviteProgress.updateMany({
+    where: { cityGroupId, telegramUserId: credit.inviterTelegramId, invitedCount: { gt: 0 } },
+    data: { invitedCount: { decrement: 1 } },
+  });
 }
 
 async function getOrCreatePersonalInviteLink(
@@ -277,7 +310,7 @@ export async function enforceInviteGate(ctx: Context): Promise<boolean> {
   const text =
     `👋 <a href="tg://user?id=${userId}">${escapeHtml(firstName)}</a>, bu guruhda yozish uchun odam taklif qiling!\n\n` +
     `Kerak: <b>${requiredCount}</b> kishi · Qo'shdingiz: <b>${progress.invitedCount}</b> · Qoldi: <b>${remaining}</b>\n\n` +
-    `Nega? Ko'proq odam bo'lsa — hammaga foyda: savolingizga tezroq javob topiladi 🙌\n\n` +
+    `Qanday? Guruh nomini bosib <b>«A'zo qo'shish»</b> orqali kontaktlaringizdan qo'shing yoki pastdagi tugma bilan havolani yuboring — ikkalasi ham sanaladi ✅\n\n` +
     `<i>Bu xabar ${NUDGE_AUTO_DELETE_MS / 60000} daqiqada o'chadi.</i>`;
 
   // 1) TAKLIF tugmasi: Telegram'ning o'zining "Ulashish" oynasini ochadi —

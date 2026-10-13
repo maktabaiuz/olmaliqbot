@@ -8,7 +8,7 @@ import { handleRentalPhoto, handleRentalContact } from './ai/rentalAgent';
 import { handleBizPhoto, handleBizContact } from './ai/bizAgent';
 import { trackPrivateUser, trackBotBlock, trackStart, isUserSuspended } from './users/userTracker';
 import { getMissingChannels, buildSubscriptionGate } from './subscription/requiredChannels';
-import { initGateForNewMember, enforceInviteGate, creditInviteIfTracked, announceInviteUnlocked } from './moderation/inviteGate';
+import { initGateForNewMember, enforceInviteGate, creditNewMember, revokeCreditOnLeave, announceInviteUnlocked } from './moderation/inviteGate';
 import type { Context } from 'grammy';
 import { startDeletionWorker, redisConnection } from './queue/deleteQueue';
 import { scheduleBroadcastTicks, startBroadcastWorker } from './queue/broadcastQueue';
@@ -283,19 +283,27 @@ async function startBot() {
 
     const prevStatus = update.old_chat_member.status;
     const newStatus = update.new_chat_member.status;
-    const justJoined =
-      (prevStatus === 'left' || prevStatus === 'kicked') &&
-      (newStatus === 'member' || newStatus === 'administrator' || newStatus === 'restricted');
-    if (!justJoined || update.new_chat_member.user.is_bot) return;
+    const wasIn = !(prevStatus === 'left' || prevStatus === 'kicked');
+    const isIn = newStatus === 'member' || newStatus === 'administrator' || newStatus === 'restricted' || newStatus === 'creator';
+    const member = update.new_chat_member.user;
+    if (member.is_bot) return;
 
+    // Chiqib ketdi — 24 soat ichida bo'lsa, qo'shgan odamning hisobi qaytariladi
+    if (wasIn && !isIn) {
+      revokeCreditOnLeave(chat.id, member.id).catch((err) => console.error('revokeCreditOnLeave xatosi:', err));
+      return;
+    }
+    if (wasIn || !isIn) return;
+
+    // Havola orqali kirgan yoki "A'zo qo'shish" bilan qo'shilgan (from = qo'shgan odam)
     const usedLink = update.invite_link?.invite_link;
     try {
-      const result = await creditInviteIfTracked(chat.id, usedLink);
+      const result = await creditNewMember(chat.id, member.id, update.from?.id, usedLink);
       if (result) {
         await announceInviteUnlocked(ctx, chat.id, result.newlyVerifiedUserId);
       }
     } catch (err) {
-      console.error('creditInviteIfTracked xatosi:', err);
+      console.error('creditNewMember xatosi:', err);
     }
   });
 

@@ -210,6 +210,24 @@ model GroupInviteProgress {
   @@map("group_invite_progress")
 }
 
+// "Majburiy taklif" jurnali (2026-10-13): kim kimni, qaysi usulda qo'shdi.
+// Bitta odam bir guruhda faqat BIR MARTA sanaladi (birinchi qo'shganga);
+// 24 soat ichida chiqib ketsa — revokedAt qo'yilib, hisob qaytariladi.
+model GroupInviteCredit {
+  id                String    @id @default(uuid())
+  cityGroupId       String
+  inviterTelegramId BigInt
+  invitedTelegramId BigInt
+  method            String    // link | direct ("A'zo qo'shish" tugmasi)
+  revokedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([cityGroupId, invitedTelegramId])
+  @@index([cityGroupId, createdAt])
+  @@index([cityGroupId, inviterTelegramId])
+  @@map("group_invite_credits")
+}
+
 // Admin panelidan yaratiladigan, rejalashtirilgan ommaviy xabar (broadcast) —
 // bot ulangan tanlangan guruh/kanallarga o'zi belgilagan vaqtda va
 // takrorlanish oralig'ida yuboriladi (apps/bot/src/queue/broadcastQueue.ts).

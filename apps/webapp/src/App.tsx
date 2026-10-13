@@ -530,7 +530,7 @@ const MainShell: React.FC<AppProps> = ({ previewConfig }) => {
                       <CommunityLinkSubView onBack={() => setMoreSubView('menu')} />
                     )}
                     {moreSubView === 'useful_bots' && (
-                      <UsefulBotsScreen onBack={() => setMoreSubView('menu')} />
+                      <UsefulBotsScreen onBack={() => setMoreSubView('menu')} onOpenLogs={() => setMoreSubView('moderation_logs')} />
                     )}
                     {moreSubView === 'moderation_logs' && (
                       <ModerationLogsScreen onBack={() => setMoreSubView('menu')} />
